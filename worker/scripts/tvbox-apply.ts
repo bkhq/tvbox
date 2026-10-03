@@ -5,9 +5,14 @@
  * Upstreams are matched by URL: a declared one that is missing is created,
  * one whose name or sync flag differs is updated, and `primary: true` makes
  * it the primary. Upstreams added in the admin console but not declared here
- * are left alone (and reported). Every declared upstream is then synced, and
- * the result is published when anything changed (always with `--publish`,
- * never with `--no-publish`).
+ * are left alone, but synced when their sync flag is on.
+ *
+ * `tvbox/doh.json` next to the upstreams file declares the DoH resolvers
+ * every device gets: common DoH entries are matched by URL, missing ones are
+ * created and come first, and common ones not declared are disabled.
+ *
+ * Every sync-enabled upstream is then synced, and the result is published
+ * when anything changed (always with `--publish`, never with `--no-publish`).
  *
  * With `--check`, every entry is then probed as scripts/tvbox-health.ts does
  * and the results applied before publishing, so what a sync brought in that
@@ -22,7 +27,8 @@
  * an admin under Settings → API tokens.
  */
 /* eslint-disable no-console */
-import { readFileSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { dirname, join } from "node:path";
 import process from "node:process";
 import { applyResults, checkAll, client } from "./tvbox-health";
 
@@ -39,6 +45,19 @@ interface Upstream {
   readonly url: string;
   readonly isPrimary: boolean;
   readonly syncEnabled: boolean;
+}
+
+interface Resolver {
+  readonly name: string;
+  readonly url: string;
+}
+
+interface Entry {
+  readonly id: string;
+  readonly upstreamId: string | null;
+  readonly enabled: boolean;
+  readonly disabledByHealth: boolean;
+  readonly data: Record<string, unknown>;
 }
 
 interface SyncResult {
@@ -90,6 +109,53 @@ function readDeclared(path: string): Declared[] {
   return declared;
 }
 
+function readResolvers(path: string): Resolver[] {
+  const parsed: unknown = JSON.parse(readFileSync(path, "utf8"));
+  if (!Array.isArray(parsed))
+    throw new Error(`${path} must be a JSON array of resolvers`);
+  return parsed.map((entry, i) => {
+    const e = entry as Partial<Resolver>;
+    if (typeof e.name !== "string" || e.name.trim() === "" || typeof e.url !== "string" || !/^https:\/\//.test(e.url))
+      throw new Error(`${path}[${i}] needs a "name" and an https "url"`);
+    return { name: e.name, url: e.url };
+  });
+}
+
+/** Make the common DoH entries match the declared resolvers; returns the number of changes. */
+async function applyResolvers(resolvers: readonly Resolver[]): Promise<number> {
+  const common = (await api<Entry[]>("GET", "/tvbox/entries?kind=doh")).filter(e => e.upstreamId === null);
+  let changes = 0;
+  const ids: string[] = [];
+  for (const r of resolvers) {
+    const found = common.find(e => e.data.url === r.url);
+    if (!found) {
+      ids.push((await api<Entry>("POST", "/tvbox/entries", { kind: "doh", data: { name: r.name, url: r.url } })).id);
+      console.log(`doh      created ${r.name}`);
+      changes++;
+      continue;
+    }
+    ids.push(found.id);
+    // One health disabled stays off until a check passes again.
+    const enable = !found.enabled && !found.disabledByHealth;
+    if (found.data.name !== r.name || enable) {
+      await api("PATCH", `/tvbox/entries/${found.id}`, {
+        ...(found.data.name !== r.name ? { data: { ...found.data, name: r.name } } : {}),
+        ...(enable ? { enabled: true } : {}),
+      });
+      console.log(`doh      updated ${r.name}`);
+      changes++;
+    }
+  }
+  for (const e of common.filter(e => e.enabled && !resolvers.some(r => r.url === e.data.url))) {
+    await api("PATCH", `/tvbox/entries/${e.id}`, { enabled: false });
+    console.log(`doh      disabled ${String(e.data.name ?? e.data.url)} (not declared)`);
+    changes++;
+  }
+  const rest = (await api<Entry[]>("GET", "/tvbox/entries?kind=doh")).map(e => e.id).filter(id => !ids.includes(id));
+  await api("POST", "/tvbox/entries/reorder", { kind: "doh", ids: [...ids, ...rest] });
+  return changes;
+}
+
 async function main(): Promise<void> {
   const declared = readDeclared(file);
   const existing = await api<Upstream[]>("GET", "/tvbox/upstreams");
@@ -123,11 +189,18 @@ async function main(): Promise<void> {
     ids.push({ id, name: d.name });
   }
 
-  for (const u of existing.filter(u => !declared.some(d => d.url === u.url)))
+  for (const u of existing.filter(u => !declared.some(d => d.url === u.url))) {
     console.log(`kept     ${u.name} (not declared here; manage it in the admin console)`);
+    if (u.syncEnabled)
+      ids.push({ id: u.id, name: u.name });
+  }
+
+  let changed = 0;
+  const resolversFile = join(dirname(file), "doh.json");
+  if (existsSync(resolversFile))
+    changed += await applyResolvers(readResolvers(resolversFile));
 
   let failed = 0;
-  let changed = 0;
   for (const { id, name } of ids) {
     try {
       const r = await api<SyncResult>("POST", `/tvbox/upstreams/${id}/sync`);

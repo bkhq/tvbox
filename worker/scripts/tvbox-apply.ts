@@ -43,7 +43,8 @@ interface Upstream {
   readonly id: string;
   readonly name: string;
   readonly url: string;
-  readonly parentId: string | null;
+  /** Absent from deployments that predate collections. */
+  readonly parentId?: string | null;
   readonly isPrimary: boolean;
   readonly syncEnabled: boolean;
 }
@@ -164,7 +165,12 @@ async function main(): Promise<void> {
   const ids: { id: string; name: string }[] = [];
 
   for (const d of declared) {
-    const found = existing.find(u => u.parentId === null && u.url === d.url);
+    // Oldest first; a second upstream with the same URL is a duplicate.
+    const [found, ...duplicates] = existing.filter(u => !u.parentId && u.url === d.url);
+    for (const dup of duplicates) {
+      await api("DELETE", `/tvbox/upstreams/${dup.id}`);
+      console.log(`deleted  duplicate ${dup.name} (${dup.id})`);
+    }
     const syncEnabled = d.sync ?? true;
     let id: string;
     let isPrimary: boolean;
@@ -192,7 +198,7 @@ async function main(): Promise<void> {
   }
 
   // A collection's lines are synced with it.
-  for (const u of existing.filter(u => u.parentId === null && !declared.some(d => d.url === u.url))) {
+  for (const u of existing.filter(u => !u.parentId && !declared.some(d => d.url === u.url))) {
     console.log(`kept     ${u.name} (not declared here; manage it in the admin console)`);
     if (u.syncEnabled)
       ids.push({ id: u.id, name: u.name });

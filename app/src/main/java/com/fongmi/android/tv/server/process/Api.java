@@ -5,6 +5,7 @@ import com.fongmi.android.tv.server.api.ActionApi;
 import com.fongmi.android.tv.server.api.ConfigApi;
 import com.fongmi.android.tv.server.api.ControlApi;
 import com.fongmi.android.tv.server.api.Endpoint;
+import com.fongmi.android.tv.server.api.EnrollApi;
 import com.fongmi.android.tv.server.api.PairApi;
 import com.fongmi.android.tv.server.api.SettingApi;
 import com.fongmi.android.tv.server.api.StateApi;
@@ -31,6 +32,7 @@ public class Api implements Process {
         endpoints.put("config", new ConfigApi());
         endpoints.put("setting", new SettingApi());
         endpoints.put("control", new ControlApi());
+        endpoints.put("enroll", new EnrollApi());
         endpoints.put("push", ActionApi.of("push"));
         endpoints.put("search", ActionApi.of("search"));
         endpoints.put("file", ActionApi.of("file"));

@@ -113,6 +113,17 @@
                         <div class="md-field"><input id="setting_ua" class="md-input" type="text" placeholder="留空使用默认" /></div>
                         <button class="md-btn md-btn-tonal md-btn-full" onclick="setting('ua', $('#setting_ua').val())">保存</button>
                     </div>
+                    <div class="section" id="enroll_section">
+                        <div class="section-title">服务器关联</div>
+                        <label class="setting-row"><span>设备编码</span><span class="enroll-code" id="enroll_code"></span></label>
+                        <label class="setting-row"><span>状态</span><span id="enroll_state"></span></label>
+                        <div class="pair-hint">在服务器后台批准这个编码后，电视会自动获取配置。</div>
+                        <div class="field-row">
+                            <button class="md-btn md-btn-filled md-btn-full" id="enroll_request" onclick="enroll('request')">申请关联</button>
+                            <button class="md-btn md-btn-tonal md-btn-full" id="enroll_refresh" onclick="enroll('refresh')">刷新</button>
+                            <button class="md-btn md-btn-tonal md-btn-full" id="enroll_unlink" onclick="confirmUnlink()">取消关联</button>
+                        </div>
+                    </div>
                     <div class="section">
                         <div class="section-title">已配对设备</div>
                         <div class="config-list" id="device_list"></div>

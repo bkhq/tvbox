@@ -10,7 +10,7 @@ App 会启动一个本地 HTTP 服务（从 9978 开始取第一个可用端口�
 | --- | --- |
 | 配置 | 已保存的点播、直播、壁纸配置：点击切换，长按删除，输入地址添加新配置。电视会立即加载。 |
 | 播放 | 当前播放的标题和进度；上一集 / 播放暂停 / 下一集、±15 秒和 ±60 秒、倍速、停止；推送地址播放；搜索。 |
-| 设置 | 播放引擎、渲染方式、画面比例、后台播放、缓冲、默认倍速、无痕模式、广告过滤、AirPlay 开关和名称（电视的「设置 → AirPlay」也可修改）、User-Agent；已配对设备列表及删除。 |
+| 设置 | 播放引擎、渲染方式、画面比例、后台播放、缓冲、默认倍速、无痕模式、广告过滤、AirPlay 开关和名称（电视的「设置 → AirPlay」也可修改）、User-Agent；服务器关联（显示设备编码，申请关联、刷新、取消关联）；已配对设备列表及删除。 |
 | 文件 | 浏览设备存储、上传、新建文件夹、删除；把文件用作配置。 |
 
 设置修改后在下一次播放时生效，与在电视上修改一致。
@@ -31,10 +31,11 @@ App 会启动一个本地 HTTP 服务（从 9978 开始取第一个可用端口�
 | --- | --- | --- |
 | `/api/pair` | `code`、`name` | `{token, name}`；配对码错误返回 `403` |
 | `/api/unpair` | `target`（要删除设备的令牌） | `OK` |
-| `/api/state` | — | 版本、地址、本机令牌、已配对设备、各类已保存配置及当前项、设置及选项名称、播放状态（`active`、`playing`、`title`、`position`、`duration`、`speed`） |
+| `/api/state` | — | 版本、地址、本机令牌、已配对设备、各类已保存配置及当前项、设置及选项名称、服务器关联（`available`、`state`、`code`）、播放状态（`active`、`playing`、`title`、`position`、`duration`、`speed`） |
 | `/api/config` | `do` = `use` \| `delete`，`type`（0 点播、1 直播、2 壁纸），`url`，`name` | `OK`；拒绝删除正在使用的配置 |
 | `/api/setting` | `key`、`value` | `OK`；可用的 key：`engine`、`render`、`scale`、`background`、`buffer`、`speed`、`ua`、`incognito`、`adblock`、`airplay`、`airplay_name` |
 | `/api/control` | `do` = `play` \| `pause` \| `toggle` \| `stop` \| `prev` \| `next` \| `seek` \| `speed`，`value`（`seek` 为毫秒偏移，`speed` 为倍速） | `OK`；没有在播放时返回 `400` |
+| `/api/enroll` | `do` = `request` \| `refresh` \| `unlink` | `OK`；与电视「服务器关联」弹窗的操作相同，状态见 `/api/state` 的 `enroll` |
 | `/api/push` | `url` | 播放该地址 |
 | `/api/search` | `word` | 打开搜索 |
 | `/api/file` | `path`（`file:/…`） | 打开 APK、加载字幕，或把文件用作点播配置 |

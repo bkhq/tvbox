@@ -3,6 +3,7 @@ package com.fongmi.android.tv.server.api;
 import android.text.TextUtils;
 
 import com.fongmi.android.tv.BuildConfig;
+import com.fongmi.android.tv.Enroll;
 import com.fongmi.android.tv.R;
 import com.fongmi.android.tv.airplay.AirPlay;
 import com.fongmi.android.tv.api.config.LiveConfig;
@@ -38,6 +39,7 @@ public class StateApi implements Endpoint {
         object.add("live", configs(ConfigApi.LIVE, LiveConfig.get().getConfig()));
         object.add("wall", configs(ConfigApi.WALL, WallConfig.get().getConfig()));
         object.add("settings", settings());
+        object.add("enroll", enroll());
         object.add("options", options());
         object.add("player", Reply.onMain(StateApi::player, new JsonObject()));
         return Reply.json(object);
@@ -71,6 +73,14 @@ public class StateApi implements Endpoint {
         object.addProperty("adblock", Setting.isAdblock());
         object.addProperty("airplay", Setting.isAirPlay());
         object.addProperty("airplay_name", AirPlay.getName());
+        return object;
+    }
+
+    private static JsonObject enroll() {
+        JsonObject object = new JsonObject();
+        object.addProperty("available", Enroll.isAvailable());
+        object.addProperty("state", Enroll.getState().name().toLowerCase(java.util.Locale.ROOT));
+        object.addProperty("code", Enroll.getCode());
         return object;
     }
 

@@ -111,6 +111,7 @@ function loadState(onDone) {
         renderConfigs(state);
         renderSettings(state);
         renderDevices(state);
+        renderEnroll(state);
         renderPlayer(state.player);
         $('#version').text('版本 ' + state.version + ' · ' + state.address);
         if (onDone) onDone(state);
@@ -230,6 +231,29 @@ function push() {
 }
 
 // ── settings ──
+
+function renderEnroll(state) {
+    const e = state.enroll;
+    $('#enroll_section').toggle(!!(e && e.available));
+    if (!e || !e.available) return;
+    const labels = { off: '未关联', pending: '等待批准', linked: '已关联' };
+    $('#enroll_code').text(e.code);
+    $('#enroll_state').text(labels[e.state] || e.state);
+    $('#enroll_request').toggle(e.state === 'off');
+    $('#enroll_refresh').toggle(e.state !== 'off');
+    $('#enroll_unlink').toggle(e.state !== 'off');
+}
+
+function enroll(action) {
+    api('enroll', { do: action }, function () {
+        warnToast(action === 'request' ? '已提交申请' : action === 'refresh' ? '已刷新' : '已取消关联');
+        setTimeout(loadState, 800);
+    });
+}
+
+function confirmUnlink() {
+    if (confirm('取消关联后电视将停止同步服务器配置，并生成新的设备编码。确定吗？')) enroll('unlink');
+}
 
 function renderSettings(state) {
     const s = state.settings;

@@ -538,3 +538,6 @@ html, body {
 
 .pair-hint { font-size: 14px; color: var(--md-on-surface-variant); margin-bottom: 12px; line-height: 1.5; }
 #pairDialog .md-field + .md-field { margin-top: 8px; }
+
+.enroll-code { font-family: monospace; font-size: 18px; letter-spacing: 2px; color: var(--md-primary); }
+#enroll_section .field-row .md-btn { flex: 1; }

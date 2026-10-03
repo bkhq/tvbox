@@ -499,13 +499,6 @@ public class PlayerManager implements ParseCallback {
         old.release();
     }
 
-    public void browse(PlaySpec spec, long startPositionMs) {
-        reset();
-        clear();
-        stopParse();
-        start(spec, Constant.TIMEOUT_PLAY, startPositionMs);
-    }
-
     public void start(PlaySpec spec, long timeout) {
         start(spec, timeout, C.TIME_UNSET);
     }

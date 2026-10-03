@@ -267,6 +267,8 @@
     <string name="setting_restore">恢复</string>
     <string name="setting_version">版本</string>
     <string name="update_check">正在检查更新…</string>
+    <string name="enroll_pending">已向服务器登记，等待后台批准「%s」</string>
+    <string name="enroll_approved">已从服务器获取配置</string>
     <string name="update_latest">已是最新版本</string>
     <string name="update_failed">更新失败</string>
     <string name="update_unavailable">此版本未配置更新地址</string>

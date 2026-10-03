@@ -267,6 +267,8 @@
     <string name="setting_restore">還原</string>
     <string name="setting_version">版本</string>
     <string name="update_check">正在檢查更新…</string>
+    <string name="enroll_pending">已向伺服器登記，等待後台批准「%s」</string>
+    <string name="enroll_approved">已從伺服器取得設定</string>
     <string name="update_latest">已是最新版本</string>
     <string name="update_failed">更新失敗</string>
     <string name="update_unavailable">此版本未設定更新來源</string>

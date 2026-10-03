@@ -268,6 +268,8 @@
     <string name="setting_restore">Restore</string>
     <string name="setting_version">Version</string>
     <string name="update_check">Checking for updates…</string>
+    <string name="enroll_pending">Registered with the server, waiting for approval of “%s”</string>
+    <string name="enroll_approved">Got the configuration from the server</string>
     <string name="update_latest">You are on the latest version</string>
     <string name="update_failed">Update failed</string>
     <string name="update_unavailable">This build has no update source</string>

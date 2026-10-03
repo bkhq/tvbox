@@ -20,6 +20,8 @@ android {
         versionCode((project.findProperty('versionCode') ?: '100').toString().toInteger())
         versionName((project.findProperty('versionName') ?: '1.0.0').toString())
         // Base of the worker's update endpoints, e.g. https://tvbox.example.workers.dev/u
+        // Worker base URL for device enrollment, e.g. https://tvbox.example.workers.dev
+        buildConfigField "String", "WORKER_URL", "\"${(project.findProperty('workerUrl') ?: '').toString().replaceAll('/+$', '')}\""
         buildConfigField "String", "UPDATE_URL", "\"${project.findProperty('updateUrl') ?: ''}\""
         javaCompileOptions {
             annotationProcessorOptions {

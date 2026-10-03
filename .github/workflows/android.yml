@@ -55,7 +55,7 @@ jobs:
         run: |
           args=()
           [ -n "$VERSION_CODE" ] && args+=("-PversionCode=$VERSION_CODE" "-PversionName=$VERSION_NAME")
-          [ -n "$WORKER_URL" ] && args+=("-PupdateUrl=${WORKER_URL%/}/u")
+          [ -n "$WORKER_URL" ] && args+=("-PupdateUrl=${WORKER_URL%/}/u" "-PworkerUrl=${WORKER_URL%/}")
           bash ./gradlew --no-daemon assembleRelease "${args[@]}"
 
       - name: Collect

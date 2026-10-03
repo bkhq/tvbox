@@ -24,6 +24,7 @@ import androidx.viewbinding.ViewBinding;
 import com.fongmi.android.tv.App;
 import com.fongmi.android.tv.Product;
 import com.fongmi.android.tv.R;
+import com.fongmi.android.tv.Enroll;
 import com.fongmi.android.tv.Updater;
 import com.fongmi.android.tv.airplay.AirPlay;
 import com.fongmi.android.tv.api.config.LiveConfig;
@@ -131,6 +132,7 @@ public class HomeActivity extends BaseActivity implements CustomTitleView.Listen
         setTitle();
         setLogo();
         if (savedInstanceState == null) Updater.check(this, false);
+        Enroll.start();
     }
 
     @Override

@@ -12,17 +12,15 @@ import com.fongmi.android.tv.player.PlayerManager;
 import com.fongmi.android.tv.server.Server;
 import com.fongmi.android.tv.service.PlaybackService;
 import com.fongmi.android.tv.setting.Setting;
+import com.fongmi.android.tv.utils.DeviceId;
 import com.fongmi.android.tv.utils.ResUtil;
 import com.fongmi.android.tv.utils.Task;
-import com.github.catvod.utils.Prefers;
 import com.github.serezhka.airplay.protocol.media.AudioStreamInfo;
 import com.github.serezhka.airplay.protocol.media.VideoStreamInfo;
 import com.github.serezhka.airplay.server.AirPlayConfig;
 import com.github.serezhka.airplay.server.AirPlayServer;
 import com.github.serezhka.airplay.server.Playback;
 
-import java.security.SecureRandom;
-import java.util.Locale;
 import java.util.concurrent.Callable;
 import java.util.concurrent.FutureTask;
 import java.util.concurrent.TimeUnit;
@@ -32,8 +30,6 @@ import java.util.concurrent.TimeUnit;
  * hands HLS video casts (YouTube, Safari, ...) to the regular player.
  */
 public class AirPlay implements Playback {
-
-    private static final String KEY_DEVICE_ID = "airplay_device_id";
 
     private final VideoSink video;
     private final AudioSink audio;
@@ -87,7 +83,7 @@ public class AirPlay implements Playback {
     private AirPlayConfig config() {
         AirPlayConfig config = new AirPlayConfig();
         config.setServerName(getName());
-        config.setDeviceId(getDeviceId());
+        config.setDeviceId(DeviceId.get());
         config.setWidth(1920);
         config.setHeight(1080);
         config.setFps(30);
@@ -97,18 +93,6 @@ public class AirPlay implements Playback {
     public static String getName() {
         String name = Setting.getAirPlayName();
         return TextUtils.isEmpty(name) ? ResUtil.getString(R.string.app_name) : name;
-    }
-
-    private static String getDeviceId() {
-        String id = Prefers.getString(KEY_DEVICE_ID);
-        if (!TextUtils.isEmpty(id)) return id;
-        byte[] mac = new byte[6];
-        new SecureRandom().nextBytes(mac);
-        mac[0] = (byte) ((mac[0] | 0x02) & 0xFE);
-        StringBuilder sb = new StringBuilder();
-        for (int i = 0; i < mac.length; i++) sb.append(String.format(Locale.ROOT, i == 0 ? "%02X" : ":%02X", mac[i]));
-        Prefers.put(KEY_DEVICE_ID, id = sb.toString());
-        return id;
     }
 
     private void acquireLock() {

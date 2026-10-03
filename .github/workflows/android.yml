@@ -16,20 +16,11 @@ concurrency:
   group: android-${{ github.ref }}
   cancel-in-progress: true
 
-env:
-  AAR_REPO: zzci/tvbox-aar
-  AAR_TAG: media-3c2cbe8
-
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-
-      - name: Download media AARs
-        env:
-          GH_TOKEN: ${{ secrets.AAR_TOKEN }}
-        run: gh release download "$AAR_TAG" -R "$AAR_REPO" -p "*.aar" -D app/libs
 
       - uses: actions/setup-java@v4
         with:
@@ -39,13 +30,7 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
 
       - name: Configure signing
-        env:
-          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
-          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
-          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
-        run: |
-          echo "$KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/release.jks"
-          printf 'storeFile=%s\nkeyAlias=%s\nstorePassword=%s\n' "$RUNNER_TEMP/release.jks" "$KEY_ALIAS" "$KEYSTORE_PASSWORD" > local.properties
+        run: cp keystore/release.properties local.properties
 
       - name: Build
         run: bash ./gradlew --no-daemon assembleRelease

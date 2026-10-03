@@ -1,0 +1,61 @@
+name: TVBox health
+
+# Probes every entry on the deployment from a GitHub runner, disables the ones
+# that fail, re-enables the ones that recovered, and publishes when anything
+# switched. Entries an admin forced on in the console are only recorded. A
+# runner is a datacenter, not a viewer's network: force such entries on.
+
+on:
+  schedule:
+    - cron: "17 */6 * * *"
+  workflow_dispatch:
+    inputs:
+      apply:
+        description: "Disable failing entries and publish (off: report only)"
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: tvbox-health
+  cancel-in-progress: false
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      # The console's base path (BASE_PATH in worker/apps/api/wrangler.toml).
+      TVBOX_URL: ${{ vars.WORKER_URL }}/mg
+      TVBOX_API_TOKEN: ${{ secrets.TVBOX_API_TOKEN }}
+    steps:
+      - name: Require the deployment URL and an API token
+        run: |
+          if [ "$TVBOX_URL" = "/mg" ] || [ -z "$TVBOX_API_TOKEN" ]; then
+            echo "::error::set the variable WORKER_URL and the secret TVBOX_API_TOKEN (an API token with the tvbox:write scope)"
+            exit 1
+          fi
+
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.4.2"
+
+      - name: Probe and apply
+        working-directory: worker
+        env:
+          APPLY: ${{ github.event_name == 'schedule' || inputs.apply }}
+        run: |
+          flag=""
+          [ "$APPLY" = true ] && flag="--apply"
+          bun scripts/tvbox-health.ts $flag --json health.json
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: health-report
+          path: worker/health.json
+          if-no-files-found: ignore

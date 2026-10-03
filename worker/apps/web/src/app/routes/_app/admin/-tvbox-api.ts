@@ -28,6 +28,11 @@ export interface Entry {
   readonly sort: number;
   readonly locallyModified: boolean;
   readonly upstreamRemoved: boolean;
+  readonly healthStatus: "ok" | "blocked" | "fail" | "skip" | null;
+  readonly healthDetail: string | null;
+  readonly healthCheckedAt: string | null;
+  readonly disabledByHealth: boolean;
+  readonly healthExempt: boolean;
 }
 
 export interface Global {
@@ -122,7 +127,7 @@ export const tvboxApi = {
     data<Entry[]>(`/tvbox/entries?kind=${kind}${source === "all" ? "" : `&source=${encodeURIComponent(source)}`}`),
   setEntriesEnabled: (ids: readonly string[], enabled: boolean) => data<{ count: number }>("/tvbox/entries/bulk", send("POST", { ids, enabled })),
   createEntry: (kind: ListKind, entry: JsonObject) => data<Entry>("/tvbox/entries", send("POST", { kind, data: entry })),
-  updateEntry: (id: string, body: { data?: JsonObject; enabled?: boolean }) => data<Entry>(`/tvbox/entries/${id}`, send("PATCH", body)),
+  updateEntry: (id: string, body: { data?: JsonObject; enabled?: boolean; healthExempt?: boolean }) => data<Entry>(`/tvbox/entries/${id}`, send("PATCH", body)),
   revertEntry: (id: string) => data<Entry>(`/tvbox/entries/${id}/revert`, send("POST")),
   deleteEntry: (id: string) => data<Entry>(`/tvbox/entries/${id}`, send("DELETE")),
   reorderEntries: (kind: ListKind, ids: readonly string[]) => data<{ count: number }>("/tvbox/entries/reorder", send("POST", { kind, ids })),

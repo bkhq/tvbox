@@ -5,7 +5,7 @@
 > [`api.md`](api.md); this file is the flat per-route index that CI
 > verifies is up to date.
 
-> 86 routes total.
+> 87 routes total.
 
 | Method | Path |
 |---|---|
@@ -83,6 +83,7 @@
 | DELETE | `/api/tvbox/globals/:key` |
 | PUT | `/api/tvbox/globals/:key` |
 | POST | `/api/tvbox/globals/:key/revert` |
+| POST | `/api/tvbox/health` |
 | GET | `/api/tvbox/preview` |
 | GET | `/api/tvbox/publishes` |
 | POST | `/api/tvbox/publishes` |

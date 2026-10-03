@@ -1,6 +1,7 @@
 import type { Entry, EntrySource, JsonObject, ListKind } from "./-tvbox-api";
+import type { HealthFilter } from "./-tvbox-view";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowDown, ArrowUp, Eye, EyeOff, Pencil, Plus, Trash2, Undo2 } from "lucide-react";
+import { ArrowDown, ArrowUp, Eye, EyeOff, Pencil, Plus, ShieldOff, Trash2, Undo2 } from "lucide-react";
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
@@ -16,7 +17,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Tabs, TabsList, TabsTrigger } from "@/shared/components/ui/tabs";
 import { errorMessage, LIST_KINDS, tvboxApi, tvboxKeys } from "./-tvbox-api";
 import { JsonDialog } from "./-tvbox-json-dialog";
-import { entrySubtitle, entryTitle, filterEntries, moveId } from "./-tvbox-view";
+import { entrySubtitle, entryTitle, filterEntries, filterHealth, moveId } from "./-tvbox-view";
 
 const NEW_ENTRY: Record<ListKind, JsonObject> = {
   sites: { key: "", name: "", type: 3, api: "", searchable: 1, quickSearch: 1, filterable: 1 },
@@ -31,6 +32,7 @@ export function EntriesTab() {
   const qc = useQueryClient();
   const [kind, setKind] = useState<ListKind>("sites");
   const [source, setSource] = useState<EntrySource>("all");
+  const [health, setHealth] = useState<HealthFilter>("all");
   const [search, setSearch] = useState("");
   const [selected, setSelected] = useState<ReadonlySet<string>>(() => new Set());
   const [editing, setEditing] = useState<Entry | "new" | null>(null);
@@ -44,7 +46,7 @@ export function EntriesTab() {
   const onError = (err: unknown) => toast.error(errorMessage(err, t("common.error.operationFailed")));
 
   const update = useMutation({
-    mutationFn: ({ id, body }: { id: string; body: { data?: JsonObject; enabled?: boolean } }) => tvboxApi.updateEntry(id, body),
+    mutationFn: ({ id, body }: { id: string; body: { data?: JsonObject; enabled?: boolean; healthExempt?: boolean } }) => tvboxApi.updateEntry(id, body),
     onSuccess: () => {
       setEditing(null);
       refresh();
@@ -81,9 +83,9 @@ export function EntriesTab() {
 
   const rows = query.data ?? [];
   const needle = search.trim();
-  const visible = filterEntries(rows, needle);
+  const visible = filterHealth(filterEntries(rows, needle), health);
   // Reordering renumbers what it is given, so it needs the whole list.
-  const canReorder = !needle && source === "all";
+  const canReorder = !needle && source === "all" && health === "all";
   const allVisibleSelected = visible.length > 0 && visible.every(r => selected.has(r.id));
 
   const toggle = (id: string) => setSelected((prev) => {
@@ -115,6 +117,14 @@ export function EntriesTab() {
           </TabsList>
         </Tabs>
         <div className="flex items-center gap-2">
+          <Select value={health} onValueChange={v => v !== null && changeView(() => setHealth(v as HealthFilter))}>
+            <SelectTrigger className="w-32">
+              <SelectValue>{(v: string) => t(`tvbox:health.filter.${v}`)}</SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              {(["all", "fail", "disabledByHealth", "exempt"] as const).map(f => <SelectItem key={f} value={f}>{t(`tvbox:health.filter.${f}`)}</SelectItem>)}
+            </SelectContent>
+          </Select>
           <Select value={source} onValueChange={v => v !== null && changeView(() => setSource(v))}>
             <SelectTrigger className="w-40">
               <SelectValue>
@@ -138,6 +148,8 @@ export function EntriesTab() {
       {query.error && <ErrorBanner message={errorMessage(query.error, t("common.error.loadFailed"))} />}
       {query.isLoading && <CenteredHint>{t("common.loading")}</CenteredHint>}
       {query.data && visible.length === 0 && <CenteredHint>{t("tvbox:entries.empty")}</CenteredHint>}
+
+      <p className="text-xs text-muted-foreground">{t("tvbox:health.hint")}</p>
 
       {selected.size > 0 && (
         <div className="flex items-center gap-2 rounded-md border bg-muted/40 px-3 py-2 text-sm">
@@ -164,6 +176,7 @@ export function EntriesTab() {
               <TableHead className="w-12">{t("tvbox:entries.enabled")}</TableHead>
               <TableHead>{t("tvbox:entries.entry")}</TableHead>
               <TableHead>{t("tvbox:entries.source")}</TableHead>
+              <TableHead>{t("tvbox:health.column")}</TableHead>
               <TableHead className="text-right">{t("tvbox:actions")}</TableHead>
             </TableRow>
           </TableHeader>
@@ -187,6 +200,16 @@ export function EntriesTab() {
                   {entry.locallyModified && <Badge variant="secondary">{t("tvbox:entries.modified")}</Badge>}
                   {entry.upstreamRemoved && <Badge variant="destructive">{t("tvbox:entries.removedUpstream")}</Badge>}
                 </TableCell>
+                <TableCell
+                  className="space-x-1 text-xs whitespace-nowrap"
+                  title={entry.healthCheckedAt ? `${new Date(entry.healthCheckedAt).toLocaleString()}\n${entry.healthDetail ?? ""}` : undefined}
+                >
+                  <Badge variant={entry.healthStatus === "fail" ? "destructive" : entry.healthStatus === "ok" ? "secondary" : "outline"}>
+                    {t(`tvbox:health.status.${entry.healthStatus ?? "unchecked"}`)}
+                  </Badge>
+                  {entry.disabledByHealth && <Badge variant="outline">{t("tvbox:health.disabledByHealth")}</Badge>}
+                  {entry.healthExempt && <Badge>{t("tvbox:health.exempt")}</Badge>}
+                </TableCell>
                 <TableCell className="space-x-1 text-right whitespace-nowrap">
                   {canReorder && (
                     <>
@@ -195,6 +218,9 @@ export function EntriesTab() {
                     </>
                   )}
                   <Button size="sm" variant="ghost" title={t("common.edit")} onClick={() => setEditing(entry)}><Pencil className="size-4" /></Button>
+                  {entry.healthExempt && (
+                    <Button size="sm" variant="ghost" title={t("tvbox:health.unexempt")} onClick={() => update.mutate({ id: entry.id, body: { healthExempt: false } })}><ShieldOff className="size-4" /></Button>
+                  )}
                   {entry.locallyModified && (
                     <Button size="sm" variant="ghost" title={t("tvbox:entries.revert")} onClick={() => revert.mutate(entry.id)}><Undo2 className="size-4" /></Button>
                   )}

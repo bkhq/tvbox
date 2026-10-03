@@ -88,5 +88,25 @@
       "restore": "恢复"
     },
     "everyUpstream": "全部上游"
+  },
+  "health": {
+    "column": "检测",
+    "status": {
+      "ok": "正常",
+      "blocked": "被拦截",
+      "fail": "失效",
+      "skip": "无法检测",
+      "unchecked": "未检测"
+    },
+    "disabledByHealth": "检测停用",
+    "exempt": "强制启用",
+    "unexempt": "取消强制，交回检测",
+    "filter": {
+      "all": "全部检测",
+      "fail": "失效",
+      "disabledByHealth": "检测停用",
+      "exempt": "强制启用"
+    },
+    "hint": "定时检测会停用失效的条目。手动重新启用即为强制启用：检测仍会记录结果，但不再自动停用它。"
   }
 }

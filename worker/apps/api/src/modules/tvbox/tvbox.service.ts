@@ -153,11 +153,16 @@ export async function createEntry(db: AppDatabase, kind: ListKind, data: JsonObj
   return await getEntry(db, id);
 }
 
-/** Editing the data marks an upstream entry as ours until reverted. */
+/**
+ * Editing the data marks an upstream entry as ours until reverted. Switching
+ * on an entry the health check switched off is an admin vouching for it: it
+ * becomes exempt from the check. Switching one off is the admin's call, not
+ * the check's.
+ */
 export async function updateEntry(
   db: AppDatabase,
   id: string,
-  patch: { data?: JsonObject | undefined; enabled?: boolean | undefined },
+  patch: { data?: JsonObject | undefined; enabled?: boolean | undefined; healthExempt?: boolean | undefined },
 ): Promise<EntryView> {
   const row = await getEntryRow(db, id);
   let dataPatch = {};
@@ -166,23 +171,38 @@ export async function updateEntry(
     const data = JSON.stringify(patch.data);
     dataPatch = { data, locallyModified: row.upstreamData !== null && data !== row.upstreamData };
   }
+  let healthPatch: Partial<EntryRow> = patch.healthExempt !== undefined ? { healthExempt: patch.healthExempt } : {};
+  if (patch.enabled === true && row.disabledByHealth)
+    healthPatch = { healthExempt: true, disabledByHealth: false };
+  else if (patch.enabled === false)
+    healthPatch = { ...healthPatch, disabledByHealth: false };
   await db.update(tvboxEntries).set({
     ...dataPatch,
+    ...healthPatch,
     ...(patch.enabled !== undefined ? { enabled: patch.enabled } : {}),
     updatedAt: new Date().toISOString(),
   }).where(eq(tvboxEntries.id, id)).run();
   return await getEntry(db, id);
 }
 
-/** Enable or disable many entries at once. */
+/** Enable or disable many entries at once, with the same health rules as {@link updateEntry}. */
 export async function setEntriesEnabled(db: AppDatabase, ids: readonly string[], enabled: boolean): Promise<number> {
   const unique = [...new Set(ids)];
   if (unique.length === 0)
     return 0;
-  await db.update(tvboxEntries)
-    .set({ enabled, updatedAt: new Date().toISOString() })
-    .where(inArray(tvboxEntries.id, unique))
-    .run();
+  const updatedAt = new Date().toISOString();
+  await db.transaction(async (tx) => {
+    if (enabled) {
+      await tx.update(tvboxEntries)
+        .set({ healthExempt: true, disabledByHealth: false })
+        .where(and(inArray(tvboxEntries.id, unique), eq(tvboxEntries.disabledByHealth, true)))
+        .run();
+    }
+    await tx.update(tvboxEntries)
+      .set({ enabled, updatedAt, ...(enabled ? {} : { disabledByHealth: false }) })
+      .where(inArray(tvboxEntries.id, unique))
+      .run();
+  });
   return unique.length;
 }
 

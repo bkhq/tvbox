@@ -7,12 +7,14 @@ on:
       - "worker/**"
       - "!worker/tvbox/**"
       - "!worker/scripts/tvbox-apply.ts"
+      - "!worker/scripts/tvbox-health.ts"
       - ".github/workflows/worker.yml"
   pull_request:
     paths:
       - "worker/**"
       - "!worker/tvbox/**"
       - "!worker/scripts/tvbox-apply.ts"
+      - "!worker/scripts/tvbox-health.ts"
       - ".github/workflows/worker.yml"
   workflow_dispatch:
 

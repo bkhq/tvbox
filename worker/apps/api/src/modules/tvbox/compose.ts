@@ -33,7 +33,7 @@ export function compose({ globals, entries }: ComposeInput): JsonObject {
       .sort((a, b) => a.sort - b.sort || a.id.localeCompare(b.id));
     if (rows.length === 0)
       continue;
-    out[kind] = kind === "sites" ? uniqueSiteKeys(rows) : rows.map(r => r.data);
+    out[kind] = kind === "sites" ? homeFirst(uniqueSiteKeys(rows)) : rows.map(r => r.data);
   }
 
   for (const { key, value } of globals) {
@@ -54,6 +54,20 @@ function uniqueSiteKeys(rows: readonly ComposeEntry[]): JsonObject[] {
     seen.add(key);
     return key === row.data.key ? row.data : { ...row.data, key };
   });
+}
+
+// TVBox opens the first site as home until the user picks one. Search-only
+// aggregators and config centres are marked `searchable: 0` and have no home
+// content, so a list that starts with one shows an empty home. Lead with the
+// first searchable site instead (absent means searchable) and keep the rest.
+function homeFirst(sites: JsonObject[]): JsonObject[] {
+  const searchable = (site: JsonObject) => Number(site.searchable ?? 1) !== 0;
+  if (sites.length === 0 || searchable(sites[0]!))
+    return sites;
+  const index = sites.findIndex(searchable);
+  if (index < 0)
+    return sites;
+  return [sites[index]!, ...sites.slice(0, index), ...sites.slice(index + 1)];
 }
 
 /** What a publish stores: enabled entries with their source, and the globals. */

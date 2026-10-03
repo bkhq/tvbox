@@ -46,6 +46,30 @@ describe("compose", () => {
     expect((out.sites as { key: string }[]).map(s => s.key)).toEqual(["k", "k_second"]);
   });
 
+  test("opens on a site with content: a leading non-searchable site moves behind the first searchable one", () => {
+    const out = compose({
+      globals: [],
+      entries: [
+        entry({ id: "1", kind: "sites", sort: 0, data: { key: "search", searchable: 0 } }),
+        entry({ id: "2", kind: "sites", sort: 1, data: { key: "config", searchable: "0" } }),
+        entry({ id: "3", kind: "sites", sort: 2, data: { key: "cms", searchable: 1 } }),
+        entry({ id: "4", kind: "sites", sort: 3, data: { key: "spider" } }),
+      ],
+    });
+    expect((out.sites as { key: string }[]).map(s => s.key)).toEqual(["cms", "search", "config", "spider"]);
+  });
+
+  test("keeps the order when no site is searchable", () => {
+    const out = compose({
+      globals: [],
+      entries: [
+        entry({ id: "1", kind: "sites", sort: 0, data: { key: "a", searchable: 0 } }),
+        entry({ id: "2", kind: "sites", sort: 1, data: { key: "b", searchable: 0 } }),
+      ],
+    });
+    expect((out.sites as { key: string }[]).map(s => s.key)).toEqual(["a", "b"]);
+  });
+
   test("omits empty lists", () => {
     expect(compose({ globals: [], entries: [] })).toEqual({});
   });

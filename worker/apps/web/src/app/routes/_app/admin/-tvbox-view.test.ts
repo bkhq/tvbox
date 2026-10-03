@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { countsText, entrySubtitle, entryTitle, filterEntries, moveId } from "./-tvbox-view";
+import { countsText, entrySubtitle, entryTitle, filterEntries, filterHealth, moveId } from "./-tvbox-view";
 
 describe("entryTitle / entrySubtitle", () => {
   it("prefers the name, then the key", () => {
@@ -39,5 +39,19 @@ describe("moveId", () => {
 describe("countsText", () => {
   it("lists non-empty kinds", () => {
     expect(countsText("{\"sites\":103,\"parses\":9,\"rules\":0}")).toBe("sites 103 · parses 9");
+  });
+});
+
+describe("filterHealth", () => {
+  const rows = [
+    { id: "a", healthStatus: "fail" as const, disabledByHealth: true, healthExempt: false },
+    { id: "b", healthStatus: "fail" as const, disabledByHealth: false, healthExempt: true },
+    { id: "c", healthStatus: "ok" as const, disabledByHealth: false, healthExempt: false },
+  ];
+  it("picks down, switched-off-by-check and forced-on entries", () => {
+    expect(filterHealth(rows, "all")).toBe(rows);
+    expect(filterHealth(rows, "fail").map(r => r.id)).toEqual(["a", "b"]);
+    expect(filterHealth(rows, "disabledByHealth").map(r => r.id)).toEqual(["a"]);
+    expect(filterHealth(rows, "exempt").map(r => r.id)).toEqual(["b"]);
   });
 });

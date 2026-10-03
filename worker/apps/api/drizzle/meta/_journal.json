@@ -36,6 +36,20 @@
       "when": 1791048216784,
       "tag": "0004_tvbox_enrollments",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "6",
+      "when": 1791052654449,
+      "tag": "0005_drop_upstream_doh",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "6",
+      "when": 1791052767308,
+      "tag": "0006_tvbox_entry_health",
+      "breakpoints": true
     }
   ]
 }

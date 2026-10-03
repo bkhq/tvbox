@@ -88,5 +88,25 @@
       "restore": "Restore"
     },
     "everyUpstream": "Every upstream"
+  },
+  "health": {
+    "column": "Check",
+    "status": {
+      "ok": "OK",
+      "blocked": "Blocked",
+      "fail": "Down",
+      "skip": "Not checkable",
+      "unchecked": "Unchecked"
+    },
+    "disabledByHealth": "Off by check",
+    "exempt": "Forced on",
+    "unexempt": "Let the check switch it off again",
+    "filter": {
+      "all": "All checks",
+      "fail": "Down",
+      "disabledByHealth": "Off by check",
+      "exempt": "Forced on"
+    },
+    "hint": "Down entries are switched off by the scheduled check. Switching one back on forces it on: the check keeps reporting but no longer switches it off."
   }
 }

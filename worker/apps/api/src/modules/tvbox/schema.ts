@@ -35,6 +35,15 @@ export const tvboxEntries = sqliteTable("tvbox_entries", {
   sort: integer("sort").notNull().default(0),
   locallyModified: integer("locally_modified", { mode: "boolean" }).notNull().default(false),
   upstreamRemoved: integer("upstream_removed", { mode: "boolean" }).notNull().default(false),
+  // The last health check (scripts/tvbox-health.ts, run by CI). A failing
+  // entry is disabled and flagged `disabledByHealth`, and enabled again once
+  // it passes. Turning such an entry back on by hand makes it `healthExempt`:
+  // checks still run but never switch it off.
+  healthStatus: text("health_status", { enum: ["ok", "blocked", "fail", "skip"] }),
+  healthDetail: text("health_detail"),
+  healthCheckedAt: text("health_checked_at"),
+  disabledByHealth: integer("disabled_by_health", { mode: "boolean" }).notNull().default(false),
+  healthExempt: integer("health_exempt", { mode: "boolean" }).notNull().default(false),
   createdAt: text("created_at").notNull().$defaultFn(now),
   updatedAt: text("updated_at").notNull().$defaultFn(now),
 }, t => [

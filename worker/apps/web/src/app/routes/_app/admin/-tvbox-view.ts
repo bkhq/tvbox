@@ -16,6 +16,19 @@ export function entrySubtitle(entry: Pick<Entry, "kind" | "data">): string {
   return Array.isArray(hosts) ? hosts.join(", ") : "";
 }
 
+export type HealthFilter = "all" | "fail" | "disabledByHealth" | "exempt";
+
+/** Entries matching a health filter. */
+export function filterHealth<T extends Pick<Entry, "healthStatus" | "disabledByHealth" | "healthExempt">>(rows: readonly T[], filter: HealthFilter): readonly T[] {
+  if (filter === "fail")
+    return rows.filter(r => r.healthStatus === "fail");
+  if (filter === "disabledByHealth")
+    return rows.filter(r => r.disabledByHealth);
+  if (filter === "exempt")
+    return rows.filter(r => r.healthExempt);
+  return rows;
+}
+
 /** Entries whose JSON contains `needle`, case-insensitively; all of them for an empty needle. */
 export function filterEntries<T extends Pick<Entry, "data">>(rows: readonly T[], needle: string): readonly T[] {
   const n = needle.trim().toLowerCase();

@@ -120,6 +120,13 @@ describe("importing an upstream", () => {
     expect(Object.keys(config)).toEqual(["spider", "wallpaper", "sites", "parses", "lives", "flags"]);
   });
 
+  test("DoH is ours: an upstream's resolvers are not imported", async () => {
+    files.set(PRIMARY, primaryConfig([SITE_A], { doh: [{ name: "Theirs", url: "https://doh.example/dns-query" }] }));
+    const up = await createUpstream(db, { name: "x", url: PRIMARY });
+    await sync(up.id);
+    expect(await listEntries(db, "doh")).toEqual([]);
+  });
+
   test("a secondary upstream's sites carry its own spider; its globals are ignored", async () => {
     const primary = await createUpstream(db, { name: "p", url: PRIMARY });
     const secondary = await createUpstream(db, { name: "s", url: SECONDARY });

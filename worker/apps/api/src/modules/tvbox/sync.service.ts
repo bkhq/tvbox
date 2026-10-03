@@ -15,6 +15,10 @@ const ASSET_TIMEOUT_MS = 60_000;
 const MAX_ASSET_BYTES = 50 * 1024 * 1024;
 const ASSET_CONCURRENCY = 4;
 
+// DoH resolvers are ours, kept as common entries: an upstream's list is not
+// imported, so adding an upstream never changes which resolvers devices see.
+const UPSTREAM_KINDS = LIST_KINDS.filter(kind => kind !== "doh");
+
 export interface SyncDeps {
   readonly logger: Logger;
   readonly fetch?: typeof fetch;
@@ -115,7 +119,7 @@ export async function syncUpstream(db: AppDatabase, upstreamId: string, deps: Sy
 
     const counts = await db.transaction(async (tx) => {
       const totals = { added: 0, updated: 0, removed: 0 };
-      for (const kind of LIST_KINDS) {
+      for (const kind of UPSTREAM_KINDS) {
         const c = await mergeEntries(tx as unknown as AppDatabase, upstream.id, kind, asObjects(config[kind]));
         totals.added += c.added;
         totals.updated += c.updated;

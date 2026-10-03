@@ -9,6 +9,7 @@ import { describeRoute, errors, jsonCreated, jsonOk, SECURITY, TAGS, validator }
 import { adminRequired, authRequired } from "@/shared/middleware/auth";
 import { createDevice, deleteDevice, deviceUpstreams, getDevice, listDevices, rotateDevice, updateDevice } from "./devices.service";
 import { linkedApps } from "./enroll.service";
+import { applyHealth } from "./health.service";
 import { LIST_KINDS } from "./parse";
 import { buildConfig, listPublishes, publish, restorePublish } from "./publish.service";
 import { syncUpstream } from "./sync.service";
@@ -64,6 +65,11 @@ const entrySchema = z.object({
   sort: z.number(),
   locallyModified: z.boolean(),
   upstreamRemoved: z.boolean(),
+  healthStatus: z.enum(["ok", "blocked", "fail", "skip"]).nullable(),
+  healthDetail: z.string().nullable(),
+  healthCheckedAt: z.string().nullable(),
+  disabledByHealth: z.boolean(),
+  healthExempt: z.boolean(),
   createdAt: z.string(),
   updatedAt: z.string(),
 });
@@ -255,12 +261,13 @@ export function tvboxRoutes() {
     "/tvbox/entries/:id",
     doc("Edit or enable/disable an entry", jsonOk(entrySchema)),
     validator("param", idParam),
-    validator("json", z.object({ data: jsonObject.optional(), enabled: z.boolean().optional() })),
+    validator("json", z.object({ data: jsonObject.optional(), enabled: z.boolean().optional(), healthExempt: z.boolean().optional() })),
     async (c) => {
       const body = c.req.valid("json");
       const row = await updateEntry(c.get("db"), c.req.valid("param").id, body);
       await record(c, "tvbox.entry.updated", { type: "tvbox_entry", id: row.id, name: entryName(row.data, row.id) }, {
         ...(body.enabled !== undefined ? { enabled: body.enabled } : {}),
+        ...(body.healthExempt !== undefined ? { healthExempt: body.healthExempt } : {}),
         dataChanged: body.data !== undefined,
       });
       return c.json({ success: true, data: row });
@@ -278,6 +285,32 @@ export function tvboxRoutes() {
     await record(c, "tvbox.entry.deleted", { type: "tvbox_entry", id: row.id, name: entryName(row.data, row.id) });
     return c.json({ success: true, data: row });
   });
+
+  // ─── Health ───
+
+  router.post(
+    "/tvbox/health",
+    doc("Record a health run: failing entries are disabled, recovered ones enabled (does not publish)", jsonOk(z.object({
+      recorded: z.number(),
+      disabled: z.array(z.string()),
+      enabled: z.array(z.string()),
+    }))),
+    validator("json", z.object({
+      results: z.array(z.object({
+        id: z.string(),
+        status: z.enum(["ok", "blocked", "fail", "skip"]),
+        detail: z.string().max(4000),
+      })).max(5000),
+    })),
+    async (c) => {
+      const outcome = await applyHealth(c.get("db"), c.req.valid("json").results);
+      await record(c, "tvbox.health.applied", { type: "tvbox_health", id: "run", name: `${outcome.recorded} entries` }, {
+        disabled: outcome.disabled.length,
+        enabled: outcome.enabled.length,
+      });
+      return c.json({ success: true, data: outcome });
+    },
+  );
 
   // ─── Globals ───
 

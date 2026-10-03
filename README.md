@@ -4,7 +4,7 @@
 
 ## 与上游的区别
 
-- **已删除**：迅雷 / TVBus / ForceTech / 剑片 P2P 解析及其闭源 AAR、Python 爬虫（Chaquopy）、上游自动更新、TVBus 签名伪装、设备间同步、扫码、手机投屏。
+- **已删除**：迅雷 / TVBus / ForceTech / 剑片 P2P 解析及其闭源 AAR、Python 爬虫（Chaquopy）、上游自动更新、TVBus 签名伪装、设备间同步、扫码、手机投屏、Android Auto。
 - **防闪退**：后台线程的异常不再导致整个 App 崩溃；WebView 线程上的爬虫错误、被系统拒绝的后台服务启动都已兜底。
 - **手机控制**：电视在局域网内提供控制网页，可管理配置、控制播放、修改设置和管理文件，需配对后使用，见 [docs/REMOTE.md](docs/REMOTE.md)。
 - **AirPlay 接收**：支持 iPhone / iPad / Mac 屏幕镜像和视频投放，见 [docs/AIRPLAY.md](docs/AIRPLAY.md)。

@@ -60,7 +60,6 @@
     <string name="play_ready">準備播放：<xliff:g name="name">%s</xliff:g></string>
     <string name="play_switch_flag">正在切換線路至「<xliff:g name="name">%s</xliff:g>」</string>
     <string name="play_switch_site">正在切換站源至「<xliff:g name="name">%s</xliff:g>」</string>
-    <string name="play_switch_parse">正在切换解析至「<xliff:g name="name">%s</xliff:g>」</string>
 
     <!-- Playback Setting -->
     <string name="setting_tab_offset">偏移</string>
@@ -261,7 +260,6 @@
     <string name="setting_custom">自訂</string>
     <string name="setting_size">圖片尺寸</string>
     <string name="setting_doh">DoH</string>
-    <string name="setting_proxy">Proxy</string>
     <string name="setting_cache">暫存</string>
     <string name="setting_backup">備份</string>
     <string name="setting_restore">還原</string>
@@ -294,12 +292,10 @@
     <string name="backup_fail">備份失敗</string>
 
     <!-- Player -->
-    <string name="player">播放核心</string>
     <string name="player_engine">播放引擎</string>
     <string name="player_debug">偵錯</string>
     <string name="player_render">渲染方式</string>
     <string name="player_scale">縮放比例</string>
-    <string name="player_libass">字幕渲染</string>
     <string name="player_background">背景播放</string>
     <string name="player_audio_pass_through">音訊直通</string>
     <string name="player_audio_decode">音訊軟解</string>
@@ -353,10 +349,8 @@
     <string name="error_play_parse">播放網址解析失敗</string>
     <string name="error_play_drm">本設備不支援所需的 DRM scheme</string>
     <string name="error_play_url">播放網址載入失敗</string>
-    <string name="error_play_flag">暫無線路資料</string>
     <string name="error_play_timeout">連線逾時</string>
     <string name="error_audio_effect_unsupported">目前播放方式不支援音質設定</string>
-    <string name="error_audio_effect_tunnel">Tunnel 模式下不支援音質設定</string>
     <string name="error_audio_effect_passthrough">音訊直通音軌不支援音質設定</string>
     <string name="error_audio_effect_apply">音質設定套用失敗</string>
     <string name="error_video_effect_unsupported">目前播放方式不支援畫質設定</string>
@@ -384,7 +378,6 @@
     <string name="yes">有</string>
     <string name="none">無</string>
     <string name="times">倍</string>
-    <string name="lines">行</string>
 
     <string-array name="select_decode">
         <item>軟解</item>

@@ -18,11 +18,6 @@
         <item name="cornerSize">50%</item>
     </style>
 
-    <style name="Vod.List">
-        <item name="cornerSizeTopLeft">8dp</item>
-        <item name="cornerSizeBottomLeft">8dp</item>
-    </style>
-
     <style name="Player">
         <item name="resize_mode">fit</item>
         <item name="use_artwork">true</item>

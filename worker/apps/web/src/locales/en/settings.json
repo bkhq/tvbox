@@ -1,0 +1,119 @@
+{
+  "page": {
+    "title": "System Settings",
+    "description": "Manage authentication, email, webhooks, and other platform configuration."
+  },
+  "profile": {
+    "username": "Username",
+    "email": "Email",
+    "role": "Role",
+    "groups": "Groups",
+    "roleAdmin": "Admin",
+    "roleUser": "User"
+  },
+  "tabProfile": "Profile",
+  "tabSecurity": "Security",
+  "tabTokens": "API tokens",
+  "language": "Language",
+  "theme": "Appearance",
+  "saving": "Saving...",
+  "col": {
+    "actions": "Actions"
+  },
+  "tabs": {
+    "auth": "Authentication",
+    "smtp": "SMTP",
+    "webhook": "Webhooks",
+    "about": "About",
+    "backup": "Backup"
+  },
+  "about": {
+    "title": "About",
+    "description": "Build version and runtime details.",
+    "refresh": "Refresh",
+    "loading": "Loading...",
+    "loadFailed": "Failed to load version information.",
+    "version": "Version",
+    "commit": "Commit",
+    "buildTime": "Build time",
+    "empty": "—",
+    "yes": "Yes",
+    "no": "No",
+    "unknown": "Unknown"
+  },
+  "auth": {
+    "sessionTitle": "Session & Admin",
+    "sessionDescription": "Configure session lifetime and default administrators.",
+    "fieldSessionMaxAge": "Session Max Age (seconds)"
+  },
+  "smtp": {
+    "title": "Email (SMTP)",
+    "description": "Configure SMTP server for sending notification emails.",
+    "enable": "Enable",
+    "serverConfig": "SMTP Server",
+    "fieldHost": "SMTP Host",
+    "fieldPort": "Port",
+    "fieldUsername": "Username",
+    "fieldPassword": "Password",
+    "fieldFromAddress": "From Address",
+    "fieldFromName": "From Name"
+  },
+  "webhook": {
+    "title": "Webhooks",
+    "description": "Configure webhook endpoints to receive event notifications.",
+    "add": "Add Webhook",
+    "addTitle": "Add Webhook",
+    "addDescription": "Configure a new webhook endpoint.",
+    "noWebhooks": "No webhooks configured. Click \"Add Webhook\" to get started.",
+    "colName": "Name",
+    "colUrl": "URL",
+    "colEvents": "Events",
+    "colSecret": "Secret",
+    "fieldSecret": "Signing Secret",
+    "secretPlaceholder": "Optional signing secret",
+    "allEvents": "All events",
+    "noSecret": "None",
+    "eventsHint": "Comma-separated event types, or * for all events.",
+    "allEventsPlaceholder": "* (all events)"
+  },
+  "backup": {
+    "title": "Backup",
+    "description": "Export the database to a JSON file or restore from one.",
+    "export": {
+      "title": "Data Export",
+      "description": "Export selected modules as a JSON backup file. Audit logs, sessions, and temporary data are excluded.",
+      "button": "Export Database",
+      "selectModules": "Select Modules",
+      "exporting": "Exporting...",
+      "success": "Database exported successfully.",
+      "failed": "Export failed",
+      "confirmTitle": "Export Database?",
+      "confirmDescription": "This will generate and download a JSON backup of the selected modules. Audit logs and session data will be excluded.",
+      "confirmButton": "Confirm Export"
+    },
+    "import": {
+      "title": "Data Import",
+      "description": "Import data from a previously exported JSON backup file. This will overwrite existing data in the affected modules.",
+      "button": "Import Database",
+      "file": "Backup File",
+      "detectedModules": "Modules in file",
+      "importing": "Importing...",
+      "success": "Import completed. {{tables}} tables, {{rows}} rows imported.",
+      "failed": "Import failed",
+      "invalidFormat": "Invalid backup file format.",
+      "invalidJson": "File is not valid JSON.",
+      "confirmTitle": "Import Database?",
+      "confirmDescription": "This is a destructive operation. All existing data in the following modules will be replaced with the imported data:",
+      "confirmButton": "Confirm Import",
+      "includeUsersLabel": "Restore users, groups, and preferences",
+      "confirmIncludeUsersOn": "Users, groups, and preferences WILL be overwritten.",
+      "confirmIncludeUsersOff": "Users, groups, and preferences will be skipped.",
+      "includeUsersHint": "Overwrites the live user table. Required for full disaster recovery or migration; leave off to merge only domain data. Your own admin row must remain present and active in the backup, or the restore is rejected."
+    },
+    "modules": {
+      "users": "Users & Groups",
+      "settings": "Settings",
+      "files": "Files"
+    }
+  }
+}

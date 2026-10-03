@@ -1,0 +1,95 @@
+{
+  "page": {
+    "title": "TVBox",
+    "description": "管理上游、对外发布的条目与字段，以及可以订阅的设备。"
+  },
+  "tabs": {
+    "entries": "条目",
+    "globals": "字段",
+    "upstreams": "上游",
+    "publishes": "发布",
+    "tokens": "订阅"
+  },
+  "actions": "操作",
+  "kinds": {
+    "sites": "站点",
+    "parses": "解析",
+    "lives": "直播",
+    "rules": "规则",
+    "doh": "DoH"
+  },
+  "json": {
+    "invalid": "不是合法的 JSON",
+    "objectRequired": "条目必须是 JSON 对象",
+    "close": "关闭",
+    "save": "保存"
+  },
+  "upstreams": {
+    "description": "导入配置的来源。主上游提供顶层字段；定时同步有变化时会自动发布。",
+    "add": "添加上游",
+    "empty": "还没有上游。",
+    "name": "名称",
+    "lastSync": "上次同步",
+    "scheduled": "定时同步",
+    "primary": "主上游",
+    "syncNow": "同步",
+    "makePrimary": "设为主上游",
+    "synced": "同步完成：新增 {{added}}，更新 {{updated}}，移除 {{removed}}，镜像文件 {{mirrored}} 个。发布后生效。",
+    "assetsFailed": "{{count}} 个文件镜像失败，已保留之前的副本。",
+    "deleteTitle": "删除上游？",
+    "deleteDescription": "从「{{name}}」导入的条目会一起删除。"
+  },
+  "entries": {
+    "search": "搜索",
+    "add": "添加条目",
+    "empty": "暂无内容。",
+    "enabled": "启用",
+    "entry": "条目",
+    "source": "来源",
+    "local": "本地",
+    "modified": "已修改",
+    "removedUpstream": "上游已删除",
+    "revert": "恢复为上游版本",
+    "modifiedHint": "已在本地修改：上游的变化会被记录，但在恢复之前不会覆盖。",
+    "deleteTitle": "删除条目？"
+  },
+  "globals": {
+    "description": "spider、wallpaper、flags 等顶层字段，值为 JSON。",
+    "add": "添加字段",
+    "empty": "还没有字段。",
+    "key": "字段",
+    "value": "值",
+    "invalidKey": "字段名不能和条目列表同名",
+    "deleteTitle": "删除字段？"
+  },
+  "publishes": {
+    "description": "客户端读取的是当前生效的版本。发布会把当前的条目和字段生成一个快照。",
+    "preview": "预览",
+    "publish": "发布",
+    "empty": "还没有发布过。",
+    "time": "时间",
+    "trigger": "来源",
+    "contents": "内容",
+    "live": "生效中",
+    "restore": "恢复",
+    "published": "已发布",
+    "restored": "已恢复",
+    "triggers": {
+      "manual": "手动",
+      "sync": "定时同步",
+      "restore": "恢复"
+    }
+  },
+  "tokens": {
+    "description": "每台设备一个订阅地址，可以单独吊销。",
+    "add": "新建订阅",
+    "empty": "还没有订阅。",
+    "name": "设备",
+    "created": "创建时间",
+    "copied": "已复制",
+    "shownOnce": "请立即复制，这个地址只显示一次。",
+    "namePlaceholder": "客厅电视",
+    "deleteTitle": "吊销订阅？",
+    "deleteDescription": "「{{name}}」会在一分钟内失效。"
+  }
+}

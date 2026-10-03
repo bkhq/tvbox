@@ -1,0 +1,20 @@
+{
+  "page": {
+    "title": "App releases",
+    "description": "Registered by CI on every tagged build. Clients ask for the newest release of their flavor; beta clients also get stable releases."
+  },
+  "empty": "No releases yet. Tag a build (vX.Y.Z) to publish one.",
+  "version": "Version",
+  "channel": "Channel",
+  "flavors": "APKs",
+  "offered": "Offered",
+  "actions": "Actions",
+  "withdrawn": "Withdrawn",
+  "channels": {
+    "stable": "Stable",
+    "beta": "Beta"
+  },
+  "notes": "Release notes for {{version}}",
+  "deleteTitle": "Delete release?",
+  "deleteDescription": "{{version}} and its APKs are deleted; clients fall back to the previous release."
+}

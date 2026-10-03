@@ -1,8 +1,12 @@
-name: Deploy worker
+name: Worker
 
 on:
   push:
     branches: [main]
+    paths:
+      - "worker/**"
+      - ".github/workflows/worker.yml"
+  pull_request:
     paths:
       - "worker/**"
       - ".github/workflows/worker.yml"
@@ -12,28 +16,156 @@ permissions:
   contents: read
 
 concurrency:
-  group: worker
-  cancel-in-progress: false
+  group: worker-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  BUN_VERSION: "1.4.2"
+  NODE_VERSION: "24.21.0"
+
+defaults:
+  run:
+    working-directory: worker
 
 jobs:
-  deploy:
+  check:
+    name: lint + typecheck + test + build + docs drift
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: worker
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 22
-          cache: npm
-          cache-dependency-path: worker/package-lock.json
+          node-version: ${{ env.NODE_VERSION }}
 
-      - run: npm ci
-      - run: npm run typecheck
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: ${{ env.BUN_VERSION }}
 
-      - run: npx wrangler deploy
+      - run: bun install --frozen-lockfile
+
+      - run: bun run check
+
+      # Bun does not fail a run on bunfig `coverageThreshold`; the gate parses
+      # the text reporter instead.
+      - name: Coverage gate
+        working-directory: worker/apps/api
         env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          MIN_LINE: "80"
+          MIN_FUNC: "70"
+        run: bash ../../scripts/ci/coverage-gate.sh
+
+  smoke:
+    name: workerd smoke
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: ${{ env.BUN_VERSION }}
+
+      - run: bun install --frozen-lockfile
+
+      # The migrations bundle is committed; a stale one would make the Worker
+      # run a different schema than the one the tests ran against.
+      - name: Check the Durable Object migrations bundle is current
+        working-directory: worker/apps/api
+        run: bun run db:check-migrations
+
+      - name: Build the SPA
+        run: bun run --filter @app/web build
+
+      - name: Build the Worker bundle
+        working-directory: worker/apps/api
+        run: bun run workers:build
+
+      - name: Configure smoke-test variables
+        run: cp apps/api/.dev.vars.example apps/api/.dev.vars
+
+      - name: Smoke test on workerd
+        run: bun run test:workers
+
+  deploy:
+    name: deploy to cloudflare
+    needs: [check, smoke]
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+    steps:
+      # The `secrets` context cannot be read from a job-level `if`.
+      - name: Require Cloudflare credentials and the OIDC client
+        env:
+          OAUTH_ISSUER: ${{ vars.OAUTH_ISSUER }}
+          OAUTH_CLIENT_ID: ${{ vars.OAUTH_CLIENT_ID }}
+          WORKER_URL: ${{ vars.WORKER_URL }}
+        run: |
+          missing=()
+          for name in CLOUDFLARE_API_TOKEN CLOUDFLARE_ACCOUNT_ID OAUTH_ISSUER OAUTH_CLIENT_ID WORKER_URL; do
+            [ -n "${!name}" ] || missing+=("$name")
+          done
+          if [ ${#missing[@]} -gt 0 ]; then
+            echo "::error::set these repository secrets / variables first: ${missing[*]}"
+            exit 1
+          fi
+
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: ${{ env.BUN_VERSION }}
+
+      - run: bun install --frozen-lockfile
+
+      - name: Build the SPA
+        run: bun run --filter @app/web build
+
+      # The bucket named in wrangler.toml has to exist before the binding
+      # resolves. Creating it twice is not an error worth failing on.
+      - name: Ensure the R2 bucket exists
+        working-directory: worker/apps/api
+        run: |
+          bucket="$(grep -oP 'bucket_name = "\K[^"]+' wrangler.toml)"
+          bunx wrangler r2 bucket create "$bucket" 2>&1 | tee /tmp/bucket.log \
+            || grep -qiE "already (exists|owned)" /tmp/bucket.log
+
+      # Login is OpenID Connect. Secrets ship in the same version as the
+      # code (`--secrets-file` is additive: one left out keeps its deployed
+      # value); the rest is plain configuration passed as vars.
+      - name: Deploy
+        working-directory: worker/apps/api
+        env:
+          OAUTH_CLIENT_SECRET: ${{ secrets.OAUTH_CLIENT_SECRET }}
+          SERVICE_TOKEN_RELEASE: ${{ secrets.SERVICE_TOKEN_RELEASE }}
+          OAUTH_ISSUER: ${{ vars.OAUTH_ISSUER }}
+          OAUTH_CLIENT_ID: ${{ vars.OAUTH_CLIENT_ID }}
+          DEFAULT_ADMIN: ${{ vars.DEFAULT_ADMIN }}
+          WORKER_URL: ${{ vars.WORKER_URL }}
+        run: |
+          umask 077
+          jq -n --arg client "$OAUTH_CLIENT_SECRET" --arg release "$SERVICE_TOKEN_RELEASE" \
+            '{OAUTH_CLIENT_SECRET: $client, SERVICE_TOKEN_RELEASE: $release} | with_entries(select(.value != ""))' \
+            > "$RUNNER_TEMP/secrets.json"
+          origin="${WORKER_URL%/}"
+          args=(
+            --secrets-file "$RUNNER_TEMP/secrets.json"
+            --var "APP_URL:$origin"
+            --var "CORS_ORIGIN:$origin"
+            --var "OAUTH_ISSUER:$OAUTH_ISSUER"
+            --var "OAUTH_CLIENT_ID:$OAUTH_CLIENT_ID"
+          )
+          [ -n "$DEFAULT_ADMIN" ] && args+=(--var "DEFAULT_ADMIN:$DEFAULT_ADMIN")
+          bunx wrangler deploy "${args[@]}"

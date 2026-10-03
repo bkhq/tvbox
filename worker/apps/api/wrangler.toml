@@ -1,0 +1,56 @@
+name = "tvbox"
+main = "src/workers/entry.ts"
+compatibility_date = "2026-09-01"
+# node:crypto / node:buffer / node:path / node:util are used across the shared
+# codebase (PBKDF2 hashing, base64url encoding, path joins).
+compatibility_flags = ["nodejs_compat"]
+
+# Keep the workers.dev URL even when a custom domain is attached: adding a
+# route otherwise turns it off, which leaves nothing to reach the deployment
+# by while the domain is still being provisioned.
+workers_dev = true
+
+# The deployment's origin; the zone must be on the same Cloudflare account.
+routes = [
+  { pattern = "tv.bk.io", zone_name = "bk.io", custom_domain = true },
+]
+
+# One Durable Object class holds the SQLite database and runs the app.
+[[durable_objects.bindings]]
+name = "APP"
+class_name = "AppDurableObject"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["AppDurableObject"]
+
+# Blob storage for the file module (FILE_STORAGE_DRIVER=r2).
+[[r2_buckets]]
+binding = "FILES"
+bucket_name = "tvbox-files"
+
+# The SPA is served by the asset pipeline; only the API, subscription and
+# update prefixes reach the Worker. Any other path is answered from the assets, with the SPA's index.html
+# for anything unknown — so a prefix left out here never reaches the app.
+[assets]
+directory = "../web/dist"
+binding = "ASSETS"
+not_found_handling = "single-page-application"
+run_worker_first = ["/api/*", "/s/*", "/u/*"]
+
+[observability]
+enabled = true
+
+# Non-secret configuration. Secrets (OAUTH_CLIENT_SECRET,
+# SERVICE_TOKEN_RELEASE) and the per-deployment OIDC settings are passed by
+# the deploy workflow — never in this file.
+[vars]
+NODE_ENV = "production"
+APP_NAME = "tvbox"
+APP_DISPLAY_NAME = "TVBox"
+LOG_TO_STDOUT = "true"
+FILE_STORAGE_DRIVER = "r2"
+# Presigning needs the R2 S3 API and a key pair, which a bucket binding does
+# not carry; downloads stream through the Worker instead.
+FILE_PRESIGN_ENABLED = "false"
+TRUST_PROXY = "false"

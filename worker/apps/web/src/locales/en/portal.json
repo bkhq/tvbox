@@ -1,0 +1,7 @@
+{
+  "page": {
+    "title": "Overview",
+    "description": "Welcome to your workspace."
+  },
+  "welcome": "Welcome, {{name}}"
+}

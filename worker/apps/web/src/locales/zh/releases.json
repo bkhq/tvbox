@@ -1,0 +1,20 @@
+{
+  "page": {
+    "title": "版本发布",
+    "description": "每次打 tag 构建时由 CI 自动登记。客户端会获取自己 flavor 的最新版本；beta 渠道同时也会收到 stable 版本。"
+  },
+  "empty": "还没有版本。打一个 vX.Y.Z 的 tag 构建即可发布。",
+  "version": "版本",
+  "channel": "渠道",
+  "flavors": "APK",
+  "offered": "推送",
+  "actions": "操作",
+  "withdrawn": "已撤回",
+  "channels": {
+    "stable": "正式",
+    "beta": "测试"
+  },
+  "notes": "{{version}} 的更新说明",
+  "deleteTitle": "删除版本？",
+  "deleteDescription": "会删除 {{version}} 及其 APK，客户端将回退到上一个版本。"
+}

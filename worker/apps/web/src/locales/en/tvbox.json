@@ -1,0 +1,95 @@
+{
+  "page": {
+    "title": "TVBox",
+    "description": "Upstreams, the entries and fields we publish, and the devices allowed to read them."
+  },
+  "tabs": {
+    "entries": "Entries",
+    "globals": "Fields",
+    "upstreams": "Upstreams",
+    "publishes": "Publish",
+    "tokens": "Subscriptions"
+  },
+  "actions": "Actions",
+  "kinds": {
+    "sites": "Sites",
+    "parses": "Parsers",
+    "lives": "Live",
+    "rules": "Rules",
+    "doh": "DoH"
+  },
+  "json": {
+    "invalid": "Not valid JSON",
+    "objectRequired": "An entry must be a JSON object",
+    "close": "Close",
+    "save": "Save"
+  },
+  "upstreams": {
+    "description": "Configs we import from. The primary one supplies the top-level fields; scheduled syncs publish when anything changed.",
+    "add": "Add upstream",
+    "empty": "No upstreams yet.",
+    "name": "Name",
+    "lastSync": "Last sync",
+    "scheduled": "Scheduled",
+    "primary": "Primary",
+    "syncNow": "Sync",
+    "makePrimary": "Make primary",
+    "synced": "Synced: {{added}} added, {{updated}} updated, {{removed}} removed, {{mirrored}} files mirrored. Publish to make it live.",
+    "assetsFailed": "{{count}} file(s) could not be mirrored; previous copies are kept.",
+    "deleteTitle": "Remove upstream?",
+    "deleteDescription": "Every entry imported from \"{{name}}\" is removed with it."
+  },
+  "entries": {
+    "search": "Search",
+    "add": "Add entry",
+    "empty": "Nothing here.",
+    "enabled": "On",
+    "entry": "Entry",
+    "source": "Source",
+    "local": "Local",
+    "modified": "Edited",
+    "removedUpstream": "Removed upstream",
+    "revert": "Revert to upstream",
+    "modifiedHint": "Edited here: upstream changes are recorded but not applied until you revert.",
+    "deleteTitle": "Delete entry?"
+  },
+  "globals": {
+    "description": "Top-level fields such as spider, wallpaper and flags. Values are JSON.",
+    "add": "Add field",
+    "empty": "No fields yet.",
+    "key": "Field",
+    "value": "Value",
+    "invalidKey": "Choose a field name that is not one of the entry lists",
+    "deleteTitle": "Delete field?"
+  },
+  "publishes": {
+    "description": "Clients read the live version. Publishing snapshots the current entries and fields.",
+    "preview": "Preview",
+    "publish": "Publish",
+    "empty": "Nothing published yet.",
+    "time": "Time",
+    "trigger": "By",
+    "contents": "Contents",
+    "live": "Live",
+    "restore": "Restore",
+    "published": "Published",
+    "restored": "Restored",
+    "triggers": {
+      "manual": "Manual",
+      "sync": "Scheduled sync",
+      "restore": "Restore"
+    }
+  },
+  "tokens": {
+    "description": "Each device gets its own subscription URL; revoke one without touching the others.",
+    "add": "New subscription",
+    "empty": "No subscriptions yet.",
+    "name": "Device",
+    "created": "Created",
+    "copied": "Copied",
+    "shownOnce": "Copy it now: the URL is shown only once.",
+    "namePlaceholder": "Living room TV",
+    "deleteTitle": "Revoke subscription?",
+    "deleteDescription": "\"{{name}}\" stops working within a minute."
+  }
+}

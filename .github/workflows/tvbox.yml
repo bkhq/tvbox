@@ -16,6 +16,7 @@ on:
     branches: [main]
     paths:
       - "worker/tvbox/**"
+      - "spider/xiaosa/**"
       - "worker/scripts/tvbox-apply.ts"
       - "worker/scripts/tvbox-health.ts"
       - ".github/workflows/tvbox.yml"

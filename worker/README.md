@@ -119,6 +119,13 @@ A manual deploy is `bun run deploy`.
 [{ "name": "xiaosa", "url": "https://…/api.json", "primary": true, "sync": true }]
 ```
 
+`tvbox/doh.json` lists the DoH resolvers every device gets, and
+`tvbox/spider.json` pins the top-level spider to `spider/xiaosa/spider.jar`
+in the repo: xiaosa's jar as of when it was copied, so a new upstream jar
+never goes out unreviewed. To update it, replace that file (xiaosa's sites
+may start naming classes only a newer jar has, which the health check cannot
+see) and push.
+
 `.github/workflows/tvbox.yml` runs `scripts/tvbox-apply.ts --check` every six
 hours, when that file changes, or by hand (Actions → TVBox sources → Run
 workflow). It creates or updates each declared upstream (matched by URL),

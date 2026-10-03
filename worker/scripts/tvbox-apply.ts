@@ -11,6 +11,11 @@
  * every device gets: common DoH entries are matched by URL, missing ones are
  * created and come first, and common ones not declared are disabled.
  *
+ * `tvbox/spider.json` pins the top-level spider to a jar kept in the repo
+ * (`{ "jar": "<path relative to it>" }`): the jar is uploaded and the
+ * `spider` field is set to it, so an upstream's new spider never goes out
+ * until the jar here is replaced.
+ *
  * Every sync-enabled upstream is then synced, and the result is published
  * when anything changed (always with `--publish`, never with `--no-publish`).
  *
@@ -27,8 +32,9 @@
  * an admin under Settings → API tokens.
  */
 /* eslint-disable no-console */
+import { createHash } from "node:crypto";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
-import { dirname, join } from "node:path";
+import { basename, dirname, join, resolve } from "node:path";
 import process from "node:process";
 import { applyResults, checkAll, client } from "./tvbox-health";
 
@@ -159,6 +165,35 @@ async function applyResolvers(resolvers: readonly Resolver[]): Promise<number> {
   return changes;
 }
 
+/** Upload the pinned spider jar and point the `spider` field at it; returns the number of changes. */
+async function pinSpider(specFile: string): Promise<number> {
+  const spec = JSON.parse(readFileSync(specFile, "utf8")) as { jar?: unknown };
+  if (typeof spec.jar !== "string")
+    throw new Error(`${specFile} needs a "jar" path`);
+  const path = resolve(dirname(specFile), spec.jar);
+  const bytes = readFileSync(path);
+  const md5 = createHash("md5").update(bytes).digest("hex");
+  const globals = await api<{ key: string; value: unknown; locallyModified: boolean; upstreamValue: unknown }[]>("GET", "/tvbox/globals");
+  const current = globals.find(g => g.key === "spider");
+  const kept = current !== undefined && (current.locallyModified || current.upstreamValue === null);
+  if (kept && typeof current.value === "string" && current.value.endsWith(`;md5;${md5}`)) {
+    console.log(`spider   pinned ${basename(path)} (${md5}), unchanged`);
+    return 0;
+  }
+  const res = await fetch(`${base}/api/tvbox/files?name=${encodeURIComponent(basename(path))}`, {
+    method: "POST",
+    headers: { "Authorization": `Bearer ${token}`, "Content-Type": "application/octet-stream" },
+    body: bytes,
+  });
+  if (!res.ok)
+    throw new Error(`POST /tvbox/files → ${res.status}: ${(await res.text()).slice(0, 300)}`);
+  const uploaded = ((await res.json()) as { data: { path: string; md5: string } }).data;
+  // Kept even when it is the upstream's current jar, so its next one does not follow.
+  await api("PUT", "/tvbox/globals/spider", { value: `${uploaded.path};md5;${uploaded.md5}`, keep: true });
+  console.log(`spider   pinned ${basename(path)} (${md5})`);
+  return 1;
+}
+
 async function main(): Promise<void> {
   const declared = readDeclared(file);
   const existing = await api<Upstream[]>("GET", "/tvbox/upstreams");
@@ -208,6 +243,9 @@ async function main(): Promise<void> {
   const resolversFile = join(dirname(file), "doh.json");
   if (existsSync(resolversFile))
     changed += await applyResolvers(readResolvers(resolversFile));
+  const spiderFile = join(dirname(file), "spider.json");
+  if (existsSync(spiderFile))
+    changed += await pinSpider(spiderFile);
 
   let failed = 0;
   for (const { id, name } of ids) {

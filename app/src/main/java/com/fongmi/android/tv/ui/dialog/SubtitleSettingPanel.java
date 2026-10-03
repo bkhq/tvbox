@@ -25,7 +25,6 @@ import com.fongmi.android.tv.player.PlayerManager;
 import com.fongmi.android.tv.setting.PlayerSetting;
 import com.fongmi.android.tv.setting.SubtitleSetting;
 import com.fongmi.android.tv.utils.SliderUtil;
-import com.fongmi.android.tv.utils.Util;
 import com.google.android.material.button.MaterialButton;
 import com.google.android.material.chip.Chip;
 import com.google.android.material.chip.ChipGroup;
@@ -69,7 +68,7 @@ final class SubtitleSettingPanel {
         bindTabs();
         bindReset();
         showTab(0);
-        if (Util.isLeanback()) binding.tabAppearance.requestFocus();
+        binding.tabAppearance.requestFocus();
         binding.tabGroup.check(binding.tabAppearance.getId());
     }
 
@@ -201,7 +200,6 @@ final class SubtitleSettingPanel {
     }
 
     private void checkOnFocus(MaterialButton button) {
-        if (!Util.isLeanback()) return;
         button.setOnFocusChangeListener((view, focused) -> {
             if (focused) binding.tabGroup.check(button.getId());
         });

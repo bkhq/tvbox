@@ -1,6 +1,6 @@
 # tvbox
 
-私有的 Android 电视 / 手机影音播放器，配套一个 Cloudflare Worker 负责订阅下发、设备关联和 App 更新。
+私有的 Android 电视影音播放器，配套一个 Cloudflare Worker 负责订阅下发、设备关联和 App 更新。
 
 基于 [FongMi/TV](https://github.com/FongMi/TV) 5.6.1（GPL-3.0）改造，保留 CatVod 爬虫体系（JAR、JavaScript、远程 HTTP 站点）、Media3/ExoPlayer 与 mpv 双播放引擎、直播和 DLNA 接收。不保留上游的提交历史。
 
@@ -16,11 +16,11 @@
 | 自动更新 | 从 worker 检查新版本 |
 | DLNA | 电视可作为 DLNA 接收端 |
 
-与上游相比，**删除了**：迅雷 / TVBus / ForceTech / 剑片 P2P 解析及其闭源 AAR、Python 爬虫、上游自动更新、TVBus 签名伪装、设备间同步、扫码、手机端投屏、Android Auto；并修复了多处后台线程异常导致的闪退。
+与上游相比，**删除了**：迅雷 / TVBus / ForceTech / 剑片 P2P 解析及其闭源 AAR、Python 爬虫、上游自动更新、TVBus 签名伪装、设备间同步、扫码、手机端投屏、Android Auto、手机版界面（手机通过控制网页操作电视）；并修复了多处后台线程异常导致的闪退。
 
 ## 使用
 
-1. 从 [Releases](https://github.com/bkhq/tvbox/releases) 下载对应的 APK：`leanback-*` 为电视版，`mobile-*` 为手机版；`arm64_v8a` 适用于大多数设备，老旧 32 位盒子用 `armeabi_v7a`。最低 Android 7.0。
+1. 从 [Releases](https://github.com/bkhq/tvbox/releases) 下载对应的 APK：`arm64_v8a` 适用于大多数设备，老旧 32 位盒子用 `armeabi_v7a`。最低 Android 7.0。
 2. 配置来源，任选一种：
    - **服务器关联**：设置 → 服务器关联 → 申请关联，记下屏幕上的设备编码，在 worker 后台批准后自动加载。
    - **手机控制**：电视首页 → 手机控制，用手机扫码（或在 iPhone / Mac 上打开 `http://tvbox.local:9978`），输入配对码，在「配置」页签添加地址。
@@ -30,7 +30,7 @@
 ## 目录结构
 
 ```text
-app/        App 本体；src/main 为共用代码，src/leanback（电视）与 src/mobile（手机）为各自界面
+app/        App 本体；src/main 为通用代码，src/leanback 为电视界面
 catvod/     爬虫接口、网络层和与爬虫共用的工具类
 quickjs/    JavaScript 爬虫运行时
 airplay/    AirPlay 协议与服务端，来自 serezhka/java-airplay（MIT）

@@ -13,7 +13,6 @@ import androidx.viewbinding.ViewBinding;
 import com.fongmi.android.tv.databinding.DialogAudioSettingBinding;
 import com.fongmi.android.tv.player.PlayerManager;
 import com.fongmi.android.tv.utils.ResUtil;
-import com.fongmi.android.tv.utils.Util;
 
 public final class AudioSettingDialog {
 
@@ -34,44 +33,8 @@ public final class AudioSettingDialog {
 
     public void show(FragmentActivity activity) {
         FragmentManager manager = activity.getSupportFragmentManager();
-        for (Fragment fragment : manager.getFragments()) if (fragment instanceof BottomSheet || fragment instanceof SideSheet) return;
-        if (Util.isFullscreenLand(activity) || Util.isLeanback()) new SideSheet(player).show(manager, null);
-        else new BottomSheet(player).show(manager, null);
-    }
-
-    public static final class BottomSheet extends BaseBottomSheetDialog {
-
-        private final PlayerManager player;
-        private DialogAudioSettingBinding binding;
-        private AudioSettingPanel panel;
-
-        BottomSheet(PlayerManager player) {
-            this.player = player;
-        }
-
-        @Override
-        protected ViewBinding getBinding(@NonNull LayoutInflater inflater, @Nullable ViewGroup container) {
-            return binding = AudioSettingDialog.inflate(inflater, container);
-        }
-
-        @Override
-        protected int getMaxHeight() {
-            return ResUtil.getScreenHeight() / 2;
-        }
-
-        @Override
-        protected void initView() {
-            panel = new AudioSettingPanel(binding, player);
-            panel.bind();
-        }
-
-        @Override
-        public void onDestroyView() {
-            if (panel != null) panel.release();
-            panel = null;
-            binding = null;
-            super.onDestroyView();
-        }
+        for (Fragment fragment : manager.getFragments()) if (fragment instanceof SideSheet) return;
+        new SideSheet(player).show(manager, null);
     }
 
     public static final class SideSheet extends BaseSideSheetDialog {

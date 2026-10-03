@@ -14,7 +14,6 @@ import androidx.viewbinding.ViewBinding;
 import com.fongmi.android.tv.databinding.DialogSubtitleSettingBinding;
 import com.fongmi.android.tv.player.PlayerManager;
 import com.fongmi.android.tv.utils.ResUtil;
-import com.fongmi.android.tv.utils.Util;
 
 public final class SubtitleSettingDialog {
 
@@ -41,52 +40,8 @@ public final class SubtitleSettingDialog {
 
     public void show(FragmentActivity activity) {
         FragmentManager manager = activity.getSupportFragmentManager();
-        for (Fragment fragment : manager.getFragments()) if (fragment instanceof BottomSheet || fragment instanceof SideSheet) return;
-        if (Util.isFullscreenLand(activity) || Util.isLeanback()) new SideSheet(subtitleView, player).show(manager, null);
-        else new BottomSheet(subtitleView, player).show(manager, null);
-    }
-
-    public static final class BottomSheet extends BaseBottomSheetDialog {
-
-        private final SubtitleView subtitleView;
-        private final PlayerManager player;
-        private DialogSubtitleSettingBinding binding;
-        private SubtitleSettingPanel panel;
-
-        BottomSheet(SubtitleView subtitleView, PlayerManager player) {
-            this.subtitleView = subtitleView;
-            this.player = player;
-        }
-
-        @Override
-        protected ViewBinding getBinding(@NonNull LayoutInflater inflater, @Nullable ViewGroup container) {
-            return binding = SubtitleSettingDialog.inflate(inflater, container);
-        }
-
-        @Override
-        protected int getMaxHeight() {
-            return ResUtil.getScreenHeight() / 2;
-        }
-
-        @Override
-        protected void initView() {
-            panel = new SubtitleSettingPanel(binding, subtitleView, player);
-            panel.bind();
-        }
-
-        @Override
-        public void onResume() {
-            super.onResume();
-            if (panel != null) panel.onResume();
-        }
-
-        @Override
-        public void onDestroyView() {
-            if (panel != null) panel.release();
-            panel = null;
-            binding = null;
-            super.onDestroyView();
-        }
+        for (Fragment fragment : manager.getFragments()) if (fragment instanceof SideSheet) return;
+        new SideSheet(subtitleView, player).show(manager, null);
     }
 
     public static final class SideSheet extends BaseSideSheetDialog {

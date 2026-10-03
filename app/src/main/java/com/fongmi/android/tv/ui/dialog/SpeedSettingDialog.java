@@ -13,7 +13,6 @@ import androidx.viewbinding.ViewBinding;
 import com.fongmi.android.tv.databinding.DialogSpeedSettingBinding;
 import com.fongmi.android.tv.player.PlayerManager;
 import com.fongmi.android.tv.utils.ResUtil;
-import com.fongmi.android.tv.utils.Util;
 
 public final class SpeedSettingDialog {
 
@@ -40,46 +39,8 @@ public final class SpeedSettingDialog {
 
     public void show(FragmentActivity activity) {
         FragmentManager manager = activity.getSupportFragmentManager();
-        for (Fragment fragment : manager.getFragments()) if (fragment instanceof BottomSheet || fragment instanceof SideSheet) return;
-        if (Util.isFullscreenLand(activity) || Util.isLeanback()) new SideSheet(player, save).show(manager, null);
-        else new BottomSheet(player, save).show(manager, null);
-    }
-
-    public static final class BottomSheet extends BaseBottomSheetDialog {
-
-        private final PlayerManager player;
-        private final boolean save;
-        private DialogSpeedSettingBinding binding;
-        private SpeedSettingPanel panel;
-
-        BottomSheet(PlayerManager player, boolean save) {
-            this.player = player;
-            this.save = save;
-        }
-
-        @Override
-        protected ViewBinding getBinding(@NonNull LayoutInflater inflater, @Nullable ViewGroup container) {
-            return binding = SpeedSettingDialog.inflate(inflater, container);
-        }
-
-        @Override
-        protected int getMaxHeight() {
-            return ResUtil.getScreenHeight() / 2;
-        }
-
-        @Override
-        protected void initView() {
-            panel = new SpeedSettingPanel(binding, player, save);
-            panel.bind();
-        }
-
-        @Override
-        public void onDestroyView() {
-            if (panel != null) panel.release();
-            panel = null;
-            binding = null;
-            super.onDestroyView();
-        }
+        for (Fragment fragment : manager.getFragments()) if (fragment instanceof SideSheet) return;
+        new SideSheet(player, save).show(manager, null);
     }
 
     public static final class SideSheet extends BaseSideSheetDialog {

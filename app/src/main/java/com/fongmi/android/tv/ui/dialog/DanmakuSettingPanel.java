@@ -11,7 +11,6 @@ import com.fongmi.android.tv.databinding.DialogDanmakuSettingBinding;
 import com.fongmi.android.tv.player.PlayerManager;
 import com.fongmi.android.tv.setting.DanmakuSetting;
 import com.fongmi.android.tv.utils.SliderUtil;
-import com.fongmi.android.tv.utils.Util;
 import com.google.android.material.button.MaterialButton;
 import com.google.android.material.chip.ChipGroup;
 import com.google.android.material.slider.Slider;
@@ -43,7 +42,7 @@ final class DanmakuSettingPanel {
         bindTabs();
         bindReset();
         showTab(0);
-        if (Util.isLeanback()) binding.tabAppearance.requestFocus();
+        binding.tabAppearance.requestFocus();
         binding.tabGroup.check(binding.tabAppearance.getId());
     }
 
@@ -106,7 +105,6 @@ final class DanmakuSettingPanel {
     }
 
     private void checkOnFocus(MaterialButton button) {
-        if (!Util.isLeanback()) return;
         button.setOnFocusChangeListener((v, focused) -> {
             if (focused) binding.tabGroup.check(button.getId());
         });

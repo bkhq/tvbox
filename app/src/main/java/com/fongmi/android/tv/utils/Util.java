@@ -20,7 +20,6 @@ import androidx.core.view.WindowInsetsCompat;
 import androidx.core.view.WindowInsetsControllerCompat;
 
 import com.fongmi.android.tv.App;
-import com.fongmi.android.tv.BuildConfig;
 import com.fongmi.android.tv.R;
 import com.github.catvod.utils.Shell;
 
@@ -168,23 +167,6 @@ public class Util {
     public static String substring(String text, int num) {
         if (text != null && text.length() > num) return text.substring(0, text.length() - num);
         return text;
-    }
-
-    public static boolean isLeanback() {
-        return "leanback".equals(BuildConfig.FLAVOR_mode);
-    }
-
-    public static boolean isMobile() {
-        return "mobile".equals(BuildConfig.FLAVOR_mode);
-    }
-
-    public static boolean isFullscreen(Activity activity) {
-        if (activity == null || activity.getWindow() == null) return false;
-        return isLeanback() || (activity.getWindow().getAttributes().flags & WindowManager.LayoutParams.FLAG_FULLSCREEN) != 0;
-    }
-
-    public static boolean isFullscreenLand(Activity activity) {
-        return isFullscreen(activity) && !isLeanback() && ResUtil.isLand(activity);
     }
 
     public static String format(StringBuilder builder, Formatter formatter, long timeMs) {

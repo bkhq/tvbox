@@ -7,7 +7,6 @@ import android.view.WindowManager;
 import androidx.appcompat.app.AlertDialog;
 
 import com.fongmi.android.tv.App;
-import com.fongmi.android.tv.Product;
 import com.fongmi.android.tv.utils.ResUtil;
 import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 
@@ -35,12 +34,10 @@ public class WebDialog {
     }
 
     private void initDialog() {
-        if (Product.getDeviceType() == 0) {
-            WindowManager.LayoutParams params = dialog.getWindow().getAttributes();
-            params.height = (int) (ResUtil.getScreenHeight() * 0.8f);
-            params.width = (int) (ResUtil.getScreenWidth() * 0.8f);
-            dialog.getWindow().setAttributes(params);
-        }
+        WindowManager.LayoutParams params = dialog.getWindow().getAttributes();
+        params.height = (int) (ResUtil.getScreenHeight() * 0.8f);
+        params.width = (int) (ResUtil.getScreenWidth() * 0.8f);
+        dialog.getWindow().setAttributes(params);
         dialog.show();
     }
 }

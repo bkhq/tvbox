@@ -20,7 +20,6 @@ import com.fongmi.android.tv.player.effect.audio.AudioEffectPreset;
 import com.fongmi.android.tv.player.effect.audio.AudioPresetLevels;
 import com.fongmi.android.tv.setting.AudioSetting;
 import com.fongmi.android.tv.utils.SliderUtil;
-import com.fongmi.android.tv.utils.Util;
 import com.google.android.material.button.MaterialButton;
 import com.google.android.material.chip.ChipGroup;
 import com.google.android.material.materialswitch.MaterialSwitch;
@@ -68,7 +67,7 @@ final class AudioSettingPanel {
         bindReset();
         showTab(0);
         updateControls();
-        if (Util.isLeanback()) binding.tabPreset.requestFocus();
+        binding.tabPreset.requestFocus();
         binding.tabGroup.check(binding.tabPreset.getId());
     }
 
@@ -199,7 +198,6 @@ final class AudioSettingPanel {
     }
 
     private void checkOnFocus(MaterialButton button) {
-        if (!Util.isLeanback()) return;
         button.setOnFocusChangeListener((view, focused) -> {
             if (focused) binding.tabGroup.check(button.getId());
         });

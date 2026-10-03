@@ -9,7 +9,6 @@ import com.fongmi.android.tv.databinding.ViewSettingSliderBinding;
 import com.fongmi.android.tv.player.PlayerManager;
 import com.fongmi.android.tv.setting.SpeedSetting;
 import com.fongmi.android.tv.utils.SliderUtil;
-import com.fongmi.android.tv.utils.Util;
 import com.google.android.material.slider.Slider;
 
 final class SpeedSettingPanel {
@@ -32,7 +31,7 @@ final class SpeedSettingPanel {
         bindSkipSilence();
         bindReset();
         syncControls();
-        if (Util.isLeanback()) binding.speed.slider.requestFocus();
+        binding.speed.slider.requestFocus();
     }
 
     void release() {

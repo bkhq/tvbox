@@ -141,20 +141,8 @@ public class Device implements Diffable<Device>, Comparable<Device> {
         this.time = time;
     }
 
-    public boolean isLeanback() {
-        return getType() == 0;
-    }
-
-    public boolean isMobile() {
-        return getType() == 1;
-    }
-
     public boolean isDLNA() {
         return getType() == 2;
-    }
-
-    public boolean isApp() {
-        return isLeanback() || isMobile();
     }
 
     public String getHost() {

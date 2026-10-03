@@ -75,7 +75,7 @@ public final class DanmakuDialog extends BaseBottomSheetDialog implements Danmak
     }
 
     private void onChoose(View view) {
-        FileChooser.from(launcher).show(new String[]{"text/*"});
+        FileChooser.from(launcher).show();
         player.pause();
     }
 

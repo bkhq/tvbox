@@ -60,7 +60,7 @@ public class Updater {
             return;
         }
         if (manual) Notify.show(R.string.update_check);
-        String url = BuildConfig.UPDATE_URL + "/" + CHANNEL + "/" + BuildConfig.FLAVOR_mode + "-" + BuildConfig.FLAVOR_abi + ".json";
+        String url = BuildConfig.UPDATE_URL + "/" + CHANNEL + "/leanback-" + BuildConfig.FLAVOR + ".json";
         Task.execute(() -> {
             try {
                 Release release = fetch(url);

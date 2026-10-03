@@ -30,7 +30,7 @@
 ## 目录结构
 
 ```text
-app/        App 本体；src/main 为通用代码，src/leanback 为电视界面
+app/        App 本体（只有电视版，src/main）
 catvod/     爬虫接口、网络层和与爬虫共用的工具类
 quickjs/    JavaScript 爬虫运行时
 airplay/    AirPlay 协议与服务端，来自 serezhka/java-airplay（MIT）

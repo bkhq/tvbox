@@ -149,8 +149,8 @@ public final class Enroll {
             object.addProperty("deviceId", DeviceId.get());
             object.addProperty("name", AirPlay.getName());
             object.addProperty("model", Build.MANUFACTURER + " " + Build.MODEL);
-            object.addProperty("mode", BuildConfig.FLAVOR_mode);
-            object.addProperty("abi", BuildConfig.FLAVOR_abi);
+            object.addProperty("mode", "leanback");
+            object.addProperty("abi", BuildConfig.FLAVOR);
             object.addProperty("versionCode", BuildConfig.VERSION_CODE);
             object.addProperty("versionName", BuildConfig.VERSION_NAME);
             return OkHttp.newCall(OkHttp.client(), BuildConfig.WORKER_URL + "/api/raw/tvbox/enroll", RequestBody.create(object.toString(), JSON)).execute();

@@ -41,4 +41,4 @@ Content-Type: application/json
 
 `deviceId` 与 AirPlay 共用同一个随机持久 ID（`app/src/main/java/com/fongmi/android/tv/utils/DeviceId.java`）；设备端代码在 `Enroll.java` 和 `ui/dialog/EnrollDialog.java`。
 
-> 状态：设备端已实现，worker 端接口和审批界面尚未实现。
+> 状态：两端均已实现。worker 在站点根路径应答该接口，内部再转给后台 API，设备端不会接触到后台路径；申请在后台「设备」页审批，可新建设备或关联到已有设备。

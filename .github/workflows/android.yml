@@ -8,6 +8,8 @@ on:
       - "worker/**"
       - ".github/workflows/worker.yml"
       - ".github/workflows/tvbox*.yml"
+      - "spider/**"
+      - ".github/workflows/spider.yml"
   workflow_dispatch:
 
 permissions:

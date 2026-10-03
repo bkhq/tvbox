@@ -1,0 +1,106 @@
+import java.nio.file.Files
+import java.nio.file.StandardCopyOption
+
+plugins {
+    alias(libs.plugins.android.application) apply false
+    alias(libs.plugins.android.library) apply false
+}
+
+// Fetched at build time rather than committed.
+def apktoolUrl = 'https://github.com/iBotPeaches/Apktool/releases/download/v2.11.0/apktool_2.11.0.jar'
+def apktoolJar = layout.buildDirectory.file('apktool/apktool_2.11.0.jar')
+def releaseApk = project(':app').layout.buildDirectory.file('outputs/apk/release/app-release-unsigned.apk')
+def spiderTemplate = layout.projectDirectory.dir('jar/spider.jar')
+def spiderJarFile = layout.buildDirectory.file('tvbox.jar')
+def spiderMd5File = layout.buildDirectory.file('tvbox.jar.md5')
+def spiderWorkDir = layout.buildDirectory.dir('spiderJar')
+def decodedDir = spiderWorkDir.map { it.dir('decoded') }
+def stagedDir = spiderWorkDir.map { it.dir('project') }
+
+tasks.register('clean', Delete) {
+    delete rootProject.layout.buildDirectory
+}
+
+def fetchApktool = tasks.register('fetchApktool') {
+    outputs.file(apktoolJar)
+    doLast {
+        def target = apktoolJar.get().asFile
+        target.parentFile.mkdirs()
+        ant.get(src: apktoolUrl, dest: target, skipexisting: true)
+    }
+}
+
+def decodeSpiderJar = tasks.register('decodeSpiderJar', JavaExec) {
+    group = 'build'
+    description = 'Extracts the R8 output needed by the spider JAR.'
+    dependsOn ':app:assembleRelease', fetchApktool
+    classpath = files(apktoolJar)
+    mainClass.set('brut.apktool.Main')
+    inputs.file(releaseApk)
+    outputs.dir(decodedDir)
+    doFirst {
+        setArgs(['d', '-f', '-r', '--only-main-classes', releaseApk.get().asFile.absolutePath, '-o', decodedDir.get().asFile.absolutePath])
+    }
+}
+
+def prepareSpiderJar = tasks.register('prepareSpiderJar', Sync) {
+    group = 'build'
+    description = 'Stages the filtered spider and JavaScript packages.'
+    dependsOn decodeSpiderJar
+    from(spiderTemplate)
+    from(decodedDir.map { it.dir('smali/com/github/catvod/spider') }) {
+        into 'smali/com/github/catvod/spider'
+    }
+    from(decodedDir.map { it.dir('smali/com/github/catvod/js') }) {
+        into 'smali/com/github/catvod/js'
+    }
+    into(stagedDir)
+}
+
+def generateSpiderJar = tasks.register('generateSpiderJar', JavaExec) {
+    group = 'build'
+    description = 'Builds tvbox.jar from the staged dex classes.'
+    dependsOn prepareSpiderJar
+    classpath = files(apktoolJar)
+    mainClass.set('brut.apktool.Main')
+    inputs.file(stagedDir.map { it.file('apktool.yml') })
+    inputs.dir(stagedDir.map { it.dir('original') })
+    inputs.dir(stagedDir.map { it.dir('smali') })
+    outputs.file(spiderJarFile)
+    doFirst {
+        Files.deleteIfExists(spiderJarFile.get().asFile.toPath())
+        setArgs(['b', stagedDir.get().asFile.absolutePath, '-c', '-o', spiderJarFile.get().asFile.absolutePath])
+    }
+}
+
+def verifySpiderJar = tasks.register('verifySpiderJar') {
+    group = 'verification'
+    description = 'Checks the generated spider JAR holds dex code and writes its MD5.'
+    dependsOn generateSpiderJar
+    inputs.file(spiderJarFile)
+    outputs.file(spiderMd5File)
+    doLast {
+        def jar = spiderJarFile.get().asFile
+        def entries = new java.util.zip.ZipFile(jar).withCloseable { zip -> zip.entries().collect { it.name } }
+        if (!entries.contains('classes.dex'))
+            throw new GradleException("${jar.name} has no classes.dex")
+        ant.checksum(file: jar, algorithm: 'MD5', fileext: '.md5', forceOverwrite: true)
+    }
+}
+
+tasks.register('spiderJar') {
+    group = 'build'
+    description = 'Builds, verifies, and optionally exports tvbox.jar.'
+    dependsOn verifySpiderJar
+    doLast {
+        def output = providers.gradleProperty('spiderOutput').getOrNull()
+        if (output) {
+            def requested = file(output)
+            def target = output.toLowerCase(Locale.ROOT).endsWith('.jar') ? requested : new File(requested, spiderJarFile.get().asFile.name)
+            Files.createDirectories(target.parentFile.toPath())
+            Files.copy(spiderJarFile.get().asFile.toPath(), target.toPath(), StandardCopyOption.REPLACE_EXISTING)
+            Files.copy(spiderMd5File.get().asFile.toPath(), new File(target.absolutePath + '.md5').toPath(), StandardCopyOption.REPLACE_EXISTING)
+            logger.lifecycle("Exported ${target.absolutePath}")
+        }
+    }
+}

@@ -10,7 +10,7 @@ http://127.0.0.1:{port}
 
 所有端點支援 GET 與 POST（除特別標注外），參數可放在 Query String 中。回應若無特別說明皆為 `text/plain`，成功回傳 `OK`，失敗回傳 `500` 與錯誤訊息。
 
-> **配對：** 來自其他裝置的 `/api/*`、`/action`、`/file`、`/upload`、`/newFolder`、`/delFolder`、`/delFile` 請求必須帶上配對取得的權杖（`X-Token` 標頭或 `token` 參數），否則回傳 `401`。來自本機（`127.0.0.1`）的請求不受限制，爬蟲與播放器照常使用。詳見 [REMOTE.md](REMOTE.md#pairing)。
+> **配對：** 來自其他裝置的 `/api/*`、`/action`、`/file`、`/upload`、`/newFolder`、`/delFolder`、`/delFile` 請求必須帶上配對取得的權杖（`X-Token` 標頭或 `token` 參數），否則回傳 `401`。來自本機（`127.0.0.1`）的請求不受限制，爬蟲與播放器照常使用。詳見 [REMOTE.md](REMOTE.md#配对)。
 
 ---
 

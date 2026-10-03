@@ -30,8 +30,9 @@ public class QualityAdapter extends RecyclerView.Adapter<QualityAdapter.ViewHold
     }
 
     public void addAll(Result result) {
+        int old = getItemCount();
         this.result = result;
-        notifyDataSetChanged();
+        ListUpdate.replaced(this, old, getItemCount());
     }
 
     @Override

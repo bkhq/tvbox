@@ -15,6 +15,7 @@ import androidx.fragment.app.FragmentActivity;
 import androidx.recyclerview.widget.RecyclerView;
 import androidx.viewbinding.ViewBinding;
 
+import com.fongmi.android.tv.ui.adapter.ListUpdate;
 import com.fongmi.android.tv.ui.custom.CustomWallView;
 import com.fongmi.android.tv.utils.Util;
 
@@ -69,7 +70,7 @@ public abstract class BaseActivity extends AppCompatActivity {
     }
 
     protected void notifyItemChanged(RecyclerView view, RecyclerView.Adapter<?> adapter) {
-        view.post(() -> adapter.notifyDataSetChanged());
+        view.post(() -> ListUpdate.refresh(adapter));
     }
 
     private void setBackCallback() {

@@ -23,14 +23,16 @@ public class EpgDataAdapter extends RecyclerView.Adapter<EpgDataAdapter.ViewHold
     }
 
     public void addAll(List<EpgData> items) {
+        int old = mItems.size();
         mItems.clear();
         mItems.addAll(items);
-        notifyDataSetChanged();
+        ListUpdate.replaced(this, old, mItems.size());
     }
 
     public void clear() {
+        int old = mItems.size();
         mItems.clear();
-        notifyDataSetChanged();
+        notifyItemRangeRemoved(0, old);
     }
 
     public EpgData get(int position) {
@@ -39,7 +41,7 @@ public class EpgDataAdapter extends RecyclerView.Adapter<EpgDataAdapter.ViewHold
 
     public void setSelected(EpgData selected) {
         for (EpgData item : mItems) item.setSelected(selected);
-        notifyDataSetChanged();
+        ListUpdate.refresh(this);
     }
 
     @Override

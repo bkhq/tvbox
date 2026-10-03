@@ -45,8 +45,9 @@ public class RecordAdapter extends RecyclerView.Adapter<RecordAdapter.ViewHolder
     }
 
     public void add(String item) {
+        int old = mItems.size();
         checkToAdd(item);
-        notifyDataSetChanged();
+        ListUpdate.replaced(this, old, mItems.size());
         listener.onDataChanged(getItemCount());
         Setting.putKeyword(App.gson().toJson(mItems));
     }

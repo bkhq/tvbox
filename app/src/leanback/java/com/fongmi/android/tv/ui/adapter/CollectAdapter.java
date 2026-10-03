@@ -26,8 +26,9 @@ public class CollectAdapter extends RecyclerView.Adapter<CollectAdapter.ViewHold
     }
 
     public void clear() {
+        int old = mItems.size();
         mItems.clear();
-        notifyDataSetChanged();
+        notifyItemRangeRemoved(0, old);
     }
 
     public Collect get(int position) {

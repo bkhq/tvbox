@@ -24,9 +24,10 @@ public class FileAdapter extends RecyclerView.Adapter<FileAdapter.ViewHolder> {
     }
 
     public void addAll(List<File> items) {
+        int old = mItems.size();
         mItems.clear();
         mItems.addAll(items);
-        notifyDataSetChanged();
+        ListUpdate.replaced(this, old, mItems.size());
     }
 
     @Override

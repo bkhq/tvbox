@@ -31,9 +31,10 @@ public class EditionAdapter extends RecyclerView.Adapter<EditionAdapter.ViewHold
     }
 
     public EditionAdapter addAll(List<MediaEdition> items) {
+        int old = mItems.size();
         mItems.clear();
         mItems.addAll(items);
-        notifyDataSetChanged();
+        ListUpdate.replaced(this, old, mItems.size());
         return this;
     }
 

@@ -26,14 +26,16 @@ public class FlagAdapter extends RecyclerView.Adapter<FlagAdapter.ViewHolder> {
     }
 
     public void addAll(List<Flag> items) {
+        int old = mItems.size();
         mItems.clear();
         mItems.addAll(items);
-        notifyDataSetChanged();
+        ListUpdate.replaced(this, old, mItems.size());
     }
 
     public void clear() {
+        int old = mItems.size();
         mItems.clear();
-        notifyDataSetChanged();
+        notifyItemRangeRemoved(0, old);
     }
 
     public Flag get(int position) {
@@ -55,7 +57,7 @@ public class FlagAdapter extends RecyclerView.Adapter<FlagAdapter.ViewHolder> {
 
     public void setNextFocusDown(int nextFocusDown) {
         this.nextFocusDown = nextFocusDown;
-        notifyDataSetChanged();
+        ListUpdate.refresh(this);
     }
 
     @Override

@@ -31,9 +31,10 @@ public class ChapterAdapter extends RecyclerView.Adapter<ChapterAdapter.ViewHold
     }
 
     public ChapterAdapter addAll(List<MediaChapter> items) {
+        int old = mItems.size();
         mItems.clear();
         mItems.addAll(items);
-        notifyDataSetChanged();
+        ListUpdate.replaced(this, old, mItems.size());
         return this;
     }
 

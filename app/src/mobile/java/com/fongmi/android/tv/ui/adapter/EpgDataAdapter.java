@@ -28,14 +28,16 @@ public class EpgDataAdapter extends RecyclerView.Adapter<EpgDataAdapter.ViewHold
     }
 
     public void clear() {
+        int old = mItems.size();
         mItems.clear();
-        notifyDataSetChanged();
+        notifyItemRangeRemoved(0, old);
     }
 
     public void addAll(List<EpgData> items) {
+        int old = mItems.size();
         mItems.clear();
         mItems.addAll(items);
-        notifyDataSetChanged();
+        ListUpdate.replaced(this, old, mItems.size());
     }
 
     public void setSelected(EpgData item) {

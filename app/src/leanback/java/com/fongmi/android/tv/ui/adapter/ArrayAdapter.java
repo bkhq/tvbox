@@ -31,14 +31,16 @@ public class ArrayAdapter extends RecyclerView.Adapter<ArrayAdapter.ViewHolder> 
     }
 
     public void addAll(List<String> items) {
+        int old = mItems.size();
         mItems.clear();
         mItems.addAll(items);
-        notifyDataSetChanged();
+        ListUpdate.replaced(this, old, mItems.size());
     }
 
     public void clear() {
+        int old = mItems.size();
         mItems.clear();
-        notifyDataSetChanged();
+        notifyItemRangeRemoved(0, old);
     }
 
     @Override

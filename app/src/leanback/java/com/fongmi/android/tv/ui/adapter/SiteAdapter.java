@@ -35,7 +35,7 @@ public class SiteAdapter extends RecyclerView.Adapter<SiteAdapter.ViewHolder> {
 
     public void setType(int type) {
         this.type = type;
-        notifyDataSetChanged();
+        ListUpdate.refresh(this);
     }
 
     public void selectAll() {

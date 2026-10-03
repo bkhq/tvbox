@@ -29,8 +29,9 @@ public class TrackAdapter extends RecyclerView.Adapter<TrackAdapter.ViewHolder> 
     }
 
     public TrackAdapter addAll(List<Track> items) {
+        int start = mItems.size();
         mItems.addAll(items);
-        notifyDataSetChanged();
+        notifyItemRangeInserted(start, items.size());
         return this;
     }
 

@@ -26,19 +26,21 @@ public class PartAdapter extends RecyclerView.Adapter<PartAdapter.ViewHolder> {
     }
 
     public void addAll(List<String> items) {
+        int old = mItems.size();
         mItems.clear();
         mItems.addAll(items);
-        notifyDataSetChanged();
+        ListUpdate.replaced(this, old, mItems.size());
     }
 
     public void clear() {
+        int old = mItems.size();
         mItems.clear();
-        notifyDataSetChanged();
+        notifyItemRangeRemoved(0, old);
     }
 
     public void setNextFocusUp(int nextFocusUp) {
         this.nextFocusUp = nextFocusUp;
-        notifyDataSetChanged();
+        ListUpdate.refresh(this);
     }
 
     @Override

@@ -39,9 +39,10 @@ public class EpisodeAdapter extends RecyclerView.Adapter<BaseEpisodeHolder> {
     }
 
     public void addAll(List<Episode> items) {
+        int old = mItems.size();
         mItems.clear();
         mItems.addAll(items);
-        notifyDataSetChanged();
+        ListUpdate.replaced(this, old, mItems.size());
     }
 
     public int getPosition() {

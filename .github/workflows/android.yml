@@ -1,0 +1,68 @@
+name: Build APKs
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+    paths-ignore:
+      - "worker/**"
+      - ".github/workflows/worker.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: android-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  AAR_REPO: zzci/tvbox-aar
+  AAR_TAG: media-3c2cbe8
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download media AARs
+        env:
+          GH_TOKEN: ${{ secrets.AAR_TOKEN }}
+        run: gh release download "$AAR_TAG" -R "$AAR_REPO" -p "*.aar" -D app/libs
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Configure signing
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+        run: |
+          echo "$KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/release.jks"
+          printf 'storeFile=%s\nkeyAlias=%s\nstorePassword=%s\n' "$RUNNER_TEMP/release.jks" "$KEY_ALIAS" "$KEYSTORE_PASSWORD" > local.properties
+
+      - name: Build
+        run: bash ./gradlew --no-daemon assembleRelease
+
+      - name: Collect
+        run: |
+          mkdir dist
+          find app/build/outputs/apk -name "*.apk" -exec cp {} dist/ \;
+          ls -l dist
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: apk
+          path: dist/*.apk
+
+      - name: Publish release
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "$GITHUB_REF_NAME" dist/*.apk --title "$GITHUB_REF_NAME" --generate-notes

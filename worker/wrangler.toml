@@ -1,0 +1,6 @@
+name = "tvbox"
+main = "src/index.ts"
+compatibility_date = "2026-09-01"
+
+[vars]
+UPSTREAM = "https://raw.githubusercontent.com/qist/tvbox/master/xiaosa"

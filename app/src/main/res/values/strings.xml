@@ -270,7 +270,7 @@
     <string name="setting_airplay">AirPlay</string>
     <string name="airplay_name">AirPlay name</string>
     <string name="live_boot">Live on boot</string>
-    <string name="airplay_name_hint">Name shown on iPhone, iPad and Mac. Leave empty for the app name.</string>
+    <string name="airplay_name_hint">Name shown on iPhone, iPad and Mac. Leave empty for “AirPlay”.</string>
     <string name="airplay_turn_on">Turn on</string>
     <string name="airplay_turn_off">Turn off</string>
     <string name="airplay_off">Off</string>

@@ -6,14 +6,12 @@ import android.net.wifi.WifiManager;
 import android.text.TextUtils;
 
 import com.fongmi.android.tv.App;
-import com.fongmi.android.tv.R;
 import com.fongmi.android.tv.event.ServerEvent;
 import com.fongmi.android.tv.player.PlayerManager;
 import com.fongmi.android.tv.server.Server;
 import com.fongmi.android.tv.service.PlaybackService;
 import com.fongmi.android.tv.setting.Setting;
 import com.fongmi.android.tv.utils.DeviceId;
-import com.fongmi.android.tv.utils.ResUtil;
 import com.fongmi.android.tv.utils.Task;
 import com.github.serezhka.airplay.protocol.media.AudioStreamInfo;
 import com.github.serezhka.airplay.protocol.media.VideoStreamInfo;
@@ -90,9 +88,11 @@ public class AirPlay implements Playback {
         return config;
     }
 
+    public static final String DEFAULT_NAME = "AirPlay";
+
     public static String getName() {
         String name = Setting.getAirPlayName();
-        return TextUtils.isEmpty(name) ? ResUtil.getString(R.string.app_name) : name;
+        return TextUtils.isEmpty(name) ? DEFAULT_NAME : name;
     }
 
     private void acquireLock() {

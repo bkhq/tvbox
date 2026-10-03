@@ -23,3 +23,7 @@
 # Crypto providers are looked up reflectively
 -keep class org.whispersystems.curve25519.** { *; }
 -keep class net.i2p.crypto.eddsa.** { *; }
+
+# Compile-time annotations
+-dontwarn lombok.**
+-dontwarn org.immutables.**

@@ -8,4 +8,6 @@ public class AirPlayConfig {
     private int width;
     private int height;
     private int fps;
+    /** Stable receiver id in MAC notation; used when the platform hides hardware addresses. */
+    private String deviceId;
 }

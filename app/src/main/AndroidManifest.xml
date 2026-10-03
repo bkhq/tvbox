@@ -82,6 +82,11 @@
             android:process=":error_activity"
             android:theme="@style/Theme.Crash" />
 
+        <activity
+            android:name=".airplay.MirrorActivity"
+            android:configChanges="screenSize|smallestScreenSize|screenLayout|orientation|keyboard|keyboardHidden|navigation"
+            android:excludeFromRecents="true"
+            android:launchMode="singleTask" />
         <receiver
             android:name=".receiver.ActionReceiver"
             android:exported="false">

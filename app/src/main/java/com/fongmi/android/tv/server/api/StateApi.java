@@ -4,6 +4,7 @@ import android.text.TextUtils;
 
 import com.fongmi.android.tv.BuildConfig;
 import com.fongmi.android.tv.R;
+import com.fongmi.android.tv.airplay.AirPlay;
 import com.fongmi.android.tv.api.config.LiveConfig;
 import com.fongmi.android.tv.api.config.VodConfig;
 import com.fongmi.android.tv.api.config.WallConfig;
@@ -68,6 +69,8 @@ public class StateApi implements Endpoint {
         object.addProperty("ua", Setting.getUa());
         object.addProperty("incognito", Setting.isIncognito());
         object.addProperty("adblock", Setting.isAdblock());
+        object.addProperty("airplay", Setting.isAirPlay());
+        object.addProperty("airplay_name", AirPlay.getName());
         return object;
     }
 

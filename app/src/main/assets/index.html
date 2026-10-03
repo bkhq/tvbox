@@ -105,6 +105,10 @@
                         <div class="section-title">通用</div>
                         <label class="setting-row"><span>无痕模式</span><input type="checkbox" id="setting_incognito" onchange="setting('incognito', this.checked)" /></label>
                         <label class="setting-row"><span>广告过滤</span><input type="checkbox" id="setting_adblock" onchange="setting('adblock', this.checked)" /></label>
+                        <label class="setting-row"><span>AirPlay 投屏</span><input type="checkbox" id="setting_airplay" onchange="setting('airplay', this.checked)" /></label>
+                        <div class="section-title">AirPlay 名称</div>
+                        <div class="md-field"><input id="setting_airplay_name" class="md-input" type="text" placeholder="iPhone 投屏列表中显示的名称" /></div>
+                        <button class="md-btn md-btn-tonal md-btn-full" onclick="setting('airplay_name', $('#setting_airplay_name').val())">保存</button>
                         <div class="section-title">User-Agent</div>
                         <div class="md-field"><input id="setting_ua" class="md-input" type="text" placeholder="留空使用默认" /></div>
                         <button class="md-btn md-btn-tonal md-btn-full" onclick="setting('ua', $('#setting_ua').val())">保存</button>

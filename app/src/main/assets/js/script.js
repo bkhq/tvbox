@@ -244,6 +244,8 @@ function renderSettings(state) {
     $('#setting_ua').val(s.ua);
     $('#setting_incognito').prop('checked', s.incognito);
     $('#setting_adblock').prop('checked', s.adblock);
+    $('#setting_airplay').prop('checked', s.airplay);
+    $('#setting_airplay_name').val(s.airplay_name);
 }
 
 function setting(key, value) {

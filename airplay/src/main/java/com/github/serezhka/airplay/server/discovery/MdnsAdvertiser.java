@@ -28,6 +28,7 @@ public class MdnsAdvertiser {
     private static final String AIRTUNES_SERVICE_TYPE = "._raop._tcp.local";
 
     private final String serverName;
+    private final String deviceId;
 
     private final List<JmDNS> jmDNSList = new ArrayList<>();
 
@@ -39,7 +40,7 @@ public class MdnsAdvertiser {
                 .forEach(inetAddress -> {
                     try {
                         byte[] hardwareAddress = NetworkInterface.getByInetAddress(inetAddress).getHardwareAddress();
-                        String mac = hardwareAddressBytesToString(hardwareAddress);
+                        String mac = deviceId != null ? deviceId : hardwareAddressBytesToString(hardwareAddress);
 
                         JmDNS jmDNS = JmDNS.create(inetAddress);
                         jmDNS.registerService(ServiceInfo.create(serverName + AIRPLAY_SERVICE_TYPE,

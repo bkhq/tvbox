@@ -9,7 +9,7 @@ public class AirPlayServer {
     private final ControlServer controlServer;
 
     public AirPlayServer(AirPlayConfig airPlayConfig, Playback airPlayConsumer) {
-        airPlayBonjour = new MdnsAdvertiser(airPlayConfig.getServerName());
+        airPlayBonjour = new MdnsAdvertiser(airPlayConfig.getServerName(), airPlayConfig.getDeviceId());
         controlServer = new ControlServer(airPlayConfig, airPlayConsumer);
     }
 

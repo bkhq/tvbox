@@ -95,6 +95,22 @@ public class Setting {
         Prefers.put("site_mode", Math.clamp(mode, MIN_SITE_MODE, MAX_SITE_MODE));
     }
 
+    public static boolean isAirPlay() {
+        return Prefers.getBoolean("airplay", true);
+    }
+
+    public static void putAirPlay(boolean airplay) {
+        Prefers.put("airplay", airplay);
+    }
+
+    public static String getAirPlayName() {
+        return Prefers.getString("airplay_name");
+    }
+
+    public static void putAirPlayName(String name) {
+        Prefers.put("airplay_name", name);
+    }
+
     public static boolean isIncognito() {
         return Prefers.getBoolean("incognito");
     }

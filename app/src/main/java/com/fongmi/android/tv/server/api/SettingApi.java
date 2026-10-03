@@ -1,5 +1,6 @@
 package com.fongmi.android.tv.server.api;
 
+import com.fongmi.android.tv.airplay.AirPlay;
 import com.fongmi.android.tv.setting.PlayerSetting;
 import com.fongmi.android.tv.setting.Setting;
 import com.fongmi.android.tv.setting.SpeedSetting;
@@ -26,6 +27,15 @@ public class SettingApi implements Endpoint {
             case "ua" -> Setting.putUa(value);
             case "incognito" -> Setting.putIncognito(Boolean.parseBoolean(value));
             case "adblock" -> Setting.putAdblock(Boolean.parseBoolean(value));
+            case "airplay" -> {
+                Setting.putAirPlay(Boolean.parseBoolean(value));
+                if (Setting.isAirPlay()) AirPlay.get().start();
+                else AirPlay.get().stop();
+            }
+            case "airplay_name" -> {
+                Setting.putAirPlayName(value.trim());
+                if (Setting.isAirPlay()) AirPlay.get().restart();
+            }
             default -> {
                 return Reply.badRequest("Unknown key");
             }

@@ -24,6 +24,7 @@ import androidx.viewbinding.ViewBinding;
 import com.fongmi.android.tv.App;
 import com.fongmi.android.tv.Product;
 import com.fongmi.android.tv.R;
+import com.fongmi.android.tv.airplay.AirPlay;
 import com.fongmi.android.tv.api.config.LiveConfig;
 import com.fongmi.android.tv.api.config.VodConfig;
 import com.fongmi.android.tv.api.config.WallConfig;
@@ -121,6 +122,7 @@ public class HomeActivity extends BaseActivity implements CustomTitleView.Listen
         mBinding.progressLayout.showProgress();
         PermissionUtil.requestNotify(this);
         DLNARendererService.start(this);
+        AirPlay.get().start();
         setRecyclerView();
         setViewModel();
         setAdapter();
@@ -494,6 +496,7 @@ public class HomeActivity extends BaseActivity implements CustomTitleView.Listen
     @Override
     protected void onDestroy() {
         DLNARendererService.stop(this);
+        AirPlay.get().stop();
         LiveConfig.get().clear();
         VodConfig.get().clear();
         AppDatabase.backup();

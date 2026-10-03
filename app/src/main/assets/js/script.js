@@ -122,11 +122,12 @@ function loadState(onDone) {
     });
 }
 
-function api(path, kv, onDone) {
+function api(path, kv, onDone, onFail) {
     $.post('/api/' + path, kv, function () {
         if (onDone) onDone();
     }).fail(function (xhr) {
         if (xhr.status === 401) onUnauthorized();
+        else if (onFail) onFail(xhr);
         else warnToast(xhr.responseText || '操作失败');
     });
 }
@@ -333,6 +334,9 @@ function setting(key, value) {
     api('setting', { key, value }, function () {
         warnToast('已保存');
         setTimeout(loadState, 300);
+    }, function () {
+        warnToast('取值无效');
+        loadState();
     });
 }
 

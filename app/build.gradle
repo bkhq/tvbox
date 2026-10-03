@@ -81,6 +81,12 @@ android {
         }
     }
 
+    testOptions {
+        unitTests.includeAndroidResources = true
+        // Robolectric reads FileDescriptor internals that JDK 21 keeps unexported.
+        unitTests.all { jvmArgs '--add-exports=java.base/jdk.internal.access=ALL-UNNAMED', '--add-opens=java.base/java.io=ALL-UNNAMED' }
+    }
+
     lint {
         disable 'UnsafeOptInUsageError'
         disable 'ExpiredTargetSdkVersion'
@@ -139,4 +145,6 @@ dependencies {
     annotationProcessor libs.eventbus.annotation.processor
     annotationProcessor libs.glide.compiler
     coreLibraryDesugaring libs.desugar
+    testImplementation libs.junit
+    testImplementation libs.robolectric
 }

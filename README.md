@@ -65,6 +65,12 @@ docs/       配置、爬虫、直播、本地接口等文档
    bash ./gradlew :app:assembleRelease
    ```
 
+4. 单元测试（Robolectric，CI 每次构建都会跑）：
+
+   ```bash
+   bash ./gradlew :app:testArm64_v8aDebugUnitTest
+   ```
+
 可选的构建参数：
 
 | 参数 | 作用 |

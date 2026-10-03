@@ -222,11 +222,43 @@ public final class SettingRegistry {
         return result;
     }
 
-    /** @return false when the key is unknown */
+    /**
+     * @return false when the key is unknown
+     * @throws IllegalArgumentException when the value does not fit the item
+     */
     public static boolean set(String key, String value) {
         Item item = ITEMS.get(key);
         if (item == null) return false;
+        check(item, value);
         item.setter.accept(value);
         return true;
+    }
+
+    private static void check(Item item, String value) {
+        boolean valid = switch (item.type) {
+            case BOOL -> "true".equals(value) || "false".equals(value);
+            case ENUM -> isIndex(value, item.options.get().size());
+            case NUMBER -> isInRange(value, item.min, item.max);
+            case TEXT -> true;
+        };
+        if (!valid) throw new IllegalArgumentException("Invalid value for " + item.key);
+    }
+
+    private static boolean isIndex(String value, int size) {
+        try {
+            int index = Integer.parseInt(value);
+            return index >= 0 && index < size;
+        } catch (NumberFormatException e) {
+            return false;
+        }
+    }
+
+    private static boolean isInRange(String value, double min, double max) {
+        try {
+            double number = Double.parseDouble(value);
+            return number >= min && number <= max;
+        } catch (NumberFormatException e) {
+            return false;
+        }
     }
 }

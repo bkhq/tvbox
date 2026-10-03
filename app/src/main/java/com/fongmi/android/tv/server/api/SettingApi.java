@@ -13,6 +13,10 @@ public class SettingApi implements Endpoint {
     public Response handle(IHTTPSession session, Map<String, String> params) {
         String key = Objects.toString(params.get("key"), "");
         String value = Objects.toString(params.get("value"), "");
-        return SettingRegistry.set(key, value) ? Reply.ok() : Reply.badRequest("Unknown key");
+        try {
+            return SettingRegistry.set(key, value) ? Reply.ok() : Reply.badRequest("Unknown key");
+        } catch (IllegalArgumentException e) {
+            return Reply.badRequest(e.getMessage());
+        }
     }
 }

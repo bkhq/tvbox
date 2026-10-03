@@ -104,6 +104,8 @@ jobs:
     steps:
       # The `secrets` context cannot be read from a job-level `if`.
       - name: Require Cloudflare credentials and the OIDC client
+        # Runs before checkout, when worker/ does not exist yet.
+        working-directory: ${{ github.workspace }}
         env:
           OAUTH_ISSUER: ${{ vars.OAUTH_ISSUER }}
           OAUTH_CLIENT_ID: ${{ vars.OAUTH_CLIENT_ID }}

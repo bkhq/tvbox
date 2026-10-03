@@ -17,10 +17,19 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Tabs, TabsList, TabsTrigger } from "@/shared/components/ui/tabs";
 import { errorMessage, LIST_KINDS, tvboxApi, tvboxKeys } from "./-tvbox-api";
 import { JsonDialog } from "./-tvbox-json-dialog";
-import { entrySubtitle, entryTitle, filterEntries, filterHealth, moveId, upstreamLabel } from "./-tvbox-view";
+import { entrySubtitle, entryTitle, filterEntries, filterHealth, moveId, siteEngine, upstreamLabel } from "./-tvbox-view";
+
+// New sites start from one of these: a CMS API the app calls itself (type 1
+// JSON / type 0 XML, the usual 苹果CMS endpoints), or a spider in a jar.
+const SITE_TEMPLATES = {
+  cmsJson: { key: "", name: "", type: 1, api: "https://example.com/api.php/provide/vod/", searchable: 1, quickSearch: 1, filterable: 1 },
+  cmsXml: { key: "", name: "", type: 0, api: "https://example.com/api.php/provide/vod/at/xml/", searchable: 1, quickSearch: 1, filterable: 0 },
+  jar: { key: "", name: "", type: 3, api: "csp_", jar: "", ext: "", searchable: 1, quickSearch: 1, filterable: 1 },
+} satisfies Record<string, JsonObject>;
+type SiteTemplate = keyof typeof SITE_TEMPLATES;
 
 const NEW_ENTRY: Record<ListKind, JsonObject> = {
-  sites: { key: "", name: "", type: 3, api: "", searchable: 1, quickSearch: 1, filterable: 1 },
+  sites: SITE_TEMPLATES.cmsJson,
   parses: { name: "", type: 0, url: "" },
   lives: { name: "", type: 0, url: "" },
   rules: { name: "", hosts: [], regex: [] },
@@ -38,6 +47,7 @@ export function EntriesTab() {
   const [editing, setEditing] = useState<Entry | "new" | null>(null);
   const [deleting, setDeleting] = useState<Entry | null>(null);
   const [bulkDeleting, setBulkDeleting] = useState(false);
+  const [template, setTemplate] = useState<SiteTemplate>("cmsJson");
   // The recycle bin: upstream entries deleted here, which syncs leave alone.
   const [trash, setTrash] = useState(false);
 
@@ -156,7 +166,14 @@ export function EntriesTab() {
             <Trash2 className="size-4" />
             {t("tvbox:entries.trash")}
           </Button>
-          <Button size="sm" disabled={trash} onClick={() => setEditing("new")}>
+          <Button
+            size="sm"
+            disabled={trash}
+            onClick={() => {
+              setTemplate("cmsJson");
+              setEditing("new");
+            }}
+          >
             <Plus className="size-4" />
             {t("tvbox:entries.add")}
           </Button>
@@ -212,7 +229,10 @@ export function EntriesTab() {
                   <Switch checked={entry.enabled} disabled={trash} onCheckedChange={enabled => update.mutate({ id: entry.id, body: { enabled } })} />
                 </TableCell>
                 <TableCell className="max-w-lg">
-                  <div className="font-medium">{entryTitle(entry)}</div>
+                  <div className="flex items-center gap-2 font-medium">
+                    {entryTitle(entry)}
+                    {kind === "sites" && siteEngine(entry.data) && <Badge variant="outline" className="font-normal">{t(`tvbox:entries.engine.${siteEngine(entry.data)}`)}</Badge>}
+                  </div>
                   <div className="truncate text-xs text-muted-foreground">{entrySubtitle(entry)}</div>
                 </TableCell>
                 <TableCell className="space-x-1 text-xs whitespace-nowrap">
@@ -263,15 +283,27 @@ export function EntriesTab() {
       )}
 
       <JsonDialog
+        // A new template replaces the text.
+        key={editingEntry ? editingEntry.id : `new-${template}`}
         open={editing !== null}
         onOpenChange={open => !open && setEditing(null)}
         title={editingEntry ? entryTitle(editingEntry) : t("tvbox:entries.add")}
-        value={editingEntry ? editingEntry.data : NEW_ENTRY[kind]}
+        value={editingEntry ? editingEntry.data : kind === "sites" ? SITE_TEMPLATES[template] : NEW_ENTRY[kind]}
         objectOnly
         pending={update.isPending || create.isPending}
         extra={(
           <>
             {editingEntry?.locallyModified && editingEntry.upstreamData && <p className="text-xs text-muted-foreground">{t("tvbox:entries.modifiedHint")}</p>}
+            {editing === "new" && kind === "sites" && (
+              <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                {(Object.keys(SITE_TEMPLATES) as SiteTemplate[]).map(k => (
+                  <Button key={k} type="button" size="sm" variant={template === k ? "default" : "outline"} onClick={() => setTemplate(k)}>
+                    {t(`tvbox:entries.engine.${k}`)}
+                  </Button>
+                ))}
+                {t(`tvbox:entries.templateHint.${template}`)}
+              </div>
+            )}
             <UploadButton />
           </>
         )}

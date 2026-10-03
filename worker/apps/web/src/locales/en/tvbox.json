@@ -73,7 +73,19 @@
     "deleteUpstreamHint": "It goes to the recycle bin: syncs do not add it back, and it can be restored.",
     "upload": "Upload file",
     "uploadHint": "Upload a jar, json… and use the path (copied) in jar, ext, api and similar fields.",
-    "uploaded": "Uploaded; path copied: {{path}}"
+    "uploaded": "Uploaded; path copied: {{path}}",
+    "engine": {
+      "cmsJson": "CMS · JSON",
+      "cmsXml": "CMS · XML",
+      "jar": "Spider · jar",
+      "js": "Spider · JS",
+      "python": "Spider · Python"
+    },
+    "templateHint": {
+      "cmsJson": "A MacCMS JSON API (usually ending in /api.php/provide/vod/); the app calls it directly, no spider needed.",
+      "cmsXml": "A MacCMS XML API (/api.php/provide/vod/at/xml/); the app calls it directly.",
+      "jar": "api is csp_<ClassName>, jar the path of the spider jar (upload it below), ext what the spider is given."
+    }
   },
   "globals": {
     "description": "Top-level fields such as spider, wallpaper and flags. Values are JSON.",

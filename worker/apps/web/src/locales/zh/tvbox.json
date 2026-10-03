@@ -73,7 +73,19 @@
     "deleteUpstreamHint": "上游条目会移到回收站，同步不会再加回来，可以在回收站恢复。",
     "upload": "上传文件",
     "uploadHint": "jar、json 等文件上传后得到路径（已复制），填到 jar、ext、api 等字段里。",
-    "uploaded": "已上传，路径已复制：{{path}}"
+    "uploaded": "已上传，路径已复制：{{path}}",
+    "engine": {
+      "cmsJson": "CMS · JSON",
+      "cmsXml": "CMS · XML",
+      "jar": "爬虫 · jar",
+      "js": "爬虫 · JS",
+      "python": "爬虫 · Python"
+    },
+    "templateHint": {
+      "cmsJson": "苹果CMS 的 JSON 接口（一般以 /api.php/provide/vod/ 结尾），App 直接请求，不需要爬虫。",
+      "cmsXml": "苹果CMS 的 XML 接口（/api.php/provide/vod/at/xml/），App 直接请求。",
+      "jar": "api 填 csp_类名，jar 填爬虫 jar 的路径（可用下面的上传），ext 是传给爬虫的参数。"
+    }
   },
   "globals": {
     "description": "spider、wallpaper、flags 等顶层字段，值为 JSON。",

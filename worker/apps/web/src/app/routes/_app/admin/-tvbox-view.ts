@@ -74,3 +74,22 @@ export function upstreamLabel(upstream: UpstreamNode, upstreams: readonly Upstre
   const parent = upstream.parentId === null ? undefined : upstreams.find(u => u.id === upstream.parentId);
   return parent ? `${parent.name} / ${upstream.name}` : upstream.name;
 }
+
+export type SiteEngine = "cmsJson" | "cmsXml" | "jar" | "js" | "python";
+
+/** How the app runs a site: a CMS API it calls itself, or a spider. */
+export function siteEngine(data: { readonly type?: unknown; readonly api?: unknown }): SiteEngine | null {
+  const type = Number(data.type);
+  const api = typeof data.api === "string" ? data.api.split("?")[0]! : "";
+  if (type === 0)
+    return "cmsXml";
+  if (type === 1 || type === 4)
+    return "cmsJson";
+  if (type !== 3)
+    return null;
+  if (api.endsWith(".js"))
+    return "js";
+  if (api.endsWith(".py"))
+    return "python";
+  return api.startsWith("csp_") ? "jar" : null;
+}

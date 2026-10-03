@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { countsText, entrySubtitle, entryTitle, filterEntries, filterHealth, moveId, upstreamLabel, upstreamTree } from "./-tvbox-view";
+import { countsText, entrySubtitle, entryTitle, filterEntries, filterHealth, moveId, siteEngine, upstreamLabel, upstreamTree } from "./-tvbox-view";
 
 describe("entryTitle / entrySubtitle", () => {
   it("prefers the name, then the key", () => {
@@ -73,5 +73,17 @@ describe("upstreamTree / upstreamLabel", () => {
   it("names a line after its collection", () => {
     expect(upstreamLabel(list[2]!, list)).toBe("op / Two");
     expect(upstreamLabel(list[0]!, list)).toBe("xiaosa");
+  });
+});
+
+describe("siteEngine", () => {
+  it("tells CMS APIs from spiders by type and api", () => {
+    expect(siteEngine({ type: 1, api: "https://c/api.php/provide/vod/" })).toBe("cmsJson");
+    expect(siteEngine({ type: 0, api: "https://c/xml" })).toBe("cmsXml");
+    expect(siteEngine({ type: 4, api: "https://c/" })).toBe("cmsJson");
+    expect(siteEngine({ type: 3, api: "csp_Xx" })).toBe("jar");
+    expect(siteEngine({ type: 3, api: "https://s/a.js" })).toBe("js");
+    expect(siteEngine({ type: 3, api: "./py/a.py?x=1" })).toBe("python");
+    expect(siteEngine({ type: 2 })).toBeNull();
   });
 });

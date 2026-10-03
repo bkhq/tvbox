@@ -9,8 +9,12 @@
  * the result is published when anything changed (always with `--publish`,
  * never with `--no-publish`).
  *
+ * With `--check`, every entry is then probed as scripts/tvbox-health.ts does
+ * and the results applied before publishing, so what a sync brought in that
+ * is already dead never goes out. `--json <file>` writes the probe report.
+ *
  * Usage:
- *   TVBOX_URL=https://tv.bk.io/mg TVBOX_API_TOKEN=… bun scripts/tvbox-apply.ts [file] [--publish | --no-publish]
+ *   TVBOX_URL=https://tv.bk.io/mg TVBOX_API_TOKEN=… bun scripts/tvbox-apply.ts [file] [--publish | --no-publish] [--check [--json report.json]]
  *
  * TVBOX_URL is the console's base URL: the origin plus BASE_PATH.
  *
@@ -18,8 +22,9 @@
  * an admin under Settings → API tokens.
  */
 /* eslint-disable no-console */
-import { readFileSync } from "node:fs";
+import { readFileSync, writeFileSync } from "node:fs";
 import process from "node:process";
+import { applyResults, checkAll, client } from "./tvbox-health";
 
 interface Declared {
   readonly name: string;
@@ -44,7 +49,9 @@ interface SyncResult {
 }
 
 const args = process.argv.slice(2);
-const file = args.find(a => !a.startsWith("--")) ?? "tvbox/upstreams.json";
+const jsonAt = args.indexOf("--json");
+const jsonFile = jsonAt === -1 ? undefined : args[jsonAt + 1];
+const file = args.find((a, i) => !a.startsWith("--") && (jsonAt === -1 || i !== jsonAt + 1)) ?? "tvbox/upstreams.json";
 const publishMode = args.includes("--no-publish") ? "never" : args.includes("--publish") ? "always" : "changed";
 const base = process.env.TVBOX_URL?.replace(/\/+$/, "");
 const token = process.env.TVBOX_API_TOKEN;
@@ -133,6 +140,16 @@ async function main(): Promise<void> {
       failed++;
       console.error(`failed   ${name}: ${err instanceof Error ? err.message : String(err)}`);
     }
+  }
+
+  if (args.includes("--check")) {
+    console.log("");
+    const call = client(base!, token!);
+    const results = await checkAll(call);
+    if (jsonFile)
+      writeFileSync(jsonFile, JSON.stringify(results, null, 2));
+    const outcome = await applyResults(call, results);
+    changed += outcome.disabled.length + outcome.enabled.length;
   }
 
   if (publishMode === "always" || (publishMode === "changed" && changed > 0)) {

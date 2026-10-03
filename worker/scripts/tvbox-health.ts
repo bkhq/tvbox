@@ -169,16 +169,31 @@ export async function check(entry: Entry): Promise<Result> {
   return { id: entry.id, kind: entry.kind, name, status, detail: outcomes.map(o => o.detail).join("; ") };
 }
 
-async function main(): Promise<void> {
-  const base = process.env.TVBOX_URL?.replace(/\/+$/, "");
-  const token = process.env.TVBOX_API_TOKEN;
-  if (!base || !token)
-    throw new Error("TVBOX_URL and TVBOX_API_TOKEN must be set");
+export interface Applied {
+  readonly recorded: number;
+  readonly disabled: readonly string[];
+  readonly enabled: readonly string[];
+}
 
-  const res = await fetch(`${base}/api/tvbox/entries`, { headers: { Authorization: `Bearer ${token}` } });
-  if (!res.ok)
-    throw new Error(`GET /tvbox/entries → ${res.status}`);
-  const entries = ((await res.json()) as { data: Entry[] }).data.filter(e => e.kind !== "rules");
+type Call = <T>(method: string, path: string, body?: unknown) => Promise<T>;
+
+/** Console API calls with an API token; `base` is the origin plus BASE_PATH. */
+export function client(base: string, token: string): Call {
+  return async <T>(method: string, path: string, body?: unknown): Promise<T> => {
+    const r = await fetch(`${base}/api${path}`, {
+      method,
+      headers: { "Authorization": `Bearer ${token}`, "Content-Type": "application/json" },
+      ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+    });
+    if (!r.ok)
+      throw new Error(`${method} ${path} → ${r.status}: ${(await r.text()).slice(0, 300)}`);
+    return ((await r.json()) as { data: T }).data;
+  };
+}
+
+/** Probe every entry on the deployment and print a summary. */
+export async function checkAll(call: Call): Promise<Result[]> {
+  const entries = (await call<Entry[]>("GET", "/tvbox/entries")).filter(e => e.kind !== "rules");
 
   const results: Result[] = [];
   const queue = [...entries];
@@ -200,30 +215,37 @@ async function main(): Promise<void> {
     for (const r of results.filter(r => r.status === status).sort((a, b) => a.kind.localeCompare(b.kind)))
       console.log(`  [${r.kind}] ${r.name}: ${r.detail}`);
   }
+  return results;
+}
+
+/** Hand the results to the deployment, which switches entries on and off. */
+export async function applyResults(call: Call, results: readonly Result[]): Promise<Applied> {
+  const outcome = await call<Applied>("POST", "/tvbox/health", {
+    results: results.map(({ id, status, detail }) => ({ id, status, detail })),
+  });
+  console.log(`\napplied: ${outcome.recorded} recorded`);
+  for (const name of outcome.disabled)
+    console.log(`  disabled  ${name}`);
+  for (const name of outcome.enabled)
+    console.log(`  enabled   ${name}`);
+  return outcome;
+}
+
+async function main(): Promise<void> {
+  const base = process.env.TVBOX_URL?.replace(/\/+$/, "");
+  const token = process.env.TVBOX_API_TOKEN;
+  if (!base || !token)
+    throw new Error("TVBOX_URL and TVBOX_API_TOKEN must be set");
+  const call = client(base, token);
+
+  const results = await checkAll(call);
 
   const jsonAt = process.argv.indexOf("--json");
   if (jsonAt !== -1 && process.argv[jsonAt + 1])
     writeFileSync(process.argv[jsonAt + 1]!, JSON.stringify(results, null, 2));
 
   if (process.argv.includes("--apply")) {
-    const call = async <T>(method: string, path: string, body?: unknown): Promise<T> => {
-      const r = await fetch(`${base}/api${path}`, {
-        method,
-        headers: { "Authorization": `Bearer ${token}`, "Content-Type": "application/json" },
-        ...(body === undefined ? {} : { body: JSON.stringify(body) }),
-      });
-      if (!r.ok)
-        throw new Error(`${method} ${path} → ${r.status}: ${(await r.text()).slice(0, 300)}`);
-      return ((await r.json()) as { data: T }).data;
-    };
-    const outcome = await call<{ recorded: number; disabled: string[]; enabled: string[] }>("POST", "/tvbox/health", {
-      results: results.map(({ id, status, detail }) => ({ id, status, detail })),
-    });
-    console.log(`\napplied: ${outcome.recorded} recorded`);
-    for (const name of outcome.disabled)
-      console.log(`  disabled  ${name}`);
-    for (const name of outcome.enabled)
-      console.log(`  enabled   ${name}`);
+    const outcome = await applyResults(call, results);
     if (outcome.disabled.length + outcome.enabled.length > 0) {
       const p = await call<{ id: string; counts: string }>("POST", "/tvbox/publishes");
       console.log(`published ${p.id} ${p.counts}`);

@@ -2,6 +2,7 @@ import type { DurableObjectNamespace, DurableObjectState, Fetcher, R2Bucket } fr
 import type { SubscriptionBucket } from "./subscription";
 import { bootstrap } from "@/app";
 import { setPlatform } from "@/platform";
+import { handleDoh } from "./doh";
 import { handleLanding } from "./landing";
 import { createWorkersPlatform } from "./platform";
 import { registerR2Driver } from "./r2";
@@ -157,6 +158,8 @@ export default {
         return handleSubscription(request, files);
       case "updates":
         return handleUpdates(request, files);
+      case "doh":
+        return handleDoh(request);
       case "redirect":
         return Response.redirect(new URL(`${base}/`, url).toString(), 301);
       case "console":

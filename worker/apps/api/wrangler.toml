@@ -59,3 +59,6 @@ FILE_STORAGE_DRIVER = "r2"
 # not carry; downloads stream through the Worker instead.
 FILE_PRESIGN_ENABLED = "false"
 TRUST_PROXY = "false"
+# Upstreams are synced by the "TVBox sources" workflow, which also probes
+# entries before publishing; a sync here would publish unchecked entries.
+TVBOX_SYNC_INTERVAL_MINUTES = "0"

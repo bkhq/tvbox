@@ -16,6 +16,8 @@ describe("routeRequest", () => {
     ["/", "landing"],
     ["/s/abc/api.json", "subscription"],
     ["/u/stable/mobile-arm64_v8a.json", "updates"],
+    ["/dns-query", "doh"],
+    ["/dns-query/x", "missing"],
     ["/mg/api/health", "app"],
     ["/mg/api", "app"],
     ["/mg", "redirect"],

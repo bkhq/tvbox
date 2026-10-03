@@ -6,13 +6,14 @@ and hosts the admin console. Built from
 project needs and to the Workers runtime only.
 
 - **Content** — upstream configs (e.g. xiaosa) are imported into our own
-  database: each site, parser, live source, rule and DoH entry becomes a row
+  database: each site, parser, live source and rule becomes a row
   we can edit, disable (one by one or in bulk) or reorder, and every file
   they reference (spider jar, `./json/*`) is mirrored into R2. Entries added
   in the admin console belong to no upstream and are common to every device.
-  A scheduled sync pulls every sync-enabled upstream
-  (`TVBOX_SYNC_INTERVAL_MINUTES`) and publishes when anything changed;
-  entries edited here keep their edits. Publishing stores a snapshot in R2.
+  The "TVBox sources" workflow syncs every six hours, probes every entry
+  and disables dead ones before publishing (the built-in timer,
+  `TVBOX_SYNC_INTERVAL_MINUTES`, is off in production); entries edited here
+  keep their edits. Publishing stores a snapshot in R2.
 - **Devices** — each device has its own subscription URL,
   `/s/<token>/api.json`, which the admin console can show again or
   regenerate. A device follows every upstream or a chosen few; the stateless
@@ -37,6 +38,7 @@ project needs and to the Workers runtime only.
 | `/s/<token>/` | a device's subscription |
 | `POST /api/raw/tvbox/enroll` | the app's Server link endpoint; the only API path at the root (see `docs/SERVER-LINK.md`) |
 | `/u/<channel>/<mode>-<abi>.json`, `/u/apk/…` | app updates |
+| `/dns-query` | DNS-over-HTTPS, forwarded to Cloudflare |
 
 Every request reaches the Worker first (`run_worker_first = true`), which
 routes them in `apps/api/src/workers/router.ts`; only `/mg/api` and the
@@ -109,10 +111,14 @@ A manual deploy is `bun run deploy`.
 [{ "name": "xiaosa", "url": "https://…/api.json", "primary": true, "sync": true }]
 ```
 
-`.github/workflows/tvbox.yml` runs `scripts/tvbox-apply.ts` when that file
-changes, or by hand (Actions → TVBox sources → Run workflow). It creates or
-updates each declared upstream (matched by URL), syncs them, and publishes
-when anything changed; the manual run can also publish always or never.
+`.github/workflows/tvbox.yml` runs `scripts/tvbox-apply.ts --check` every six
+hours, when that file changes, or by hand (Actions → TVBox sources → Run
+workflow). It creates or updates each declared upstream (matched by URL),
+syncs them, probes every entry (`scripts/tvbox-health.ts`: failing entries
+are disabled, recovered ones re-enabled, ones forced on in the console only
+recorded), and publishes when anything changed; the manual run can also
+skip the check, or publish always or never. The probe report is uploaded as
+the `health-report` artifact.
 Upstreams added only in the admin console are left alone. It needs the
 secret `TVBOX_API_TOKEN`: an admin's API token with the `tvbox:write` scope,
 created under Settings → API tokens. Locally:

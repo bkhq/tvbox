@@ -1,15 +1,23 @@
 name: TVBox sources
 
 # Applies worker/tvbox/upstreams.json to the deployment, syncs every declared
-# upstream and publishes when anything changed. The deployment also syncs on
-# its own schedule; this is for changing the upstream list, or pulling now.
+# upstream, probes every entry from the runner (failing ones are disabled,
+# recovered ones re-enabled, ones an admin forced on only recorded) and
+# publishes once when anything changed. Runs on a schedule, so this is also
+# how the deployment stays in sync; its own sync timer is off.
+#
+# A runner is a datacenter, not a viewer's network: an entry that works at
+# home but fails here should be forced on in the console.
 
 on:
+  schedule:
+    - cron: "17 */6 * * *"
   push:
     branches: [main]
     paths:
       - "worker/tvbox/**"
       - "worker/scripts/tvbox-apply.ts"
+      - "worker/scripts/tvbox-health.ts"
       - ".github/workflows/tvbox.yml"
   workflow_dispatch:
     inputs:
@@ -18,6 +26,10 @@ on:
         type: choice
         options: [changed, always, never]
         default: changed
+      check:
+        description: "Probe entries and disable failing ones before publishing"
+        type: boolean
+        default: true
 
 permissions:
   contents: read
@@ -29,7 +41,7 @@ concurrency:
 jobs:
   apply:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 25
     env:
       # The console's base path (BASE_PATH in worker/apps/api/wrangler.toml).
       TVBOX_URL: ${{ vars.WORKER_URL }}/mg
@@ -48,12 +60,21 @@ jobs:
         with:
           bun-version: "1.4.2"
 
-      - name: Apply, sync and publish
+      - name: Apply, sync, check and publish
         working-directory: worker
         env:
           PUBLISH: ${{ inputs.publish || 'changed' }}
+          CHECK: ${{ github.event_name != 'workflow_dispatch' || inputs.check }}
         run: |
-          flag=""
-          [ "$PUBLISH" = always ] && flag="--publish"
-          [ "$PUBLISH" = never ] && flag="--no-publish"
-          bun scripts/tvbox-apply.ts tvbox/upstreams.json $flag
+          flags=""
+          [ "$PUBLISH" = always ] && flags="--publish"
+          [ "$PUBLISH" = never ] && flags="--no-publish"
+          [ "$CHECK" = true ] && flags="$flags --check --json health.json"
+          bun scripts/tvbox-apply.ts tvbox/upstreams.json $flags
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: health-report
+          path: worker/health.json
+          if-no-files-found: ignore

@@ -7,6 +7,7 @@ import com.fongmi.android.tv.bean.Vod;
 import com.fongmi.android.tv.event.RefreshEvent;
 import com.fongmi.android.tv.event.ServerEvent;
 import com.fongmi.android.tv.server.Nano;
+import com.fongmi.android.tv.server.PlayerCommand;
 import com.fongmi.android.tv.server.Server;
 import com.fongmi.android.tv.server.impl.Process;
 import com.fongmi.android.tv.service.PlaybackService;
@@ -14,6 +15,8 @@ import com.fongmi.android.tv.utils.FileUtil;
 import com.github.catvod.utils.Path;
 
 import java.util.Map;
+import java.util.Objects;
+import java.util.function.Consumer;
 
 import fi.iki.elonen.NanoHTTPD.IHTTPSession;
 import fi.iki.elonen.NanoHTTPD.Response;
@@ -89,18 +92,15 @@ public class Action implements Process {
     }
 
     private void onControl(Map<String, String> params) {
-        String type = params.get("type");
-        PlaybackService service = Server.get().getService();
-        if (service == null || TextUtils.isEmpty(type)) return;
-        switch (type) {
-            case "play" -> App.post(() -> service.player().play());
-            case "pause" -> App.post(() -> service.player().pause());
-            case "stop" -> App.post(service::dispatchStop);
-            case "prev" -> App.post(service::dispatchPrev);
-            case "next" -> App.post(service::dispatchNext);
-            case "repeat" -> App.post(service::dispatchRepeat);
-            case "replay" -> App.post(service::dispatchReplay);
+        Consumer<PlaybackService> command;
+        try {
+            command = PlayerCommand.of(Objects.toString(params.get("type"), ""), Objects.toString(params.get("value"), "0"));
+        } catch (IllegalArgumentException e) {
+            return;
         }
+        PlaybackService service = Server.get().getService();
+        if (service == null || command == null) return;
+        App.post(() -> command.accept(service));
     }
 
     private void onDanmaku(Map<String, String> params) {

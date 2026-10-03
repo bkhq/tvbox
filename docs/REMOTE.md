@@ -33,9 +33,9 @@ App 会启动一个本地 HTTP 服务（从 9978 开始取第一个可用端口�
 | `/api/unpair` | `target`（要删除设备的令牌） | `OK` |
 | `/api/state` | `only=player`（可选，只返回播放状态，供轮询） | 版本、地址、本机令牌、已配对设备、各类已保存配置及当前项、`settings`（设置项分组：`key`、`label`、`type` = `bool` / `enum` / `number` / `text`、`value`，以及 `options` 或 `min` / `max` / `step`）、`sources`（站点、直播源、解析及当前项）、`cache`（缓存大小）、服务器关联（`available`、`state`、`code`）、播放状态（`active`、`playing`、`title`、`position`、`duration`、`speed`） |
 | `/api/config` | `do` = `use` \| `delete`，`type`（0 点播、1 直播、2 壁纸），`url`，`name` | `OK`；拒绝删除正在使用的配置 |
-| `/api/setting` | `key`、`value` | `OK`；`key` 为 `/api/state` 中 `settings` 里的任一项，`enum` 传选项序号，`bool` 传 `true` / `false` |
+| `/api/setting` | `key`、`value` | `OK`；`key` 为 `/api/state` 中 `settings` 里的任一项，`enum` 传选项序号，`bool` 传 `true` / `false`，`number` 须在 `min`–`max` 内；取值无效时返回 `400` |
 | `/api/source` | `do` = `site` \| `live` \| `parse`（`value` 为站点 key、直播源名称、解析名称），或 `do` = `cache`（清除缓存）\| `backup`（立即备份） | `OK`；找不到时返回 `404` |
-| `/api/control` | `do` = `play` \| `pause` \| `toggle` \| `stop` \| `prev` \| `next` \| `seek` \| `seekto` \| `speed`，`value`（`seek` 为毫秒偏移，`seekto` 为毫秒位置，`speed` 为倍速） | `OK`；没有在播放时返回 `400` |
+| `/api/control` | `do` = `play` \| `pause` \| `toggle` \| `stop` \| `prev` \| `next` \| `repeat` \| `replay` \| `seek` \| `seekto` \| `speed`，`value`（`seek` 为毫秒偏移，`seekto` 为毫秒位置，`speed` 为 0.1–5 倍速） | `OK`；没有在播放或 `value` 无效时返回 `400` |
 | `/api/enroll` | `do` = `request` \| `refresh` \| `unlink` | `OK`；与电视「服务器关联」弹窗的操作相同，状态见 `/api/state` 的 `enroll` |
 | `/api/remote` | `do` = `key`（`value` = `up` / `down` / `left` / `right` / `ok` / `back` / `menu`）\| `text`（`value` 为文字）\| `volume`（`value` = `up` / `down` / `mute`） | `OK`；按键和文字只作用于本 App 在前台的界面，App 不在前台或没有聚焦的输入框时返回 `400` |
 | `/api/push` | `url` | 播放该地址 |

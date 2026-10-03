@@ -52,12 +52,13 @@ GET/POST http://127.0.0.1:9978/action?do={do}&...
 控制目前播放器的播放狀態。
 
 ```
-http://127.0.0.1:9978/action?do=control&type={type}
+http://127.0.0.1:9978/action?do=control&type={type}&value={value}
 ```
 
-| 參數     | 說明        |
-|--------|-----------|
-| `type` | 控制指令，見下表。 |
+| 參數      | 說明                         |
+|---------|----------------------------|
+| `type`  | 控制指令，見下表。                  |
+| `value` | 僅 `seek`、`seekto`、`speed` 需要。 |
 
 **`type` 可選值：**
 
@@ -70,6 +71,10 @@ http://127.0.0.1:9978/action?do=control&type={type}
 | `prev`   | 上一集      |
 | `next`   | 下一集      |
 | `repeat` | 切換循環播放模式 |
+| `toggle` | 播放 / 暫停切換 |
+| `seek`   | 相對跳轉，`value` 為毫秒，可為負數 |
+| `seekto` | 跳到指定位置，`value` 為毫秒 |
+| `speed`  | 播放速度，`value` 為 0.1–5 |
 
 **範例：**
 

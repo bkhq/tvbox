@@ -10,6 +10,8 @@ http://127.0.0.1:{port}
 
 所有端點支援 GET 與 POST（除特別標注外），參數可放在 Query String 中。回應若無特別說明皆為 `text/plain`，成功回傳 `OK`，失敗回傳 `500` 與錯誤訊息。
 
+> **配對：** 來自其他裝置的 `/api/*`、`/action`、`/file`、`/upload`、`/newFolder`、`/delFolder`、`/delFile` 請求必須帶上配對取得的權杖（`X-Token` 標頭或 `token` 參數），否則回傳 `401`。來自本機（`127.0.0.1`）的請求不受限制，爬蟲與播放器照常使用。詳見 [REMOTE.md](REMOTE.md#pairing)。
+
 ---
 
 ## 目錄
@@ -21,8 +23,6 @@ http://127.0.0.1:{port}
     - [do=file — 開啟檔案](#dofile--開啟檔案)
     - [do=search — 觸發搜尋](#dosearch--觸發搜尋)
     - [do=setting — 載入配置](#dosetting--載入配置)
-    - [do=cast — 投放媒體](#docast--投放媒體)
-    - [do=sync — 同步資料](#dosync--同步資料)
 - [/cache — 快取操作](#cache--快取操作)
 - [/media — 播放狀態](#media--播放狀態)
 - [/file — 本地檔案系統](#file--本地檔案系統)
@@ -32,7 +32,7 @@ http://127.0.0.1:{port}
 - [/delFile — 刪除檔案](#delfile--刪除檔案)
 - [/parse — 解析頁面](#parse--解析頁面)
 - [/proxy — 爬蟲代理](#proxy--爬蟲代理)
-- [/device — 裝置資訊](#device--裝置資訊)
+- [/api — 手機控制 API](#api--手機控制-api)
 - [端點總覽](#端點總覽)
 
 ---
@@ -204,49 +204,6 @@ http://127.0.0.1:9978/action?do=setting&text={text}&name={name}
 |--------|----------------|
 | `text` | 配置內容字串或配置 URL。 |
 | `name` | 配置顯示名稱（選填）。    |
-
----
-
-### do=cast — 投放媒體
-
-將指定媒體投放至遠端裝置播放。
-
-```
-http://127.0.0.1:9978/action?do=cast&config={config}&device={device}&history={history}
-```
-
-| 參數        | 說明                                 |
-|-----------|------------------------------------|
-| `config`  | Config 物件的 JSON 字串，指定要投放的配置。       |
-| `device`  | 目標裝置的 Device 物件 JSON 字串（含 IP 等資訊）。 |
-| `history` | History 物件的 JSON 字串，包含播放歷史。        |
-
----
-
-### do=sync — 同步資料
-
-在多個裝置間同步觀看紀錄（`history`）或收藏清單（`keep`）。
-
-```
-POST http://127.0.0.1:9978/action?do=sync&type={type}&device={device}&force={force}&mode={mode}
-```
-
-**Query 參數：**
-
-| 參數       | 說明                                         |
-|----------|--------------------------------------------|
-| `type`   | 同步類型：`"history"`（觀看紀錄）或 `"keep"`（收藏）。      |
-| `device` | 目標裝置的 Device 物件 JSON 字串。                   |
-| `force`  | `"true"` = 先刪除後合併；其他 = 直接合併。               |
-| `mode`   | `"0"` = 雙向（發送+接收）；`"1"` = 僅接收；`"2"` = 僅發送。 |
-| `config` | （`history` 用）Config 物件 JSON 字串。            |
-
-**POST Body（`application/x-www-form-urlencoded`）：**
-
-| 參數        | 說明                                |
-|-----------|-----------------------------------|
-| `targets` | History 或 Keep 物件陣列的 JSON 字串。     |
-| `configs` | （`keep` 用）Config URL 陣列的 JSON 字串。 |
 
 ---
 
@@ -499,28 +456,9 @@ GET/POST http://127.0.0.1:9978/proxy?...
 
 ---
 
-## /device — 裝置資訊
+## /api — 手機控制 API
 
-取得本機裝置資訊。
-
-```
-GET http://127.0.0.1:9978/device
-```
-
-**回應格式：** `text/plain`，內容為裝置資訊的 JSON 字串。
-
-**回應欄位：**
-
-| 欄位       | 類型        | 說明                    |
-|----------|-----------|-----------------------|
-| `uuid`   | `string`  | 裝置唯一識別碼（Android ID）。  |
-| `name`   | `string`  | 裝置顯示名稱。               |
-| `ip`     | `string`  | 裝置區域網路 IP 位址（含 port）。 |
-| `type`   | `integer` | 裝置類型（0=手機, 1=電視）。     |
-| `serial` | `string`  | 裝置序號。                 |
-| `eth`    | `string`  | 有線網路 MAC 位址。          |
-| `wlan`   | `string`  | 無線網路 MAC 位址。          |
-| `time`   | `long`    | 回應時間戳（毫秒）。            |
+手機控制網頁使用的 JSON 介面（`/api/state`、`/api/config`、`/api/setting`、`/api/control`、`/api/pair` 等），說明見 [REMOTE.md](REMOTE.md)。
 
 ---
 
@@ -535,8 +473,6 @@ GET http://127.0.0.1:9978/device
 | `/action?do=file`    | GET/POST | `path`                            | 開啟本地檔案                                        |
 | `/action?do=search`  | GET/POST | `word`                            | 觸發關鍵字搜尋                                       |
 | `/action?do=setting` | GET/POST | `text`, `name`                    | 載入配置                                          |
-| `/action?do=cast`    | GET/POST | `config`, `device`, `history`     | 投放媒體至遠端裝置                                     |
-| `/action?do=sync`    | POST     | `type`, `device`, `force`, `mode` | 多裝置資料同步                                       |
 | `/cache?do=get`      | GET/POST | `key`, `rule`                     | 讀取快取值                                         |
 | `/cache?do=set`      | GET/POST | `key`, `value`, `rule`            | 寫入快取值                                         |
 | `/cache?do=del`      | GET/POST | `key`, `rule`                     | 刪除快取值                                         |
@@ -548,4 +484,4 @@ GET http://127.0.0.1:9978/device
 | `/delFile`           | GET      | `path`                            | 刪除檔案                                          |
 | `/parse`             | GET      | `jxs`, `url`                      | 取得渲染後的解析 HTML 頁面                              |
 | `/proxy`             | GET/POST | 自訂（轉發至爬蟲）                         | 爬蟲代理轉發                                        |
-| `/device`            | GET      | —                                 | 取得裝置資訊                                        |
+| `/api/*`             | GET/POST | 見 REMOTE.md                         | 手機控制 JSON 介面                                  |

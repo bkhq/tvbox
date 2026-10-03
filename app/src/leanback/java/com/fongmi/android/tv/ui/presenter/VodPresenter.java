@@ -14,6 +14,7 @@ import com.fongmi.android.tv.databinding.AdapterVodOvalBinding;
 import com.fongmi.android.tv.databinding.AdapterVodRectBinding;
 import com.fongmi.android.tv.ui.base.BaseVodHolder;
 import com.fongmi.android.tv.ui.base.ViewType;
+import com.fongmi.android.tv.ui.holder.VodClickListener;
 import com.fongmi.android.tv.ui.holder.VodListHolder;
 import com.fongmi.android.tv.ui.holder.VodOvalHolder;
 import com.fongmi.android.tv.ui.holder.VodRectHolder;
@@ -34,11 +35,7 @@ public class VodPresenter extends Presenter {
         this.size = Product.getSpec(style);
     }
 
-    public interface OnClickListener {
-
-        void onItemClick(Vod item);
-
-        boolean onLongClick(Vod item);
+    public interface OnClickListener extends VodClickListener {
     }
 
     @NonNull

@@ -8,6 +8,8 @@ import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.viewpager.widget.ViewPager;
 
+import com.fongmi.android.tv.Product;
+
 public class CustomViewPager extends ViewPager {
 
     public CustomViewPager(@NonNull Context context) {
@@ -25,5 +27,11 @@ public class CustomViewPager extends ViewPager {
         } catch (Exception e) {
             return false;
         }
+    }
+
+    @Override
+    public void setCurrentItem(int item) {
+        if (Product.getDeviceType() == 0) super.setCurrentItem(item, false);
+        else super.setCurrentItem(item);
     }
 }

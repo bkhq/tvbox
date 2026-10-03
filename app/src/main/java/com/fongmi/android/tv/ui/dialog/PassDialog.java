@@ -2,6 +2,7 @@ package com.fongmi.android.tv.ui.dialog;
 
 import android.view.KeyEvent;
 import android.view.LayoutInflater;
+import android.view.View;
 import android.view.ViewGroup;
 import android.view.inputmethod.EditorInfo;
 import android.widget.TextView;
@@ -12,6 +13,7 @@ import androidx.fragment.app.Fragment;
 import androidx.fragment.app.FragmentActivity;
 import androidx.viewbinding.ViewBinding;
 
+import com.fongmi.android.tv.R;
 import com.fongmi.android.tv.databinding.DialogPassBinding;
 import com.fongmi.android.tv.impl.PassListener;
 import com.fongmi.android.tv.utils.ResUtil;
@@ -36,6 +38,8 @@ public class PassDialog extends BaseBottomSheetDialog {
 
     @Override
     protected void initEvent() {
+        View positive = binding.getRoot().findViewById(R.id.positive);
+        if (positive != null) positive.setOnClickListener(view -> onPass());
         binding.pass.setOnEditorActionListener(this::onDone);
     }
 

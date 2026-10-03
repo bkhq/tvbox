@@ -6,15 +6,14 @@ import com.bumptech.glide.Glide;
 import com.fongmi.android.tv.bean.Vod;
 import com.fongmi.android.tv.databinding.AdapterVodListBinding;
 import com.fongmi.android.tv.ui.base.BaseVodHolder;
-import com.fongmi.android.tv.ui.presenter.VodPresenter;
 import com.fongmi.android.tv.utils.ImgUtil;
 
 public class VodListHolder extends BaseVodHolder {
 
-    private final VodPresenter.OnClickListener listener;
+    private final VodClickListener listener;
     private final AdapterVodListBinding binding;
 
-    public VodListHolder(@NonNull AdapterVodListBinding binding, VodPresenter.OnClickListener listener) {
+    public VodListHolder(@NonNull AdapterVodListBinding binding, VodClickListener listener) {
         super(binding.getRoot());
         this.binding = binding;
         this.listener = listener;
@@ -28,7 +27,7 @@ public class VodListHolder extends BaseVodHolder {
         binding.remark.setVisibility(item.getRemarkVisible());
         binding.getRoot().setOnClickListener(v -> listener.onItemClick(item));
         binding.getRoot().setOnLongClickListener(v -> listener.onLongClick(item));
-        ImgUtil.load(item.getName(), item.getPic(), binding.image, true);
+        ImgUtil.load(item.getName(), item.getPic(), binding.image);
     }
 
     @Override

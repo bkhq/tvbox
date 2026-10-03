@@ -6,15 +6,14 @@ import com.bumptech.glide.Glide;
 import com.fongmi.android.tv.bean.Vod;
 import com.fongmi.android.tv.databinding.AdapterVodOvalBinding;
 import com.fongmi.android.tv.ui.base.BaseVodHolder;
-import com.fongmi.android.tv.ui.presenter.VodPresenter;
 import com.fongmi.android.tv.utils.ImgUtil;
 
 public class VodOvalHolder extends BaseVodHolder {
 
-    private final VodPresenter.OnClickListener listener;
+    private final VodClickListener listener;
     private final AdapterVodOvalBinding binding;
 
-    public VodOvalHolder(@NonNull AdapterVodOvalBinding binding, VodPresenter.OnClickListener listener) {
+    public VodOvalHolder(@NonNull AdapterVodOvalBinding binding, VodClickListener listener) {
         super(binding.getRoot());
         this.binding = binding;
         this.listener = listener;

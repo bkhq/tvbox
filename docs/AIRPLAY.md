@@ -1,45 +1,26 @@
-# AirPlay receiver
+# AirPlay 接收
 
-The TV app advertises itself as an AirPlay receiver while its home screen is
-running. On an iPhone, iPad or Mac it shows up under **Screen Mirroring** and
-in the AirPlay menu of video apps.
+电视版 App 在首页运行期间会作为 AirPlay 接收器出现在局域网中。iPhone、iPad、Mac 的「屏幕镜像」和视频 App 的 AirPlay 菜单里都能看到它。
 
-## What works
+## 支持的功能
 
-- **Screen mirroring.** H.264 video is decrypted (FairPlay) and decoded with
-  MediaCodec straight to a full-screen surface (`MirrorActivity`), which opens
-  when mirroring starts and closes when the sender stops. Rotation and
-  resolution changes restart the decoder.
-- **Mirroring audio.** AAC-ELD (and AAC-LC) decoded with MediaCodec and played
-  through an AudioTrack; the sender's volume control applies.
-- **Video casts (HLS).** Apps such as YouTube or Safari send a playlist; it is
-  handed to the regular player through the push flow. Pause, resume, seek and
-  the playback position are synced with the sender.
+- **屏幕镜像**：H.264 视频经 FairPlay 解密后，用 MediaCodec 直接解码到全屏画面（`MirrorActivity`）。开始镜像时自动打开，发送端停止时自动关闭；横竖屏切换或分辨率变化时会重建解码器。
+- **镜像声音**：AAC-ELD（以及 AAC-LC）用 MediaCodec 解码，经 AudioTrack 播放；发送端的音量调节会同步过来。
+- **视频投放（HLS）**：YouTube、Safari 等 App 投来的播放列表交给现有播放器，走推送播放流程。暂停、继续、拖动进度和播放位置会与发送端同步。
 
-## Limitations
+## 限制
 
-- Audio-only AirPlay from the Music app uses ALAC, which Android cannot decode;
-  it plays silently.
-- DRM video (Netflix, Disney+, Apple TV+, …) cannot be received by any
-  third-party receiver.
-- On Android 10+ the mirror screen may not open while the app is in the
-  background (system limit on background activity starts).
-- PIN / HomeKit pairing is not implemented; senders connect without a code.
-- The sender and the TV must be on the same network; AP isolation or blocked
-  multicast on the router hides the receiver.
+- 「音乐」App 的纯音频隔空播放使用 ALAC 编码，Android 无法解码，会没有声音。
+- 带 DRM 的视频（Netflix、Disney+、Apple TV+ 等）任何第三方接收端都无法播放。
+- Android 10 及以上，App 在后台时镜像画面可能弹不出来（系统限制后台启动界面）。
+- 未实现 PIN / HomeKit 配对，发送端无需密码即可连接。
+- 发送端和电视必须在同一网络；路由器开启 AP 隔离或屏蔽组播时会搜不到。
 
-## Settings
+## 设置
 
-The receiver is on by default and uses the app name. Both can be changed from
-the phone control page (Settings → AirPlay). The receiver identifies itself
-with a random, persistent device id instead of the MAC address, which Android
-hides.
+接收器默认开启，名称默认为 App 名。两者都可以在手机控制网页的「设置 → AirPlay」中修改。接收器使用一个随机生成并持久保存的设备 ID 标识自己，替代 Android 不允许读取的 MAC 地址。
 
-## Code
+## 代码
 
-- `airplay/` — protocol (pairing, FairPlay, RTSP setup) and Netty server with
-  mDNS, vendored from [serezhka/java-airplay](https://github.com/serezhka/java-airplay)
-  at `00e6e3c` (MIT). Android changes are listed in `airplay/README.md`.
-- `app/src/main/java/com/fongmi/android/tv/airplay/` — `AirPlay` (the
-  `Playback` implementation, start/stop, multicast lock), `VideoSink`,
-  `AudioSink`, `MirrorActivity`.
+- `airplay/`：协议（配对、FairPlay、RTSP 建流）和基于 Netty 的服务端、mDNS 宣告，来自 [serezhka/java-airplay](https://github.com/serezhka/java-airplay) 提交 `00e6e3c`（MIT）。针对 Android 的改动见 `airplay/README.md`。
+- `app/src/main/java/com/fongmi/android/tv/airplay/`：`AirPlay`（`Playback` 实现、启动/停止、组播锁）、`VideoSink`、`AudioSink`、`MirrorActivity`。

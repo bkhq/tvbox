@@ -1,58 +1,42 @@
-# Phone control
+# 手机控制
 
-The app runs a local HTTP server (first free port from 9978). On the TV,
-**Home → Phone Control** shows its address as a QR code together with a
-six-digit pairing code. Open the address in any phone or computer browser on
-the same network — no app needed.
+App 会启动一个本地 HTTP 服务（从 9978 开始取第一个可用端口）。在电视上打开 **首页 → 手机控制**，会显示访问地址的二维码和一个 6 位配对码。用同一网络下任意手机或电脑的浏览器打开这个地址即可，不需要安装 App。
 
-## Page
+## 页面
 
-| Tab | What it does |
+| 页签 | 功能 |
 | --- | --- |
-| Config | Saved VOD, live and wallpaper configs: tap to switch, long-press to delete, add a new one by URL. The TV loads it immediately. |
-| Playback | Title and progress of what is playing; previous / play-pause / next, ±15 s and ±60 s, speed, stop; push a URL to play; search. |
-| Settings | Player engine, render, scale, background playback, buffer, default speed, incognito, ad block, AirPlay on/off and name, User-Agent; list and removal of paired devices. |
-| Files | Browse, upload, create folders and delete in device storage; use a file as a config. |
+| 配置 | 已保存的点播、直播、壁纸配置：点击切换，长按删除，输入地址添加新配置。电视会立即加载。 |
+| 播放 | 当前播放的标题和进度；上一集 / 播放暂停 / 下一集、±15 秒和 ±60 秒、倍速、停止；推送地址播放；搜索。 |
+| 设置 | 播放引擎、渲染方式、画面比例、后台播放、缓冲、默认倍速、无痕模式、广告过滤、AirPlay 开关和名称、User-Agent；已配对设备列表及删除。 |
+| 文件 | 浏览设备存储、上传、新建文件夹、删除；把文件用作配置。 |
 
-Setting changes take effect on the next playback, as they do on the TV.
+设置修改后在下一次播放时生效，与在电视上修改一致。
 
-## Pairing
+## 配对 {#pairing}
 
-The first time a browser opens the page it asks for the pairing code shown on
-the TV's Phone Control screen. A correct code returns a random token that the
-browser stores and sends with every request (`X-Token` header, or `token`
-parameter). The code changes after each successful pairing and every time the
-Phone Control screen is opened.
+浏览器第一次打开页面时，会要求输入电视「手机控制」页面上显示的配对码。配对码正确时返回一个随机令牌，浏览器保存后在之后的每个请求中携带（`X-Token` 请求头，或 `token` 参数）。每次配对成功、每次打开「手机控制」页面，配对码都会更换。
 
-Paired devices (name, IP, paired time, last seen) are stored on the TV and
-listed on the Settings tab, where they can be removed; a removed device has to
-pair again.
+已配对的设备（名称、IP、配对时间、最近访问时间）保存在电视上，在「设置」页签中列出，可以删除；删除后该设备需要重新配对。
 
-Requests without a valid token get `401` on `/api/*` (except `/api/pair`),
-`/action`, `/file`, `/upload`, `/newFolder`, `/delFolder` and `/delFile`.
-Requests from the device itself (`127.0.0.1`) are always allowed, so spiders,
-the parser and the player keep working.
+没有有效令牌的请求访问 `/api/*`（`/api/pair` 除外）、`/action`、`/file`、`/upload`、`/newFolder`、`/delFolder`、`/delFile` 时返回 `401`。来自本机（`127.0.0.1`）的请求始终允许，爬虫、解析和播放器不受影响。
 
-## API
+## 接口
 
-All endpoints accept GET or POST with form or query parameters. JSON
-responses use `application/json`; others return `OK` or an error message with
-status `400` / `403` / `404` / `500`.
+所有接口支持 GET 或 POST，参数可放在表单或查询字符串中。JSON 响应为 `application/json`；其他接口返回 `OK`，出错时返回错误信息和 `400` / `403` / `404` / `500` 状态码。
 
-| Endpoint | Parameters | Result |
+| 接口 | 参数 | 返回 |
 | --- | --- | --- |
-| `/api/pair` | `code`, `name` | `{token, name}`, or `403` on a wrong code |
-| `/api/unpair` | `target` (token of the device to remove) | `OK` |
-| `/api/state` | — | Version, address, own token, paired devices, saved configs per type with the current one, settings with option labels, and player state (`active`, `playing`, `title`, `position`, `duration`, `speed`) |
-| `/api/config` | `do` = `use` \| `delete`, `type` (0 VOD, 1 live, 2 wallpaper), `url`, `name` | `OK`; deleting the config in use is refused |
-| `/api/setting` | `key`, `value` | `OK`; keys: `engine`, `render`, `scale`, `background`, `buffer`, `speed`, `ua`, `incognito`, `adblock`, `airplay`, `airplay_name` |
-| `/api/control` | `do` = `play` \| `pause` \| `toggle` \| `stop` \| `prev` \| `next` \| `seek` \| `speed`, `value` (ms offset for `seek`, rate for `speed`) | `OK`, or `400` when nothing is playing |
-| `/api/push` | `url` | Plays the URL |
-| `/api/search` | `word` | Opens search |
-| `/api/file` | `path` (`file:/…`) | Opens an APK, loads a subtitle, or uses the file as the VOD config |
+| `/api/pair` | `code`、`name` | `{token, name}`；配对码错误返回 `403` |
+| `/api/unpair` | `target`（要删除设备的令牌） | `OK` |
+| `/api/state` | — | 版本、地址、本机令牌、已配对设备、各类已保存配置及当前项、设置及选项名称、播放状态（`active`、`playing`、`title`、`position`、`duration`、`speed`） |
+| `/api/config` | `do` = `use` \| `delete`，`type`（0 点播、1 直播、2 壁纸），`url`，`name` | `OK`；拒绝删除正在使用的配置 |
+| `/api/setting` | `key`、`value` | `OK`；可用的 key：`engine`、`render`、`scale`、`background`、`buffer`、`speed`、`ua`、`incognito`、`adblock`、`airplay`、`airplay_name` |
+| `/api/control` | `do` = `play` \| `pause` \| `toggle` \| `stop` \| `prev` \| `next` \| `seek` \| `speed`，`value`（`seek` 为毫秒偏移，`speed` 为倍速） | `OK`；没有在播放时返回 `400` |
+| `/api/push` | `url` | 播放该地址 |
+| `/api/search` | `word` | 打开搜索 |
+| `/api/file` | `path`（`file:/…`） | 打开 APK、加载字幕，或把文件用作点播配置 |
 
-The legacy `/action` endpoint stays for spiders; see [LOCAL.md](LOCAL.md).
+旧的 `/action` 接口保留给爬虫使用，见 [LOCAL.md](LOCAL.md)。
 
-Code: `app/src/main/java/com/fongmi/android/tv/server/` (`api/` holds one class
-per endpoint, `Pairing.java` the pairing store) and `app/src/main/assets/`
-(the page).
+代码位置：`app/src/main/java/com/fongmi/android/tv/server/`（`api/` 下每个接口一个类，`Pairing.java` 保存配对设备）和 `app/src/main/assets/`（网页）。

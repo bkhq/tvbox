@@ -1,30 +1,21 @@
-# Server link
+# 服务器关联
 
-A device can be linked to the worker (`worker/`) so that the worker delivers
-its configuration. Linking is optional and manual; it is only available in
-builds that carry a worker URL (`-PworkerUrl`, set by CI from `WORKER_URL`).
+设备可以关联到 worker（`worker/`），由 worker 下发配置。关联是可选的、需要手动操作；只有构建时带了 worker 地址（`-PworkerUrl`，CI 从 `WORKER_URL` 读取）的版本才有这个功能。
 
-## On the device
+## 设备端
 
-**Settings → Server link** shows the device code and the link state
-(not linked / waiting for approval / linked).
+**设置 → 服务器关联** 显示设备编码和当前状态（未关联 / 等待批准 / 已关联）。
 
-- **Request link** sends a request with the device code and keeps checking
-  every 15 seconds.
-- Once the code is approved in the worker's admin console, the device receives
-  its subscription URL and loads it as the config. Later edits published in the
-  console reach the device the next time it loads the config.
-- **Unlink** stops syncing and generates a new device code, so an old approval
-  cannot be reused. The loaded config is kept.
+- **申请关联**：带上设备编码发送申请，之后每 15 秒检查一次。
+- 在 worker 管理后台批准该编码后，设备收到自己的订阅地址并自动加载为配置。之后在后台发布的修改，设备下次加载配置时生效。
+- **取消关联**：停止同步并生成新的设备编码，旧的批准记录不能再用。已加载的配置会保留。
 
-The device code (`XXXX-XXXX`) is random and only visible on the device, so a
-copy of the APK alone cannot get a configuration: the admin only approves codes
-read off their own screens.
+设备编码（`XXXX-XXXX`）随机生成，只显示在设备屏幕上。别人只拿到 APK 无法获取配置：管理员只会批准自己在电视上看到的编码。
 
-## Worker API
+## worker 接口
 
 ```
-POST {worker}/api/raw/tvbox/enroll        (no login; rate limited)
+POST {worker}/api/raw/tvbox/enroll        （无需登录，需限流）
 Content-Type: application/json
 
 {
@@ -40,19 +31,14 @@ Content-Type: application/json
 }
 ```
 
-| Response | Meaning | Device |
+| 响应 | 含义 | 设备行为 |
 | --- | --- | --- |
-| `{"status":"pending"}` | Request recorded, code not approved yet | keeps polling |
-| `{"status":"approved","subscription":"https://…/s/<token>/api.json"}` | Approved | loads the subscription |
-| `{"status":"rejected"}` | Rejected or revoked | turns the link off |
+| `{"status":"pending"}` | 已登记，编码尚未批准 | 继续轮询 |
+| `{"status":"approved","subscription":"https://…/s/<令牌>/api.json"}` | 已批准 | 加载订阅地址 |
+| `{"status":"rejected"}` | 已拒绝或已吊销 | 关闭关联 |
 
-The console lists pending requests (code, name, model, IP, time). Approving a
-request creates the device's subscription token and its upstream selection;
-`unlink` from the device or revoking in the console ends the link.
+后台列出待批准的申请（编码、名称、型号、IP、时间）。批准时生成该设备的订阅令牌和上游选择；设备端发起 `unlink` 或在后台吊销都会结束关联。
 
-`deviceId` is the random persistent id also used by AirPlay
-(`app/src/main/java/com/fongmi/android/tv/utils/DeviceId.java`); the app side
-is `Enroll.java` and `ui/dialog/EnrollDialog.java`.
+`deviceId` 与 AirPlay 共用同一个随机持久 ID（`app/src/main/java/com/fongmi/android/tv/utils/DeviceId.java`）；设备端代码在 `Enroll.java` 和 `ui/dialog/EnrollDialog.java`。
 
-> Status: the app side is implemented. The worker endpoint and the approval
-> view are not implemented yet.
+> 状态：设备端已实现，worker 端接口和审批界面尚未实现。

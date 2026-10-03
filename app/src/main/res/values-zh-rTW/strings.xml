@@ -266,6 +266,11 @@
     <string name="setting_version">版本</string>
     <string name="update_check">正在檢查更新…</string>
     <string name="setting_server">伺服器關聯</string>
+    <string name="setting_airplay">AirPlay</string>
+    <string name="airplay_name_hint">iPhone、iPad、Mac 投放清單中顯示的名稱，留空使用 App 名稱。</string>
+    <string name="airplay_turn_on">開啟</string>
+    <string name="airplay_turn_off">關閉</string>
+    <string name="airplay_off">已關閉</string>
     <string name="enroll_off">未關聯</string>
     <string name="enroll_waiting">等待批准</string>
     <string name="enroll_linked">已關聯</string>

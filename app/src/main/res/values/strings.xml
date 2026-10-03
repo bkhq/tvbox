@@ -267,6 +267,11 @@
     <string name="setting_version">Version</string>
     <string name="update_check">Checking for updates…</string>
     <string name="setting_server">Server link</string>
+    <string name="setting_airplay">AirPlay</string>
+    <string name="airplay_name_hint">Name shown on iPhone, iPad and Mac. Leave empty for the app name.</string>
+    <string name="airplay_turn_on">Turn on</string>
+    <string name="airplay_turn_off">Turn off</string>
+    <string name="airplay_off">Off</string>
     <string name="enroll_off">Not linked</string>
     <string name="enroll_waiting">Waiting for approval</string>
     <string name="enroll_linked">Linked</string>

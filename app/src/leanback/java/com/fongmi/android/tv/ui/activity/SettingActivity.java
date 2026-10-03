@@ -28,6 +28,7 @@ import com.fongmi.android.tv.impl.SiteListener;
 import com.fongmi.android.tv.setting.PlayerSetting;
 import com.fongmi.android.tv.setting.Setting;
 import com.fongmi.android.tv.ui.base.BaseActivity;
+import com.fongmi.android.tv.ui.dialog.AirPlayDialog;
 import com.fongmi.android.tv.ui.dialog.EnrollDialog;
 import com.fongmi.android.tv.ui.dialog.ConfigDialog;
 import com.fongmi.android.tv.ui.dialog.DohDialog;
@@ -81,6 +82,7 @@ public class SettingActivity extends BaseActivity implements ConfigListener, Sit
         mBinding.versionText.setText(BuildConfig.VERSION_NAME);
         mBinding.server.setVisibility(Enroll.isAvailable() ? View.VISIBLE : View.GONE);
         setServerText();
+        setAirPlayText();
         setCacheText();
         setOtherText();
     }
@@ -89,6 +91,10 @@ public class SettingActivity extends BaseActivity implements ConfigListener, Sit
         mBinding.dohText.setText(getDohList()[getDohIndex()]);
         mBinding.incognitoText.setText(Setting.getSwitch(Setting.isIncognito()));
         mBinding.sizeText.setText((size = ResUtil.getStringArray(R.array.select_size))[PlayerSetting.getSize()]);
+    }
+
+    private void setAirPlayText() {
+        mBinding.airplayText.setText(AirPlayDialog.getText());
     }
 
     private void setServerText() {
@@ -109,6 +115,7 @@ public class SettingActivity extends BaseActivity implements ConfigListener, Sit
         mBinding.vod.setOnClickListener(this::onVod);
         mBinding.version.setOnClickListener(view -> Updater.check(this, true));
         mBinding.server.setOnClickListener(view -> EnrollDialog.show(this, this::setServerText));
+        mBinding.airplay.setOnClickListener(view -> AirPlayDialog.show(this, this::setAirPlayText));
         mBinding.doh.setOnClickListener(this::setDoh);
         mBinding.live.setOnClickListener(this::onLive);
         mBinding.wall.setOnClickListener(this::onWall);

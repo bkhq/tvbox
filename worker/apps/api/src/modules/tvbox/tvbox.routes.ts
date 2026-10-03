@@ -43,6 +43,7 @@ const upstreamSchema = z.object({
   id: z.string(),
   name: z.string(),
   url: z.string(),
+  parentId: z.string().nullable(),
   isPrimary: z.boolean(),
   syncEnabled: z.boolean(),
   lastSyncedAt: z.string().nullable(),
@@ -124,6 +125,7 @@ const syncResultSchema = z.object({
   updated: z.number(),
   removed: z.number(),
   assets: z.object({ mirrored: z.number(), failed: z.array(z.string()) }),
+  lines: z.object({ total: z.number(), failed: z.array(z.string()) }).optional(),
 });
 
 const nameSchema = z.string().trim().min(1).max(100);
@@ -375,7 +377,7 @@ export function tvboxRoutes() {
     async (c) => {
       const db = c.get("db");
       const { deviceId } = c.req.valid("query");
-      const upstreams = deviceId ? deviceUpstreams(await getDevice(db, deviceId)) : null;
+      const upstreams = deviceId ? await deviceUpstreams(db, await getDevice(db, deviceId)) : null;
       return c.json({ success: true, data: await buildConfig(db, upstreams) });
     },
   );

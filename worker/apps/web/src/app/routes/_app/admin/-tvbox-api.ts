@@ -8,6 +8,8 @@ export interface Upstream {
   readonly id: string;
   readonly name: string;
   readonly url: string;
+  /** Set on a line of a collection. */
+  readonly parentId: string | null;
   readonly isPrimary: boolean;
   readonly syncEnabled: boolean;
   readonly lastSyncedAt: string | null;
@@ -96,6 +98,7 @@ export interface SyncResult {
   readonly updated: number;
   readonly removed: number;
   readonly assets: { readonly mirrored: number; readonly failed: readonly string[] };
+  readonly lines?: { readonly total: number; readonly failed: readonly string[] };
 }
 
 export const tvboxKeys = {

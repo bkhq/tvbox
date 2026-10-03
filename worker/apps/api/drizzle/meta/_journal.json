@@ -50,6 +50,13 @@
       "when": 1791052767308,
       "tag": "0006_tvbox_entry_health",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "6",
+      "when": 1791054391690,
+      "tag": "0007_tvbox_collections",
+      "breakpoints": true
     }
   ]
 }

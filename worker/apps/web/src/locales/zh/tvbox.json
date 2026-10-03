@@ -24,7 +24,7 @@
     "save": "保存"
   },
   "upstreams": {
-    "description": "导入配置的来源。主上游提供顶层字段；定时同步有变化时会自动发布。",
+    "description": "导入配置的来源。主上游提供顶层字段；合集（urls）里的每条线路会成为单独的上游，随合集一起同步。",
     "add": "添加上游",
     "empty": "还没有上游。",
     "name": "名称",
@@ -38,7 +38,9 @@
     "deleteTitle": "删除上游？",
     "deleteDescription": "从「{{name}}」导入的条目会一起删除。",
     "usage": "使用情况",
-    "usageText": "{{entries}} 条 · {{devices}} 台设备"
+    "usageText": "{{entries}} 条 · {{devices}} 台设备",
+    "collection": "合集 · {{count}} 条线路",
+    "linesFailed": "{{total}} 条线路中有 {{count}} 条同步失败：{{names}}"
   },
   "entries": {
     "search": "搜索",

@@ -1,12 +1,13 @@
 import type { JsonObject, ListKind, MirroredAsset } from "./parse";
 import type { AppDatabase } from "@/db";
 import type { Logger } from "@/shared/lib/logger";
-import { and, eq, max } from "drizzle-orm";
+import { and, eq, isNull, max } from "drizzle-orm";
 import { deriveStorageKey } from "@/modules/file/storage/key";
 import { getActiveDriver } from "@/modules/file/storage/registry";
 import { AppError, NotFoundError } from "@/shared/lib/errors";
 import { ulid } from "@/shared/lib/id";
-import { assetName, collectAssetUrls, decodeUpstream, entryIdentity, LIST_KINDS, resolveRelative, rewriteAssets } from "./parse";
+import { writeDevicesFile } from "./devices.service";
+import { assetName, collectAssetUrls, collectionLines, decodeUpstream, entryIdentity, LIST_KINDS, resolveRelative, rewriteAssets } from "./parse";
 import { tvboxAssets, tvboxEntries, tvboxGlobals, tvboxUpstreams } from "./schema";
 import { hashHex } from "./storage";
 
@@ -29,6 +30,8 @@ export interface SyncResult {
   readonly updated: number;
   readonly removed: number;
   readonly assets: { readonly mirrored: number; readonly failed: readonly string[] };
+  /** For a collection: how many lines it lists, and the names of those that failed to sync. */
+  readonly lines?: { readonly total: number; readonly failed: readonly string[] };
 }
 
 export function changeCount(result: SyncResult): number {
@@ -107,6 +110,12 @@ export async function syncUpstream(db: AppDatabase, upstreamId: string, deps: Sy
 
   try {
     const raw = decodeUpstream(new TextDecoder().decode(await fetchBytes(fetchImpl, upstream.url, CONFIG_TIMEOUT_MS)));
+    const lines = collectionLines(raw, upstream.url);
+    if (lines) {
+      if (upstream.parentId !== null)
+        throw new Error("This line is itself a collection");
+      return await syncCollection(db, upstream, lines, deps);
+    }
     const resolved = resolveRelative(raw, upstream.url) as JsonObject;
     const assets = await mirrorAssets(db, [...collectAssetUrls(resolved, upstream.url)], fetchImpl, deps.logger);
     const config = rewriteAssets(resolved, assets.mirrored) as JsonObject;
@@ -147,6 +156,65 @@ export async function syncUpstream(db: AppDatabase, upstreamId: string, deps: Sy
       .run();
     throw new AppError(`Sync failed: ${message}`, 502, "UPSTREAM_SYNC_FAILED");
   }
+}
+
+type UpstreamRow = typeof tvboxUpstreams.$inferSelect;
+
+/**
+ * A collection (`urls`) holds no entries: each line becomes an upstream of
+ * its own, matched by URL, and is synced in turn. A line the collection no
+ * longer lists is deleted with its entries; a line switched off by hand is
+ * kept but not synced, and a name given here is kept.
+ */
+async function syncCollection(
+  db: AppDatabase,
+  collection: UpstreamRow,
+  lines: readonly { name: string; url: string }[],
+  deps: SyncDeps,
+): Promise<SyncResult> {
+  const existing = await db.select().from(tvboxUpstreams).where(eq(tvboxUpstreams.parentId, collection.id)).all();
+  const totals = { added: 0, updated: 0, removed: 0 };
+  let linesChanged = false;
+  await db.transaction(async (tx) => {
+    for (const line of lines) {
+      if (existing.some(u => u.url === line.url))
+        continue;
+      await tx.insert(tvboxUpstreams).values({ id: ulid(), name: line.name, url: line.url, parentId: collection.id, isPrimary: false }).run();
+      linesChanged = true;
+    }
+    for (const gone of existing.filter(u => !lines.some(l => l.url === u.url))) {
+      // Its entries go with it; count them so the change is published.
+      const n = await tx.select({ id: tvboxEntries.id }).from(tvboxEntries).where(and(eq(tvboxEntries.upstreamId, gone.id), eq(tvboxEntries.enabled, true))).all();
+      await tx.delete(tvboxUpstreams).where(eq(tvboxUpstreams.id, gone.id)).run();
+      totals.removed += n.length;
+      linesChanged = true;
+    }
+    await tx.update(tvboxUpstreams)
+      .set({ lastSyncedAt: new Date().toISOString(), lastStatus: "ok", lastError: null })
+      .where(eq(tvboxUpstreams.id, collection.id))
+      .run();
+  });
+  if (linesChanged)
+    await writeDevicesFile(db);
+
+  const assets = { mirrored: 0, failed: [] as string[] };
+  const failed: string[] = [];
+  const children = await db.select().from(tvboxUpstreams).where(eq(tvboxUpstreams.parentId, collection.id)).orderBy(tvboxUpstreams.id).all();
+  for (const child of children.filter(c => c.syncEnabled)) {
+    try {
+      const r = await syncUpstream(db, child.id, deps);
+      totals.added += r.added;
+      totals.updated += r.updated;
+      totals.removed += r.removed;
+      assets.mirrored += r.assets.mirrored;
+      assets.failed.push(...r.assets.failed);
+    }
+    catch (err) {
+      deps.logger.warn({ err, upstream: child.name }, "tvbox: collection line failed to sync");
+      failed.push(child.name);
+    }
+  }
+  return { ...totals, assets, lines: { total: children.length, failed } };
 }
 
 async function mergeEntries(db: AppDatabase, upstreamId: string, kind: ListKind, incoming: readonly JsonObject[]) {
@@ -249,8 +317,8 @@ async function mergeGlobals(db: AppDatabase, config: JsonObject) {
   return totals;
 }
 
-/** Upstreams the scheduled sync visits, primary first. */
+/** Upstreams the scheduled sync visits, primary first; a collection syncs its own lines. */
 export async function listSyncableUpstreams(db: AppDatabase) {
-  const rows = await db.select().from(tvboxUpstreams).where(eq(tvboxUpstreams.syncEnabled, true)).all();
+  const rows = await db.select().from(tvboxUpstreams).where(and(eq(tvboxUpstreams.syncEnabled, true), isNull(tvboxUpstreams.parentId))).all();
   return rows.sort((a, b) => Number(b.isPrimary) - Number(a.isPrimary));
 }

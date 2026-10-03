@@ -1,3 +1,4 @@
+import type { AnySQLiteColumn } from "drizzle-orm/sqlite-core";
 import { index, integer, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqlite-core";
 import { users } from "@/modules/account/users/schema";
 
@@ -10,6 +11,9 @@ export const tvboxUpstreams = sqliteTable("tvbox_upstreams", {
   id: text("id").primaryKey(),
   name: text("name").notNull(),
   url: text("url").notNull(),
+  // A line of a collection (a config of `urls`): created, renamed away from
+  // and deleted by syncing its collection.
+  parentId: text("parent_id").references((): AnySQLiteColumn => tvboxUpstreams.id, { onDelete: "cascade" }),
   isPrimary: integer("is_primary", { mode: "boolean" }).notNull().default(false),
   syncEnabled: integer("sync_enabled", { mode: "boolean" }).notNull().default(true),
   lastSyncedAt: text("last_synced_at"),

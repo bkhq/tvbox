@@ -1,0 +1,1 @@
+ALTER TABLE `tvbox_upstreams` ADD `parent_id` text REFERENCES tvbox_upstreams(id) ON DELETE cascade;

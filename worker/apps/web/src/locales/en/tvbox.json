@@ -24,7 +24,7 @@
     "save": "Save"
   },
   "upstreams": {
-    "description": "Configs we import from. The primary one supplies the top-level fields; scheduled syncs publish when anything changed.",
+    "description": "Configs we import from. The primary one supplies the top-level fields; each line of a collection (urls) becomes an upstream of its own and syncs with it.",
     "add": "Add upstream",
     "empty": "No upstreams yet.",
     "name": "Name",
@@ -38,7 +38,9 @@
     "deleteTitle": "Remove upstream?",
     "deleteDescription": "Every entry imported from \"{{name}}\" is removed with it.",
     "usage": "Used by",
-    "usageText": "{{entries}} entries · {{devices}} devices"
+    "usageText": "{{entries}} entries · {{devices}} devices",
+    "collection": "Collection · {{count}} lines",
+    "linesFailed": "{{count}} of {{total}} lines failed to sync: {{names}}"
   },
   "entries": {
     "search": "Search",

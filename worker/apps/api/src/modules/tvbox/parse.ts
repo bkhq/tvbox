@@ -49,6 +49,33 @@ export function decodeUpstream(raw: string): JsonObject {
   throw new Error("Upstream is not a TVBox config (expected JSON or a base64 payload)");
 }
 
+/**
+ * The lines of a collection, a config that lists other configs (`urls`, which
+ * the app offers as switchable lines), resolved against its URL; undefined
+ * for an ordinary config. Lines the Worker cannot fetch (not http) are left out.
+ */
+export function collectionLines(config: JsonObject, base: string): { name: string; url: string }[] | undefined {
+  if (!Array.isArray(config.urls) || "sites" in config)
+    return undefined;
+  const lines: { name: string; url: string }[] = [];
+  for (const item of config.urls as unknown[]) {
+    const { url, name } = (item ?? {}) as { url?: unknown; name?: unknown };
+    if (typeof url !== "string" || url.trim() === "")
+      continue;
+    let href: string;
+    try {
+      href = new URL(url.trim(), base).href;
+    }
+    catch {
+      continue;
+    }
+    if (!isHttpUrl(href) || lines.some(l => l.url === href))
+      continue;
+    lines.push({ name: typeof name === "string" && name.trim() !== "" ? name.trim() : href, url: href });
+  }
+  return lines;
+}
+
 /** Resolve every `./` or `../` string in the tree against the upstream URL, as TVBox clients do. */
 export function resolveRelative(value: unknown, base: string): unknown {
   if (typeof value === "string")

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { countsText, entrySubtitle, entryTitle, filterEntries, filterHealth, moveId } from "./-tvbox-view";
+import { countsText, entrySubtitle, entryTitle, filterEntries, filterHealth, moveId, upstreamLabel, upstreamTree } from "./-tvbox-view";
 
 describe("entryTitle / entrySubtitle", () => {
   it("prefers the name, then the key", () => {
@@ -53,5 +53,25 @@ describe("filterHealth", () => {
     expect(filterHealth(rows, "fail").map(r => r.id)).toEqual(["a", "b"]);
     expect(filterHealth(rows, "disabledByHealth").map(r => r.id)).toEqual(["a"]);
     expect(filterHealth(rows, "exempt").map(r => r.id)).toEqual(["b"]);
+  });
+});
+
+describe("upstreamTree / upstreamLabel", () => {
+  const up = (id: string, name: string, parentId: string | null = null) => ({ id, name, parentId });
+  const list = [up("a", "xiaosa"), up("c", "op"), up("l2", "Two", "c"), up("b", "a18"), up("l1", "One", "c")];
+
+  it("puts a collection's lines right after it", () => {
+    expect(upstreamTree(list).map(r => [r.upstream.id, r.depth, r.lines])).toEqual([
+      ["a", 0, 0],
+      ["c", 0, 2],
+      ["l2", 1, 0],
+      ["l1", 1, 0],
+      ["b", 0, 0],
+    ]);
+  });
+
+  it("names a line after its collection", () => {
+    expect(upstreamLabel(list[2]!, list)).toBe("op / Two");
+    expect(upstreamLabel(list[0]!, list)).toBe("xiaosa");
   });
 });

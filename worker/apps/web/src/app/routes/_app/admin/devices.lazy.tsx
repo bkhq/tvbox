@@ -29,6 +29,7 @@ import { EnrollmentsSection } from "./-devices-enrollments";
 import { UpstreamPicker } from "./-devices-upstreams";
 import { errorMessage, subscriptionUrl, tvboxApi, tvboxKeys } from "./-tvbox-api";
 import { JsonDialog } from "./-tvbox-json-dialog";
+import { upstreamLabel } from "./-tvbox-view";
 
 export const Route = createLazyFileRoute("/_app/admin/devices")({
   component: DevicesPage,
@@ -105,7 +106,10 @@ function DevicesPage() {
     onError,
   });
 
-  const upstreamName = (id: string) => upstreams.data?.find(u => u.id === id)?.name ?? "—";
+  const upstreamName = (id: string) => {
+    const u = upstreams.data?.find(u => u.id === id);
+    return u ? upstreamLabel(u, upstreams.data ?? []) : "—";
+  };
   const openForm = (device: Device | null) => setForm({
     device,
     state: device

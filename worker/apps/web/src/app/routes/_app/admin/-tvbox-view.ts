@@ -1,4 +1,4 @@
-import type { Entry } from "./-tvbox-api";
+import type { Entry, Upstream } from "./-tvbox-api";
 
 /** Display name of an entry: its name, else its key. */
 export function entryTitle(entry: Pick<Entry, "id" | "data" | "upstreamKey">): string {
@@ -52,4 +52,25 @@ export function countsText(counts: string): string {
     .filter(([, n]) => n > 0)
     .map(([k, n]) => `${k} ${n}`)
     .join(" · ");
+}
+
+type UpstreamNode = Pick<Upstream, "id" | "name" | "parentId">;
+
+/** Upstreams in display order: each collection followed by its lines. */
+export function upstreamTree<T extends UpstreamNode>(upstreams: readonly T[]): { upstream: T; depth: 0 | 1; lines: number }[] {
+  const ids = new Set(upstreams.map(u => u.id));
+  const out: { upstream: T; depth: 0 | 1; lines: number }[] = [];
+  for (const u of upstreams) {
+    if (u.parentId !== null && ids.has(u.parentId))
+      continue;
+    const lines = upstreams.filter(l => l.parentId === u.id);
+    out.push({ upstream: u, depth: 0, lines: lines.length }, ...lines.map(l => ({ upstream: l, depth: 1 as const, lines: 0 })));
+  }
+  return out;
+}
+
+/** A line is named after its collection. */
+export function upstreamLabel(upstream: UpstreamNode, upstreams: readonly UpstreamNode[]): string {
+  const parent = upstream.parentId === null ? undefined : upstreams.find(u => u.id === upstream.parentId);
+  return parent ? `${parent.name} / ${upstream.name}` : upstream.name;
 }

@@ -59,5 +59,6 @@
       "rejected": "Rejected",
       "unlinked": "Unlinked on the device"
     }
-  }
+  },
+  "lineCount": "{{count}} lines"
 }

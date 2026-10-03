@@ -22,6 +22,7 @@ import { Label } from "@/shared/components/ui/label";
 import { Switch } from "@/shared/components/ui/switch";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/shared/components/ui/table";
 import { errorMessage, tvboxApi, tvboxKeys } from "./-tvbox-api";
+import { upstreamTree } from "./-tvbox-view";
 
 export function UpstreamsTab() {
   const { t } = useTranslation(["common", "tvbox"]);
@@ -54,6 +55,8 @@ export function UpstreamsTab() {
     mutationFn: (id: string) => tvboxApi.syncUpstream(id),
     onSuccess: (r) => {
       toast.success(t("tvbox:upstreams.synced", { added: r.added, updated: r.updated, removed: r.removed, mirrored: r.assets.mirrored }));
+      if (r.lines && r.lines.failed.length > 0)
+        toast.warning(t("tvbox:upstreams.linesFailed", { count: r.lines.failed.length, total: r.lines.total, names: r.lines.failed.join("、") }));
       if (r.assets.failed.length > 0)
         toast.warning(t("tvbox:upstreams.assetsFailed", { count: r.assets.failed.length }));
       refresh();
@@ -98,12 +101,13 @@ export function UpstreamsTab() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {query.data.map(up => (
+            {upstreamTree(query.data).map(({ upstream: up, depth, lines }) => (
               <TableRow key={up.id}>
-                <TableCell className="max-w-md">
+                <TableCell className={depth === 1 ? "max-w-md pl-8" : "max-w-md"}>
                   <div className="flex items-center gap-2 font-medium">
                     {up.name}
                     {up.isPrimary && <Badge>{t("tvbox:upstreams.primary")}</Badge>}
+                    {lines > 0 && <Badge variant="outline">{t("tvbox:upstreams.collection", { count: lines })}</Badge>}
                   </div>
                   <div className="truncate text-xs text-muted-foreground" title={up.url}>{up.url}</div>
                 </TableCell>
@@ -127,7 +131,7 @@ export function UpstreamsTab() {
                     <RefreshCw className={sync.isPending && sync.variables === up.id ? "size-4 animate-spin" : "size-4"} />
                     {t("tvbox:upstreams.syncNow")}
                   </Button>
-                  {!up.isPrimary && (
+                  {!up.isPrimary && up.parentId === null && lines === 0 && (
                     <Button size="sm" variant="ghost" title={t("tvbox:upstreams.makePrimary")} onClick={() => update.mutate({ id: up.id, body: { isPrimary: true } })}>
                       <Star className="size-4" />
                     </Button>

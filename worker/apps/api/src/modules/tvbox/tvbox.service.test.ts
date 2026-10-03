@@ -163,6 +163,84 @@ describe("importing an upstream", () => {
   });
 });
 
+describe("collections", () => {
+  const COLLECTION = "https://list.example/op.json";
+  const LINE_B = "https://b.example/tv.json";
+
+  beforeEach(() => {
+    // Line comments and a relative line, as collections in the wild have them.
+    files.set(COLLECTION, new Response(`// collected lines\n{"urls": [
+      {"url": "${SECONDARY}", "name": "Other"},
+      {"url": "./b/../tv.json", "name": "Relative"},
+      {"url": "clan://localhost/x.json", "name": "Local only"}
+    ]}`));
+    files.set(SECONDARY, Response.json({ spider: "./s.jar", sites: [{ key: "a", name: "A2", type: 3, api: "csp_X" }] }));
+    files.set("https://other.example/cfg/s.jar", new Response(new TextEncoder().encode("PK-other").buffer));
+  });
+
+  test("each line becomes an upstream of its own, synced with its own spider", async () => {
+    files.set("https://list.example/tv.json", Response.json({ sites: [{ key: "c", name: "C", type: 1, api: "https://cms.example/api" }] }));
+    const primary = await createUpstream(db, { name: "p", url: PRIMARY });
+    await sync(primary.id);
+    const list = await createUpstream(db, { name: "op", url: COLLECTION });
+
+    const result = await sync(list.id);
+    expect(result.lines).toEqual({ total: 2, failed: [] });
+    expect(result.added).toBe(2);
+
+    const lines = (await listUpstreams(db)).filter(u => u.parentId === list.id);
+    expect(lines.map(u => [u.name, u.url, u.isPrimary])).toEqual([["Other", SECONDARY, false], ["Relative", "https://list.example/tv.json", false]]);
+    expect((await listEntries(db, "sites", list.id))).toEqual([]);
+    const other = (await listEntries(db, "sites", lines[0]!.id))[0]!;
+    expect(other.data.jar).toStartWith("./a/");
+  });
+
+  test("a dropped line goes with its entries; a line switched off is not synced; one that fails is reported", async () => {
+    const list = await createUpstream(db, { name: "op", url: COLLECTION });
+    const first = await sync(list.id);
+    expect(first.lines!.failed).toEqual(["Relative"]);
+    const lines = (await listUpstreams(db)).filter(u => u.parentId === list.id);
+    expect(lines.find(u => u.name === "Relative")!.lastStatus).toBe("error");
+
+    const other = lines.find(u => u.name === "Other")!;
+    await updateUpstream(db, other.id, { syncEnabled: false, name: "Mine" });
+    files.set(SECONDARY, Response.json({ sites: [] }));
+    const second = await sync(list.id);
+    expect(second.lines!.total).toBe(2);
+    expect(await listEntries(db, "sites", other.id)).toHaveLength(1);
+    expect((await listUpstreams(db)).find(u => u.id === other.id)!.name).toBe("Mine");
+
+    files.set(COLLECTION, Response.json({ urls: [{ url: LINE_B, name: "B" }] }));
+    files.set(LINE_B, Response.json({ sites: [] }));
+    const third = await sync(list.id);
+    expect(third.removed).toBeGreaterThan(0);
+    expect((await listUpstreams(db)).filter(u => u.parentId === list.id).map(u => u.name)).toEqual(["B"]);
+    expect(await listEntries(db, "sites", other.id)).toEqual([]);
+  });
+
+  test("a line that is itself a collection is refused", async () => {
+    files.set(SECONDARY, Response.json({ urls: [{ url: PRIMARY, name: "deeper" }] }));
+    const list = await createUpstream(db, { name: "op", url: COLLECTION });
+    expect((await sync(list.id)).lines!.failed).toContain("Other");
+    const other = (await listUpstreams(db)).find(u => u.name === "Other")!;
+    expect(other.lastError).toContain("collection");
+  });
+
+  test("a device that follows a collection follows every line, including new ones", async () => {
+    const userId = await seedAdmin();
+    const list = await createUpstream(db, { name: "op", url: COLLECTION });
+    const dev = await createDevice(db, { name: "tv", upstreamIds: [list.id] }, userId);
+    await sync(list.id);
+    const lines = (await listUpstreams(db)).filter(u => u.parentId === list.id).map(u => u.id);
+    const file = (JSON.parse(await readObjectText(DEVICES_KEY)) as DevicesFile).devices;
+    expect(file[hashHex("sha256", dev.token!)]!.upstreams).toEqual([list.id, ...lines]);
+
+    // Deleting the collection deletes its lines.
+    await (await import("./tvbox.service")).deleteUpstream(db, list.id);
+    expect(await listUpstreams(db)).toEqual([]);
+  });
+});
+
 describe("re-syncing", () => {
   test("upstream changes follow unless the entry was edited here", async () => {
     const up = await createUpstream(db, { name: "x", url: PRIMARY });

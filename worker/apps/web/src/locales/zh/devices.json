@@ -59,5 +59,6 @@
       "rejected": "已拒绝",
       "unlinked": "设备端已解除"
     }
-  }
+  },
+  "lineCount": "{{count}} 条线路"
 }

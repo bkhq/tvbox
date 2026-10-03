@@ -1,7 +1,7 @@
 import type { DevicesFile } from "./storage";
 import type { AppDatabase } from "@/db";
 import { randomBytes } from "node:crypto";
-import { desc, eq } from "drizzle-orm";
+import { desc, eq, isNotNull } from "drizzle-orm";
 import { AppError, NotFoundError } from "@/shared/lib/errors";
 import { ulid } from "@/shared/lib/id";
 import { tvboxDevices, tvboxDeviceUpstreams, tvboxUpstreams } from "./schema";
@@ -34,10 +34,11 @@ function newToken(): { token: string; tokenHash: string; hint: string } {
 export async function writeDevicesFile(db: AppDatabase): Promise<void> {
   const devices = await db.select().from(tvboxDevices).where(eq(tvboxDevices.enabled, true)).all();
   const links = await db.select().from(tvboxDeviceUpstreams).all();
+  const expand = await collectionExpander(db);
   const file: DevicesFile = {
     devices: Object.fromEntries(devices.map(d => [d.tokenHash, {
       id: d.id,
-      upstreams: d.allUpstreams ? null : links.filter(l => l.deviceId === d.id).map(l => l.upstreamId),
+      upstreams: d.allUpstreams ? null : expand(links.filter(l => l.deviceId === d.id).map(l => l.upstreamId)),
     }])),
   };
   await putObject(DEVICES_KEY, JSON.stringify(file));
@@ -132,7 +133,16 @@ export async function deleteDevice(db: AppDatabase, id: string): Promise<DeviceV
   return device;
 }
 
+/** Picking a collection picks every line it lists, now and later. */
+async function collectionExpander(db: AppDatabase): Promise<(ids: readonly string[]) => string[]> {
+  const lines = await db.select({ id: tvboxUpstreams.id, parentId: tvboxUpstreams.parentId }).from(tvboxUpstreams).where(isNotNull(tvboxUpstreams.parentId)).all();
+  return (ids) => {
+    const picked = new Set(ids);
+    return [...ids, ...lines.filter(l => picked.has(l.parentId!) && !picked.has(l.id)).map(l => l.id)];
+  };
+}
+
 /** Upstreams a device would follow: null for every upstream. */
-export function deviceUpstreams(device: DeviceView): readonly string[] | null {
-  return device.allUpstreams ? null : device.upstreamIds;
+export async function deviceUpstreams(db: AppDatabase, device: DeviceView): Promise<readonly string[] | null> {
+  return device.allUpstreams ? null : (await collectionExpander(db))(device.upstreamIds);
 }

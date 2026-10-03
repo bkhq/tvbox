@@ -17,7 +17,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Tabs, TabsList, TabsTrigger } from "@/shared/components/ui/tabs";
 import { errorMessage, LIST_KINDS, tvboxApi, tvboxKeys } from "./-tvbox-api";
 import { JsonDialog } from "./-tvbox-json-dialog";
-import { entrySubtitle, entryTitle, filterEntries, filterHealth, moveId } from "./-tvbox-view";
+import { entrySubtitle, entryTitle, filterEntries, filterHealth, moveId, upstreamLabel } from "./-tvbox-view";
 
 const NEW_ENTRY: Record<ListKind, JsonObject> = {
   sites: { key: "", name: "", type: 3, api: "", searchable: 1, quickSearch: 1, filterable: 1 },
@@ -40,7 +40,7 @@ export function EntriesTab() {
 
   const query = useQuery({ queryKey: tvboxKeys.entries(kind, source), queryFn: () => tvboxApi.entries(kind, source) });
   const upstreams = useQuery({ queryKey: tvboxKeys.upstreams, queryFn: tvboxApi.upstreams });
-  const upstreamName = useMemo(() => new Map(upstreams.data?.map(u => [u.id, u.name])), [upstreams.data]);
+  const upstreamName = useMemo(() => new Map(upstreams.data?.map(u => [u.id, upstreamLabel(u, upstreams.data)])), [upstreams.data]);
 
   const refresh = () => void qc.invalidateQueries({ queryKey: ["tvbox", "entries"] });
   const onError = (err: unknown) => toast.error(errorMessage(err, t("common.error.operationFailed")));
@@ -134,7 +134,7 @@ export function EntriesTab() {
             <SelectContent>
               <SelectItem value="all">{t("tvbox:entries.allSources")}</SelectItem>
               <SelectItem value="common">{t("tvbox:entries.common")}</SelectItem>
-              {upstreams.data?.map(u => <SelectItem key={u.id} value={u.id}>{u.name}</SelectItem>)}
+              {upstreams.data?.map(u => <SelectItem key={u.id} value={u.id}>{upstreamLabel(u, upstreams.data)}</SelectItem>)}
             </SelectContent>
           </Select>
           <Input className="w-56" value={search} onChange={e => setSearch(e.target.value)} placeholder={t("tvbox:entries.search")} />

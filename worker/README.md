@@ -10,6 +10,10 @@ project needs and to the Workers runtime only.
   we can edit, disable (one by one or in bulk) or reorder, and every file
   they reference (spider jar, `./json/*`) is mirrored into R2. Entries added
   in the admin console belong to no upstream and are common to every device.
+  An upstream can also be a collection (`{"urls": [{"name", "url"}, …]}`, the
+  multi-line format the app accepts): each line becomes an upstream of its
+  own, synced with the collection; a line it drops is deleted, and a device
+  that picks the collection follows every line.
   The "TVBox sources" workflow syncs every six hours, probes every entry
   and disables dead ones before publishing (the built-in timer,
   `TVBOX_SYNC_INTERVAL_MINUTES`, is off in production); entries edited here

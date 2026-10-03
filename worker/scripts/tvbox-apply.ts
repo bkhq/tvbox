@@ -43,6 +43,7 @@ interface Upstream {
   readonly id: string;
   readonly name: string;
   readonly url: string;
+  readonly parentId: string | null;
   readonly isPrimary: boolean;
   readonly syncEnabled: boolean;
 }
@@ -65,6 +66,7 @@ interface SyncResult {
   readonly updated: number;
   readonly removed: number;
   readonly assets: { readonly mirrored: number; readonly failed: readonly string[] };
+  readonly lines?: { readonly total: number; readonly failed: readonly string[] };
 }
 
 const args = process.argv.slice(2);
@@ -162,7 +164,7 @@ async function main(): Promise<void> {
   const ids: { id: string; name: string }[] = [];
 
   for (const d of declared) {
-    const found = existing.find(u => u.url === d.url);
+    const found = existing.find(u => u.parentId === null && u.url === d.url);
     const syncEnabled = d.sync ?? true;
     let id: string;
     let isPrimary: boolean;
@@ -189,7 +191,8 @@ async function main(): Promise<void> {
     ids.push({ id, name: d.name });
   }
 
-  for (const u of existing.filter(u => !declared.some(d => d.url === u.url))) {
+  // A collection's lines are synced with it.
+  for (const u of existing.filter(u => u.parentId === null && !declared.some(d => d.url === u.url))) {
     console.log(`kept     ${u.name} (not declared here; manage it in the admin console)`);
     if (u.syncEnabled)
       ids.push({ id: u.id, name: u.name });
@@ -205,7 +208,9 @@ async function main(): Promise<void> {
     try {
       const r = await api<SyncResult>("POST", `/tvbox/upstreams/${id}/sync`);
       changed += r.added + r.updated + r.removed;
-      console.log(`synced   ${name}: +${r.added} ~${r.updated} -${r.removed}, ${r.assets.mirrored} files mirrored`);
+      console.log(`synced   ${name}: +${r.added} ~${r.updated} -${r.removed}, ${r.assets.mirrored} files mirrored${r.lines ? `, ${r.lines.total} lines` : ""}`);
+      for (const line of r.lines?.failed ?? [])
+        console.log(`         line ${line} failed to sync (see the console)`);
       for (const url of r.assets.failed)
         console.log(`         could not mirror ${url} (previous copy kept)`);
     }

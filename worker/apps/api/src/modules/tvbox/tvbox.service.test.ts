@@ -301,18 +301,6 @@ describe("re-syncing", () => {
     expect(wall.value).toBe("https://mine/");
     expect(wall.upstreamValue).toBe("https://new-upstream/");
   });
-
-  test("a global kept at the upstream's current value stops following it", async () => {
-    const up = await createUpstream(db, { name: "x", url: PRIMARY });
-    await sync(up.id);
-    const spider = (await listGlobals(db)).find(g => g.key === "spider")!;
-    expect((await putGlobal(db, "spider", spider.value)).locallyModified).toBe(false);
-    expect((await putGlobal(db, "spider", spider.value, { keep: true })).locallyModified).toBe(true);
-
-    files.set(PRIMARY, primaryConfig([SITE_A, SITE_B], { spider: "https://new.example/spider.jar" }));
-    await sync(up.id);
-    expect((await listGlobals(db)).find(g => g.key === "spider")!.value).toBe(spider.value);
-  });
 });
 
 describe("local entries and globals", () => {

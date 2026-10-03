@@ -343,13 +343,12 @@ export function tvboxRoutes() {
     "/tvbox/globals/:key",
     doc("Set a top-level field", jsonOk(globalSchema)),
     validator("param", keyParam),
-    validator("json", z.object({ value: z.unknown(), keep: z.boolean().optional() })),
+    validator("json", z.object({ value: z.unknown() })),
     async (c) => {
       const { key } = c.req.valid("param");
       if (LIST_KINDS.includes(key as never))
         return c.json({ success: false, error: { code: "INVALID_KEY", message: `"${key}" is edited as entries` } }, 422);
-      const { value, keep } = c.req.valid("json");
-      const row = await putGlobal(c.get("db"), key, value, { keep });
+      const row = await putGlobal(c.get("db"), key, c.req.valid("json").value);
       await record(c, "tvbox.global.updated", { type: "tvbox_global", id: key, name: key });
       return c.json({ success: true, data: row });
     },

@@ -291,14 +291,13 @@ async function getGlobalRow(db: AppDatabase, key: string): Promise<GlobalRow> {
   return row;
 }
 
-/** `keep`: stop following the upstream even when the value equals its current one. */
-export async function putGlobal(db: AppDatabase, key: string, value: unknown, options: { keep?: boolean | undefined } = {}): Promise<GlobalView> {
+export async function putGlobal(db: AppDatabase, key: string, value: unknown): Promise<GlobalView> {
   const json = JSON.stringify(value);
   const row = await db.select().from(tvboxGlobals).where(eq(tvboxGlobals.key, key)).get();
   const now = new Date().toISOString();
   if (row) {
     await db.update(tvboxGlobals)
-      .set({ value: json, locallyModified: row.upstreamValue !== null && (options.keep === true || json !== row.upstreamValue), updatedAt: now })
+      .set({ value: json, locallyModified: row.upstreamValue !== null && json !== row.upstreamValue, updatedAt: now })
       .where(eq(tvboxGlobals.key, key))
       .run();
   }

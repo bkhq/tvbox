@@ -82,6 +82,7 @@ describe("siteEngine", () => {
     expect(siteEngine({ type: 0, api: "https://c/xml" })).toBe("cmsXml");
     expect(siteEngine({ type: 4, api: "https://c/" })).toBe("cmsJson");
     expect(siteEngine({ type: 3, api: "csp_Xx" })).toBe("jar");
+    expect(siteEngine({ type: 3, api: "csp_MacCms", jar: "@tvbox" })).toBe("own");
     expect(siteEngine({ type: 3, api: "https://s/a.js" })).toBe("js");
     expect(siteEngine({ type: 3, api: "./py/a.py?x=1" })).toBe("python");
     expect(siteEngine({ type: 2 })).toBeNull();

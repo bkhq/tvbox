@@ -75,10 +75,10 @@ export function upstreamLabel(upstream: UpstreamNode, upstreams: readonly Upstre
   return parent ? `${parent.name} / ${upstream.name}` : upstream.name;
 }
 
-export type SiteEngine = "cmsJson" | "cmsXml" | "jar" | "js" | "python";
+export type SiteEngine = "cmsJson" | "cmsXml" | "own" | "jar" | "js" | "python";
 
 /** How the app runs a site: a CMS API it calls itself, or a spider. */
-export function siteEngine(data: { readonly type?: unknown; readonly api?: unknown }): SiteEngine | null {
+export function siteEngine(data: { readonly type?: unknown; readonly api?: unknown; readonly jar?: unknown }): SiteEngine | null {
   const type = Number(data.type);
   const api = typeof data.api === "string" ? data.api.split("?")[0]! : "";
   if (type === 0)
@@ -91,5 +91,7 @@ export function siteEngine(data: { readonly type?: unknown; readonly api?: unkno
     return "js";
   if (api.endsWith(".py"))
     return "python";
-  return api.startsWith("csp_") ? "jar" : null;
+  if (!api.startsWith("csp_"))
+    return null;
+  return data.jar === "@tvbox" ? "own" : "jar";
 }

@@ -12,6 +12,7 @@ import { linkedApps } from "./enroll.service";
 import { applyHealth } from "./health.service";
 import { LIST_KINDS } from "./parse";
 import { buildConfig, listPublishes, publish, restorePublish } from "./publish.service";
+import { setOwnJar } from "./spider-jar.service";
 import { syncUpstream } from "./sync.service";
 import {
   createEntry,
@@ -385,6 +386,21 @@ export function tvboxRoutes() {
       const stored = await storeUpload(c.get("db"), name, await c.req.arrayBuffer());
       await record(c, "tvbox.file.uploaded", { type: "tvbox_file", id: stored.sha256, name: stored.name }, { size: stored.size });
       return c.json({ success: true, data: stored }, 201);
+    },
+  );
+
+  router.post(
+    "/tvbox/spider-jar",
+    doc("Upload a build of our own spider jar; sites with \"jar\": \"@tvbox\" use it from the next publish", jsonOk(z.object({
+      path: z.string(),
+      md5: z.string(),
+      changed: z.boolean(),
+    }))),
+    async (c) => {
+      const result = await setOwnJar(c.get("db"), await c.req.arrayBuffer());
+      if (result.changed)
+        await record(c, "tvbox.spider_jar.uploaded", { type: "tvbox_file", id: result.md5, name: "tvbox.jar" });
+      return c.json({ success: true, data: result });
     },
   );
 

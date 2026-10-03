@@ -7,6 +7,7 @@ import { ulid } from "@/shared/lib/id";
 import { composeForDevice } from "./compose";
 import { LIST_KINDS } from "./parse";
 import { tvboxEntries, tvboxGlobals, tvboxPublishes } from "./schema";
+import { OWN_JAR, ownJarSpec } from "./spider-jar.service";
 import { hashHex, objectExists, PUBLISHED_KEY, publishSnapshotKey, putObject, readObjectText } from "./storage";
 
 export type PublishRow = typeof tvboxPublishes.$inferSelect;
@@ -15,6 +16,8 @@ export type PublishRow = typeof tvboxPublishes.$inferSelect;
 export async function buildSnapshot(db: AppDatabase): Promise<PublishedSnapshot> {
   const globals = await db.select().from(tvboxGlobals).orderBy(tvboxGlobals.sort, tvboxGlobals.key).all();
   const entries = await db.select().from(tvboxEntries).where(eq(tvboxEntries.enabled, true)).all();
+  const ownJar = await ownJarSpec(db);
+  const withJar = (data: JsonObject): JsonObject => data.jar === OWN_JAR && ownJar ? { ...data, jar: ownJar } : data;
   return {
     version: 2,
     globals: globals.map(g => ({ key: g.key, value: JSON.parse(g.value) as unknown })),
@@ -24,7 +27,7 @@ export async function buildSnapshot(db: AppDatabase): Promise<PublishedSnapshot>
       upstreamId: e.upstreamId,
       enabled: true,
       sort: e.sort,
-      data: JSON.parse(e.data) as JsonObject,
+      data: withJar(JSON.parse(e.data) as JsonObject),
     })),
   };
 }

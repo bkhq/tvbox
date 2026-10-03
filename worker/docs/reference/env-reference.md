@@ -57,7 +57,7 @@
 | `SINGLE_USER_USERNAME` | string | — | no | Username for the single-user account. Compared case-insensitively. |
 | `TRUST_PROXY` | enum(true,false) | `false` | no | When true, honour the rightmost X-Forwarded-For entry (and, as a fallback only, X-Real-IP) for client-IP resolution. Default is false: forwarding headers are ignored and the connection peer IP is used. Only enable behind a sanitising proxy that strips client-supplied forwarding headers. |
 | `TRUSTED_PROXY_IPS` | string | — | no | Comma-separated CIDR allow-list of immediate proxy peer addresses. Forwarding headers are honoured only when the TCP peer matches one of these ranges. Empty (default) means "any peer is trusted". Recommended in production: set this to the load-balancer / ingress subnet. |
-| `TVBOX_RELEASE_KEEP` | number | `10` | no | App releases kept with their APKs; older ones are deleted when a new release is registered. |
+| `TVBOX_RELEASE_KEEP` | number | `5` | no | App releases kept with their APKs; older ones are deleted when a new release is registered. |
 | `TVBOX_SYNC_INTERVAL_MINUTES` | number | `360` | no | How often (minutes) every sync-enabled upstream is pulled; a run that changes anything publishes the result. 0 disables the scheduled sync. |
 | `UPLOADS_TOTAL_BYTES` | number | `0` | no | Total disk quota (bytes) across all attachment tables. 0 = unlimited. When set, uploads beyond it return 413 QUOTA_EXCEEDED. |
 

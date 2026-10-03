@@ -79,12 +79,17 @@
       "cmsXml": "CMS · XML",
       "jar": "Spider · jar",
       "js": "Spider · JS",
-      "python": "Spider · Python"
+      "python": "Spider · Python",
+      "own": "Spider · tvbox.jar",
+      "macCms": "MacCMS · own spider",
+      "alist": "AList · own spider"
     },
     "templateHint": {
       "cmsJson": "A MacCMS JSON API (usually ending in /api.php/provide/vod/); the app calls it directly, no spider needed.",
       "cmsXml": "A MacCMS XML API (/api.php/provide/vod/at/xml/); the app calls it directly.",
-      "jar": "api is csp_<ClassName>, jar the path of the spider jar (upload it below), ext what the spider is given."
+      "jar": "api is csp_<ClassName>, jar the path of the spider jar (upload it below), ext what the spider is given.",
+      "macCms": "Our tvbox.jar reading a MacCMS API: ext.api is the API URL, categories keeps only these (names or ids; empty keeps all), parse is a parser URL for episodes that are pages rather than media. Leave jar as @tvbox; publishing fills in the latest build.",
+      "alist": "tvbox.jar browsing AList drives: one item per drive in ext, with name and server, and login when it needs one. Leave jar as @tvbox."
     }
   },
   "globals": {

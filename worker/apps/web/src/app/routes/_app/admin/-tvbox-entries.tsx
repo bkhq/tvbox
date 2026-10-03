@@ -24,6 +24,9 @@ import { entrySubtitle, entryTitle, filterEntries, filterHealth, moveId, siteEng
 const SITE_TEMPLATES = {
   cmsJson: { key: "", name: "", type: 1, api: "https://example.com/api.php/provide/vod/", searchable: 1, quickSearch: 1, filterable: 1 },
   cmsXml: { key: "", name: "", type: 0, api: "https://example.com/api.php/provide/vod/at/xml/", searchable: 1, quickSearch: 1, filterable: 0 },
+  // Our own spiders in tvbox.jar ("@tvbox": the latest build, filled in when published).
+  macCms: { key: "", name: "", type: 3, api: "csp_MacCms", jar: "@tvbox", ext: { api: "https://example.com/api.php/provide/vod/", categories: [], parse: "" }, searchable: 1, quickSearch: 1, filterable: 0 },
+  alist: { key: "", name: "", type: 3, api: "csp_AList", jar: "@tvbox", ext: [{ name: "", server: "https://alist.example.com", login: { username: "", password: "" }, search: true }], searchable: 1, quickSearch: 0, filterable: 1 },
   jar: { key: "", name: "", type: 3, api: "csp_", jar: "", ext: "", searchable: 1, quickSearch: 1, filterable: 1 },
 } satisfies Record<string, JsonObject>;
 type SiteTemplate = keyof typeof SITE_TEMPLATES;

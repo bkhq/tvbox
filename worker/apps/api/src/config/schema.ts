@@ -128,7 +128,7 @@ export const configSchema = z.object({
   TVBOX_SYNC_INTERVAL_MINUTES: z.coerce.number().int().nonnegative().default(360),
   // Releases kept with their APKs; older ones are deleted when a new
   // release is registered.
-  TVBOX_RELEASE_KEEP: z.coerce.number().int().positive().default(10),
+  TVBOX_RELEASE_KEEP: z.coerce.number().int().positive().default(5),
   // When true and the active driver implements `presignDownload`, file
   // downloads 302 to a short-lived signed URL rather than streaming
   // through the API. Per-deployment toggle; setting false forces every

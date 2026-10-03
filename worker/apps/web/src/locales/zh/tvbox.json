@@ -79,12 +79,17 @@
       "cmsXml": "CMS · XML",
       "jar": "爬虫 · jar",
       "js": "爬虫 · JS",
-      "python": "爬虫 · Python"
+      "python": "爬虫 · Python",
+      "own": "爬虫 · tvbox.jar",
+      "macCms": "MacCMS · 自有爬虫",
+      "alist": "AList · 自有爬虫"
     },
     "templateHint": {
       "cmsJson": "苹果CMS 的 JSON 接口（一般以 /api.php/provide/vod/ 结尾），App 直接请求，不需要爬虫。",
       "cmsXml": "苹果CMS 的 XML 接口（/api.php/provide/vod/at/xml/），App 直接请求。",
-      "jar": "api 填 csp_类名，jar 填爬虫 jar 的路径（可用下面的上传），ext 是传给爬虫的参数。"
+      "jar": "api 填 csp_类名，jar 填爬虫 jar 的路径（可用下面的上传），ext 是传给爬虫的参数。",
+      "macCms": "用我们自己的 tvbox.jar 访问苹果CMS 接口：ext.api 填接口地址，categories 只保留这些分类（名称或 ID，留空为全部），parse 填解析地址（剧集不是视频链接时用）。jar 保持 @tvbox，发布时换成最新构建。",
+      "alist": "用 tvbox.jar 浏览 AList 网盘：ext 里每项一个网盘，填 name、server，需要登录时填 login。jar 保持 @tvbox。"
     }
   },
   "globals": {

@@ -15,6 +15,7 @@ import { composeForDevice } from "./compose";
 import { createDevice, deleteDevice, listDevices, rotateDevice, updateDevice } from "./devices.service";
 import { buildConfig, listPublishes, publish, restorePublish } from "./publish.service";
 import { tvboxPublishes } from "./schema";
+import { OWN_JAR, setOwnJar } from "./spider-jar.service";
 import { DEVICES_KEY, hashHex, PUBLISHED_KEY, readObjectText } from "./storage";
 import { runScheduledSync } from "./sync.job";
 import { syncUpstream } from "./sync.service";
@@ -470,6 +471,23 @@ describe("content management", () => {
     expect(await setEntriesEnabled(db, ids, false)).toBe(3);
     expect((await listEntries(db, "sites")).every(e => !e.enabled)).toBe(true);
     expect((await listUpstreams(db))[0]).toMatchObject({ entryCount: 4 });
+  });
+});
+
+describe("our own spider jar", () => {
+  test("a site whose jar is @tvbox gets the jar uploaded last", async () => {
+    await createEntry(db, "sites", { key: "cms", name: "CMS", type: 3, api: "csp_MacCms", jar: OWN_JAR, ext: "https://cms.example/api.php/provide/vod/" });
+    const v1 = new TextEncoder().encode("PK-tvbox-1").buffer;
+    expect(await setOwnJar(db, v1)).toMatchObject({ changed: true, md5: hashHex("md5", v1) });
+    expect(await setOwnJar(db, v1)).toMatchObject({ changed: false });
+    const site = () => buildConfig(db).then(c => (c.sites as { jar: string }[])[0]!);
+    expect((await site()).jar).toBe(`./a/${hashHex("sha256", v1)}/tvbox.jar;md5;${hashHex("md5", v1)}`);
+
+    const v2 = new TextEncoder().encode("PK-tvbox-2").buffer;
+    expect((await setOwnJar(db, v2)).changed).toBe(true);
+    expect((await site()).jar).toStartWith(`./a/${hashHex("sha256", v2)}/`);
+    // The entry itself keeps the marker.
+    expect((await listEntries(db, "sites"))[0]!.data.jar).toBe(OWN_JAR);
   });
 });
 

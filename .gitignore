@@ -4,9 +4,10 @@
 .settings
 *build
 *.jks
-*.properties
 !keystore/release.jks
-!keystore/release.properties
+local.properties
+buildout/
+.kotlin/
 /Release
 /docs
 .tmp/

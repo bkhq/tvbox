@@ -1,0 +1,328 @@
+/*
+ * Copyright (C) 2016 The Android Open Source Project
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package androidx.media3.extractor.ts;
+
+import static java.lang.annotation.ElementType.TYPE_USE;
+
+import android.util.SparseArray;
+import androidx.annotation.IntDef;
+import androidx.annotation.Nullable;
+import androidx.media3.common.Format;
+import androidx.media3.common.MimeTypes;
+import androidx.media3.common.util.CodecSpecificDataUtil;
+import androidx.media3.common.util.ParsableByteArray;
+import androidx.media3.common.util.UnstableApi;
+import androidx.media3.extractor.ts.TsPayloadReader.EsInfo;
+import com.google.common.collect.ImmutableList;
+import java.lang.annotation.Documented;
+import java.lang.annotation.Retention;
+import java.lang.annotation.RetentionPolicy;
+import java.lang.annotation.Target;
+import java.util.ArrayList;
+import java.util.List;
+
+/** Default {@link TsPayloadReader.Factory} implementation. */
+@UnstableApi
+public final class DefaultTsPayloadReaderFactory implements TsPayloadReader.Factory {
+
+  /**
+   * Flags controlling elementary stream readers' behavior. Possible flag values are {@link
+   * #FLAG_IGNORE_AAC_STREAM}, {@link #FLAG_IGNORE_H264_STREAM}, {@link
+   * #FLAG_IGNORE_SPLICE_INFO_STREAM} and {@link #FLAG_OVERRIDE_CAPTION_DESCRIPTORS}.
+   */
+  @Documented
+  @Retention(RetentionPolicy.SOURCE)
+  @Target(TYPE_USE)
+  @IntDef(
+      flag = true,
+      value = {
+        FLAG_IGNORE_AAC_STREAM,
+        FLAG_IGNORE_H264_STREAM,
+        FLAG_IGNORE_SPLICE_INFO_STREAM,
+        FLAG_OVERRIDE_CAPTION_DESCRIPTORS
+      })
+  public @interface Flags {}
+
+  /**
+   * Prevents the creation of {@link AdtsReader} and {@link LatmReader} instances. This flag should
+   * be enabled if the transport stream contains no packets for an AAC elementary stream that is
+   * declared in the PMT.
+   */
+  public static final int FLAG_IGNORE_AAC_STREAM = 1 << 1;
+
+  /**
+   * Prevents the creation of {@link H264Reader} instances. This flag should be enabled if the
+   * transport stream contains no packets for an H.264 elementary stream that is declared in the
+   * PMT.
+   */
+  public static final int FLAG_IGNORE_H264_STREAM = 1 << 2;
+
+  /**
+   * Prevents the creation of {@link SectionPayloadReader}s for splice information sections
+   * (SCTE-35).
+   */
+  public static final int FLAG_IGNORE_SPLICE_INFO_STREAM = 1 << 4;
+
+  /**
+   * Whether the list of {@code closedCaptionFormats} passed to {@link
+   * DefaultTsPayloadReaderFactory#DefaultTsPayloadReaderFactory(int, List)} should be used in spite
+   * of any closed captions service descriptors. If this flag is disabled, {@code
+   * closedCaptionFormats} will be ignored if the PMT contains closed captions service descriptors.
+   */
+  public static final int FLAG_OVERRIDE_CAPTION_DESCRIPTORS = 1 << 5;
+
+  private static final int DESCRIPTOR_TAG_CAPTION_SERVICE = 0x86;
+  private final @Flags int flags;
+  private final List<Format> closedCaptionFormats;
+
+  public DefaultTsPayloadReaderFactory() {
+    this(0);
+  }
+
+  /**
+   * @param flags A combination of {@code FLAG_*} values that control the behavior of the created
+   *     readers.
+   */
+  public DefaultTsPayloadReaderFactory(@Flags int flags) {
+    this(flags, ImmutableList.of());
+  }
+
+  /**
+   * @param flags A combination of {@code FLAG_*} values that control the behavior of the created
+   *     readers.
+   * @param closedCaptionFormats {@link Format}s to be exposed by payload readers for streams with
+   *     embedded closed captions when no caption service descriptors are provided. If {@link
+   *     #FLAG_OVERRIDE_CAPTION_DESCRIPTORS} is set, {@code closedCaptionFormats} overrides any
+   *     descriptor information. If not set, and {@code closedCaptionFormats} is empty, a closed
+   *     caption track with {@link Format#accessibilityChannel} {@link Format#NO_VALUE} will be
+   *     exposed.
+   */
+  public DefaultTsPayloadReaderFactory(@Flags int flags, List<Format> closedCaptionFormats) {
+    this.flags = flags;
+    this.closedCaptionFormats = closedCaptionFormats;
+  }
+
+  @Override
+  public SparseArray<TsPayloadReader> createInitialPayloadReaders() {
+    return new SparseArray<>();
+  }
+
+  @Override
+  @Nullable
+  public TsPayloadReader createPayloadReader(int streamType, EsInfo esInfo) {
+    switch (streamType) {
+      case TsExtractor.TS_STREAM_TYPE_MPA:
+      case TsExtractor.TS_STREAM_TYPE_MPA_LSF:
+        return new PesReader(
+            new MpegAudioReader(esInfo.language, esInfo.getRoleFlags(), MimeTypes.VIDEO_MP2T));
+      case TsExtractor.TS_STREAM_TYPE_AAC_ADTS:
+        return isSet(FLAG_IGNORE_AAC_STREAM)
+            ? null
+            : new PesReader(
+                new AdtsReader(
+                    false, esInfo.language, esInfo.getRoleFlags(), MimeTypes.VIDEO_MP2T));
+      case TsExtractor.TS_STREAM_TYPE_AAC_LATM:
+        return isSet(FLAG_IGNORE_AAC_STREAM)
+            ? null
+            : new PesReader(
+                new LatmReader(esInfo.language, esInfo.getRoleFlags(), MimeTypes.VIDEO_MP2T));
+      case TsExtractor.TS_STREAM_TYPE_AC3:
+      case TsExtractor.TS_STREAM_TYPE_E_AC3:
+      case TsExtractor.TS_STREAM_TYPE_HDMV_E_AC3:
+      case TsExtractor.TS_STREAM_TYPE_HDMV_E_AC3_SEC:
+        return new PesReader(
+            new Ac3Reader(esInfo.language, esInfo.getRoleFlags(), MimeTypes.VIDEO_MP2T));
+      case TsExtractor.TS_STREAM_TYPE_AC4:
+        return new PesReader(
+            new Ac4Reader(esInfo.language, esInfo.getRoleFlags(), MimeTypes.VIDEO_MP2T));
+      case TsExtractor.TS_STREAM_TYPE_HDMV_DTS:
+        return new PesReader(
+            new DtsProbeReader(esInfo.language, esInfo.getRoleFlags(), MimeTypes.VIDEO_MP2T));
+      case TsExtractor.TS_STREAM_TYPE_HDMV_DTS_AUTO:
+      case TsExtractor.TS_STREAM_TYPE_DTS:
+      case TsExtractor.TS_STREAM_TYPE_DTS_HD:
+      case TsExtractor.TS_STREAM_TYPE_HDMV_DTS_HD_HRA:
+      case TsExtractor.TS_STREAM_TYPE_HDMV_DTS_HD_MASTER:
+      case TsExtractor.TS_STREAM_TYPE_HDMV_DTS_EXPRESS_SEC:
+        return new PesReader(
+            new DtsReader(
+                esInfo.language,
+                esInfo.getRoleFlags(),
+                DtsReader.EXTSS_HEADER_SIZE_MAX,
+                MimeTypes.VIDEO_MP2T));
+      case TsExtractor.TS_STREAM_TYPE_DTS_UHD:
+        return new PesReader(
+            new DtsReader(
+                esInfo.language,
+                esInfo.getRoleFlags(),
+                DtsReader.FTOC_MAX_HEADER_SIZE,
+                MimeTypes.VIDEO_MP2T));
+      case TsExtractor.TS_STREAM_TYPE_HDMV_LPCM:
+        return new PesReader(new LpcmReader(esInfo.language, MimeTypes.VIDEO_MP2T));
+      case TsExtractor.TS_STREAM_TYPE_HDMV_TRUE_HD:
+        return new PesReader(new TrueHdReader(esInfo.language, MimeTypes.VIDEO_MP2T));
+      case TsExtractor.TS_STREAM_TYPE_HDMV_VC1:
+        return new PesReader(new Vc1Reader(MimeTypes.VIDEO_MP2T));
+      case TsExtractor.TS_STREAM_TYPE_H262:
+      case TsExtractor.TS_STREAM_TYPE_DC2_H262:
+        return new PesReader(new H262Reader(buildUserDataReader(esInfo), MimeTypes.VIDEO_MP2T));
+      case TsExtractor.TS_STREAM_TYPE_H263:
+        return new PesReader(new H263Reader(buildUserDataReader(esInfo), MimeTypes.VIDEO_MP2T));
+      case TsExtractor.TS_STREAM_TYPE_H264:
+        return isSet(FLAG_IGNORE_H264_STREAM)
+            ? null
+            : new PesReader(new H264Reader(buildSeiReader(esInfo), MimeTypes.VIDEO_MP2T));
+      case TsExtractor.TS_STREAM_TYPE_H265:
+        @Nullable
+        DolbyVisionDescriptor dolbyVisionDescriptor =
+            esInfo.dolbyVisionConfig != null
+                ? DolbyVisionDescriptor.parseFromDescriptorBytes(esInfo.descriptorBytes)
+                : null;
+        @Nullable
+        byte[] dolbyVisionCsd =
+            DolbyVisionDescriptor.buildInitializationData(
+                esInfo.dolbyVisionConfig, dolbyVisionDescriptor);
+        return new PesReader(
+            new H265Reader(
+                buildSeiReader(esInfo),
+                MimeTypes.VIDEO_MP2T,
+                esInfo.dolbyVisionConfig,
+                dolbyVisionCsd));
+      case TsExtractor.TS_STREAM_TYPE_SPLICE_INFO:
+        return isSet(FLAG_IGNORE_SPLICE_INFO_STREAM)
+            ? null
+            : new SectionReader(
+                new PassthroughSectionPayloadReader(
+                    /* sampleMimeType= */ MimeTypes.APPLICATION_SCTE35,
+                    /* containerMimeType= */ MimeTypes.VIDEO_MP2T));
+      case TsExtractor.TS_STREAM_TYPE_ID3:
+        return new PesReader(new Id3Reader(MimeTypes.VIDEO_MP2T));
+      case TsExtractor.TS_STREAM_TYPE_DVBSUBS:
+        return new PesReader(new DvbSubtitleReader(esInfo.dvbSubtitleInfos, MimeTypes.VIDEO_MP2T));
+      case TsExtractor.TS_STREAM_TYPE_AIT:
+        return new SectionReader(
+            new PassthroughSectionPayloadReader(
+                /* sampleMimeType= */ MimeTypes.APPLICATION_AIT,
+                /* containerMimeType= */ MimeTypes.VIDEO_MP2T));
+      case TsExtractor.TS_STREAM_TYPE_MHAS:
+        return new PesReader(new MpeghReader(MimeTypes.VIDEO_MP2T));
+      case TsExtractor.TS_STREAM_TYPE_PGS:
+        return new PesReader(new PgsReader(esInfo.language, MimeTypes.VIDEO_MP2T));
+      case TsExtractor.TS_STREAM_TYPE_AV3A:
+        return new PesReader(
+            new Av3aReader(esInfo.language, esInfo.getRoleFlags(), MimeTypes.VIDEO_MP2T));
+      default:
+        return null;
+    }
+  }
+
+  /**
+   * If {@link #FLAG_OVERRIDE_CAPTION_DESCRIPTORS} is set, returns a {@link SeiReader} for {@link
+   * #closedCaptionFormats}. If unset, parses the PMT descriptor information and returns a {@link
+   * SeiReader} for the declared formats, or {@link #closedCaptionFormats} if the descriptor is not
+   * present.
+   *
+   * @param esInfo The {@link EsInfo} passed to {@link #createPayloadReader(int, EsInfo)}.
+   * @return A {@link SeiReader} for closed caption tracks.
+   */
+  private SeiReader buildSeiReader(EsInfo esInfo) {
+    return new SeiReader(getClosedCaptionFormats(esInfo), MimeTypes.VIDEO_MP2T);
+  }
+
+  /**
+   * If {@link #FLAG_OVERRIDE_CAPTION_DESCRIPTORS} is set, returns a {@link UserDataReader} for
+   * {@link #closedCaptionFormats}. If unset, parses the PMT descriptor information and returns a
+   * {@link UserDataReader} for the declared formats, or {@link #closedCaptionFormats} if the
+   * descriptor is not present.
+   *
+   * @param esInfo The {@link EsInfo} passed to {@link #createPayloadReader(int, EsInfo)}.
+   * @return A {@link UserDataReader} for closed caption tracks.
+   */
+  private UserDataReader buildUserDataReader(EsInfo esInfo) {
+    return new UserDataReader(getClosedCaptionFormats(esInfo), MimeTypes.VIDEO_MP2T);
+  }
+
+  /**
+   * If {@link #FLAG_OVERRIDE_CAPTION_DESCRIPTORS} is set, returns a {@link List<Format>} of {@link
+   * #closedCaptionFormats}. If unset, parses the PMT descriptor information and returns a {@link
+   * List<Format>} for the declared formats, or {@link #closedCaptionFormats} if the descriptor is
+   * not present.
+   *
+   * @param esInfo The {@link EsInfo} passed to {@link #createPayloadReader(int, EsInfo)}.
+   * @return A {@link List<Format>} containing list of closed caption formats.
+   */
+  private List<Format> getClosedCaptionFormats(EsInfo esInfo) {
+    if (isSet(FLAG_OVERRIDE_CAPTION_DESCRIPTORS)) {
+      return closedCaptionFormats;
+    }
+    ParsableByteArray scratchDescriptorData = new ParsableByteArray(esInfo.descriptorBytes);
+    List<Format> closedCaptionFormats = this.closedCaptionFormats;
+    while (scratchDescriptorData.bytesLeft() > 0) {
+      int descriptorTag = scratchDescriptorData.readUnsignedByte();
+      int descriptorLength = scratchDescriptorData.readUnsignedByte();
+      int nextDescriptorPosition = scratchDescriptorData.getPosition() + descriptorLength;
+      if (descriptorTag == DESCRIPTOR_TAG_CAPTION_SERVICE) {
+        // Note: see ATSC A/65 for detailed information about the caption service descriptor.
+        closedCaptionFormats = new ArrayList<>();
+        int numberOfServices = scratchDescriptorData.readUnsignedByte() & 0x1F;
+        for (int i = 0; i < numberOfServices; i++) {
+          String language = scratchDescriptorData.readString(3);
+          int captionTypeByte = scratchDescriptorData.readUnsignedByte();
+          boolean isDigital = (captionTypeByte & 0x80) != 0;
+          String mimeType;
+          int accessibilityChannel;
+          if (isDigital) {
+            mimeType = MimeTypes.APPLICATION_CEA708;
+            accessibilityChannel = captionTypeByte & 0x3F;
+          } else {
+            mimeType = MimeTypes.APPLICATION_CEA608;
+            accessibilityChannel = 1;
+          }
+
+          // easy_reader(1), wide_aspect_ratio(1), reserved(6).
+          byte flags = (byte) scratchDescriptorData.readUnsignedByte();
+          // Skip reserved (8).
+          scratchDescriptorData.skipBytes(1);
+
+          @Nullable List<byte[]> initializationData = null;
+          // The wide_aspect_ratio flag only has meaning for CEA-708.
+          if (isDigital) {
+            boolean isWideAspectRatio = (flags & 0x40) != 0;
+            initializationData =
+                CodecSpecificDataUtil.buildCea708InitializationData(isWideAspectRatio);
+          }
+
+          closedCaptionFormats.add(
+              new Format.Builder()
+                  .setSampleMimeType(mimeType)
+                  .setLanguage(language)
+                  .setAccessibilityChannel(accessibilityChannel)
+                  .setInitializationData(initializationData)
+                  .build());
+        }
+      } else {
+        // Unknown descriptor. Ignore.
+      }
+      scratchDescriptorData.setPosition(nextDescriptorPosition);
+    }
+
+    return closedCaptionFormats;
+  }
+
+  private boolean isSet(@Flags int flag) {
+    return (flags & flag) != 0;
+  }
+}

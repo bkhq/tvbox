@@ -16,8 +16,11 @@ android {
         applicationId "com.fongmi.android.tv"
         minSdk libs.versions.minSdk.get().toInteger()
         targetSdk libs.versions.targetSdk.get().toInteger()
-        versionCode 100
-        versionName "1.0.0"
+        // CI derives these from the release tag (vX.Y.Z → X*10000 + Y*100 + Z).
+        versionCode((project.findProperty('versionCode') ?: '100').toString().toInteger())
+        versionName((project.findProperty('versionName') ?: '1.0.0').toString())
+        // Base of the worker's update endpoints, e.g. https://tvbox.example.workers.dev/u
+        buildConfigField "String", "UPDATE_URL", "\"${project.findProperty('updateUrl') ?: ''}\""
         javaCompileOptions {
             annotationProcessorOptions {
                 arguments = ["room.schemaLocation": "$projectDir/schemas".toString(), "eventBusIndex": "com.fongmi.android.tv.event.EventIndex"]

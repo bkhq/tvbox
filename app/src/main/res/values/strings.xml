@@ -267,6 +267,14 @@
     <string name="setting_backup">Backup</string>
     <string name="setting_restore">Restore</string>
     <string name="setting_version">Version</string>
+    <string name="update_check">Checking for updates…</string>
+    <string name="update_latest">You are on the latest version</string>
+    <string name="update_failed">Update failed</string>
+    <string name="update_unavailable">This build has no update source</string>
+    <string name="update_title">New version %s</string>
+    <string name="update_no_notes">A new version is available.</string>
+    <string name="update_install">Update</string>
+    <string name="update_downloading">Downloading… %d%%</string>
     <string name="setting_choose">Choose</string>
     <string name="setting_off">Off</string>
     <string name="setting_on">On</string>

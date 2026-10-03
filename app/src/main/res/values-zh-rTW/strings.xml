@@ -266,6 +266,14 @@
     <string name="setting_backup">備份</string>
     <string name="setting_restore">還原</string>
     <string name="setting_version">版本</string>
+    <string name="update_check">正在檢查更新…</string>
+    <string name="update_latest">已是最新版本</string>
+    <string name="update_failed">更新失敗</string>
+    <string name="update_unavailable">此版本未設定更新來源</string>
+    <string name="update_title">發現新版本 %s</string>
+    <string name="update_no_notes">有新版本可用。</string>
+    <string name="update_install">更新</string>
+    <string name="update_downloading">正在下載… %d%%</string>
     <string name="setting_choose">選擇</string>
     <string name="setting_off">關</string>
     <string name="setting_on">開</string>

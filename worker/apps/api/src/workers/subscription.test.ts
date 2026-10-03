@@ -97,6 +97,10 @@ describe("subscription content", () => {
     expect(res.headers.get("content-type")).toBe("application/java-archive");
     expect(res.headers.get("cache-control")).toContain("immutable");
     expect(await res.text()).toBe("PK-jar");
+
+    const image = await handleSubscription(get(`/s/${ALL}/a/${JAR_SHA}/wallpaper.jpg`), { FILES: published() });
+    expect(image.headers.get("content-type")).toBe("image/jpeg");
+    await image.text();
   });
 
   test("a malformed or unknown hash is missing", async () => {

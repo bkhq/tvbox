@@ -32,6 +32,7 @@ import {
   updateEntry,
   updateUpstream,
 } from "./tvbox.service";
+import { storeUpload } from "./upload.service";
 
 const nanoid = customAlphabet("0123456789abcdefghijklmnopqrstuvwxyz", 8);
 const noop = { debug() {}, info() {}, warn() {}, error() {}, fatal() {}, flush() {} } as unknown as Logger;
@@ -349,5 +350,22 @@ describe("content management", () => {
     expect(await setEntriesEnabled(db, ids, false)).toBe(3);
     expect((await listEntries(db, "sites")).every(e => !e.enabled)).toBe(true);
     expect((await listUpstreams(db))[0]).toMatchObject({ entryCount: 4 });
+  });
+});
+
+describe("uploads", () => {
+  test("store a file by content hash and hand back the path a config uses", async () => {
+    const bytes = new TextEncoder().encode("PNG-bytes").buffer;
+    const first = await storeUpload(db, "My Logo.png", bytes);
+    const sha = hashHex("sha256", bytes);
+    expect(first).toEqual({ path: `./a/${sha}/My_Logo.png`, name: "My_Logo.png", sha256: sha, md5: hashHex("md5", bytes), size: 9 });
+    expect(await readObjectText((await import("@/modules/file/storage/key")).deriveStorageKey(sha))).toBe("PNG-bytes");
+    // The same bytes again are stored once.
+    expect((await storeUpload(db, "My Logo.png", bytes)).sha256).toBe(sha);
+  });
+
+  test("refuse an empty or oversized file", async () => {
+    await expect(storeUpload(db, "x.png", new ArrayBuffer(0))).rejects.toThrow("empty");
+    await expect(storeUpload(db, "x.png", new ArrayBuffer(20 * 1024 * 1024 + 1))).rejects.toThrow("larger");
   });
 });

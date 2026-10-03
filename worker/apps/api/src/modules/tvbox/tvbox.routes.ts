@@ -30,6 +30,7 @@ import {
   updateEntry,
   updateUpstream,
 } from "./tvbox.service";
+import { storeUpload } from "./upload.service";
 
 const kindSchema = z.enum(LIST_KINDS);
 const jsonObject = z.record(z.string(), z.unknown());
@@ -311,6 +312,26 @@ export function tvboxRoutes() {
     await record(c, "tvbox.global.deleted", { type: "tvbox_global", id: key, name: key });
     return c.json({ success: true, data: row });
   });
+
+  // ─── Files of our own ───
+
+  router.post(
+    "/tvbox/files",
+    doc("Upload a file (logo, wallpaper, spider…) to serve under every subscription", jsonCreated(z.object({
+      path: z.string(),
+      name: z.string(),
+      sha256: z.string(),
+      md5: z.string(),
+      size: z.number(),
+    }))),
+    validator("query", z.object({ name: z.string().min(1).max(200) })),
+    async (c) => {
+      const { name } = c.req.valid("query");
+      const stored = await storeUpload(c.get("db"), name, await c.req.arrayBuffer());
+      await record(c, "tvbox.file.uploaded", { type: "tvbox_file", id: stored.sha256, name: stored.name }, { size: stored.size });
+      return c.json({ success: true, data: stored }, 201);
+    },
+  );
 
   // ─── Publishing ───
 

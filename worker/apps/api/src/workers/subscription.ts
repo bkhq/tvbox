@@ -43,6 +43,12 @@ const CONTENT_TYPES: Record<string, string> = {
   py: "text/x-python; charset=utf-8",
   txt: "text/plain; charset=utf-8",
   m3u: "audio/x-mpegurl",
+  png: "image/png",
+  jpg: "image/jpeg",
+  jpeg: "image/jpeg",
+  webp: "image/webp",
+  gif: "image/gif",
+  mp4: "video/mp4",
   m3u8: "application/vnd.apple.mpegurl",
 };
 

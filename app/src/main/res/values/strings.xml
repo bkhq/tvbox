@@ -268,6 +268,8 @@
     <string name="update_check">Checking for updates…</string>
     <string name="setting_server">Server link</string>
     <string name="setting_airplay">AirPlay</string>
+    <string name="airplay_name">AirPlay name</string>
+    <string name="live_boot">Live on boot</string>
     <string name="airplay_name_hint">Name shown on iPhone, iPad and Mac. Leave empty for the app name.</string>
     <string name="airplay_turn_on">Turn on</string>
     <string name="airplay_turn_off">Turn off</string>
@@ -436,4 +438,9 @@
         <item>Select subtitle track</item>
     </string-array>
 
+    <string-array name="select_background">
+        <item>Off</item>
+        <item>On</item>
+        <item>Picture-in-picture</item>
+    </string-array>
 </resources>

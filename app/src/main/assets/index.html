@@ -25,6 +25,8 @@
                             <div class="md-field"><input id="config_url_0" class="md-input" type="text" placeholder="配置地址" /></div>
                         </div>
                         <button class="md-btn md-btn-filled md-btn-full" onclick="addConfig(0)">添加并使用</button>
+                        <label class="setting-row" id="source_site_row"><span>首页站点</span><select class="md-select" id="source_site" onchange="source('site', this.value)"></select></label>
+                        <label class="setting-row" id="source_parse_row"><span>解析</span><select class="md-select" id="source_parse" onchange="source('parse', this.value)"></select></label>
                     </div>
                     <div class="section" data-type="1">
                         <div class="section-title">直播</div>
@@ -34,6 +36,7 @@
                             <div class="md-field"><input id="config_url_1" class="md-input" type="text" placeholder="配置地址" /></div>
                         </div>
                         <button class="md-btn md-btn-filled md-btn-full" onclick="addConfig(1)">添加并使用</button>
+                        <label class="setting-row" id="source_live_row"><span>直播源</span><select class="md-select" id="source_live" onchange="source('live', this.value)"></select></label>
                     </div>
                     <div class="section" data-type="2">
                         <div class="section-title">壁纸</div>
@@ -86,32 +89,14 @@
             <!-- 设置 -->
             <div id="panel3" class="tab-panel">
                 <div class="panel-content">
+                    <div id="settings_groups"></div>
                     <div class="section">
-                        <div class="section-title">播放器</div>
-                        <label class="setting-row"><span>播放引擎</span><select class="md-select" id="setting_engine" onchange="setting('engine', this.value)"></select></label>
-                        <label class="setting-row"><span>渲染方式</span><select class="md-select" id="setting_render" onchange="setting('render', this.value)"></select></label>
-                        <label class="setting-row"><span>画面比例</span><select class="md-select" id="setting_scale" onchange="setting('scale', this.value)"></select></label>
-                        <label class="setting-row"><span>后台播放</span>
-                            <select class="md-select" id="setting_background" onchange="setting('background', this.value)">
-                                <option value="0">关</option>
-                                <option value="1">开</option>
-                                <option value="2">画中画</option>
-                            </select>
-                        </label>
-                        <label class="setting-row"><span>缓冲倍数</span><input class="md-select" id="setting_buffer" type="number" min="1" max="15" onchange="setting('buffer', this.value)" /></label>
-                        <label class="setting-row"><span>默认倍速</span><input class="md-select" id="setting_speed" type="number" min="0.1" max="5" step="0.05" onchange="setting('speed', this.value)" /></label>
-                    </div>
-                    <div class="section">
-                        <div class="section-title">通用</div>
-                        <label class="setting-row"><span>无痕模式</span><input type="checkbox" id="setting_incognito" onchange="setting('incognito', this.checked)" /></label>
-                        <label class="setting-row"><span>广告过滤</span><input type="checkbox" id="setting_adblock" onchange="setting('adblock', this.checked)" /></label>
-                        <label class="setting-row"><span>AirPlay 投屏</span><input type="checkbox" id="setting_airplay" onchange="setting('airplay', this.checked)" /></label>
-                        <div class="section-title">AirPlay 名称</div>
-                        <div class="md-field"><input id="setting_airplay_name" class="md-input" type="text" placeholder="iPhone 投屏列表中显示的名称" /></div>
-                        <button class="md-btn md-btn-tonal md-btn-full" onclick="setting('airplay_name', $('#setting_airplay_name').val())">保存</button>
-                        <div class="section-title">User-Agent</div>
-                        <div class="md-field"><input id="setting_ua" class="md-input" type="text" placeholder="留空使用默认" /></div>
-                        <button class="md-btn md-btn-tonal md-btn-full" onclick="setting('ua', $('#setting_ua').val())">保存</button>
+                        <div class="section-title">维护</div>
+                        <label class="setting-row"><span>缓存</span><span id="cache_size"></span></label>
+                        <div class="field-row">
+                            <button class="md-btn md-btn-tonal md-btn-full" onclick="source('cache')">清除缓存</button>
+                            <button class="md-btn md-btn-tonal md-btn-full" onclick="source('backup')">立即备份</button>
+                        </div>
                     </div>
                     <div class="section" id="enroll_section">
                         <div class="section-title">服务器关联</div>

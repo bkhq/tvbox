@@ -4,8 +4,6 @@ import android.text.TextUtils;
 
 import com.fongmi.android.tv.BuildConfig;
 import com.fongmi.android.tv.Enroll;
-import com.fongmi.android.tv.R;
-import com.fongmi.android.tv.airplay.AirPlay;
 import com.fongmi.android.tv.api.config.LiveConfig;
 import com.fongmi.android.tv.api.config.VodConfig;
 import com.fongmi.android.tv.api.config.WallConfig;
@@ -14,10 +12,6 @@ import com.fongmi.android.tv.player.PlayerManager;
 import com.fongmi.android.tv.server.Pairing;
 import com.fongmi.android.tv.server.Server;
 import com.fongmi.android.tv.service.PlaybackService;
-import com.fongmi.android.tv.setting.PlayerSetting;
-import com.fongmi.android.tv.setting.Setting;
-import com.fongmi.android.tv.setting.SpeedSetting;
-import com.fongmi.android.tv.utils.ResUtil;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 
@@ -31,6 +25,10 @@ public class StateApi implements Endpoint {
     @Override
     public Response handle(IHTTPSession session, Map<String, String> params) {
         JsonObject object = new JsonObject();
+        if ("player".equals(params.get("only"))) {
+            object.add("player", Reply.onMain(StateApi::player, new JsonObject()));
+            return Reply.json(object);
+        }
         object.addProperty("version", BuildConfig.VERSION_NAME);
         object.addProperty("address", Server.get().getAddress());
         object.addProperty("token", Pairing.token(session));
@@ -38,9 +36,10 @@ public class StateApi implements Endpoint {
         object.add("vod", configs(ConfigApi.VOD, VodConfig.get().getConfig()));
         object.add("live", configs(ConfigApi.LIVE, LiveConfig.get().getConfig()));
         object.add("wall", configs(ConfigApi.WALL, WallConfig.get().getConfig()));
-        object.add("settings", settings());
+        object.add("settings", Reply.onMain(SettingRegistry::toJson, new JsonArray()));
+        object.add("sources", Reply.onMain(SourceApi::toJson, new JsonObject()));
+        object.addProperty("cache", SourceApi.cacheSize());
         object.add("enroll", enroll());
-        object.add("options", options());
         object.add("player", Reply.onMain(StateApi::player, new JsonObject()));
         return Reply.json(object);
     }
@@ -60,42 +59,12 @@ public class StateApi implements Endpoint {
         return object;
     }
 
-    private static JsonObject settings() {
-        JsonObject object = new JsonObject();
-        object.addProperty("engine", PlayerSetting.getEngine());
-        object.addProperty("render", PlayerSetting.getRender());
-        object.addProperty("scale", PlayerSetting.getScale());
-        object.addProperty("background", PlayerSetting.getBackground());
-        object.addProperty("buffer", PlayerSetting.getBuffer());
-        object.addProperty("speed", SpeedSetting.getPlayback());
-        object.addProperty("ua", Setting.getUa());
-        object.addProperty("incognito", Setting.isIncognito());
-        object.addProperty("adblock", Setting.isAdblock());
-        object.addProperty("airplay", Setting.isAirPlay());
-        object.addProperty("airplay_name", AirPlay.getName());
-        return object;
-    }
-
     private static JsonObject enroll() {
         JsonObject object = new JsonObject();
         object.addProperty("available", Enroll.isAvailable());
         object.addProperty("state", Enroll.getState().name().toLowerCase(java.util.Locale.ROOT));
         object.addProperty("code", Enroll.getCode());
         return object;
-    }
-
-    private static JsonObject options() {
-        JsonObject object = new JsonObject();
-        object.add("engine", array(R.array.select_engine));
-        object.add("render", array(R.array.select_render));
-        object.add("scale", array(R.array.select_scale));
-        return object;
-    }
-
-    private static JsonArray array(int resId) {
-        JsonArray array = new JsonArray();
-        for (String item : ResUtil.getStringArray(resId)) array.add(item);
-        return array;
     }
 
     private static JsonObject player() {

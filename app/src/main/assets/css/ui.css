@@ -541,3 +541,6 @@ html, body {
 
 .enroll-code { font-family: monospace; font-size: 18px; letter-spacing: 2px; color: var(--md-primary); }
 #enroll_section .field-row .md-btn { flex: 1; }
+
+.setting-text { padding: 8px 0; border-bottom: 1px solid var(--md-outline-variant); }
+.setting-text .field-row .md-field { margin-bottom: 0; }

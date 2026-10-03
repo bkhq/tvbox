@@ -110,6 +110,7 @@ function loadState(onDone) {
         paired = true;
         renderConfigs(state);
         renderSettings(state);
+        renderSources(state);
         renderDevices(state);
         renderEnroll(state);
         renderPlayer(state.player);
@@ -209,13 +210,13 @@ function formatTime(ms) {
 
 function control(action, value) {
     api('control', { do: action, value: value === undefined ? '' : value }, function () {
-        setTimeout(() => $.getJSON('/api/state', state => renderPlayer(state.player)), 300);
+        setTimeout(() => $.getJSON('/api/state?only=player', state => renderPlayer(state.player)), 300);
     });
 }
 
 function startPlayerPolling() {
     stopPlayerPolling();
-    playerTimer = setInterval(() => { if (paired) $.getJSON('/api/state', state => renderPlayer(state.player)).fail(xhr => { if (xhr.status === 401) onUnauthorized(); }); }, 2000);
+    playerTimer = setInterval(() => { if (paired) $.getJSON('/api/state?only=player', state => renderPlayer(state.player)).fail(xhr => { if (xhr.status === 401) onUnauthorized(); }); }, 2000);
 }
 
 function stopPlayerPolling() {
@@ -255,27 +256,60 @@ function confirmUnlink() {
     if (confirm('取消关联后电视将停止同步服务器配置，并生成新的设备编码。确定吗？')) enroll('unlink');
 }
 
+const GROUP_TITLES = { general: '通用', player: '播放器', speed: '倍速', decode: '解码', preload: '预加载', danmaku: '弹幕', live: '直播' };
+
 function renderSettings(state) {
-    const s = state.settings;
-    ['engine', 'render', 'scale'].forEach(key => {
-        const select = $('#setting_' + key).empty();
-        state.options[key].forEach((label, i) => select.append(`<option value="${i}">${escHtml(label)}</option>`));
-        select.val(String(s[key]));
+    const root = $('#settings_groups').empty();
+    (state.settings || []).forEach(group => {
+        const section = $('<div class="section"></div>').append(`<div class="section-title">${escHtml(GROUP_TITLES[group.key] || group.key)}</div>`);
+        group.items.forEach(item => section.append(buildSetting(item)));
+        root.append(section);
     });
-    $('#setting_background').val(String(s.background));
-    $('#setting_buffer').val(s.buffer);
-    $('#setting_speed').val(s.speed);
-    $('#setting_ua').val(s.ua);
-    $('#setting_incognito').prop('checked', s.incognito);
-    $('#setting_adblock').prop('checked', s.adblock);
-    $('#setting_airplay').prop('checked', s.airplay);
-    $('#setting_airplay_name').val(s.airplay_name);
+    $('#cache_size').text(state.cache || '');
+}
+
+function buildSetting(item) {
+    const key = escHtml(item.key);
+    const label = `<span>${escHtml(item.label)}</span>`;
+    if (item.type === 'bool') {
+        return `<label class="setting-row">${label}<input type="checkbox" ${item.value ? 'checked' : ''} onchange="setting('${key}', this.checked)" /></label>`;
+    }
+    if (item.type === 'enum') {
+        const options = item.options.map((o, i) => `<option value="${i}" ${i === item.value ? 'selected' : ''}>${escHtml(o)}</option>`).join('');
+        return `<label class="setting-row">${label}<select class="md-select" onchange="setting('${key}', this.value)">${options}</select></label>`;
+    }
+    if (item.type === 'number') {
+        return `<label class="setting-row">${label}<input class="md-select" type="number" min="${item.min}" max="${item.max}" step="${item.step}" value="${item.value}" onchange="setting('${key}', this.value)" /></label>`;
+    }
+    return `<div class="setting-text"><div class="section-title">${escHtml(item.label)}</div>
+        <div class="field-row"><div class="md-field"><input class="md-input" type="text" id="text_${key}" value="${escHtml(item.value)}" /></div>
+        <button class="md-btn md-btn-tonal" onclick="setting('${key}', document.getElementById('text_${key}').value)">保存</button></div></div>`;
+}
+
+function renderSources(state) {
+    const s = state.sources || {};
+    fillSelect('site', s.sites, s.site);
+    fillSelect('live', s.lives, s.live);
+    fillSelect('parse', s.parses, s.parse);
+}
+
+function fillSelect(name, items, current) {
+    items = items || [];
+    $('#source_' + name + '_row').toggle(items.length > 0);
+    $('#source_' + name).html(items.map(i => `<option value="${escHtml(i.key)}" ${i.key === current ? 'selected' : ''}>${escHtml(i.name || i.key)}</option>`).join(''));
+}
+
+function source(action, value) {
+    api('source', { do: action, value: value || '' }, function () {
+        warnToast(action === 'cache' ? '缓存已清除' : action === 'backup' ? '已开始备份' : '已切换');
+        setTimeout(loadState, 800);
+    });
 }
 
 function setting(key, value) {
     api('setting', { key, value }, function () {
         warnToast('已保存');
-        loadState();
+        setTimeout(loadState, 300);
     });
 }
 
@@ -514,7 +548,6 @@ $(function () {
     $('#pair_code, #pair_name').on('keydown', function (e) { if (e.key === 'Enter') { this.blur(); confirmPair(); } });
     $('#keyword').on('keydown', function (e) { if (e.key === 'Enter') { this.blur(); search(); } });
     $('#push_url').on('keydown', function (e) { if (e.key === 'Enter') { this.blur(); push(); } });
-    $('#setting_ua').on('keydown', function (e) { if (e.key === 'Enter') { this.blur(); setting('ua', this.value); } });
     $('#newFolderContent').on('keydown', function (e) { if (e.key === 'Enter') { this.blur(); confirmNewFolder(1); } });
     for (let t = 0; t < 3; t++) $('#config_url_' + t + ', #config_name_' + t).on('keydown', function (e) { if (e.key === 'Enter') { this.blur(); addConfig(t); } });
 });

@@ -428,12 +428,6 @@
         <item>選擇字幕</item>
     </string-array>
 
-    <string-array name="select_background">
-        <item>關</item>
-        <item>開</item>
-        <item>子母畫面</item>
-    </string-array>
-
     <!-- Home -->
     <string name="home_vod">點播</string>
     <string name="home_live">直播</string>

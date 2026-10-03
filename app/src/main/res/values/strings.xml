@@ -438,12 +438,6 @@
         <item>Select subtitle track</item>
     </string-array>
 
-    <string-array name="select_background">
-        <item>Off</item>
-        <item>On</item>
-        <item>Picture-in-picture</item>
-    </string-array>
-
     <!-- Home -->
     <string name="home_vod">Vod</string>
     <string name="home_live">Live</string>

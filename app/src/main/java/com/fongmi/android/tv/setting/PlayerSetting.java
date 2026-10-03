@@ -15,7 +15,7 @@ public class PlayerSetting {
     private static final int MIN_BUFFER = 1;
     private static final int MAX_BUFFER = 10;
     private static final int MIN_BACKGROUND = 0;
-    private static final int MAX_BACKGROUND = 2;
+    private static final int MAX_BACKGROUND = 1;
 
     public static int getEngine() {
         return Math.clamp(Prefers.getInt("player_engine", ENGINE_EXO), ENGINE_EXO, ENGINE_MPV);
@@ -84,7 +84,7 @@ public class PlayerSetting {
     }
 
     public static int getBackground() {
-        return Math.clamp(Prefers.getInt("background", 2), MIN_BACKGROUND, MAX_BACKGROUND);
+        return Math.clamp(Prefers.getInt("background", 1), MIN_BACKGROUND, MAX_BACKGROUND);
     }
 
     public static void putBackground(int background) {
@@ -96,11 +96,7 @@ public class PlayerSetting {
     }
 
     public static boolean isBackgroundOn() {
-        return getBackground() == 1 || getBackground() == 2;
-    }
-
-    public static boolean isBackgroundPiP() {
-        return getBackground() == 2;
+        return getBackground() == 1;
     }
 
     public static int getBuffer() {

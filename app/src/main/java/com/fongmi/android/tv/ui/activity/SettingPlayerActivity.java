@@ -68,7 +68,6 @@ public class SettingPlayerActivity extends BaseActivity implements UaListener, B
     private void setVisible() {
         boolean exo = PlayerSetting.isExo();
         boolean vulkan = !exo && MpvUtil.isVulkanSupported();
-        if (PlayerSetting.isBackgroundPiP()) PlayerSetting.putBackground(1);
         mBinding.mpvConf.setVisibility(exo ? View.GONE : View.VISIBLE);
         mBinding.mpvVulkan.setVisibility(vulkan ? View.VISIBLE : View.GONE);
         mBinding.mpvGpuNext.setVisibility(exo ? View.GONE : View.VISIBLE);

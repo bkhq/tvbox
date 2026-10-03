@@ -130,7 +130,7 @@ public final class SettingRegistry {
         choice("player", "engine", R.string.player_engine, PlayerSetting::getEngine, PlayerSetting::putEngine).options(R.array.select_engine);
         choice("player", "render", R.string.player_render, PlayerSetting::getRender, PlayerSetting::putRender).options(R.array.select_render);
         choice("player", "scale", R.string.player_scale, PlayerSetting::getScale, PlayerSetting::putScale).options(R.array.select_scale);
-        choice("player", "background", R.string.player_background, PlayerSetting::getBackground, PlayerSetting::putBackground).options(R.array.select_background);
+        bool("player", "background", R.string.player_background, PlayerSetting::isBackgroundOn, value -> PlayerSetting.putBackground(value ? 1 : 0));
         number("player", "buffer", R.string.player_buffer, PlayerSetting::getBuffer, value -> PlayerSetting.putBuffer(value.intValue())).range(1, 10, 1).visible(PlayerSetting::isExo);
         bool("player", "adblock", R.string.player_adblock, Setting::isAdblock, Setting::putAdblock).visible(PlayerSetting::isExo);
         bool("player", "mpv_gpu_next", R.string.player_mpv_gpu_next, PlayerSetting::isMpvGpuNext, PlayerSetting::putMpvGpuNext).visible(PlayerSetting::isMpv);

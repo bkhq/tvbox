@@ -7,6 +7,7 @@ import static org.junit.Assert.assertTrue;
 
 import com.fongmi.android.tv.setting.PlayerSetting;
 import com.fongmi.android.tv.setting.Setting;
+import com.github.catvod.utils.Prefers;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
@@ -57,6 +58,22 @@ public class SettingRegistryTest {
         assertThrows(IllegalArgumentException.class, () -> SettingRegistry.set("buffer", "NaN"));
         assertTrue(SettingRegistry.set("buffer", "5"));
         assertEquals(5, PlayerSetting.getBuffer());
+    }
+
+    @Test
+    public void backgroundPlaybackIsASwitch() {
+        assertEquals("bool", find(SettingRegistry.toJson(), "background").get("type").getAsString());
+        assertTrue(SettingRegistry.set("background", "false"));
+        assertTrue(PlayerSetting.isBackgroundOff());
+        assertTrue(SettingRegistry.set("background", "true"));
+        assertTrue(PlayerSetting.isBackgroundOn());
+    }
+
+    @Test
+    public void backgroundPictureInPictureFromThePhoneAppReadsAsOn() {
+        Prefers.put("background", 2);
+        assertTrue(PlayerSetting.isBackgroundOn());
+        assertEquals(1, PlayerSetting.getBackground());
     }
 
     @Test

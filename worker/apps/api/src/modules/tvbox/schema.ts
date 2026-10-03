@@ -39,6 +39,9 @@ export const tvboxEntries = sqliteTable("tvbox_entries", {
   sort: integer("sort").notNull().default(0),
   locallyModified: integer("locally_modified", { mode: "boolean" }).notNull().default(false),
   upstreamRemoved: integer("upstream_removed", { mode: "boolean" }).notNull().default(false),
+  // Deleted here: an upstream entry is kept, hidden and disabled, so that a
+  // sync does not bring it back. It can be restored.
+  deleted: integer("deleted", { mode: "boolean" }).notNull().default(false),
   // The last health check (scripts/tvbox-health.ts, run by CI). A failing
   // entry is disabled and flagged `disabledByHealth`, and enabled again once
   // it passes. Turning such an entry back on by hand makes it `healthExempt`:

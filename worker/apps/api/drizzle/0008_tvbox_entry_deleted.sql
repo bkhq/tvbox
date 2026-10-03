@@ -1,0 +1,1 @@
+ALTER TABLE `tvbox_entries` ADD `deleted` integer DEFAULT false NOT NULL;

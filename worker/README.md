@@ -7,9 +7,13 @@ project needs and to the Workers runtime only.
 
 - **Content** — upstream configs (e.g. xiaosa) are imported into our own
   database: each site, parser, live source and rule becomes a row
-  we can edit, disable (one by one or in bulk) or reorder, and every file
+  we can edit, disable or delete (one by one or in bulk) or reorder, and every file
   they reference (spider jar, `./json/*`) is mirrored into R2. Entries added
   in the admin console belong to no upstream and are common to every device.
+  A deleted upstream entry goes to the recycle bin rather than away, so the
+  next sync does not import it again; it can be restored from there. Files a
+  custom entry needs (a spider jar, an ext json) are uploaded from the entry
+  editor and referenced by the path it returns.
   An upstream can also be a collection (`{"urls": [{"name", "url"}, …]}`, the
   multi-line format the app accepts): each line becomes an upstream of its
   own, synced with the collection; a line it drops is deleted, and a device

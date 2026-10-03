@@ -51,6 +51,12 @@ export default {
         "when": 1791054391690,
         "tag": "0007_tvbox_collections",
         "breakpoints": true
+      },
+      {
+        "idx": 8,
+        "when": 1791054825268,
+        "tag": "0008_tvbox_entry_deleted",
+        "breakpoints": true
       }
     ]
   },
@@ -62,7 +68,8 @@ export default {
     "m0004": "CREATE TABLE `tvbox_enrollments` (\n\t`id` text PRIMARY KEY NOT NULL,\n\t`code` text NOT NULL,\n\t`status` text DEFAULT 'pending' NOT NULL,\n\t`device_ref` text,\n\t`app_device_id` text DEFAULT '' NOT NULL,\n\t`name` text DEFAULT '' NOT NULL,\n\t`model` text DEFAULT '' NOT NULL,\n\t`mode` text DEFAULT '' NOT NULL,\n\t`abi` text DEFAULT '' NOT NULL,\n\t`version_code` integer DEFAULT 0 NOT NULL,\n\t`version_name` text DEFAULT '' NOT NULL,\n\t`ip` text DEFAULT '' NOT NULL,\n\t`created_at` text NOT NULL,\n\t`last_seen_at` text NOT NULL,\n\t`resolved_at` text,\n\tFOREIGN KEY (`device_ref`) REFERENCES `tvbox_tokens`(`id`) ON UPDATE no action ON DELETE set null\n);\n--> statement-breakpoint\nCREATE UNIQUE INDEX `idx_tvbox_enrollments_code` ON `tvbox_enrollments` (`code`);--> statement-breakpoint\nCREATE INDEX `idx_tvbox_enrollments_device` ON `tvbox_enrollments` (`device_ref`);",
     "m0005": "-- DoH resolvers are no longer imported from upstreams (see sync.service.ts);\n-- the ones imported before would otherwise linger. Common (local) entries stay.\nDELETE FROM `tvbox_entries` WHERE `kind` = 'doh' AND `upstream_id` IS NOT NULL;\n",
     "m0006": "ALTER TABLE `tvbox_entries` ADD `health_status` text;--> statement-breakpoint\nALTER TABLE `tvbox_entries` ADD `health_detail` text;--> statement-breakpoint\nALTER TABLE `tvbox_entries` ADD `health_checked_at` text;--> statement-breakpoint\nALTER TABLE `tvbox_entries` ADD `disabled_by_health` integer DEFAULT false NOT NULL;--> statement-breakpoint\nALTER TABLE `tvbox_entries` ADD `health_exempt` integer DEFAULT false NOT NULL;",
-    "m0007": "ALTER TABLE `tvbox_upstreams` ADD `parent_id` text REFERENCES tvbox_upstreams(id) ON DELETE cascade;"
+    "m0007": "ALTER TABLE `tvbox_upstreams` ADD `parent_id` text REFERENCES tvbox_upstreams(id) ON DELETE cascade;",
+    "m0008": "ALTER TABLE `tvbox_entries` ADD `deleted` integer DEFAULT false NOT NULL;"
   }
 } as {
   journal: { entries: { idx: number; when: number; tag: string; breakpoints: boolean }[] };

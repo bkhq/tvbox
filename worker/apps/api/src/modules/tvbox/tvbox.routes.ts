@@ -16,6 +16,7 @@ import { syncUpstream } from "./sync.service";
 import {
   createEntry,
   createUpstream,
+  deleteEntries,
   deleteEntry,
   deleteGlobal,
   deleteUpstream,
@@ -25,6 +26,7 @@ import {
   listUpstreams,
   putGlobal,
   reorderEntries,
+  restoreEntry,
   revertEntry,
   revertGlobal,
   setEntriesEnabled,
@@ -66,6 +68,7 @@ const entrySchema = z.object({
   sort: z.number(),
   locallyModified: z.boolean(),
   upstreamRemoved: z.boolean(),
+  deleted: z.boolean(),
   healthStatus: z.enum(["ok", "blocked", "fail", "skip"]).nullable(),
   healthDetail: z.string().nullable(),
   healthCheckedAt: z.string().nullable(),
@@ -217,10 +220,10 @@ export function tvboxRoutes() {
   router.get(
     "/tvbox/entries",
     doc("List entries", jsonOk(z.array(entrySchema))),
-    validator("query", z.object({ kind: kindSchema.optional(), source: z.string().min(1).optional() })),
+    validator("query", z.object({ kind: kindSchema.optional(), source: z.string().min(1).optional(), deleted: z.enum(["true", "false"]).optional() })),
     async (c) => {
-      const { kind, source } = c.req.valid("query");
-      return c.json({ success: true, data: await listEntries(c.get("db"), kind, source) });
+      const { kind, source, deleted } = c.req.valid("query");
+      return c.json({ success: true, data: await listEntries(c.get("db"), kind, source, deleted === "true") });
     },
   );
 
@@ -282,11 +285,28 @@ export function tvboxRoutes() {
     return c.json({ success: true, data: row });
   });
 
-  router.delete("/tvbox/entries/:id", doc("Delete a local entry", jsonOk(entrySchema)), validator("param", idParam), async (c) => {
+  router.delete("/tvbox/entries/:id", doc("Delete an entry (an upstream one stays hidden through syncs until restored)", jsonOk(entrySchema)), validator("param", idParam), async (c) => {
     const row = await deleteEntry(c.get("db"), c.req.valid("param").id);
     await record(c, "tvbox.entry.deleted", { type: "tvbox_entry", id: row.id, name: entryName(row.data, row.id) });
     return c.json({ success: true, data: row });
   });
+
+  router.post("/tvbox/entries/:id/restore", doc("Restore a deleted upstream entry", jsonOk(entrySchema)), validator("param", idParam), async (c) => {
+    const row = await restoreEntry(c.get("db"), c.req.valid("param").id);
+    await record(c, "tvbox.entry.restored", { type: "tvbox_entry", id: row.id, name: entryName(row.data, row.id) });
+    return c.json({ success: true, data: row });
+  });
+
+  router.post(
+    "/tvbox/entries/bulk-delete",
+    doc("Delete many entries", jsonOk(z.object({ count: z.number() }))),
+    validator("json", z.object({ ids: z.array(z.string()).min(1).max(5000) })),
+    async (c) => {
+      const n = await deleteEntries(c.get("db"), c.req.valid("json").ids);
+      await record(c, "tvbox.entries.deleted", { type: "tvbox_entry", id: "bulk", name: `${n} entries` }, { count: n });
+      return c.json({ success: true, data: { count: n } });
+    },
+  );
 
   // ─── Health ───
 

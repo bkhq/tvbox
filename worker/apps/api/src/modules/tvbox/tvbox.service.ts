@@ -120,12 +120,12 @@ function assertEntryShape(kind: ListKind, data: JsonObject): void {
     throw new AppError(`A ${kind} entry needs a non-empty "${field}"`, 422, "INVALID_ENTRY");
 }
 
-/** `source`: an upstream id, or "common" for the entries added here. */
-export async function listEntries(db: AppDatabase, kind?: ListKind, source?: string): Promise<EntryView[]> {
+/** `source`: an upstream id, or "common" for the entries added here. `deleted`: the deleted ones instead. */
+export async function listEntries(db: AppDatabase, kind?: ListKind, source?: string, deleted = false): Promise<EntryView[]> {
   const bySource = source === undefined
     ? undefined
     : source === "common" ? isNull(tvboxEntries.upstreamId) : eq(tvboxEntries.upstreamId, source);
-  const rows = await db.select().from(tvboxEntries).where(and(kind ? eq(tvboxEntries.kind, kind) : undefined, bySource)).orderBy(tvboxEntries.kind, tvboxEntries.sort, tvboxEntries.id).all();
+  const rows = await db.select().from(tvboxEntries).where(and(kind ? eq(tvboxEntries.kind, kind) : undefined, bySource, eq(tvboxEntries.deleted, deleted))).orderBy(tvboxEntries.kind, tvboxEntries.sort, tvboxEntries.id).all();
   return rows.map(entryView);
 }
 
@@ -166,6 +166,8 @@ export async function updateEntry(
   patch: { data?: JsonObject | undefined; enabled?: boolean | undefined; healthExempt?: boolean | undefined },
 ): Promise<EntryView> {
   const row = await getEntryRow(db, id);
+  if (row.deleted)
+    throw new AppError("This entry is deleted; restore it first", 409, "ENTRY_DELETED");
   let dataPatch = {};
   if (patch.data !== undefined) {
     assertEntryShape(row.kind, patch.data);
@@ -197,12 +199,12 @@ export async function setEntriesEnabled(db: AppDatabase, ids: readonly string[],
       if (enabled) {
         await tx.update(tvboxEntries)
           .set({ healthExempt: true, disabledByHealth: false })
-          .where(and(inArray(tvboxEntries.id, ids), eq(tvboxEntries.disabledByHealth, true)))
+          .where(and(inArray(tvboxEntries.id, ids), eq(tvboxEntries.disabledByHealth, true), eq(tvboxEntries.deleted, false)))
           .run();
       }
       await tx.update(tvboxEntries)
         .set({ enabled, updatedAt, ...(enabled ? {} : { disabledByHealth: false }) })
-        .where(inArray(tvboxEntries.id, ids))
+        .where(and(inArray(tvboxEntries.id, ids), eq(tvboxEntries.deleted, false)))
         .run();
     }
   });
@@ -221,13 +223,47 @@ export async function revertEntry(db: AppDatabase, id: string): Promise<EntryVie
   return await getEntry(db, id);
 }
 
-/** Only local entries can be deleted; an upstream one would come back on the next sync. */
+// An upstream entry is only marked: removing the row would let the next sync
+// import it again.
+const TOMBSTONE = { deleted: true, enabled: false, disabledByHealth: false, healthExempt: false } as const;
+
+/** A local entry is removed; an upstream one is hidden for good, until restored. */
 export async function deleteEntry(db: AppDatabase, id: string): Promise<EntryView> {
   const row = await getEntryRow(db, id);
-  if (row.upstreamId !== null)
-    throw new AppError("Upstream entries come back on the next sync; disable it instead", 409, "UPSTREAM_ENTRY");
-  await db.delete(tvboxEntries).where(eq(tvboxEntries.id, id)).run();
+  if (row.upstreamId === null)
+    await db.delete(tvboxEntries).where(eq(tvboxEntries.id, id)).run();
+  else
+    await db.update(tvboxEntries).set({ ...TOMBSTONE, updatedAt: new Date().toISOString() }).where(eq(tvboxEntries.id, id)).run();
   return entryView(row);
+}
+
+/** {@link deleteEntry} for many; returns how many were deleted. */
+export async function deleteEntries(db: AppDatabase, ids: readonly string[]): Promise<number> {
+  const unique = [...new Set(ids)];
+  const updatedAt = new Date().toISOString();
+  let n = 0;
+  await db.transaction(async (tx) => {
+    for (const part of chunked(unique)) {
+      const rows = await tx.select({ id: tvboxEntries.id, upstreamId: tvboxEntries.upstreamId }).from(tvboxEntries).where(and(inArray(tvboxEntries.id, part), eq(tvboxEntries.deleted, false))).all();
+      const local = rows.filter(r => r.upstreamId === null).map(r => r.id);
+      const upstream = rows.filter(r => r.upstreamId !== null).map(r => r.id);
+      if (local.length > 0)
+        await tx.delete(tvboxEntries).where(inArray(tvboxEntries.id, local)).run();
+      if (upstream.length > 0)
+        await tx.update(tvboxEntries).set({ ...TOMBSTONE, updatedAt }).where(inArray(tvboxEntries.id, upstream)).run();
+      n += rows.length;
+    }
+  });
+  return n;
+}
+
+/** Bring a deleted upstream entry back, enabled. */
+export async function restoreEntry(db: AppDatabase, id: string): Promise<EntryView> {
+  const row = await getEntryRow(db, id);
+  if (!row.deleted)
+    throw new AppError("This entry is not deleted", 409, "ENTRY_NOT_DELETED");
+  await db.update(tvboxEntries).set({ deleted: false, enabled: true, updatedAt: new Date().toISOString() }).where(eq(tvboxEntries.id, id)).run();
+  return await getEntry(db, id);
 }
 
 /** `ids` in their new order; every id must belong to `kind`. */

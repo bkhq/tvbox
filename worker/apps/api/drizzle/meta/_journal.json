@@ -57,6 +57,13 @@
       "when": 1791054391690,
       "tag": "0007_tvbox_collections",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "6",
+      "when": 1791054825268,
+      "tag": "0008_tvbox_entry_deleted",
+      "breakpoints": true
     }
   ]
 }

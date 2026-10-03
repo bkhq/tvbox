@@ -30,6 +30,7 @@ export interface Entry {
   readonly sort: number;
   readonly locallyModified: boolean;
   readonly upstreamRemoved: boolean;
+  readonly deleted: boolean;
   readonly healthStatus: "ok" | "blocked" | "fail" | "skip" | null;
   readonly healthDetail: string | null;
   readonly healthCheckedAt: string | null;
@@ -103,7 +104,7 @@ export interface SyncResult {
 
 export const tvboxKeys = {
   upstreams: ["tvbox", "upstreams"] as const,
-  entries: (kind: ListKind, source: EntrySource) => ["tvbox", "entries", kind, source] as const,
+  entries: (kind: ListKind, source: EntrySource, deleted: boolean) => ["tvbox", "entries", kind, source, deleted] as const,
   globals: ["tvbox", "globals"] as const,
   publishes: ["tvbox", "publishes"] as const,
   devices: ["tvbox", "devices"] as const,
@@ -126,13 +127,16 @@ export const tvboxApi = {
   deleteUpstream: (id: string) => data<Upstream>(`/tvbox/upstreams/${id}`, send("DELETE")),
   syncUpstream: (id: string) => data<SyncResult>(`/tvbox/upstreams/${id}/sync`, send("POST")),
 
-  entries: (kind: ListKind, source: EntrySource) =>
-    data<Entry[]>(`/tvbox/entries?kind=${kind}${source === "all" ? "" : `&source=${encodeURIComponent(source)}`}`),
+  entries: (kind: ListKind, source: EntrySource, deleted = false) =>
+    data<Entry[]>(`/tvbox/entries?kind=${kind}${source === "all" ? "" : `&source=${encodeURIComponent(source)}`}${deleted ? "&deleted=true" : ""}`),
   setEntriesEnabled: (ids: readonly string[], enabled: boolean) => data<{ count: number }>("/tvbox/entries/bulk", send("POST", { ids, enabled })),
   createEntry: (kind: ListKind, entry: JsonObject) => data<Entry>("/tvbox/entries", send("POST", { kind, data: entry })),
   updateEntry: (id: string, body: { data?: JsonObject; enabled?: boolean; healthExempt?: boolean }) => data<Entry>(`/tvbox/entries/${id}`, send("PATCH", body)),
   revertEntry: (id: string) => data<Entry>(`/tvbox/entries/${id}/revert`, send("POST")),
   deleteEntry: (id: string) => data<Entry>(`/tvbox/entries/${id}`, send("DELETE")),
+  deleteEntries: (ids: readonly string[]) => data<{ count: number }>("/tvbox/entries/bulk-delete", send("POST", { ids })),
+  restoreEntry: (id: string) => data<Entry>(`/tvbox/entries/${id}/restore`, send("POST")),
+  uploadFile: (file: File) => data<{ path: string; name: string; size: number }>(`/tvbox/files?name=${encodeURIComponent(file.name)}`, { method: "POST", body: file, headers: { "Content-Type": "application/octet-stream" } }),
   reorderEntries: (kind: ListKind, ids: readonly string[]) => data<{ count: number }>("/tvbox/entries/reorder", send("POST", { kind, ids })),
 
   globals: () => data<Global[]>("/tvbox/globals"),

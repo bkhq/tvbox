@@ -61,7 +61,19 @@
     "enableSelected": "Enable",
     "disableSelected": "Disable",
     "selectAll": "Select all",
-    "bulkDone": "{{count}} entries updated"
+    "bulkDone": "{{count}} entries updated",
+    "trash": "Recycle bin",
+    "trashHint": "Upstream entries deleted here; syncs do not add them back",
+    "restore": "Restore",
+    "deleteSelected": "Delete",
+    "bulkDeleted": "Deleted {{count}}",
+    "bulkDeleteTitle": "Delete {{count}} selected?",
+    "bulkDeleteHint": "Local entries are removed for good; upstream ones go to the recycle bin, where syncs leave them and you can restore them.",
+    "deleteLocalHint": "A local entry is removed for good.",
+    "deleteUpstreamHint": "It goes to the recycle bin: syncs do not add it back, and it can be restored.",
+    "upload": "Upload file",
+    "uploadHint": "Upload a jar, json… and use the path (copied) in jar, ext, api and similar fields.",
+    "uploaded": "Uploaded; path copied: {{path}}"
   },
   "globals": {
     "description": "Top-level fields such as spider, wallpaper and flags. Values are JSON.",

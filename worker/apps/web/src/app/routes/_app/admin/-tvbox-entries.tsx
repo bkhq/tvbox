@@ -1,8 +1,8 @@
 import type { Entry, EntrySource, JsonObject, ListKind } from "./-tvbox-api";
 import type { HealthFilter } from "./-tvbox-view";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowDown, ArrowUp, Eye, EyeOff, Pencil, Plus, ShieldOff, Trash2, Undo2 } from "lucide-react";
-import { useMemo, useState } from "react";
+import { ArchiveRestore, ArrowDown, ArrowUp, Eye, EyeOff, Pencil, Plus, ShieldOff, Trash2, Undo2, Upload } from "lucide-react";
+import { useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { Badge } from "@/shared/components/ui/badge";
@@ -37,8 +37,11 @@ export function EntriesTab() {
   const [selected, setSelected] = useState<ReadonlySet<string>>(() => new Set());
   const [editing, setEditing] = useState<Entry | "new" | null>(null);
   const [deleting, setDeleting] = useState<Entry | null>(null);
+  const [bulkDeleting, setBulkDeleting] = useState(false);
+  // The recycle bin: upstream entries deleted here, which syncs leave alone.
+  const [trash, setTrash] = useState(false);
 
-  const query = useQuery({ queryKey: tvboxKeys.entries(kind, source), queryFn: () => tvboxApi.entries(kind, source) });
+  const query = useQuery({ queryKey: tvboxKeys.entries(kind, source, trash), queryFn: () => tvboxApi.entries(kind, source, trash) });
   const upstreams = useQuery({ queryKey: tvboxKeys.upstreams, queryFn: tvboxApi.upstreams });
   const upstreamName = useMemo(() => new Map(upstreams.data?.map(u => [u.id, upstreamLabel(u, upstreams.data)])), [upstreams.data]);
 
@@ -70,6 +73,17 @@ export function EntriesTab() {
     },
     onError,
   });
+  const restore = useMutation({ mutationFn: (id: string) => tvboxApi.restoreEntry(id), onSuccess: refresh, onError });
+  const bulkRemove = useMutation({
+    mutationFn: () => tvboxApi.deleteEntries([...selected]),
+    onSuccess: (r) => {
+      toast.success(t("tvbox:entries.bulkDeleted", { count: r.count }));
+      setBulkDeleting(false);
+      setSelected(new Set());
+      refresh();
+    },
+    onError,
+  });
   const reorder = useMutation({ mutationFn: (ids: string[]) => tvboxApi.reorderEntries(kind, ids), onSuccess: refresh, onError });
   const bulk = useMutation({
     mutationFn: (enabled: boolean) => tvboxApi.setEntriesEnabled([...selected], enabled),
@@ -85,7 +99,7 @@ export function EntriesTab() {
   const needle = search.trim();
   const visible = filterHealth(filterEntries(rows, needle), health);
   // Reordering renumbers what it is given, so it needs the whole list.
-  const canReorder = !needle && source === "all" && health === "all";
+  const canReorder = !needle && source === "all" && health === "all" && !trash;
   const allVisibleSelected = visible.length > 0 && visible.every(r => selected.has(r.id));
 
   const toggle = (id: string) => setSelected((prev) => {
@@ -138,7 +152,11 @@ export function EntriesTab() {
             </SelectContent>
           </Select>
           <Input className="w-56" value={search} onChange={e => setSearch(e.target.value)} placeholder={t("tvbox:entries.search")} />
-          <Button size="sm" onClick={() => setEditing("new")}>
+          <Button size="sm" variant={trash ? "default" : "outline"} title={t("tvbox:entries.trashHint")} onClick={() => changeView(() => setTrash(v => !v))}>
+            <Trash2 className="size-4" />
+            {t("tvbox:entries.trash")}
+          </Button>
+          <Button size="sm" disabled={trash} onClick={() => setEditing("new")}>
             <Plus className="size-4" />
             {t("tvbox:entries.add")}
           </Button>
@@ -151,7 +169,7 @@ export function EntriesTab() {
 
       <p className="text-xs text-muted-foreground">{t("tvbox:health.hint")}</p>
 
-      {selected.size > 0 && (
+      {selected.size > 0 && !trash && (
         <div className="flex items-center gap-2 rounded-md border bg-muted/40 px-3 py-2 text-sm">
           <span>{t("tvbox:entries.selected", { count: selected.size })}</span>
           <Button size="sm" variant="outline" disabled={bulk.isPending} onClick={() => bulk.mutate(true)}>
@@ -161,6 +179,10 @@ export function EntriesTab() {
           <Button size="sm" variant="outline" disabled={bulk.isPending} onClick={() => bulk.mutate(false)}>
             <EyeOff className="size-4" />
             {t("tvbox:entries.disableSelected")}
+          </Button>
+          <Button size="sm" variant="outline" onClick={() => setBulkDeleting(true)}>
+            <Trash2 className="size-4" />
+            {t("tvbox:entries.deleteSelected")}
           </Button>
           <Button size="sm" variant="ghost" onClick={() => setSelected(new Set())}>{t("common.cancel")}</Button>
         </div>
@@ -187,7 +209,7 @@ export function EntriesTab() {
                   <input type="checkbox" aria-label={entryTitle(entry)} checked={selected.has(entry.id)} onChange={() => toggle(entry.id)} className="size-4 accent-primary" />
                 </TableCell>
                 <TableCell>
-                  <Switch checked={entry.enabled} onCheckedChange={enabled => update.mutate({ id: entry.id, body: { enabled } })} />
+                  <Switch checked={entry.enabled} disabled={trash} onCheckedChange={enabled => update.mutate({ id: entry.id, body: { enabled } })} />
                 </TableCell>
                 <TableCell className="max-w-lg">
                   <div className="font-medium">{entryTitle(entry)}</div>
@@ -211,20 +233,26 @@ export function EntriesTab() {
                   {entry.healthExempt && <Badge>{t("tvbox:health.exempt")}</Badge>}
                 </TableCell>
                 <TableCell className="space-x-1 text-right whitespace-nowrap">
-                  {canReorder && (
+                  {trash && (
+                    <Button size="sm" variant="outline" disabled={restore.isPending} onClick={() => restore.mutate(entry.id)}>
+                      <ArchiveRestore className="size-4" />
+                      {t("tvbox:entries.restore")}
+                    </Button>
+                  )}
+                  {!trash && canReorder && (
                     <>
                       <Button size="sm" variant="ghost" disabled={reorder.isPending} onClick={() => move(entry, -1)}><ArrowUp className="size-4" /></Button>
                       <Button size="sm" variant="ghost" disabled={reorder.isPending} onClick={() => move(entry, 1)}><ArrowDown className="size-4" /></Button>
                     </>
                   )}
-                  <Button size="sm" variant="ghost" title={t("common.edit")} onClick={() => setEditing(entry)}><Pencil className="size-4" /></Button>
-                  {entry.healthExempt && (
+                  {!trash && <Button size="sm" variant="ghost" title={t("common.edit")} onClick={() => setEditing(entry)}><Pencil className="size-4" /></Button>}
+                  {!trash && entry.healthExempt && (
                     <Button size="sm" variant="ghost" title={t("tvbox:health.unexempt")} onClick={() => update.mutate({ id: entry.id, body: { healthExempt: false } })}><ShieldOff className="size-4" /></Button>
                   )}
-                  {entry.locallyModified && (
+                  {!trash && entry.locallyModified && (
                     <Button size="sm" variant="ghost" title={t("tvbox:entries.revert")} onClick={() => revert.mutate(entry.id)}><Undo2 className="size-4" /></Button>
                   )}
-                  {entry.upstreamId === null && (
+                  {!trash && (
                     <Button size="sm" variant="ghost" title={t("common.delete")} onClick={() => setDeleting(entry)}><Trash2 className="size-4" /></Button>
                   )}
                 </TableCell>
@@ -241,9 +269,12 @@ export function EntriesTab() {
         value={editingEntry ? editingEntry.data : NEW_ENTRY[kind]}
         objectOnly
         pending={update.isPending || create.isPending}
-        extra={editingEntry?.locallyModified && editingEntry.upstreamData
-          ? <p className="text-xs text-muted-foreground">{t("tvbox:entries.modifiedHint")}</p>
-          : undefined}
+        extra={(
+          <>
+            {editingEntry?.locallyModified && editingEntry.upstreamData && <p className="text-xs text-muted-foreground">{t("tvbox:entries.modifiedHint")}</p>}
+            <UploadButton />
+          </>
+        )}
         onSave={value => editingEntry
           ? update.mutate({ id: editingEntry.id, body: { data: value as JsonObject } })
           : create.mutate(value as JsonObject)}
@@ -253,10 +284,53 @@ export function EntriesTab() {
         open={deleting !== null}
         onOpenChange={open => !open && setDeleting(null)}
         title={t("tvbox:entries.deleteTitle")}
-        description={deleting ? entryTitle(deleting) : ""}
+        description={deleting ? `${entryTitle(deleting)} · ${t(deleting.upstreamId ? "tvbox:entries.deleteUpstreamHint" : "tvbox:entries.deleteLocalHint")}` : ""}
         pending={remove.isPending}
         onConfirm={() => deleting && remove.mutate(deleting.id)}
       />
+
+      <ConfirmDeleteDialog
+        open={bulkDeleting}
+        onOpenChange={setBulkDeleting}
+        title={t("tvbox:entries.bulkDeleteTitle", { count: selected.size })}
+        description={t("tvbox:entries.bulkDeleteHint")}
+        pending={bulkRemove.isPending}
+        onConfirm={() => bulkRemove.mutate()}
+      />
+    </div>
+  );
+}
+
+/** Upload a file (spider jar, ext json…) and copy the path a config uses for it. */
+function UploadButton() {
+  const { t } = useTranslation(["common", "tvbox"]);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const upload = useMutation({
+    mutationFn: (file: File) => tvboxApi.uploadFile(file),
+    onSuccess: async (r) => {
+      await navigator.clipboard?.writeText(r.path).catch(() => {});
+      toast.success(t("tvbox:entries.uploaded", { path: r.path }), { duration: 10_000 });
+    },
+    onError: (err: unknown) => toast.error(errorMessage(err, t("common.error.operationFailed"))),
+  });
+  return (
+    <div className="flex items-center gap-2 text-xs text-muted-foreground">
+      <input
+        ref={inputRef}
+        type="file"
+        className="hidden"
+        onChange={(e) => {
+          const file = e.target.files?.[0];
+          if (file)
+            upload.mutate(file);
+          e.target.value = "";
+        }}
+      />
+      <Button type="button" size="sm" variant="outline" disabled={upload.isPending} onClick={() => inputRef.current?.click()}>
+        <Upload className="size-4" />
+        {t("tvbox:entries.upload")}
+      </Button>
+      {t("tvbox:entries.uploadHint")}
     </div>
   );
 }

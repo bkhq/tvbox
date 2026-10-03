@@ -21,12 +21,14 @@ import { syncUpstream } from "./sync.service";
 import {
   createEntry,
   createUpstream,
+  deleteEntries,
   deleteEntry,
   deleteGlobal,
   listEntries,
   listGlobals,
   listUpstreams,
   putGlobal,
+  restoreEntry,
   revertEntry,
   setEntriesEnabled,
   updateEntry,
@@ -302,19 +304,52 @@ describe("re-syncing", () => {
 });
 
 describe("local entries and globals", () => {
-  test("can be added and deleted; upstream ones cannot be deleted", async () => {
+  test("local entries can be added and deleted; upstream globals cannot be deleted", async () => {
     const up = await createUpstream(db, { name: "x", url: PRIMARY });
     await sync(up.id);
     const mine = await createEntry(db, "sites", { key: "mine", name: "Mine", type: 3, api: "csp_M" });
     expect(mine.sort).toBe(2);
     await expect(createEntry(db, "sites", { name: "no key" })).rejects.toThrow("non-empty \"key\"");
     await deleteEntry(db, mine.id);
+    expect(await listEntries(db, "sites", undefined, true)).toEqual([]);
 
-    const [a] = await listEntries(db, "sites");
-    await expect(deleteEntry(db, a!.id)).rejects.toThrow("disable it instead");
     await expect(deleteGlobal(db, "spider")).rejects.toThrow("override the value instead");
     await putGlobal(db, "danmaku", "https://d/");
     await deleteGlobal(db, "danmaku");
+  });
+
+  test("a deleted upstream entry stays deleted through syncs until restored", async () => {
+    const up = await createUpstream(db, { name: "x", url: PRIMARY });
+    await sync(up.id);
+    const [a] = await listEntries(db, "sites");
+    await deleteEntry(db, a!.id);
+    expect((await listEntries(db, "sites")).map(e => e.upstreamKey)).toEqual(["b"]);
+    expect((await listEntries(db, "sites", undefined, true)).map(e => e.upstreamKey)).toEqual(["a"]);
+    expect((await buildConfig(db)).sites).toEqual([SITE_B]);
+
+    // The upstream changes it, drops it, brings it back: still deleted.
+    files.set(PRIMARY, primaryConfig([{ ...SITE_A, name: "A!" }, SITE_B]));
+    expect((await sync(up.id)).updated).toBe(0);
+    files.set(PRIMARY, primaryConfig([SITE_B]));
+    expect((await sync(up.id)).removed).toBe(0);
+    files.set(PRIMARY, primaryConfig([SITE_A, SITE_B]));
+    await sync(up.id);
+    expect((await listEntries(db, "sites")).map(e => e.upstreamKey)).toEqual(["b"]);
+
+    const restored = await restoreEntry(db, a!.id);
+    expect(restored).toMatchObject({ deleted: false, enabled: true });
+    expect((await buildConfig(db)).sites).toHaveLength(2);
+    await expect(restoreEntry(db, a!.id)).rejects.toThrow("not deleted");
+  });
+
+  test("bulk delete removes local entries and hides upstream ones", async () => {
+    const up = await createUpstream(db, { name: "x", url: PRIMARY });
+    await sync(up.id);
+    const mine = await createEntry(db, "sites", { key: "mine", name: "Mine", type: 3, api: "csp_M" });
+    const ids = (await listEntries(db, "sites")).map(e => e.id);
+    expect(await deleteEntries(db, ids)).toBe(3);
+    expect(await listEntries(db, "sites")).toEqual([]);
+    expect((await listEntries(db, "sites", undefined, true)).map(e => e.id)).not.toContain(mine.id);
   });
 
   test("making another upstream primary demotes the first", async () => {

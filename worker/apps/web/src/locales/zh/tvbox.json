@@ -61,7 +61,19 @@
     "enableSelected": "启用",
     "disableSelected": "停用",
     "selectAll": "全选",
-    "bulkDone": "已更新 {{count}} 条"
+    "bulkDone": "已更新 {{count}} 条",
+    "trash": "回收站",
+    "trashHint": "已删除的上游条目，同步不会把它们加回来",
+    "restore": "恢复",
+    "deleteSelected": "删除",
+    "bulkDeleted": "已删除 {{count}} 条",
+    "bulkDeleteTitle": "删除选中的 {{count}} 条？",
+    "bulkDeleteHint": "本地条目会被彻底删除；上游条目会移到回收站，同步不会再加回来，可以在回收站恢复。",
+    "deleteLocalHint": "本地条目会被彻底删除。",
+    "deleteUpstreamHint": "上游条目会移到回收站，同步不会再加回来，可以在回收站恢复。",
+    "upload": "上传文件",
+    "uploadHint": "jar、json 等文件上传后得到路径（已复制），填到 jar、ext、api 等字段里。",
+    "uploaded": "已上传，路径已复制：{{path}}"
   },
   "globals": {
     "description": "spider、wallpaper、flags 等顶层字段，值为 JSON。",

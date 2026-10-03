@@ -249,6 +249,12 @@ async function mergeEntries(db: AppDatabase, upstreamId: string, kind: ListKind,
     }
 
     const changed = row.upstreamData !== data;
+    if (row.deleted) {
+      // Deleted here: keep the upstream copy current for a restore, nothing else.
+      if (changed)
+        await db.update(tvboxEntries).set({ upstreamData: data, ...(row.locallyModified ? {} : { data }), updatedAt: now }).where(eq(tvboxEntries.id, row.id)).run();
+      continue;
+    }
     if (!changed && !row.upstreamRemoved)
       continue;
     // A row the upstream had dropped is back: sync disabled it, so sync
@@ -266,7 +272,7 @@ async function mergeEntries(db: AppDatabase, upstreamId: string, kind: ListKind,
   }
 
   for (const row of existing) {
-    if (row.upstreamKey !== null && !seen.has(row.upstreamKey) && !row.upstreamRemoved) {
+    if (row.upstreamKey !== null && !seen.has(row.upstreamKey) && !row.upstreamRemoved && !row.deleted) {
       await db.update(tvboxEntries)
         .set({ upstreamRemoved: true, enabled: false, updatedAt: now })
         .where(eq(tvboxEntries.id, row.id))

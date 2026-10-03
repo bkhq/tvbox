@@ -1,8 +1,9 @@
 name: Spider
 
 # Builds tvbox.jar, our own spider jar, from spider/ (based on
-# FongMi/CatVodSpider). Sites use it with "api": "csp_<Class>" and a "jar"
-# pointing at the uploaded file.
+# FongMi/CatVodSpider), and on main uploads it to the deployment and
+# publishes when it changed. Sites use it with "api": "csp_<Class>" and
+# "jar": "@tvbox", which publishing replaces with the latest upload.
 
 on:
   push:
@@ -36,8 +37,8 @@ jobs:
 
       - uses: gradle/actions/setup-gradle@v4
 
-      - name: Build tvbox.jar
-        run: ./gradlew --no-daemon spiderJar
+      - name: Test and build tvbox.jar
+        run: ./gradlew --no-daemon :app:testDebugUnitTest --tests "com.github.catvod.spider.MacCmsTest" spiderJar
 
       - uses: actions/upload-artifact@v4
         with:
@@ -45,3 +46,22 @@ jobs:
           path: |
             spider/build/tvbox.jar
             spider/build/tvbox.jar.md5
+
+      - name: Upload to the deployment and publish
+        if: github.ref == 'refs/heads/main'
+        env:
+          # The console's base path (BASE_PATH in worker/apps/api/wrangler.toml).
+          TVBOX_URL: ${{ vars.WORKER_URL }}/mg
+          TVBOX_API_TOKEN: ${{ secrets.TVBOX_API_TOKEN }}
+        run: |
+          if [ "$TVBOX_URL" = "/mg" ] || [ -z "$TVBOX_API_TOKEN" ]; then
+            echo "::warning::WORKER_URL or TVBOX_API_TOKEN is not set; not uploaded"
+            exit 0
+          fi
+          auth="Authorization: Bearer $TVBOX_API_TOKEN"
+          result=$(curl -fsS -X POST -H "$auth" -H "Content-Type: application/octet-stream" \
+            --data-binary @build/tvbox.jar "$TVBOX_URL/api/tvbox/spider-jar")
+          echo "$result" | jq -c .data
+          if [ "$(echo "$result" | jq -r .data.changed)" = true ]; then
+            curl -fsS -X POST -H "$auth" "$TVBOX_URL/api/tvbox/publishes" | jq -c '.data | {id, counts}'
+          fi

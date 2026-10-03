@@ -1,0 +1,1 @@
+ALTER TABLE `tvbox_enrollments` ADD `device_key` text;

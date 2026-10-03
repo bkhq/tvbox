@@ -25,6 +25,8 @@ const enrollSchema = z.object({
 const answerSchema = z.object({
   status: z.enum(["pending", "approved", "rejected"]),
   subscription: z.string().optional(),
+  // With approved, for an app that can send it back as X-Device-Key.
+  deviceKey: z.string().optional(),
 });
 
 const enrollmentSchema = z.object({
@@ -62,7 +64,7 @@ export function enrollRawRoutes() {
     describeRoute({
       tags: [TAGS.Tvbox],
       summary: "Ask to link a TVBox app, or poll for the answer",
-      description: "`request` records the device code and answers `pending`, `approved` (with the subscription URL) or `rejected`; `unlink` ends the link from the device.",
+      description: "`request` records the device code and answers `pending`, `approved` (with the subscription URL and, for an app that supports binding, its device key) or `rejected`; `unlink` ends the link from the device.",
       responses: { ...jsonOk(answerSchema, "Link state"), ...errors(422, 429) },
     }),
     validator("json", enrollSchema),

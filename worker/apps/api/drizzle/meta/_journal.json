@@ -64,6 +64,13 @@
       "when": 1791054825268,
       "tag": "0008_tvbox_entry_deleted",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "6",
+      "when": 1791056584460,
+      "tag": "0009_tvbox_enrollment_key",
+      "breakpoints": true
     }
   ]
 }

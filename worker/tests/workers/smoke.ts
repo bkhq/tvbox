@@ -294,10 +294,10 @@ const cases: Case[] = [
     },
   },
   {
-    name: "a TVBox app links through the root enroll path once approved",
+    name: "a TVBox app links through the root enroll path once approved, bound by its device key",
     async run() {
-      const report = { action: "request", code: "SMKE-2345", deviceId: "02:00:00:00:00:01", name: "smoke tv", model: "Smoke Box", mode: "leanback", abi: "arm64_v8a", versionCode: 1, versionName: "0.0.1" };
-      const enroll = async () => json<{ status: string; subscription?: string }>(await fetch(`${baseUrl}/api/raw/tvbox/enroll`, {
+      const report = { action: "request", code: "SMKE-2345", deviceId: "02:00:00:00:00:01", name: "smoke tv", model: "Smoke Box", mode: "leanback", abi: "arm64_v8a", versionCode: 10002, versionName: "1.0.2" };
+      const enroll = async () => json<{ status: string; subscription?: string; deviceKey?: string }>(await fetch(`${baseUrl}/api/raw/tvbox/enroll`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(report),
@@ -317,12 +317,14 @@ const cases: Case[] = [
 
       const answer = await enroll();
       assert(answer.status === "approved" && answer.subscription, `an approved code answered ${answer.status}`);
+      assert(answer.deviceKey, "an app that can send a device key got none");
       const path = new URL(answer.subscription).pathname;
-      let res = await fetch(`${baseUrl}${path}`);
+      const asApp = { headers: { "X-Device-Id": report.deviceId, "X-Device-Key": answer.deviceKey } };
+      let res = await fetch(`${baseUrl}${path}`, asApp);
       for (let i = 0; i < 5 && res.status === 404; i++) {
         await res.text();
         await sleep(1000);
-        res = await fetch(`${baseUrl}${path}`);
+        res = await fetch(`${baseUrl}${path}`, asApp);
       }
       assert(res.status === 200, `the handed-out subscription returned ${res.status}`);
       await res.text();

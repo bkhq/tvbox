@@ -57,6 +57,12 @@ export default {
         "when": 1791054825268,
         "tag": "0008_tvbox_entry_deleted",
         "breakpoints": true
+      },
+      {
+        "idx": 9,
+        "when": 1791056584460,
+        "tag": "0009_tvbox_enrollment_key",
+        "breakpoints": true
       }
     ]
   },
@@ -69,7 +75,8 @@ export default {
     "m0005": "-- DoH resolvers are no longer imported from upstreams (see sync.service.ts);\n-- the ones imported before would otherwise linger. Common (local) entries stay.\nDELETE FROM `tvbox_entries` WHERE `kind` = 'doh' AND `upstream_id` IS NOT NULL;\n",
     "m0006": "ALTER TABLE `tvbox_entries` ADD `health_status` text;--> statement-breakpoint\nALTER TABLE `tvbox_entries` ADD `health_detail` text;--> statement-breakpoint\nALTER TABLE `tvbox_entries` ADD `health_checked_at` text;--> statement-breakpoint\nALTER TABLE `tvbox_entries` ADD `disabled_by_health` integer DEFAULT false NOT NULL;--> statement-breakpoint\nALTER TABLE `tvbox_entries` ADD `health_exempt` integer DEFAULT false NOT NULL;",
     "m0007": "ALTER TABLE `tvbox_upstreams` ADD `parent_id` text REFERENCES tvbox_upstreams(id) ON DELETE cascade;",
-    "m0008": "ALTER TABLE `tvbox_entries` ADD `deleted` integer DEFAULT false NOT NULL;"
+    "m0008": "ALTER TABLE `tvbox_entries` ADD `deleted` integer DEFAULT false NOT NULL;",
+    "m0009": "ALTER TABLE `tvbox_enrollments` ADD `device_key` text;"
   }
 } as {
   journal: { entries: { idx: number; when: number; tag: string; breakpoints: boolean }[] };

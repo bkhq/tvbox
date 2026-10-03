@@ -1,6 +1,8 @@
 import type { EnrollReport } from "./enroll.service";
+import type { DevicesFile } from "./storage";
 import type { AppDatabase } from "@/db";
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
+import { createHash } from "node:crypto";
 import { mkdirSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
@@ -10,7 +12,8 @@ import { users } from "@/modules/account/users/schema";
 import { __setLocalDriverRootForTests } from "@/modules/file/storage/local";
 import { __resetDriverRegistryForTests, setActiveDriver } from "@/modules/file/storage/registry";
 import { createDevice, deleteDevice, getDevice, rotateDevice } from "./devices.service";
-import { answerEnroll, approveEnrollment, linkedApps, listEnrollments, RE_ENROLL_CODE, rejectEnrollment } from "./enroll.service";
+import { answerEnroll, approveEnrollment, deleteEnrollment, linkedApps, listEnrollments, RE_ENROLL_CODE, rejectEnrollment } from "./enroll.service";
+import { DEVICES_KEY, readObjectText } from "./storage";
 
 const nanoid = customAlphabet("0123456789abcdefghijklmnopqrstuvwxyz", 8);
 const ORIGIN = "https://tv.example";
@@ -61,9 +64,9 @@ describe("the app's side", () => {
     const device = await getDevice(db, approved.deviceRef!);
     expect(device).toMatchObject({ name: "影视", note: "Xiaomi MiBOX4 · K7Q2-9XMB", allUpstreams: true });
 
-    expect(await ask()).toEqual({ status: "approved", subscription: `${ORIGIN}/s/${device.token}/api.json` });
+    expect(await ask()).toMatchObject({ status: "approved", subscription: `${ORIGIN}/s/${device.token}/api.json` });
     const rotated = await rotateDevice(db, device.id);
-    expect(await ask()).toEqual({ status: "approved", subscription: `${ORIGIN}/s/${rotated.token}/api.json` });
+    expect(await ask()).toMatchObject({ status: "approved", subscription: `${ORIGIN}/s/${rotated.token}/api.json` });
   });
 
   test("a request can be attached to an existing device", async () => {
@@ -106,6 +109,56 @@ describe("the app's side", () => {
     for (let i = 0; i < 102; i++)
       await ask({ ...REPORT, code: `AAAA-AA${alphabet[Math.floor(i / alphabet.length)]}${alphabet[i % alphabet.length]}` });
     expect((await listEnrollments(db)).length).toBeLessThanOrEqual(100);
+  });
+});
+
+describe("binding a device to its linked apps", () => {
+  const readDevices = async () => Object.values((JSON.parse(await readObjectText(DEVICES_KEY)) as DevicesFile).devices);
+  const sha = (s: string) => createHash("sha256").update(s).digest("hex");
+
+  test("an app that supports it gets a key, the same on every check, and the device is bound to it", async () => {
+    await ask();
+    await approveEnrollment(db, await pendingId(), {}, admin);
+    const first = await ask();
+    expect(first.status === "approved" && first.deviceKey).toMatch(/^[0-9a-f]{48}$/);
+    const key = (first as { deviceKey: string }).deviceKey;
+    expect((await ask() as { deviceKey: string }).deviceKey).toBe(key);
+    expect((await readDevices())[0]!.bindings).toEqual([{ id: REPORT.deviceId, keyHash: sha(key) }]);
+  });
+
+  test("an older app gets no key and leaves the device open, until it upgrades", async () => {
+    const old = { ...REPORT, versionCode: 10001 };
+    await ask(old);
+    await approveEnrollment(db, await pendingId(), {}, admin);
+    expect(await ask(old)).not.toHaveProperty("deviceKey");
+    expect((await readDevices())[0]!.bindings).toBeUndefined();
+
+    expect(await ask()).toHaveProperty("deviceKey");
+    expect((await readDevices())[0]!.bindings).toHaveLength(1);
+  });
+
+  test("revoking, unlinking or deleting the request unbinds the device", async () => {
+    const bindings = async () => (await readDevices()).flatMap(d => d.bindings ?? []);
+    await ask();
+    const id = await pendingId();
+    await approveEnrollment(db, id, {}, admin);
+    await ask();
+    await rejectEnrollment(db, id);
+    expect(await bindings()).toEqual([]);
+
+    await approveEnrollment(db, id, {}, admin);
+    await ask();
+    expect(await bindings()).toHaveLength(1);
+    await answerEnroll(db, "unlink", REPORT, "203.0.113.7", ORIGIN);
+    expect(await bindings()).toEqual([]);
+
+    const other = { ...REPORT, code: "ABCD-2345", deviceId: "app-2" };
+    await ask(other);
+    const otherId = (await listEnrollments(db)).find(e => e.code === other.code)!.id;
+    await approveEnrollment(db, otherId, {}, admin);
+    await ask(other);
+    await deleteEnrollment(db, otherId);
+    expect(await bindings()).toEqual([]);
   });
 });
 

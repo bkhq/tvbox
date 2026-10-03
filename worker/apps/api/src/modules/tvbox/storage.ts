@@ -15,9 +15,23 @@ export function publishSnapshotKey(id: string): string {
   return `tvbox/publish/${id}.json`;
 }
 
+export interface DeviceBinding {
+  /** The app's X-Device-Id. */
+  readonly id: string;
+  /** SHA-256 of its X-Device-Key. */
+  readonly keyHash: string;
+}
+
 export interface DevicesFile {
-  /** By SHA-256 of the token; `upstreams: null` means every upstream. */
-  readonly devices: Record<string, { readonly id: string; readonly upstreams: readonly string[] | null }>;
+  /**
+   * By SHA-256 of the token; `upstreams: null` means every upstream. With
+   * `bindings`, the config is served only to a request carrying one of them.
+   */
+  readonly devices: Record<string, {
+    readonly id: string;
+    readonly upstreams: readonly string[] | null;
+    readonly bindings?: readonly DeviceBinding[];
+  }>;
 }
 
 /** APK uploaded by CI for one flavor of a release. */

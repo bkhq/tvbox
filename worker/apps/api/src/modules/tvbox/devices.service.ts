@@ -4,7 +4,7 @@ import { randomBytes } from "node:crypto";
 import { desc, eq, isNotNull } from "drizzle-orm";
 import { AppError, NotFoundError } from "@/shared/lib/errors";
 import { ulid } from "@/shared/lib/id";
-import { tvboxDevices, tvboxDeviceUpstreams, tvboxUpstreams } from "./schema";
+import { tvboxDevices, tvboxDeviceUpstreams, tvboxEnrollments, tvboxUpstreams } from "./schema";
 import { DEVICES_KEY, hashHex, putObject } from "./storage";
 
 type DeviceRow = typeof tvboxDevices.$inferSelect;
@@ -35,11 +35,17 @@ export async function writeDevicesFile(db: AppDatabase): Promise<void> {
   const devices = await db.select().from(tvboxDevices).where(eq(tvboxDevices.enabled, true)).all();
   const links = await db.select().from(tvboxDeviceUpstreams).all();
   const expand = await collectionExpander(db);
+  const keyed = (await db.select().from(tvboxEnrollments).where(eq(tvboxEnrollments.status, "approved")).all())
+    .filter(e => e.deviceKey !== null && e.appDeviceId !== "");
   const file: DevicesFile = {
-    devices: Object.fromEntries(devices.map(d => [d.tokenHash, {
-      id: d.id,
-      upstreams: d.allUpstreams ? null : expand(links.filter(l => l.deviceId === d.id).map(l => l.upstreamId)),
-    }])),
+    devices: Object.fromEntries(devices.map((d) => {
+      const bindings = keyed.filter(e => e.deviceRef === d.id).map(e => ({ id: e.appDeviceId, keyHash: hashHex("sha256", e.deviceKey!) }));
+      return [d.tokenHash, {
+        id: d.id,
+        upstreams: d.allUpstreams ? null : expand(links.filter(l => l.deviceId === d.id).map(l => l.upstreamId)),
+        ...(bindings.length > 0 ? { bindings } : {}),
+      }];
+    })),
   };
   await putObject(DEVICES_KEY, JSON.stringify(file));
 }

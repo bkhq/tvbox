@@ -15,6 +15,11 @@ import { DEVICES_KEY, PUBLISHED_KEY } from "@/modules/tvbox/storage";
  *                                        device's upstreams
  *   /s/<token>/a/<sha256>/<name>         a mirrored file, by content hash
  *
+ * A device bound to linked apps serves its config only to a request with
+ * one app's X-Device-Id and X-Device-Key, so the URL alone is not enough.
+ * Files are not checked: they are addressed by content, and not every
+ * client the app uses for them sends the headers.
+ *
  * The config references its files as `./a/...`, which TVBox resolves under
  * the same prefix.
  */
@@ -72,6 +77,17 @@ async function sha256Hex(value: string): Promise<string> {
   return [...new Uint8Array(digest)].map(b => b.toString(16).padStart(2, "0")).join("");
 }
 
+async function isBoundApp(request: Request, device: Device): Promise<boolean> {
+  if (!device.bindings || device.bindings.length === 0)
+    return true;
+  const id = request.headers.get("x-device-id");
+  const key = request.headers.get("x-device-key");
+  if (!id || !key)
+    return false;
+  const keyHash = await sha256Hex(key);
+  return device.bindings.some(b => b.id === id && b.keyHash === keyHash);
+}
+
 function notFound(): Response {
   return new Response("Not Found", { status: 404 });
 }
@@ -97,7 +113,8 @@ export async function handleSubscription(request: Request, env: SubscriptionEnv)
 
   const path = rest.slice(slash);
   if (path === "/" || path === "/api.json") {
-    if (!state.snapshot)
+    // A wrong or stale key looks like a wrong token: the app then asks for its current link.
+    if (!state.snapshot || !(await isBoundApp(request, device)))
       return notFound();
     return new Response(JSON.stringify(composeForDevice(state.snapshot, device.upstreams)), {
       headers: { "content-type": CONTENT_TYPES.json!, "cache-control": "private, max-age=60" },

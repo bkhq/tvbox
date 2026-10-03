@@ -1,9 +1,10 @@
 import type { AppDatabase } from "@/db";
+import { randomBytes } from "node:crypto";
 import { desc, eq, inArray } from "drizzle-orm";
 import { chunked } from "@/shared/lib/chunk";
 import { AppError, NotFoundError } from "@/shared/lib/errors";
 import { ulid } from "@/shared/lib/id";
-import { createDevice, getDevice } from "./devices.service";
+import { createDevice, getDevice, writeDevicesFile } from "./devices.service";
 import { tvboxDevices, tvboxEnrollments } from "./schema";
 
 /** The app's code alphabet (no I, L, O, 0, 1), as `XXXX-XXXX`. */
@@ -12,6 +13,10 @@ export const RE_ENROLL_CODE = /^[A-HJKMNP-Z2-9]{4}-[A-HJKMNP-Z2-9]{4}$/;
 // Anyone can ask to be linked, so unanswered requests are capped; the oldest
 // beyond this are dropped.
 const MAX_PENDING = 100;
+
+// The first app release that sends X-Device-Id / X-Device-Key (v1.0.2). An
+// older app would be locked out of a bound device, so it gets no key.
+const MIN_BINDING_VERSION = 10002;
 
 export type EnrollmentRow = typeof tvboxEnrollments.$inferSelect;
 
@@ -28,7 +33,7 @@ export interface EnrollReport {
 
 export type EnrollAnswer
   = | { readonly status: "pending" }
-    | { readonly status: "approved"; readonly subscription: string }
+    | { readonly status: "approved"; readonly subscription: string; readonly deviceKey?: string }
     | { readonly status: "rejected" };
 
 /** What this check reported; fields it left out keep their earlier value. */
@@ -72,6 +77,8 @@ export async function answerEnroll(
         .set({ ...reported(report, ip), status: "unlinked", resolvedAt: new Date().toISOString() })
         .where(eq(tvboxEnrollments.id, row.id))
         .run();
+      if (row.deviceKey !== null)
+        await writeDevicesFile(db);
     }
     return { status: "rejected" };
   }
@@ -91,7 +98,17 @@ export async function answerEnroll(
   const device = await db.select().from(tvboxDevices).where(eq(tvboxDevices.id, row.deviceRef)).get();
   if (!device?.token)
     return { status: "rejected" };
-  return { status: "approved", subscription: `${origin}/s/${device.token}/api.json` };
+  const subscription = `${origin}/s/${device.token}/api.json`;
+
+  // Bind the device to this app once it can prove who it is.
+  let deviceKey = row.deviceKey;
+  const appDeviceId = report.deviceId ?? row.appDeviceId;
+  if (deviceKey === null && appDeviceId !== "" && (report.versionCode ?? row.versionCode) >= MIN_BINDING_VERSION) {
+    deviceKey = randomBytes(24).toString("hex");
+    await db.update(tvboxEnrollments).set({ deviceKey }).where(eq(tvboxEnrollments.id, row.id)).run();
+    await writeDevicesFile(db);
+  }
+  return deviceKey === null ? { status: "approved", subscription } : { status: "approved", subscription, deviceKey };
 }
 
 export interface EnrollmentView extends EnrollmentRow {
@@ -140,6 +157,10 @@ export async function approveEnrollment(db: AppDatabase, id: string, input: Appr
     .set({ status: "approved", deviceRef: deviceId, resolvedAt: new Date().toISOString() })
     .where(eq(tvboxEnrollments.id, id))
     .run();
+  // An earlier key belongs to an earlier link; the app gets a new one.
+  if (row.deviceKey !== null)
+    await db.update(tvboxEnrollments).set({ deviceKey: null }).where(eq(tvboxEnrollments.id, id)).run();
+  await writeDevicesFile(db);
   return (await listEnrollments(db)).find(e => e.id === id)!;
 }
 
@@ -147,15 +168,18 @@ export async function approveEnrollment(db: AppDatabase, id: string, input: Appr
 export async function rejectEnrollment(db: AppDatabase, id: string): Promise<EnrollmentView> {
   await getEnrollment(db, id);
   await db.update(tvboxEnrollments)
-    .set({ status: "rejected", resolvedAt: new Date().toISOString() })
+    .set({ status: "rejected", deviceKey: null, resolvedAt: new Date().toISOString() })
     .where(eq(tvboxEnrollments.id, id))
     .run();
+  await writeDevicesFile(db);
   return (await listEnrollments(db)).find(e => e.id === id)!;
 }
 
 export async function deleteEnrollment(db: AppDatabase, id: string): Promise<EnrollmentRow> {
   const row = await getEnrollment(db, id);
   await db.delete(tvboxEnrollments).where(eq(tvboxEnrollments.id, id)).run();
+  if (row.deviceKey !== null)
+    await writeDevicesFile(db);
   return row;
 }
 

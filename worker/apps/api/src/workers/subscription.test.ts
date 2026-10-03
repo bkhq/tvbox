@@ -9,6 +9,7 @@ import { handleSubscription } from "./subscription";
 
 const ALL = "0123456789abcdef0123456789abcdef";
 const ONLY_B = "fedcba9876543210fedcba9876543210";
+const BOUND = "00112233445566778899aabbccddeeff";
 const sha = (s: string) => createHash("sha256").update(s).digest("hex");
 const JAR_SHA = "c".repeat(64);
 
@@ -26,6 +27,7 @@ const devices: DevicesFile = {
   devices: {
     [sha(ALL)]: { id: "d1", upstreams: null },
     [sha(ONLY_B)]: { id: "d2", upstreams: ["up-b"] },
+    [sha(BOUND)]: { id: "d3", upstreams: null, bindings: [{ id: "app-1", keyHash: sha("key-1") }, { id: "app-2", keyHash: sha("key-2") }] },
   },
 };
 
@@ -72,6 +74,23 @@ describe("subscription access", () => {
   test("only reads are allowed, and only once the token matches", async () => {
     expect((await handleSubscription(get(`/s/${ALL}/`, { method: "POST" }), { FILES: published() })).status).toBe(405);
     expect((await handleSubscription(get("/s/wrong/", { method: "POST" }), { FILES: published() })).status).toBe(404);
+  });
+});
+
+describe("a device bound to linked apps", () => {
+  const as = (id: string, key: string) => ({ headers: { "X-Device-Id": id, "X-Device-Key": key } });
+
+  test("serves its config only to those apps", async () => {
+    const files = published();
+    expect((await handleSubscription(get(`/s/${BOUND}/api.json`, as("app-1", "key-1")), { FILES: files })).status).toBe(200);
+    expect((await handleSubscription(get(`/s/${BOUND}/`, as("app-2", "key-2")), { FILES: files })).status).toBe(200);
+    for (const init of [undefined, as("app-1", "key-2"), as("app-3", "key-1"), as("app-1", "")])
+      expect((await handleSubscription(get(`/s/${BOUND}/api.json`, init), { FILES: files })).status).toBe(404);
+  });
+
+  test("its files stay reachable without the headers", async () => {
+    const res = await handleSubscription(get(`/s/${BOUND}/a/${JAR_SHA}/spider.jar`), { FILES: published() });
+    expect(res.status).toBe(200);
   });
 });
 

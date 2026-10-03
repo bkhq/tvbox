@@ -41,6 +41,21 @@ Content-Type: application/json
 
 后台列出待批准的申请（编码、名称、型号、IP、时间）。批准时生成该设备的订阅令牌和上游选择；设备端发起 `unlink` 或在后台吊销都会结束关联。
 
+## 设备绑定
+
+批准后，worker 在 `approved` 响应里附带 `deviceKey`（每条关联一个，之后每次查询都返回同一个）。App 保存后，发往 worker 域名的每个请求都带上：
+
+```http
+X-Device-Id: <deviceId>
+X-Device-Key: <deviceKey>
+```
+
+设备一旦绑定，worker 只把它的配置（`/s/<令牌>/` 和 `/s/<令牌>/api.json`）发给带着匹配 ID 和 key 的请求，其余一律返回 404，所以订阅地址被复制到别处也用不了。App 收到 404 会按上面的方式自动重新查询，拿回当前的地址和 key。镜像文件（`/s/<令牌>/a/…`）不校验：它们按内容寻址，而且加载图片等并不都经过带这两个请求头的客户端。
+
+- 只有上报 `versionCode` ≥ 10002（v1.0.2 起）的 App 会拿到 key，更早的版本不绑定，避免被锁在外面；旧版本升级后下一次查询就会拿到 key。
+- 后台吊销、设备端取消关联或删除申请记录都会解除绑定；重新批准会发新的 key。
+- 一个设备关联了多个 App 时，任意一个的 ID 和 key 都可以。没有经过关联的设备（后台手动添加的）不绑定，地址照常可用。
+
 `deviceId` 与 AirPlay 共用同一个随机持久 ID（`app/src/main/java/com/fongmi/android/tv/utils/DeviceId.java`）；设备端代码在 `Enroll.java` 和 `ui/dialog/EnrollDialog.java`。
 
 > 状态：两端均已实现。worker 在站点根路径应答该接口，内部再转给后台 API，设备端不会接触到后台路径；申请在后台「设备」页审批，可新建设备或关联到已有设备。

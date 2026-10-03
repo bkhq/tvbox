@@ -145,6 +145,10 @@ export const tvboxEnrollments = sqliteTable("tvbox_enrollments", {
   versionCode: integer("version_code").notNull().default(0),
   versionName: text("version_name").notNull().default(""),
   ip: text("ip").notNull().default(""),
+  // Handed to an approved app that can send it back (X-Device-Id and
+  // X-Device-Key); while it is set the device's config is served to that
+  // app only. Kept readable so every approved answer can repeat it.
+  deviceKey: text("device_key"),
   createdAt: text("created_at").notNull().$defaultFn(now),
   lastSeenAt: text("last_seen_at").notNull().$defaultFn(now),
   resolvedAt: text("resolved_at"),

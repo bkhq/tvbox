@@ -41,6 +41,8 @@ const SMOKE_UPSTREAM = process.env.SMOKE_UPSTREAM ?? "https://raw.githubusercont
 let subscriptionToken = "";
 const RELEASE_TOKEN = process.env.SMOKE_RELEASE_TOKEN ?? "smoke-release-token-0123456789abcdef";
 const PORT = 8787;
+// The console and its API live under this prefix (BASE_PATH in wrangler.toml).
+const BASE_PATH = process.env.SMOKE_BASE_PATH ?? "/mg";
 
 interface Case {
   name: string;
@@ -86,7 +88,7 @@ const cases: Case[] = [
   {
     name: "health endpoint responds",
     async run() {
-      const res = await call("/api/health");
+      const res = await call(`${BASE_PATH}/api/health`);
       assert(res.status === 200, `health returned ${res.status}`);
       const body = await json<{ status: string }>(res);
       assert(body.status === "ok", `health status was ${body.status}`);
@@ -95,7 +97,7 @@ const cases: Case[] = [
   {
     name: "single-user login issues a session",
     async run() {
-      const res = await call("/api/account/auth/login-local", {
+      const res = await call(`${BASE_PATH}/api/account/auth/login-local`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ username: USERNAME, password: PASSWORD }),
@@ -108,7 +110,7 @@ const cases: Case[] = [
   {
     name: "group create commits its transaction",
     async run() {
-      const res = await call("/api/account/groups", {
+      const res = await call(`${BASE_PATH}/api/account/groups`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ name: "smoke-group", description: "written on workers" }),
@@ -117,7 +119,7 @@ const cases: Case[] = [
         throw new SmokeError(`create returned ${res.status}: ${await res.text()}`);
       const created = await json<{ data: { id: string } }>(res);
 
-      const read = await call(`/api/account/groups/${created.data.id}`);
+      const read = await call(`${BASE_PATH}/api/account/groups/${created.data.id}`);
       assert(read.status === 200, `read-back returned ${read.status}`);
       const group = await json<{ data: { name: string } }>(read);
       assert(group.data.name === "smoke-group", "group name did not round-trip");
@@ -127,7 +129,7 @@ const cases: Case[] = [
     name: "deleting a group removes it",
     async run() {
       const created = await json<{ data: { id: string } }>(
-        await call("/api/account/groups", {
+        await call(`${BASE_PATH}/api/account/groups`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ name: "smoke-delete" }),
@@ -135,29 +137,43 @@ const cases: Case[] = [
       );
       const { id } = created.data;
 
-      const del = await call(`/api/account/groups/${id}`, { method: "DELETE" });
+      const del = await call(`${BASE_PATH}/api/account/groups/${id}`, { method: "DELETE" });
       if (del.status >= 300)
         throw new SmokeError(`delete returned ${del.status}: ${await del.text()}`);
       await del.text();
 
-      const gone = await call(`/api/account/groups/${id}`);
+      const gone = await call(`${BASE_PATH}/api/account/groups/${id}`);
       assert(gone.status === 404, `a deleted group still answers ${gone.status}`);
       await gone.text();
     },
   },
   {
-    name: "the SPA is served from the asset pipeline",
+    name: "the site root is the download page",
     async run() {
-      const res = await call("/");
-      assert(res.status === 200, `index returned ${res.status}`);
+      const res = await fetch(`${baseUrl}/`);
+      assert(res.status === 200, `the download page returned ${res.status}`);
       const body = await res.text();
-      assert(body.includes("<!doctype html") || body.includes("<!DOCTYPE html"), "index was not HTML");
+      assert(body.includes("TVBox 下载"), "the root is not the download page");
+    },
+  },
+  {
+    name: "the console SPA is served under its base path, deep links included",
+    async run() {
+      for (const path of [`${BASE_PATH}/`, `${BASE_PATH}/admin/devices`]) {
+        const res = await fetch(`${baseUrl}${path}`);
+        assert(res.status === 200, `${path} returned ${res.status}`);
+        const body = await res.text();
+        assert(body.includes(`src="${BASE_PATH}/assets/`), `${path} is not the console SPA`);
+      }
+      const asset = await fetch(`${baseUrl}${BASE_PATH}/assets/missing.js`);
+      assert(asset.status === 404, `a missing asset returned ${asset.status}`);
+      await asset.text();
     },
   },
   {
     name: "the raw API reaches the Worker and carries no browser headers",
     async run() {
-      const res = await fetch(`${baseUrl}/api/raw/health`);
+      const res = await fetch(`${baseUrl}${BASE_PATH}/api/raw/health`);
       assert(res.status === 200, `raw health returned ${res.status}`);
       assert((res.headers.get("content-type") ?? "").includes("application/json"), "raw API answered with something other than JSON");
       assert(res.headers.get("content-security-policy") === null, "raw API carries a CSP");
@@ -167,7 +183,7 @@ const cases: Case[] = [
   {
     name: "an upstream syncs, mirrors its files and publishes",
     async run() {
-      const created = await call("/api/tvbox/upstreams", {
+      const created = await call(`${BASE_PATH}/api/tvbox/upstreams`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ name: "xiaosa", url: SMOKE_UPSTREAM }),
@@ -176,24 +192,24 @@ const cases: Case[] = [
         throw new SmokeError(`creating the upstream returned ${created.status}: ${await created.text()}`);
       const upstream = await json<{ data: { id: string } }>(created);
 
-      const synced = await call(`/api/tvbox/upstreams/${upstream.data.id}/sync`, { method: "POST" });
+      const synced = await call(`${BASE_PATH}/api/tvbox/upstreams/${upstream.data.id}/sync`, { method: "POST" });
       if (synced.status !== 200)
         throw new SmokeError(`sync returned ${synced.status}: ${await synced.text()}`);
       const result = await json<{ data: { added: number; assets: { mirrored: number } } }>(synced);
       assert(result.data.added > 0, "the sync imported nothing");
       assert(result.data.assets.mirrored > 0, "the sync mirrored no files into R2");
 
-      const published = await call("/api/tvbox/publishes", { method: "POST" });
+      const published = await call(`${BASE_PATH}/api/tvbox/publishes`, { method: "POST" });
       assert(published.status === 201, `publish returned ${published.status}`);
       await published.text();
 
-      const token = await call("/api/tvbox/tokens", {
+      const device = await call(`${BASE_PATH}/api/tvbox/devices`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ name: "smoke" }),
       });
-      assert(token.status === 201, `creating a token returned ${token.status}`);
-      subscriptionToken = (await json<{ data: { token: string } }>(token)).data.token;
+      assert(device.status === 201, `creating a device returned ${device.status}`);
+      subscriptionToken = (await json<{ data: { token: string } }>(device)).data.token;
     },
   },
   {
@@ -216,6 +232,73 @@ const cases: Case[] = [
     },
   },
   {
+    name: "a device on no upstream gets only the common entries",
+    async run() {
+      const common = await call(`${BASE_PATH}/api/tvbox/entries`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ kind: "sites", data: { key: "smoke-common", name: "Common", type: 3, api: "csp_Smoke" } }),
+      });
+      assert(common.status === 201, `adding a common entry returned ${common.status}`);
+      await common.text();
+      const published = await call(`${BASE_PATH}/api/tvbox/publishes`, { method: "POST" });
+      assert(published.status === 201, `publish returned ${published.status}`);
+      await published.text();
+
+      const device = await json<{ data: { token: string } }>(await call(`${BASE_PATH}/api/tvbox/devices`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: "common only", upstreamIds: [] }),
+      }));
+      // The Worker re-reads its device list at most every couple of seconds.
+      let res = await fetch(`${baseUrl}/s/${device.data.token}/api.json`);
+      for (let i = 0; i < 5 && res.status === 404; i++) {
+        await res.text();
+        await sleep(1000);
+        res = await fetch(`${baseUrl}/s/${device.data.token}/api.json`);
+      }
+      assert(res.status === 200, `the common-only device returned ${res.status}`);
+      const config = await json<{ sites?: { key: string }[] }>(res);
+      const keys = (config.sites ?? []).map(s => s.key);
+      assert(keys.length === 1 && keys[0] === "smoke-common", `the common-only device got ${keys.length} sites`);
+    },
+  },
+  {
+    name: "a TVBox app links through the root enroll path once approved",
+    async run() {
+      const report = { action: "request", code: "SMKE-2345", deviceId: "02:00:00:00:00:01", name: "smoke tv", model: "Smoke Box", mode: "leanback", abi: "arm64_v8a", versionCode: 1, versionName: "0.0.1" };
+      const enroll = async () => json<{ status: string; subscription?: string }>(await fetch(`${baseUrl}/api/raw/tvbox/enroll`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(report),
+      }));
+      assert((await enroll()).status === "pending", "a new code was not pending");
+
+      const list = await json<{ data: { id: string; code: string }[] }>(await call(`${BASE_PATH}/api/tvbox/enrollments`));
+      const request = list.data.find(e => e.code === report.code);
+      assert(request, "the request is not listed for approval");
+      const approved = await call(`${BASE_PATH}/api/tvbox/enrollments/${request.id}/approve`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ upstreamIds: null }),
+      });
+      assert(approved.status === 200, `approve returned ${approved.status}`);
+      await approved.text();
+
+      const answer = await enroll();
+      assert(answer.status === "approved" && answer.subscription, `an approved code answered ${answer.status}`);
+      const path = new URL(answer.subscription).pathname;
+      let res = await fetch(`${baseUrl}${path}`);
+      for (let i = 0; i < 5 && res.status === 404; i++) {
+        await res.text();
+        await sleep(1000);
+        res = await fetch(`${baseUrl}${path}`);
+      }
+      assert(res.status === 200, `the handed-out subscription returned ${res.status}`);
+      await res.text();
+    },
+  },
+  {
     name: "a wrong subscription token is answered as missing",
     async run() {
       const res = await fetch(`${baseUrl}/s/not-the-token/api.json`);
@@ -230,11 +313,11 @@ const cases: Case[] = [
       const headers = { "Content-Type": "application/json" };
       // No body: the token is checked first, and an unread body makes the
       // local dev proxy drop the connection the next request reuses.
-      const anonymous = await fetch(`${baseUrl}/api/raw/releases`, { method: "POST" });
+      const anonymous = await fetch(`${baseUrl}${BASE_PATH}/api/raw/releases`, { method: "POST" });
       assert(anonymous.status === 401, `registration without a token returned ${anonymous.status}`);
       await anonymous.text();
 
-      const missing = await fetch(`${baseUrl}/api/raw/releases`, { method: "POST", headers: { ...headers, Authorization: `Bearer ${RELEASE_TOKEN}` }, body });
+      const missing = await fetch(`${baseUrl}${BASE_PATH}/api/raw/releases`, { method: "POST", headers: { ...headers, Authorization: `Bearer ${RELEASE_TOKEN}` }, body });
       assert(missing.status === 422, `registration without an APK returned ${missing.status}`);
       await missing.text();
 
@@ -249,7 +332,7 @@ const cases: Case[] = [
     async run() {
       let limited: Response | undefined;
       for (let i = 0; i < 40; i++) {
-        const res = await call("/api/account/groups", {
+        const res = await call(`${BASE_PATH}/api/account/groups`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ name: `burst-${i}` }),
@@ -273,14 +356,14 @@ const oidcCases: Case[] = [
   {
     name: "health endpoint responds",
     async run() {
-      const res = await call("/api/health");
+      const res = await call(`${BASE_PATH}/api/health`);
       assert(res.status === 200, `health returned ${res.status}`);
     },
   },
   {
     name: "the raw API reaches the Worker and carries no browser headers",
     async run() {
-      const res = await fetch(`${baseUrl}/api/raw/health`);
+      const res = await fetch(`${baseUrl}${BASE_PATH}/api/raw/health`);
       assert(res.status === 200, `raw health returned ${res.status}`);
       assert((res.headers.get("content-type") ?? "").includes("application/json"), "raw API answered with something other than JSON");
       assert(res.headers.get("content-security-policy") === null, "raw API carries a CSP");
@@ -288,18 +371,32 @@ const oidcCases: Case[] = [
     },
   },
   {
-    name: "the SPA is served from the asset pipeline",
+    name: "the site root is the download page",
     async run() {
-      const res = await call("/");
-      assert(res.status === 200, `index returned ${res.status}`);
+      const res = await fetch(`${baseUrl}/`);
+      assert(res.status === 200, `the download page returned ${res.status}`);
       const body = await res.text();
-      assert(body.includes("<!doctype html") || body.includes("<!DOCTYPE html"), "index was not HTML");
+      assert(body.includes("TVBox 下载"), "the root is not the download page");
+    },
+  },
+  {
+    name: "the console SPA is served under its base path, deep links included",
+    async run() {
+      for (const path of [`${BASE_PATH}/`, `${BASE_PATH}/admin/devices`]) {
+        const res = await fetch(`${baseUrl}${path}`);
+        assert(res.status === 200, `${path} returned ${res.status}`);
+        const body = await res.text();
+        assert(body.includes(`src="${BASE_PATH}/assets/`), `${path} is not the console SPA`);
+      }
+      const asset = await fetch(`${baseUrl}${BASE_PATH}/assets/missing.js`);
+      assert(asset.status === 404, `a missing asset returned ${asset.status}`);
+      await asset.text();
     },
   },
   {
     name: "login mode reports a configured OAuth provider",
     async run() {
-      const res = await call("/api/account/auth/mode");
+      const res = await call(`${BASE_PATH}/api/account/auth/mode`);
       assert(res.status === 200, `mode returned ${res.status}`);
       const body = await json<{ data: { mode: string; oauthConfigured: boolean } }>(res);
       assert(body.data.mode === "oauth", `mode was '${body.data.mode}', so the SPA would not offer OAuth`);
@@ -310,7 +407,7 @@ const oidcCases: Case[] = [
   {
     name: "starting a login redirects to the issuer with a PKCE challenge",
     async run() {
-      const res = await call("/api/account/auth/login");
+      const res = await call(`${BASE_PATH}/api/account/auth/login`);
       assert(res.status === 302, `login returned ${res.status}, expected a redirect`);
       const location = res.headers.get("Location");
       assert(location !== null, "the redirect carried no Location");
@@ -328,7 +425,7 @@ const oidcCases: Case[] = [
       assert(target.searchParams.get("code_challenge_method") === "S256", "PKCE is not in use: no S256 challenge method");
       assert((target.searchParams.get("code_challenge") ?? "").length > 0, "PKCE is not in use: the challenge is empty");
       assert(
-        target.searchParams.get("redirect_uri") === `${baseUrl}/api/account/auth/callback`,
+        target.searchParams.get("redirect_uri") === `${baseUrl}${BASE_PATH}/api/account/auth/callback`,
         `redirect_uri was ${target.searchParams.get("redirect_uri")}, which the provider must have registered`,
       );
     },
@@ -339,7 +436,7 @@ async function waitForBoot(timeoutMs: number): Promise<void> {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
     try {
-      const res = await fetch(`${baseUrl}/api/health`);
+      const res = await fetch(`${baseUrl}${BASE_PATH}/api/health`);
       if (res.ok)
         return;
     }

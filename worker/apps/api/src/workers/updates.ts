@@ -44,6 +44,7 @@ export async function handleUpdates(request: Request, env: SubscriptionEnv): Pro
     return new Response(object.body, {
       headers: {
         "content-type": "application/vnd.android.package-archive",
+        "content-disposition": `attachment; filename="tvbox-${apk[1]}-${apk[2]}-${apk[3]}.apk"`,
         ...(object.size !== undefined ? { "content-length": String(object.size) } : {}),
         "cache-control": "public, max-age=31536000, immutable",
       },

@@ -4,7 +4,7 @@ import { desc, eq } from "drizzle-orm";
 import { AppError, NotFoundError } from "@/shared/lib/errors";
 import { ulid } from "@/shared/lib/id";
 import { tvboxReleaseAssets, tvboxReleases } from "./schema";
-import { deleteObject, objectExists, putObject, readObjectText, releaseApkKey, updateManifestKey } from "./storage";
+import { deleteObject, MANIFEST_INDEX_KEY, objectExists, putObject, readObjectText, releaseApkKey, updateManifestKey } from "./storage";
 
 export const CHANNELS = ["stable", "beta"] as const;
 export type Channel = typeof CHANNELS[number];
@@ -22,10 +22,6 @@ export interface RegisterReleaseInput {
   readonly notes: string;
   readonly assets: readonly { readonly mode: string; readonly abi: string; readonly sha256: string; readonly size: number }[];
 }
-
-// Manifests written last time, so a flavor that no longer has a release
-// loses its manifest instead of offering a deleted APK.
-const MANIFEST_INDEX_KEY = "tvbox/updates/index.json";
 
 export async function listReleases(db: AppDatabase): Promise<ReleaseView[]> {
   const releases = await db.select().from(tvboxReleases).orderBy(desc(tvboxReleases.versionCode)).all();
@@ -134,6 +130,8 @@ async function writeManifests(db: AppDatabase): Promise<void> {
     }
   }
 
+  // Manifests written last time, so a flavor that no longer has a release
+  // loses its manifest instead of offering a deleted APK.
   let previous: string[] = [];
   if (await objectExists(MANIFEST_INDEX_KEY))
     previous = JSON.parse(await readObjectText(MANIFEST_INDEX_KEY)) as string[];

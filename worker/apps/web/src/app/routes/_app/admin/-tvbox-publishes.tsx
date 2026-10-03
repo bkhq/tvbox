@@ -8,6 +8,7 @@ import { Badge } from "@/shared/components/ui/badge";
 import { Button } from "@/shared/components/ui/button";
 import { CenteredHint } from "@/shared/components/ui/centered-hint";
 import { ErrorBanner } from "@/shared/components/ui/error-banner";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/shared/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/shared/components/ui/table";
 import { errorMessage, tvboxApi, tvboxKeys } from "./-tvbox-api";
 import { JsonDialog } from "./-tvbox-json-dialog";
@@ -18,11 +19,17 @@ export function PublishesTab() {
   const qc = useQueryClient();
   const query = useQuery({ queryKey: tvboxKeys.publishes, queryFn: tvboxApi.publishes });
   const [preview, setPreview] = useState<JsonObject | null>(null);
+  const [previewFor, setPreviewFor] = useState("all");
+  const devices = useQuery({ queryKey: tvboxKeys.devices, queryFn: tvboxApi.devices });
 
   const refresh = () => void qc.invalidateQueries({ queryKey: tvboxKeys.publishes });
   const onError = (err: unknown) => toast.error(errorMessage(err, t("common.error.operationFailed")));
 
-  const loadPreview = useMutation({ mutationFn: tvboxApi.preview, onSuccess: setPreview, onError });
+  const loadPreview = useMutation({
+    mutationFn: () => tvboxApi.preview(previewFor === "all" ? undefined : previewFor),
+    onSuccess: setPreview,
+    onError,
+  });
   const publish = useMutation({
     mutationFn: tvboxApi.publish,
     onSuccess: () => {
@@ -47,6 +54,17 @@ export function PublishesTab() {
       <div className="flex items-center justify-between gap-4">
         <p className="text-sm text-muted-foreground">{t("tvbox:publishes.description")}</p>
         <div className="flex gap-2">
+          <Select value={previewFor} onValueChange={v => v !== null && setPreviewFor(v)}>
+            <SelectTrigger className="w-44">
+              <SelectValue>
+                {(v: string) => v === "all" ? t("tvbox:publishes.everyUpstream") : devices.data?.find(d => d.id === v)?.name ?? v}
+              </SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">{t("tvbox:publishes.everyUpstream")}</SelectItem>
+              {devices.data?.map(d => <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>)}
+            </SelectContent>
+          </Select>
           <Button size="sm" variant="outline" disabled={loadPreview.isPending} onClick={() => loadPreview.mutate()}>
             <Eye className="size-4" />
             {t("tvbox:publishes.preview")}

@@ -1,14 +1,13 @@
 {
   "page": {
-    "title": "TVBox",
-    "description": "管理上游、对外发布的条目与字段，以及可以订阅的设备。"
+    "title": "内容管理",
+    "description": "管理上游，以及组成各设备配置的条目、字段和发布。"
   },
   "tabs": {
     "entries": "条目",
     "globals": "字段",
     "upstreams": "上游",
-    "publishes": "发布",
-    "tokens": "订阅"
+    "publishes": "发布"
   },
   "actions": "操作",
   "kinds": {
@@ -37,7 +36,9 @@
     "synced": "同步完成：新增 {{added}}，更新 {{updated}}，移除 {{removed}}，镜像文件 {{mirrored}} 个。发布后生效。",
     "assetsFailed": "{{count}} 个文件镜像失败，已保留之前的副本。",
     "deleteTitle": "删除上游？",
-    "deleteDescription": "从「{{name}}」导入的条目会一起删除。"
+    "deleteDescription": "从「{{name}}」导入的条目会一起删除。",
+    "usage": "使用情况",
+    "usageText": "{{entries}} 条 · {{devices}} 台设备"
   },
   "entries": {
     "search": "搜索",
@@ -51,7 +52,14 @@
     "removedUpstream": "上游已删除",
     "revert": "恢复为上游版本",
     "modifiedHint": "已在本地修改：上游的变化会被记录，但在恢复之前不会覆盖。",
-    "deleteTitle": "删除条目？"
+    "deleteTitle": "删除条目？",
+    "allSources": "全部来源",
+    "common": "通用",
+    "selected": "已选 {{count}} 项",
+    "enableSelected": "启用",
+    "disableSelected": "停用",
+    "selectAll": "全选",
+    "bulkDone": "已更新 {{count}} 条"
   },
   "globals": {
     "description": "spider、wallpaper、flags 等顶层字段，值为 JSON。",
@@ -78,18 +86,7 @@
       "manual": "手动",
       "sync": "定时同步",
       "restore": "恢复"
-    }
-  },
-  "tokens": {
-    "description": "每台设备一个订阅地址，可以单独吊销。",
-    "add": "新建订阅",
-    "empty": "还没有订阅。",
-    "name": "设备",
-    "created": "创建时间",
-    "copied": "已复制",
-    "shownOnce": "请立即复制，这个地址只显示一次。",
-    "namePlaceholder": "客厅电视",
-    "deleteTitle": "吊销订阅？",
-    "deleteDescription": "「{{name}}」会在一分钟内失效。"
+    },
+    "everyUpstream": "全部上游"
   }
 }

@@ -6,5 +6,5 @@ export const releasesNav: NavItem = {
   key: "releases",
   path: "/admin/releases",
   icon: PackageOpen,
-  order: 6,
+  order: 7,
 };

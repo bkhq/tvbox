@@ -1,0 +1,63 @@
+{
+  "page": {
+    "title": "Devices",
+    "description": "Each device has its own subscription URL and follows every upstream or a chosen few. Common entries go to every device."
+  },
+  "add": "Add device",
+  "edit": "Edit device",
+  "empty": "No devices yet. Add one and give its URL to TVBox.",
+  "enabled": "On",
+  "name": "Name",
+  "namePlaceholder": "Living room TV",
+  "note": "Note",
+  "content": "Content",
+  "actions": "Actions",
+  "allUpstreams": "All upstreams",
+  "commonOnly": "Common only",
+  "followAll": "Follow every upstream, including ones added later",
+  "noUpstreams": "No upstreams yet.",
+  "entryCount": "{{count}} entries",
+  "commonHint": "Common entries (added in Content, not from an upstream) are always included.",
+  "preview": "Preview",
+  "previewTitle": "What {{name}} receives",
+  "previewHint": "Built from the current, unpublished state.",
+  "deleteTitle": "Delete device?",
+  "deleteDescription": "\"{{name}}\" loses its subscription within a minute.",
+  "url": {
+    "title": "Subscription",
+    "dialogTitle": "Subscription URL for {{name}}",
+    "description": "Enter this URL in TVBox as the configuration address.",
+    "copied": "Copied",
+    "rotate": "Regenerate",
+    "rotated": "New URL generated",
+    "rotateTitle": "Regenerate the URL?",
+    "rotateDescription": "\"{{name}}\" stops working with its current URL within a minute and needs the new one.",
+    "unavailable": "This device was created before URLs were kept. Regenerate to get one.",
+    "close": "Done"
+  },
+  "linked": "Linked: {{app}} · last seen {{time}}",
+  "enroll": {
+    "pendingTitle": "{{count}} device(s) waiting to be linked",
+    "pendingHint": "Approve only codes you can see on your own screen (Settings → Server link). The device picks up its subscription within 15 seconds.",
+    "code": "Code",
+    "app": "App",
+    "seen": "Last seen",
+    "state": "State",
+    "approve": "Approve",
+    "reject": "Reject",
+    "revoke": "Revoke the link",
+    "approved": "Approved; the device loads its subscription shortly",
+    "approveTitle": "Link {{code}}",
+    "approveHint": "Create a device for it, or attach it to an existing one.",
+    "newDevice": "New device",
+    "existingDevice": "Existing device",
+    "showHistory": "Link history ({{count}})",
+    "hideHistory": "Hide link history",
+    "status": {
+      "pending": "Pending",
+      "approved": "Linked",
+      "rejected": "Rejected",
+      "unlinked": "Unlinked on the device"
+    }
+  }
+}

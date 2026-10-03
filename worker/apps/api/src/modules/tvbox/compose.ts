@@ -55,3 +55,22 @@ function uniqueSiteKeys(rows: readonly ComposeEntry[]): JsonObject[] {
     return key === row.data.key ? row.data : { ...row.data, key };
   });
 }
+
+/** What a publish stores: enabled entries with their source, and the globals. */
+export interface PublishedSnapshot {
+  readonly version: 2;
+  readonly globals: ComposeInput["globals"];
+  readonly entries: readonly ComposeEntry[];
+}
+
+/**
+ * The config one device receives: entries from its upstreams (every upstream
+ * when `upstreams` is null) plus the common entries added here.
+ */
+export function composeForDevice(snapshot: PublishedSnapshot, upstreams: readonly string[] | null): JsonObject {
+  const allowed = upstreams === null ? null : new Set(upstreams);
+  return compose({
+    globals: snapshot.globals,
+    entries: snapshot.entries.filter(e => e.upstreamId === null || allowed === null || allowed.has(e.upstreamId)),
+  });
+}

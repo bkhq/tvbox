@@ -11,9 +11,11 @@ const APP_DISPLAY_NAME = process.env.APP_DISPLAY_NAME ?? "TVBox";
 process.env.VITE_APP_NAME = APP_NAME;
 process.env.VITE_APP_DISPLAY_NAME = APP_DISPLAY_NAME;
 
-// Mirror apps/api/src/config.ts: unset / empty means root ("/"); otherwise
-// normalise to "/<x>/" (trailing slash required by Vite's `base`).
-const trimmedBase = (process.env.BASE_PATH ?? "").replace(/^\/+|\/+$/g, "");
+// Mirror apps/api/src/config.ts: empty means root ("/"); otherwise normalise
+// to "/<x>/" (trailing slash required by Vite's `base`). The console lives
+// under /mg, matching BASE_PATH in apps/api/wrangler.toml; the site root is
+// the Worker's download page.
+const trimmedBase = (process.env.BASE_PATH ?? "/mg").replace(/^\/+|\/+$/g, "");
 const base = trimmedBase ? `/${trimmedBase}/` : "/";
 
 export default defineConfig({
@@ -39,6 +41,10 @@ export default defineConfig({
     },
   },
   build: {
+    // Under the base path inside dist/, so the asset pipeline finds
+    // `${base}assets/…` where the HTML points.
+    outDir: `dist${base}`,
+    emptyOutDir: true,
     // Split the initial entry bundle along vendor boundaries so each layer can
     // be cached independently across deploys (`react` and `@tanstack/*` rarely
     // change; the app code churns most). Reduces the main `index.*.js` chunk

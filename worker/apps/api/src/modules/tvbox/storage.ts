@@ -2,18 +2,31 @@ import { createHash } from "node:crypto";
 import { getActiveDriver } from "@/modules/file/storage/registry";
 
 /**
- * Object keys shared with the stateless Worker (`workers/subscription.ts`),
- * which reads them straight from the bucket so TVBox clients never reach the
- * Durable Object. Mirrored files use the file module's content-addressed
+ * Object keys shared with the stateless Worker (`workers/subscription.ts`,
+ * `workers/updates.ts`), which reads them straight from the bucket so TVBox
+ * clients never reach the Durable Object. Mirrored files use the file module's content-addressed
  * `deriveStorageKey(sha256)`.
  */
-export const CURRENT_CONFIG_KEY = "tvbox/config/current.json";
-export const TOKENS_KEY = "tvbox/tokens.json";
+export const PUBLISHED_KEY = "tvbox/publish/current.json";
+export const DEVICES_KEY = "tvbox/devices.json";
+
+/** The published state every device's config is composed from. */
+export function publishSnapshotKey(id: string): string {
+  return `tvbox/publish/${id}.json`;
+}
+
+export interface DevicesFile {
+  /** By SHA-256 of the token; `upstreams: null` means every upstream. */
+  readonly devices: Record<string, { readonly id: string; readonly upstreams: readonly string[] | null }>;
+}
 
 /** APK uploaded by CI for one flavor of a release. */
 export function releaseApkKey(versionCode: number, mode: string, abi: string): string {
   return `tvbox/releases/${versionCode}/${mode}-${abi}.apk`;
 }
+
+/** Keys of every update manifest currently written (a JSON array). */
+export const MANIFEST_INDEX_KEY = "tvbox/updates/index.json";
 
 /** Update manifest a client of `mode`/`abi` on `channel` reads. */
 export function updateManifestKey(channel: string, mode: string, abi: string): string {
@@ -29,15 +42,6 @@ export interface UpdateManifest {
   readonly sha256: string;
   readonly size: number;
   readonly createdAt: string;
-}
-
-export function publishedConfigKey(id: string): string {
-  return `tvbox/config/${id}.json`;
-}
-
-export interface TokensFile {
-  /** SHA-256 hex of every enabled subscription token. */
-  readonly hashes: readonly string[];
 }
 
 export function hashHex(algorithm: "sha256" | "md5", data: ArrayBuffer | string): string {

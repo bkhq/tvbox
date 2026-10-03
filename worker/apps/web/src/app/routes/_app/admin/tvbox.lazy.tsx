@@ -5,7 +5,6 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/shared/components/ui
 import { EntriesTab } from "./-tvbox-entries";
 import { GlobalsTab } from "./-tvbox-globals";
 import { PublishesTab } from "./-tvbox-publishes";
-import { TokensTab } from "./-tvbox-tokens";
 import { UpstreamsTab } from "./-tvbox-upstreams";
 
 export const Route = createLazyFileRoute("/_app/admin/tvbox")({
@@ -28,13 +27,11 @@ function TvboxPage() {
           <TabsTrigger value="globals">{t("tabs.globals")}</TabsTrigger>
           <TabsTrigger value="upstreams">{t("tabs.upstreams")}</TabsTrigger>
           <TabsTrigger value="publishes">{t("tabs.publishes")}</TabsTrigger>
-          <TabsTrigger value="tokens">{t("tabs.tokens")}</TabsTrigger>
         </TabsList>
         <TabsContent value="entries"><EntriesTab /></TabsContent>
         <TabsContent value="globals"><GlobalsTab /></TabsContent>
         <TabsContent value="upstreams"><UpstreamsTab /></TabsContent>
         <TabsContent value="publishes"><PublishesTab /></TabsContent>
-        <TabsContent value="tokens"><TokensTab /></TabsContent>
       </Tabs>
     </div>
   );

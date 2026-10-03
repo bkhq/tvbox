@@ -32,6 +32,7 @@ describe("update endpoints", () => {
     expect(res.status).toBe(200);
     expect(res.headers.get("content-type")).toBe("application/vnd.android.package-archive");
     expect(res.headers.get("content-length")).toBe("9");
+    expect(res.headers.get("content-disposition")).toBe("attachment; filename=\"tvbox-10203-mobile-arm64_v8a.apk\"");
     expect(await res.text()).toBe("APK-BYTES");
   });
 

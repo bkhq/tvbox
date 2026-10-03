@@ -1,6 +1,6 @@
-import type { Entry, JsonObject, ListKind } from "./-tvbox-api";
+import type { Entry, EntrySource, JsonObject, ListKind } from "./-tvbox-api";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowDown, ArrowUp, Pencil, Plus, Trash2, Undo2 } from "lucide-react";
+import { ArrowDown, ArrowUp, Eye, EyeOff, Pencil, Plus, Trash2, Undo2 } from "lucide-react";
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
@@ -10,6 +10,7 @@ import { CenteredHint } from "@/shared/components/ui/centered-hint";
 import { ConfirmDeleteDialog } from "@/shared/components/ui/confirm-delete-dialog";
 import { ErrorBanner } from "@/shared/components/ui/error-banner";
 import { Input } from "@/shared/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/shared/components/ui/select";
 import { Switch } from "@/shared/components/ui/switch";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/shared/components/ui/table";
 import { Tabs, TabsList, TabsTrigger } from "@/shared/components/ui/tabs";
@@ -29,15 +30,17 @@ export function EntriesTab() {
   const { t } = useTranslation(["common", "tvbox"]);
   const qc = useQueryClient();
   const [kind, setKind] = useState<ListKind>("sites");
+  const [source, setSource] = useState<EntrySource>("all");
   const [search, setSearch] = useState("");
+  const [selected, setSelected] = useState<ReadonlySet<string>>(() => new Set());
   const [editing, setEditing] = useState<Entry | "new" | null>(null);
   const [deleting, setDeleting] = useState<Entry | null>(null);
 
-  const query = useQuery({ queryKey: tvboxKeys.entries(kind), queryFn: () => tvboxApi.entries(kind) });
+  const query = useQuery({ queryKey: tvboxKeys.entries(kind, source), queryFn: () => tvboxApi.entries(kind, source) });
   const upstreams = useQuery({ queryKey: tvboxKeys.upstreams, queryFn: tvboxApi.upstreams });
   const upstreamName = useMemo(() => new Map(upstreams.data?.map(u => [u.id, u.name])), [upstreams.data]);
 
-  const refresh = () => void qc.invalidateQueries({ queryKey: tvboxKeys.entries(kind) });
+  const refresh = () => void qc.invalidateQueries({ queryKey: ["tvbox", "entries"] });
   const onError = (err: unknown) => toast.error(errorMessage(err, t("common.error.operationFailed")));
 
   const update = useMutation({
@@ -66,10 +69,34 @@ export function EntriesTab() {
     onError,
   });
   const reorder = useMutation({ mutationFn: (ids: string[]) => tvboxApi.reorderEntries(kind, ids), onSuccess: refresh, onError });
+  const bulk = useMutation({
+    mutationFn: (enabled: boolean) => tvboxApi.setEntriesEnabled([...selected], enabled),
+    onSuccess: (r) => {
+      toast.success(t("tvbox:entries.bulkDone", { count: r.count }));
+      setSelected(new Set());
+      refresh();
+    },
+    onError,
+  });
 
   const rows = query.data ?? [];
   const needle = search.trim();
   const visible = filterEntries(rows, needle);
+  // Reordering renumbers what it is given, so it needs the whole list.
+  const canReorder = !needle && source === "all";
+  const allVisibleSelected = visible.length > 0 && visible.every(r => selected.has(r.id));
+
+  const toggle = (id: string) => setSelected((prev) => {
+    const next = new Set(prev);
+    if (!next.delete(id))
+      next.add(id);
+    return next;
+  });
+  const toggleAll = () => setSelected(allVisibleSelected ? new Set() : new Set(visible.map(r => r.id)));
+  const changeView = (apply: () => void) => {
+    setSelected(new Set());
+    apply();
+  };
 
   const move = (entry: Entry, delta: number) => {
     const ids = moveId(rows.map(r => r.id), entry.id, delta);
@@ -82,12 +109,24 @@ export function EntriesTab() {
   return (
     <div className="space-y-4 pt-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <Tabs value={kind} onValueChange={v => setKind(v as ListKind)}>
+        <Tabs value={kind} onValueChange={v => changeView(() => setKind(v as ListKind))}>
           <TabsList>
             {LIST_KINDS.map(k => <TabsTrigger key={k} value={k}>{t(`tvbox:kinds.${k}`)}</TabsTrigger>)}
           </TabsList>
         </Tabs>
         <div className="flex items-center gap-2">
+          <Select value={source} onValueChange={v => v !== null && changeView(() => setSource(v))}>
+            <SelectTrigger className="w-40">
+              <SelectValue>
+                {(v: string) => v === "all" ? t("tvbox:entries.allSources") : v === "common" ? t("tvbox:entries.common") : upstreamName.get(v) ?? v}
+              </SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">{t("tvbox:entries.allSources")}</SelectItem>
+              <SelectItem value="common">{t("tvbox:entries.common")}</SelectItem>
+              {upstreams.data?.map(u => <SelectItem key={u.id} value={u.id}>{u.name}</SelectItem>)}
+            </SelectContent>
+          </Select>
           <Input className="w-56" value={search} onChange={e => setSearch(e.target.value)} placeholder={t("tvbox:entries.search")} />
           <Button size="sm" onClick={() => setEditing("new")}>
             <Plus className="size-4" />
@@ -100,10 +139,28 @@ export function EntriesTab() {
       {query.isLoading && <CenteredHint>{t("common.loading")}</CenteredHint>}
       {query.data && visible.length === 0 && <CenteredHint>{t("tvbox:entries.empty")}</CenteredHint>}
 
+      {selected.size > 0 && (
+        <div className="flex items-center gap-2 rounded-md border bg-muted/40 px-3 py-2 text-sm">
+          <span>{t("tvbox:entries.selected", { count: selected.size })}</span>
+          <Button size="sm" variant="outline" disabled={bulk.isPending} onClick={() => bulk.mutate(true)}>
+            <Eye className="size-4" />
+            {t("tvbox:entries.enableSelected")}
+          </Button>
+          <Button size="sm" variant="outline" disabled={bulk.isPending} onClick={() => bulk.mutate(false)}>
+            <EyeOff className="size-4" />
+            {t("tvbox:entries.disableSelected")}
+          </Button>
+          <Button size="sm" variant="ghost" onClick={() => setSelected(new Set())}>{t("common.cancel")}</Button>
+        </div>
+      )}
+
       {visible.length > 0 && (
         <Table>
           <TableHeader>
             <TableRow>
+              <TableHead className="w-8">
+                <input type="checkbox" aria-label={t("tvbox:entries.selectAll")} checked={allVisibleSelected} onChange={toggleAll} className="size-4 accent-primary" />
+              </TableHead>
               <TableHead className="w-12">{t("tvbox:entries.enabled")}</TableHead>
               <TableHead>{t("tvbox:entries.entry")}</TableHead>
               <TableHead>{t("tvbox:entries.source")}</TableHead>
@@ -114,6 +171,9 @@ export function EntriesTab() {
             {visible.map(entry => (
               <TableRow key={entry.id} className={entry.enabled ? undefined : "opacity-60"}>
                 <TableCell>
+                  <input type="checkbox" aria-label={entryTitle(entry)} checked={selected.has(entry.id)} onChange={() => toggle(entry.id)} className="size-4 accent-primary" />
+                </TableCell>
+                <TableCell>
                   <Switch checked={entry.enabled} onCheckedChange={enabled => update.mutate({ id: entry.id, body: { enabled } })} />
                 </TableCell>
                 <TableCell className="max-w-lg">
@@ -121,12 +181,14 @@ export function EntriesTab() {
                   <div className="truncate text-xs text-muted-foreground">{entrySubtitle(entry)}</div>
                 </TableCell>
                 <TableCell className="space-x-1 text-xs whitespace-nowrap">
-                  <span>{entry.upstreamId ? upstreamName.get(entry.upstreamId) ?? "—" : t("tvbox:entries.local")}</span>
+                  {entry.upstreamId
+                    ? <span>{upstreamName.get(entry.upstreamId) ?? "—"}</span>
+                    : <Badge variant="outline">{t("tvbox:entries.common")}</Badge>}
                   {entry.locallyModified && <Badge variant="secondary">{t("tvbox:entries.modified")}</Badge>}
                   {entry.upstreamRemoved && <Badge variant="destructive">{t("tvbox:entries.removedUpstream")}</Badge>}
                 </TableCell>
                 <TableCell className="space-x-1 text-right whitespace-nowrap">
-                  {!needle && (
+                  {canReorder && (
                     <>
                       <Button size="sm" variant="ghost" disabled={reorder.isPending} onClick={() => move(entry, -1)}><ArrowUp className="size-4" /></Button>
                       <Button size="sm" variant="ghost" disabled={reorder.isPending} onClick={() => move(entry, 1)}><ArrowDown className="size-4" /></Button>

@@ -1,14 +1,13 @@
 {
   "page": {
-    "title": "TVBox",
-    "description": "Upstreams, the entries and fields we publish, and the devices allowed to read them."
+    "title": "Content",
+    "description": "Upstreams, the entries and fields every device's config is built from, and publishing."
   },
   "tabs": {
     "entries": "Entries",
     "globals": "Fields",
     "upstreams": "Upstreams",
-    "publishes": "Publish",
-    "tokens": "Subscriptions"
+    "publishes": "Publish"
   },
   "actions": "Actions",
   "kinds": {
@@ -37,7 +36,9 @@
     "synced": "Synced: {{added}} added, {{updated}} updated, {{removed}} removed, {{mirrored}} files mirrored. Publish to make it live.",
     "assetsFailed": "{{count}} file(s) could not be mirrored; previous copies are kept.",
     "deleteTitle": "Remove upstream?",
-    "deleteDescription": "Every entry imported from \"{{name}}\" is removed with it."
+    "deleteDescription": "Every entry imported from \"{{name}}\" is removed with it.",
+    "usage": "Used by",
+    "usageText": "{{entries}} entries · {{devices}} devices"
   },
   "entries": {
     "search": "Search",
@@ -51,7 +52,14 @@
     "removedUpstream": "Removed upstream",
     "revert": "Revert to upstream",
     "modifiedHint": "Edited here: upstream changes are recorded but not applied until you revert.",
-    "deleteTitle": "Delete entry?"
+    "deleteTitle": "Delete entry?",
+    "allSources": "All sources",
+    "common": "Common",
+    "selected": "{{count}} selected",
+    "enableSelected": "Enable",
+    "disableSelected": "Disable",
+    "selectAll": "Select all",
+    "bulkDone": "{{count}} entries updated"
   },
   "globals": {
     "description": "Top-level fields such as spider, wallpaper and flags. Values are JSON.",
@@ -78,18 +86,7 @@
       "manual": "Manual",
       "sync": "Scheduled sync",
       "restore": "Restore"
-    }
-  },
-  "tokens": {
-    "description": "Each device gets its own subscription URL; revoke one without touching the others.",
-    "add": "New subscription",
-    "empty": "No subscriptions yet.",
-    "name": "Device",
-    "created": "Created",
-    "copied": "Copied",
-    "shownOnce": "Copy it now: the URL is shown only once.",
-    "namePlaceholder": "Living room TV",
-    "deleteTitle": "Revoke subscription?",
-    "deleteDescription": "\"{{name}}\" stops working within a minute."
+    },
+    "everyUpstream": "Every upstream"
   }
 }

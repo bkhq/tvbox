@@ -107,5 +107,5 @@ jobs:
           done | jq -s .)"
           jq -n --argjson versionCode "$VERSION_CODE" --arg versionName "$VERSION_NAME" --arg notes "$notes" --argjson assets "$assets" \
             '{versionCode: $versionCode, versionName: $versionName, notes: $notes, assets: $assets}' > release.json
-          curl --fail-with-body -sS -X POST "${WORKER_URL%/}/api/raw/releases" \
+          curl --fail-with-body -sS -X POST "${WORKER_URL%/}/mg/api/raw/releases" \
             -H "Authorization: Bearer $SERVICE_TOKEN_RELEASE" -H "Content-Type: application/json" --data @release.json

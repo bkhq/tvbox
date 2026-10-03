@@ -1,11 +1,13 @@
-import type { DurableObjectNamespace, DurableObjectState, R2Bucket } from "@cloudflare/workers-types";
+import type { DurableObjectNamespace, DurableObjectState, Fetcher, R2Bucket } from "@cloudflare/workers-types";
 import type { SubscriptionBucket } from "./subscription";
 import { bootstrap } from "@/app";
 import { setPlatform } from "@/platform";
+import { handleLanding } from "./landing";
 import { createWorkersPlatform } from "./platform";
 import { registerR2Driver } from "./r2";
-import { handleSubscription, SUBSCRIPTION_PREFIX } from "./subscription";
-import { handleUpdates, UPDATES_PREFIX } from "./updates";
+import { ENROLL_PATH, normalizeBasePath, routeRequest } from "./router";
+import { handleSubscription } from "./subscription";
+import { handleUpdates } from "./updates";
 
 /**
  * Cloudflare Workers entry point.
@@ -26,6 +28,10 @@ export interface WorkerEnv {
   APP: DurableObjectNamespace;
   /** Blob storage for the file module. Required when FILE_STORAGE_DRIVER=r2. */
   FILES?: R2Bucket;
+  /** The console SPA (apps/web/dist). */
+  ASSETS: Fetcher;
+  /** Prefix of the console and its API, e.g. "/mg". */
+  BASE_PATH?: string;
   [key: string]: unknown;
 }
 
@@ -120,15 +126,49 @@ async function configVersion(env: Record<string, unknown>): Promise<string> {
   return cachedConfigVersion;
 }
 
+// A path with a file extension is an asset: a miss is a 404, not the SPA.
+const RE_FILE = /\/[^/][^./]*\.[^/]+$/;
+
+/**
+ * The console SPA: its assets, or its index.html for a client-side route.
+ * Marked noindex; the path is not linked from anywhere public either.
+ */
+async function serveConsole(request: Request, assets: Fetcher, base: string): Promise<Response> {
+  let res = await assets.fetch(request as never) as unknown as Response;
+  if (res.status === 404 && !RE_FILE.test(new URL(request.url).pathname))
+    res = await assets.fetch(new URL(`${base}/`, request.url).toString()) as unknown as Response;
+  const headers = new Headers(res.headers);
+  headers.set("x-robots-tag", "noindex, nofollow");
+  return new Response(res.body, { status: res.status, statusText: res.statusText, headers });
+}
+
 export default {
   async fetch(request: Request, env: WorkerEnv): Promise<Response> {
-    // TVBox clients and app updates never need the database; answer them here.
-    const { pathname } = new URL(request.url);
+    const url = new URL(request.url);
+    const base = normalizeBasePath(env.BASE_PATH);
     const files = { FILES: env.FILES as unknown as SubscriptionBucket | undefined };
-    if (pathname.startsWith(SUBSCRIPTION_PREFIX))
-      return handleSubscription(request, files);
-    if (pathname.startsWith(UPDATES_PREFIX))
-      return handleUpdates(request, files);
+
+    // Everything but the API is answered here, without the database.
+    let target = request;
+    switch (routeRequest(url.pathname, base)) {
+      case "landing":
+        return handleLanding(request, files);
+      case "subscription":
+        return handleSubscription(request, files);
+      case "updates":
+        return handleUpdates(request, files);
+      case "redirect":
+        return Response.redirect(new URL(`${base}/`, url).toString(), 301);
+      case "console":
+        return serveConsole(request, env.ASSETS, base);
+      case "missing":
+        return new Response("Not Found", { status: 404 });
+      case "enroll":
+        target = new Request(new URL(`${base}${ENROLL_PATH}${url.search}`, url).toString(), request);
+        break;
+      case "app":
+        break;
+    }
 
     // One named instance: this app has a single database, so it has a
     // single object. Sharding would mean sharding the database too.
@@ -136,9 +176,9 @@ export default {
 
     // Overwritten, never appended: a client cannot talk the object into
     // resetting by sending this header itself.
-    const headers = new Headers(request.headers);
+    const headers = new Headers(target.headers);
     headers.set(CONFIG_VERSION_HEADER, await configVersion(env as Record<string, unknown>));
-    const forwarded = new Request(request, { headers });
+    const forwarded = new Request(target, { headers });
 
     return stub.fetch(forwarded as never) as unknown as Response;
   },

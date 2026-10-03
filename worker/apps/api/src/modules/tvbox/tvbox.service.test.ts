@@ -1,4 +1,5 @@
-import type { TokensFile } from "./storage";
+import type { PublishedSnapshot } from "./compose";
+import type { DevicesFile } from "./storage";
 import type { AppDatabase } from "@/db";
 import type { Logger } from "@/shared/lib/logger";
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
@@ -10,11 +11,13 @@ import { createDb } from "@/db";
 import { users } from "@/modules/account/users/schema";
 import { __setLocalDriverRootForTests } from "@/modules/file/storage/local";
 import { __resetDriverRegistryForTests, setActiveDriver } from "@/modules/file/storage/registry";
+import { composeForDevice } from "./compose";
+import { createDevice, deleteDevice, listDevices, rotateDevice, updateDevice } from "./devices.service";
 import { buildConfig, listPublishes, publish, restorePublish } from "./publish.service";
-import { CURRENT_CONFIG_KEY, hashHex, readObjectText, TOKENS_KEY } from "./storage";
+import { tvboxPublishes } from "./schema";
+import { DEVICES_KEY, hashHex, PUBLISHED_KEY, readObjectText } from "./storage";
 import { runScheduledSync } from "./sync.job";
 import { syncUpstream } from "./sync.service";
-import { createToken, deleteToken, updateToken } from "./tokens.service";
 import {
   createEntry,
   createUpstream,
@@ -22,8 +25,10 @@ import {
   deleteGlobal,
   listEntries,
   listGlobals,
+  listUpstreams,
   putGlobal,
   revertEntry,
+  setEntriesEnabled,
   updateEntry,
   updateUpstream,
 } from "./tvbox.service";
@@ -235,6 +240,11 @@ describe("local entries and globals", () => {
   });
 });
 
+async function liveSiteCount(): Promise<number> {
+  const snapshot = JSON.parse(await readObjectText(PUBLISHED_KEY)) as PublishedSnapshot;
+  return (composeForDevice(snapshot, null).sites as unknown[]).length;
+}
+
 describe("publishing", () => {
   test("writes the live config and a copy per version; restore republishes an old one", async () => {
     const userId = await seedAdmin();
@@ -246,13 +256,19 @@ describe("publishing", () => {
     const [a] = await listEntries(db, "sites");
     await updateEntry(db, a!.id, { enabled: false });
     await publish(db, { trigger: "manual", userId });
-    expect((JSON.parse(await readObjectText(CURRENT_CONFIG_KEY)) as { sites: unknown[] }).sites).toHaveLength(1);
+    expect(await liveSiteCount()).toBe(1);
 
     const restored = await restorePublish(db, first.id, userId);
     expect(restored.restoredFrom).toBe(first.id);
     expect(restored.sha256).toBe(first.sha256);
-    expect((JSON.parse(await readObjectText(CURRENT_CONFIG_KEY)) as { sites: unknown[] }).sites).toHaveLength(2);
+    expect(await liveSiteCount()).toBe(2);
     expect((await listPublishes(db)).map(p => p.trigger)).toEqual(["restore", "manual", "manual"]);
+  });
+
+  test("a version published before devices cannot be restored", async () => {
+    const userId = await seedAdmin();
+    await db.insert(tvboxPublishes).values({ id: "legacy", sha256: "x", size: 1, counts: "{}", trigger: "manual" }).run();
+    await expect(restorePublish(db, "legacy", userId)).rejects.toThrow("predates devices");
   });
 
   test("the scheduled sync publishes only when something changed", async () => {
@@ -267,20 +283,71 @@ describe("publishing", () => {
   });
 });
 
-describe("subscription tokens", () => {
-  test("the Worker's token file lists the hash of every enabled token", async () => {
+describe("devices", () => {
+  const readDevices = async () => (JSON.parse(await readObjectText(DEVICES_KEY)) as DevicesFile).devices;
+
+  test("each device gets a viewable URL; the Worker's file maps its hash to its upstreams", async () => {
     const userId = await seedAdmin();
-    const one = await createToken(db, "tv", userId);
-    const two = await createToken(db, "phone", userId);
-    expect(one.token).toMatch(/^[0-9a-f]{32}$/);
-    expect(one.row.hint).toBe(one.token.slice(-4));
+    const a = await createUpstream(db, { name: "a", url: PRIMARY });
+    const tv = await createDevice(db, { name: "tv", upstreamIds: null }, userId);
+    const phone = await createDevice(db, { name: "phone", upstreamIds: [a.id] }, userId);
+    expect(tv.token).toMatch(/^[0-9a-f]{32}$/);
+    expect(tv.hint).toBe(tv.token!.slice(-4));
 
-    const read = async () => (JSON.parse(await readObjectText(TOKENS_KEY)) as TokensFile).hashes;
-    expect([...await read()].sort()).toEqual([hashHex("sha256", one.token), hashHex("sha256", two.token)].sort());
+    expect(await readDevices()).toEqual({
+      [hashHex("sha256", tv.token!)]: { id: tv.id, upstreams: null },
+      [hashHex("sha256", phone.token!)]: { id: phone.id, upstreams: [a.id] },
+    });
+    expect((await listUpstreams(db))[0]).toMatchObject({ deviceCount: 1 });
+  });
 
-    await updateToken(db, one.row.id, { enabled: false });
-    expect(await read()).toEqual([hashHex("sha256", two.token)]);
-    await deleteToken(db, two.row.id);
-    expect(await read()).toEqual([]);
+  test("changing upstreams, rotating, disabling and deleting rewrite the file", async () => {
+    const userId = await seedAdmin();
+    const a = await createUpstream(db, { name: "a", url: PRIMARY });
+    const b = await createUpstream(db, { name: "b", url: SECONDARY });
+    const dev = await createDevice(db, { name: "tv", upstreamIds: null }, userId);
+
+    const narrowed = await updateDevice(db, dev.id, { upstreamIds: [b.id] });
+    expect({ all: narrowed.allUpstreams, ids: narrowed.upstreamIds }).toEqual({ all: false, ids: [b.id] });
+    expect(Object.values(await readDevices())).toEqual([{ id: dev.id, upstreams: [b.id] }]);
+
+    const rotated = await rotateDevice(db, dev.id);
+    expect(rotated.token).not.toBe(dev.token);
+    expect(Object.keys(await readDevices())).toEqual([hashHex("sha256", rotated.token!)]);
+
+    await updateDevice(db, dev.id, { enabled: false });
+    expect(await readDevices()).toEqual({});
+    await updateDevice(db, dev.id, { enabled: true });
+
+    // Deleting an upstream drops it from every device that picked it.
+    await (await import("./tvbox.service")).deleteUpstream(db, b.id);
+    expect(Object.values(await readDevices())).toEqual([{ id: dev.id, upstreams: [] }]);
+    expect(a.id).toBeTruthy();
+
+    await deleteDevice(db, dev.id);
+    expect(await listDevices(db)).toEqual([]);
+    expect(await readDevices()).toEqual({});
+  });
+
+  test("an unknown upstream is refused and nothing is created", async () => {
+    const userId = await seedAdmin();
+    await expect(createDevice(db, { name: "tv", upstreamIds: ["nope"] }, userId)).rejects.toThrow("Unknown upstream");
+    expect(await listDevices(db)).toEqual([]);
+  });
+});
+
+describe("content management", () => {
+  test("entries filter by source, and enable or disable in bulk", async () => {
+    const up = await createUpstream(db, { name: "x", url: PRIMARY });
+    await sync(up.id);
+    const common = await createEntry(db, "sites", { key: "mine", name: "Mine", type: 3, api: "csp_M" });
+
+    expect((await listEntries(db, "sites", "common")).map(e => e.id)).toEqual([common.id]);
+    expect((await listEntries(db, "sites", up.id)).map(e => e.upstreamKey)).toEqual(["a", "b"]);
+
+    const ids = (await listEntries(db, "sites")).map(e => e.id);
+    expect(await setEntriesEnabled(db, ids, false)).toBe(3);
+    expect((await listEntries(db, "sites")).every(e => !e.enabled)).toBe(true);
+    expect((await listUpstreams(db))[0]).toMatchObject({ entryCount: 4 });
   });
 });

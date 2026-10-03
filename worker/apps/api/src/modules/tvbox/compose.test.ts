@@ -1,6 +1,6 @@
 import type { ComposeEntry } from "./compose";
 import { describe, expect, test } from "bun:test";
-import { compose } from "./compose";
+import { compose, composeForDevice } from "./compose";
 
 function entry(over: Partial<ComposeEntry> & Pick<ComposeEntry, "kind" | "data">): ComposeEntry {
   return { id: over.data.key as string ?? over.data.name as string ?? "x", upstreamId: "up1", enabled: true, sort: 0, ...over };
@@ -48,5 +48,31 @@ describe("compose", () => {
 
   test("omits empty lists", () => {
     expect(compose({ globals: [], entries: [] })).toEqual({});
+  });
+});
+
+describe("composeForDevice", () => {
+  const snapshot = {
+    version: 2 as const,
+    globals: [{ key: "spider", value: "./s.jar" }],
+    entries: [
+      entry({ id: "1", kind: "sites", sort: 0, upstreamId: "up-a", data: { key: "a" } }),
+      entry({ id: "2", kind: "sites", sort: 1, upstreamId: "up-b", data: { key: "b" } }),
+      entry({ id: "3", kind: "sites", sort: 2, upstreamId: null, data: { key: "common" } }),
+    ],
+  };
+  const keys = (out: Record<string, unknown>) => (out.sites as { key: string }[]).map(s => s.key);
+
+  test("a device on every upstream gets everything", () => {
+    expect(keys(composeForDevice(snapshot, null))).toEqual(["a", "b", "common"]);
+  });
+
+  test("a device on some upstreams gets those plus the common entries", () => {
+    expect(keys(composeForDevice(snapshot, ["up-b"]))).toEqual(["b", "common"]);
+    expect(keys(composeForDevice(snapshot, []))).toEqual(["common"]);
+  });
+
+  test("globals are shared", () => {
+    expect(composeForDevice(snapshot, []).spider).toBe("./s.jar");
   });
 });

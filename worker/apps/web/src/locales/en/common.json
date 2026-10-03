@@ -52,7 +52,8 @@
     "home": "Home",
     "expandSidebar": "Expand sidebar",
     "collapseSidebar": "Collapse sidebar",
-    "tvbox": "TVBox",
-    "releases": "App releases"
+    "tvbox": "Content",
+    "releases": "App releases",
+    "devices": "Devices"
   }
 }

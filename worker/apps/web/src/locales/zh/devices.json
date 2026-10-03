@@ -1,0 +1,63 @@
+{
+  "page": {
+    "title": "设备",
+    "description": "每台设备一个订阅地址，可以订阅全部上游或指定的几个。通用条目会下发给所有设备。"
+  },
+  "add": "添加设备",
+  "edit": "编辑设备",
+  "empty": "还没有设备。添加一台，把地址填进 TVBox 即可。",
+  "enabled": "启用",
+  "name": "名称",
+  "namePlaceholder": "客厅电视",
+  "note": "备注",
+  "content": "内容",
+  "actions": "操作",
+  "allUpstreams": "全部上游",
+  "commonOnly": "仅通用",
+  "followAll": "订阅全部上游（包括以后添加的）",
+  "noUpstreams": "还没有上游。",
+  "entryCount": "{{count}} 条",
+  "commonHint": "通用条目（在内容管理里手动添加、不属于任何上游的）总会包含在内。",
+  "preview": "预览",
+  "previewTitle": "{{name}} 收到的配置",
+  "previewHint": "基于当前未发布的内容生成。",
+  "deleteTitle": "删除设备？",
+  "deleteDescription": "「{{name}}」的订阅会在一分钟内失效。",
+  "url": {
+    "title": "订阅",
+    "dialogTitle": "{{name}} 的订阅地址",
+    "description": "在 TVBox 的配置地址里填入这个地址。",
+    "copied": "已复制",
+    "rotate": "重新生成",
+    "rotated": "已生成新地址",
+    "rotateTitle": "重新生成地址？",
+    "rotateDescription": "「{{name}}」的当前地址会在一分钟内失效，需要换成新地址。",
+    "unavailable": "这台设备创建时还不保存地址，重新生成后即可查看。",
+    "close": "完成"
+  },
+  "linked": "已关联：{{app}} · 最后在线 {{time}}",
+  "enroll": {
+    "pendingTitle": "{{count}} 台设备等待关联",
+    "pendingHint": "只批准你在自己屏幕上看到的设备码（设置 → 服务器关联）。批准后设备会在 15 秒内拿到订阅。",
+    "code": "设备码",
+    "app": "应用",
+    "seen": "最后在线",
+    "state": "状态",
+    "approve": "批准",
+    "reject": "拒绝",
+    "revoke": "撤销关联",
+    "approved": "已批准，设备稍后会自动加载订阅",
+    "approveTitle": "关联 {{code}}",
+    "approveHint": "为它新建一台设备，或者关联到已有设备。",
+    "newDevice": "新建设备",
+    "existingDevice": "已有设备",
+    "showHistory": "关联记录（{{count}}）",
+    "hideHistory": "收起关联记录",
+    "status": {
+      "pending": "待审批",
+      "approved": "已关联",
+      "rejected": "已拒绝",
+      "unlinked": "设备端已解除"
+    }
+  }
+}

@@ -82,18 +82,59 @@ export const tvboxPublishes = sqliteTable("tvbox_publishes", {
   createdAt: text("created_at").notNull().$defaultFn(now),
 });
 
-// Subscription tokens, one per device. Only a SHA-256 is stored; `hint` is
-// the last characters, so the UI can tell tokens apart.
-export const tvboxTokens = sqliteTable("tvbox_tokens", {
+// Devices, one subscription URL each. The table keeps its original name
+// from when a device was only a token. `token` is kept so the URL can be
+// shown again; rows from before that have only the hash, and show their URL
+// once it is regenerated. `allUpstreams` devices get every upstream, the
+// others only those in `tvbox_device_upstreams`; entries added here (no
+// upstream) go to every device.
+export const tvboxDevices = sqliteTable("tvbox_tokens", {
   id: text("id").primaryKey(),
   name: text("name").notNull(),
+  token: text("token"),
   tokenHash: text("token_hash").notNull(),
   hint: text("hint").notNull(),
   enabled: integer("enabled", { mode: "boolean" }).notNull().default(true),
+  allUpstreams: integer("all_upstreams", { mode: "boolean" }).notNull().default(true),
+  note: text("note").notNull().default(""),
   createdBy: text("created_by").references(() => users.id, { onDelete: "set null" }),
   createdAt: text("created_at").notNull().$defaultFn(now),
+  updatedAt: text("updated_at"),
 }, t => [
   uniqueIndex("idx_tvbox_tokens_hash").on(t.tokenHash),
+]);
+
+export const tvboxDeviceUpstreams = sqliteTable("tvbox_device_upstreams", {
+  deviceId: text("device_id").notNull().references(() => tvboxDevices.id, { onDelete: "cascade" }),
+  upstreamId: text("upstream_id").notNull().references(() => tvboxUpstreams.id, { onDelete: "cascade" }),
+}, t => [
+  uniqueIndex("idx_tvbox_device_upstreams_pair").on(t.deviceId, t.upstreamId),
+  index("idx_tvbox_device_upstreams_upstream").on(t.upstreamId),
+]);
+
+// A TVBox app asking to be linked (Settings → Server link). The device shows
+// `code`; an admin approves it here, which attaches it to a device and hands
+// the app that device's subscription URL. Everything else is what the app
+// reports, kept for the admin to recognise it.
+export const tvboxEnrollments = sqliteTable("tvbox_enrollments", {
+  id: text("id").primaryKey(),
+  code: text("code").notNull(),
+  status: text("status", { enum: ["pending", "approved", "rejected", "unlinked"] }).notNull().default("pending"),
+  deviceRef: text("device_ref").references(() => tvboxDevices.id, { onDelete: "set null" }),
+  appDeviceId: text("app_device_id").notNull().default(""),
+  name: text("name").notNull().default(""),
+  model: text("model").notNull().default(""),
+  mode: text("mode").notNull().default(""),
+  abi: text("abi").notNull().default(""),
+  versionCode: integer("version_code").notNull().default(0),
+  versionName: text("version_name").notNull().default(""),
+  ip: text("ip").notNull().default(""),
+  createdAt: text("created_at").notNull().$defaultFn(now),
+  lastSeenAt: text("last_seen_at").notNull().$defaultFn(now),
+  resolvedAt: text("resolved_at"),
+}, t => [
+  uniqueIndex("idx_tvbox_enrollments_code").on(t.code),
+  index("idx_tvbox_enrollments_device").on(t.deviceRef),
 ]);
 
 // App releases registered by CI. The APKs are uploaded straight to the

@@ -13,6 +13,8 @@ export interface Upstream {
   readonly lastSyncedAt: string | null;
   readonly lastStatus: "ok" | "error" | null;
   readonly lastError: string | null;
+  readonly entryCount: number;
+  readonly deviceCount: number;
 }
 
 export interface Entry {
@@ -45,13 +47,44 @@ export interface Publish {
   readonly createdAt: string;
 }
 
-export interface Token {
+export interface Device {
   readonly id: string;
   readonly name: string;
+  /** null for devices created before URLs were kept: regenerate to see one. */
+  readonly token: string | null;
   readonly hint: string;
   readonly enabled: boolean;
+  readonly allUpstreams: boolean;
+  readonly upstreamIds: readonly string[];
+  readonly note: string;
   readonly createdAt: string;
+  readonly updatedAt: string | null;
+  /** The app linked through Server link, most recently seen. */
+  readonly link: AppInfo & { readonly lastSeenAt: string } | null;
 }
+
+interface AppInfo {
+  readonly name: string;
+  readonly model: string;
+  readonly mode: string;
+  readonly abi: string;
+  readonly versionName: string;
+}
+
+/** A TVBox app asking to be linked; `code` is what its screen shows. */
+export interface Enrollment extends AppInfo {
+  readonly id: string;
+  readonly code: string;
+  readonly status: "pending" | "approved" | "rejected" | "unlinked";
+  readonly deviceRef: string | null;
+  readonly deviceName: string | null;
+  readonly ip: string;
+  readonly createdAt: string;
+  readonly lastSeenAt: string;
+}
+
+/** Entry source filter: everything, the common entries, or one upstream. */
+export type EntrySource = "all" | "common" | string;
 
 export interface SyncResult {
   readonly added: number;
@@ -62,10 +95,11 @@ export interface SyncResult {
 
 export const tvboxKeys = {
   upstreams: ["tvbox", "upstreams"] as const,
-  entries: (kind: ListKind) => ["tvbox", "entries", kind] as const,
+  entries: (kind: ListKind, source: EntrySource) => ["tvbox", "entries", kind, source] as const,
   globals: ["tvbox", "globals"] as const,
   publishes: ["tvbox", "publishes"] as const,
-  tokens: ["tvbox", "tokens"] as const,
+  devices: ["tvbox", "devices"] as const,
+  enrollments: ["tvbox", "enrollments"] as const,
 };
 
 async function data<T>(path: string, init?: RequestInit): Promise<T> {
@@ -84,7 +118,9 @@ export const tvboxApi = {
   deleteUpstream: (id: string) => data<Upstream>(`/tvbox/upstreams/${id}`, send("DELETE")),
   syncUpstream: (id: string) => data<SyncResult>(`/tvbox/upstreams/${id}/sync`, send("POST")),
 
-  entries: (kind: ListKind) => data<Entry[]>(`/tvbox/entries?kind=${kind}`),
+  entries: (kind: ListKind, source: EntrySource) =>
+    data<Entry[]>(`/tvbox/entries?kind=${kind}${source === "all" ? "" : `&source=${encodeURIComponent(source)}`}`),
+  setEntriesEnabled: (ids: readonly string[], enabled: boolean) => data<{ count: number }>("/tvbox/entries/bulk", send("POST", { ids, enabled })),
   createEntry: (kind: ListKind, entry: JsonObject) => data<Entry>("/tvbox/entries", send("POST", { kind, data: entry })),
   updateEntry: (id: string, body: { data?: JsonObject; enabled?: boolean }) => data<Entry>(`/tvbox/entries/${id}`, send("PATCH", body)),
   revertEntry: (id: string) => data<Entry>(`/tvbox/entries/${id}/revert`, send("POST")),
@@ -96,15 +132,23 @@ export const tvboxApi = {
   revertGlobal: (key: string) => data<Global>(`/tvbox/globals/${encodeURIComponent(key)}/revert`, send("POST")),
   deleteGlobal: (key: string) => data<Global>(`/tvbox/globals/${encodeURIComponent(key)}`, send("DELETE")),
 
-  preview: () => data<JsonObject>("/tvbox/preview"),
+  preview: (deviceId?: string) => data<JsonObject>(`/tvbox/preview${deviceId ? `?deviceId=${deviceId}` : ""}`),
   publishes: () => data<Publish[]>("/tvbox/publishes"),
   publish: () => data<Publish>("/tvbox/publishes", send("POST")),
   restore: (id: string) => data<Publish>(`/tvbox/publishes/${id}/restore`, send("POST")),
 
-  tokens: () => data<Token[]>("/tvbox/tokens"),
-  createToken: (name: string) => data<Token & { token: string }>("/tvbox/tokens", send("POST", { name })),
-  updateToken: (id: string, body: { enabled?: boolean; name?: string }) => data<Token>(`/tvbox/tokens/${id}`, send("PATCH", body)),
-  deleteToken: (id: string) => data<Token>(`/tvbox/tokens/${id}`, send("DELETE")),
+  devices: () => data<Device[]>("/tvbox/devices"),
+  createDevice: (body: { name: string; note?: string; upstreamIds: readonly string[] | null }) => data<Device>("/tvbox/devices", send("POST", body)),
+  updateDevice: (id: string, body: { name?: string; note?: string; enabled?: boolean; upstreamIds?: readonly string[] | null }) =>
+    data<Device>(`/tvbox/devices/${id}`, send("PATCH", body)),
+  rotateDevice: (id: string) => data<Device>(`/tvbox/devices/${id}/rotate`, send("POST")),
+  deleteDevice: (id: string) => data<Device>(`/tvbox/devices/${id}`, send("DELETE")),
+
+  enrollments: () => data<Enrollment[]>("/tvbox/enrollments"),
+  approveEnrollment: (id: string, body: { deviceId?: string; name?: string; upstreamIds?: readonly string[] | null }) =>
+    data<Enrollment>(`/tvbox/enrollments/${id}/approve`, send("POST", body)),
+  rejectEnrollment: (id: string) => data<Enrollment>(`/tvbox/enrollments/${id}/reject`, send("POST")),
+  deleteEnrollment: (id: string) => data<Enrollment>(`/tvbox/enrollments/${id}`, send("DELETE")),
 };
 
 /** Subscription URL a TVBox client is given for a token. */

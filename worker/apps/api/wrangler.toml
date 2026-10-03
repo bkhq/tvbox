@@ -29,14 +29,16 @@ new_sqlite_classes = ["AppDurableObject"]
 binding = "FILES"
 bucket_name = "tvbox-files"
 
-# The SPA is served by the asset pipeline; only the API, subscription and
-# update prefixes reach the Worker. Any other path is answered from the assets, with the SPA's index.html
-# for anything unknown — so a prefix left out here never reaches the app.
+# Every request reaches the Worker first (src/workers/entry.ts), which
+# routes: `/` is the download page, `/s/*` and `/u/*` are answered from R2,
+# `${BASE_PATH}/api/*` goes to the Durable Object, and the rest of
+# `${BASE_PATH}/*` is the console SPA from these assets (built into
+# dist/mg/), falling back to its index.html.
 [assets]
 directory = "../web/dist"
 binding = "ASSETS"
-not_found_handling = "single-page-application"
-run_worker_first = ["/api/*", "/s/*", "/u/*"]
+not_found_handling = "none"
+run_worker_first = true
 
 [observability]
 enabled = true
@@ -48,6 +50,9 @@ enabled = true
 NODE_ENV = "production"
 APP_NAME = "tvbox"
 APP_DISPLAY_NAME = "TVBox"
+# The admin console and its API live under this prefix; the site root is the
+# public download page. Must match the default in apps/web/vite.config.ts.
+BASE_PATH = "/mg"
 LOG_TO_STDOUT = "true"
 FILE_STORAGE_DRIVER = "r2"
 # Presigning needs the R2 S3 API and a key pair, which a bucket binding does

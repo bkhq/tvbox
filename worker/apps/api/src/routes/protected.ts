@@ -5,7 +5,7 @@ import { auditRoutes } from "@/modules/audit";
 import { backupRoutes } from "@/modules/backup";
 import { fileRoutes } from "@/modules/file";
 import { settingsRoutes } from "@/modules/settings";
-import { releaseRoutes, tvboxRoutes } from "@/modules/tvbox";
+import { enrollRoutes, releaseRoutes, tvboxRoutes } from "@/modules/tvbox";
 
 export function protectedRoutes() {
   const app = new Hono<AppEnv>();
@@ -17,6 +17,7 @@ export function protectedRoutes() {
   app.route("/", fileRoutes());
   app.route("/", tvboxRoutes());
   app.route("/", releaseRoutes());
+  app.route("/", enrollRoutes());
 
   return app;
 }

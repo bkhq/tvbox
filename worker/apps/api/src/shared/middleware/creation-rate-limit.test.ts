@@ -94,11 +94,12 @@ describe("discoverCreationRoutes", () => {
 
     const resources = [...new Set(discoverCreationRoutes(app).map(f => f.resource))].sort();
     expect(resources).toEqual([
+      "device",
       "entry",
       "group",
       "member",
       "publish",
-      // Minting personal API and subscription tokens is throttled like any other create.
+      // Minting personal API tokens is throttled like any other create.
       "token",
       "totp",
       "upstream",

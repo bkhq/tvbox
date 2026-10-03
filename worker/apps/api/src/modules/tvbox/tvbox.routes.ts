@@ -7,10 +7,11 @@ import { audit } from "@/modules/audit/audit.service";
 import { getClientIp } from "@/shared/lib/client-ip";
 import { describeRoute, errors, jsonCreated, jsonOk, SECURITY, TAGS, validator } from "@/shared/lib/openapi";
 import { adminRequired, authRequired } from "@/shared/middleware/auth";
+import { createDevice, deleteDevice, deviceUpstreams, getDevice, listDevices, rotateDevice, updateDevice } from "./devices.service";
+import { linkedApps } from "./enroll.service";
 import { LIST_KINDS } from "./parse";
 import { buildConfig, listPublishes, publish, restorePublish } from "./publish.service";
 import { syncUpstream } from "./sync.service";
-import { createToken, deleteToken, listTokens, updateToken } from "./tokens.service";
 import {
   createEntry,
   createUpstream,
@@ -25,6 +26,7 @@ import {
   reorderEntries,
   revertEntry,
   revertGlobal,
+  setEntriesEnabled,
   updateEntry,
   updateUpstream,
 } from "./tvbox.service";
@@ -46,6 +48,8 @@ const upstreamSchema = z.object({
   lastError: z.string().nullable(),
   createdAt: z.string(),
   updatedAt: z.string(),
+  entryCount: z.number().optional(),
+  deviceCount: z.number().optional(),
 });
 
 const entrySchema = z.object({
@@ -83,14 +87,30 @@ const publishSchema = z.object({
   createdAt: z.string(),
 });
 
-const tokenSchema = z.object({
+const deviceSchema = z.object({
   id: z.string(),
   name: z.string(),
+  token: z.string().nullable(),
   hint: z.string(),
   enabled: z.boolean(),
+  allUpstreams: z.boolean(),
+  upstreamIds: z.array(z.string()),
+  note: z.string(),
   createdBy: z.string().nullable(),
   createdAt: z.string(),
+  updatedAt: z.string().nullable(),
+  /** The app linked through Server link, most recently seen. */
+  link: z.object({
+    model: z.string(),
+    name: z.string(),
+    versionName: z.string(),
+    mode: z.string(),
+    abi: z.string(),
+    lastSeenAt: z.string(),
+  }).nullable().optional(),
 });
+
+const upstreamIdsSchema = z.array(z.string()).max(100).nullable();
 
 const syncResultSchema = z.object({
   added: z.number(),
@@ -188,8 +208,11 @@ export function tvboxRoutes() {
   router.get(
     "/tvbox/entries",
     doc("List entries", jsonOk(z.array(entrySchema))),
-    validator("query", z.object({ kind: kindSchema.optional() })),
-    async c => c.json({ success: true, data: await listEntries(c.get("db"), c.req.valid("query").kind) }),
+    validator("query", z.object({ kind: kindSchema.optional(), source: z.string().min(1).optional() })),
+    async (c) => {
+      const { kind, source } = c.req.valid("query");
+      return c.json({ success: true, data: await listEntries(c.get("db"), kind, source) });
+    },
   );
 
   router.post(
@@ -212,6 +235,18 @@ export function tvboxRoutes() {
       const { kind, ids } = c.req.valid("json");
       await reorderEntries(c.get("db"), kind, ids);
       return c.json({ success: true, data: { count: ids.length } });
+    },
+  );
+
+  router.post(
+    "/tvbox/entries/bulk",
+    doc("Enable or disable many entries", jsonOk(z.object({ count: z.number() }))),
+    validator("json", z.object({ ids: z.array(z.string()).min(1).max(5000), enabled: z.boolean() })),
+    async (c) => {
+      const { ids, enabled } = c.req.valid("json");
+      const n = await setEntriesEnabled(c.get("db"), ids, enabled);
+      await record(c, "tvbox.entries.bulk", { type: "tvbox_entry", id: "bulk", name: `${n} entries` }, { enabled, count: n });
+      return c.json({ success: true, data: { count: n } });
     },
   );
 
@@ -279,8 +314,17 @@ export function tvboxRoutes() {
 
   // ─── Publishing ───
 
-  router.get("/tvbox/preview", doc("The config as it would be published now", jsonOk(jsonObject)), async c =>
-    c.json({ success: true, data: await buildConfig(c.get("db")) }));
+  router.get(
+    "/tvbox/preview",
+    doc("The config as it would be published now, for one device or for every upstream", jsonOk(jsonObject)),
+    validator("query", z.object({ deviceId: z.string().optional() })),
+    async (c) => {
+      const db = c.get("db");
+      const { deviceId } = c.req.valid("query");
+      const upstreams = deviceId ? deviceUpstreams(await getDevice(db, deviceId)) : null;
+      return c.json({ success: true, data: await buildConfig(db, upstreams) });
+    },
+  );
 
   router.get("/tvbox/publishes", doc("Publish history, newest first", jsonOk(z.array(publishSchema))), async c =>
     c.json({ success: true, data: await listPublishes(c.get("db")) }));
@@ -299,38 +343,57 @@ export function tvboxRoutes() {
     return c.json({ success: true, data: row }, 201);
   });
 
-  // ─── Subscription tokens ───
+  // ─── Devices ───
 
-  router.get("/tvbox/tokens", doc("List subscription tokens", jsonOk(z.array(tokenSchema))), async c =>
-    c.json({ success: true, data: await listTokens(c.get("db")) }));
+  router.get("/tvbox/devices", doc("List devices, their subscription URLs and linked apps", jsonOk(z.array(deviceSchema))), async (c) => {
+    const db = c.get("db");
+    const links = await linkedApps(db);
+    const data = (await listDevices(db)).map((d) => {
+      const l = links.get(d.id);
+      return { ...d, link: l ? { model: l.model, name: l.name, versionName: l.versionName, mode: l.mode, abi: l.abi, lastSeenAt: l.lastSeenAt } : null };
+    });
+    return c.json({ success: true, data });
+  });
 
   router.post(
-    "/tvbox/tokens",
-    doc("Create a subscription token (shown once)", jsonCreated(tokenSchema.extend({ token: z.string() }))),
-    validator("json", z.object({ name: nameSchema })),
+    "/tvbox/devices",
+    doc("Add a device", jsonCreated(deviceSchema)),
+    validator("json", z.object({ name: nameSchema, note: z.string().max(500).optional(), upstreamIds: upstreamIdsSchema.default(null) })),
     async (c) => {
-      const { token, row } = await createToken(c.get("db"), c.req.valid("json").name, c.get("user")!.id);
-      await record(c, "tvbox.token.created", { type: "tvbox_token", id: row.id, name: row.name });
-      return c.json({ success: true, data: { ...row, token } }, 201);
+      const device = await createDevice(c.get("db"), c.req.valid("json"), c.get("user")!.id);
+      await record(c, "tvbox.device.created", { type: "tvbox_device", id: device.id, name: device.name });
+      return c.json({ success: true, data: device }, 201);
     },
   );
 
   router.patch(
-    "/tvbox/tokens/:id",
-    doc("Rename or enable/disable a token", jsonOk(tokenSchema)),
+    "/tvbox/devices/:id",
+    doc("Rename, enable/disable or change a device's upstreams", jsonOk(deviceSchema)),
     validator("param", idParam),
-    validator("json", z.object({ name: nameSchema.optional(), enabled: z.boolean().optional() })),
+    validator("json", z.object({
+      name: nameSchema.optional(),
+      note: z.string().max(500).optional(),
+      enabled: z.boolean().optional(),
+      upstreamIds: upstreamIdsSchema.optional(),
+    })),
     async (c) => {
-      const row = await updateToken(c.get("db"), c.req.valid("param").id, c.req.valid("json"));
-      await record(c, "tvbox.token.updated", { type: "tvbox_token", id: row.id, name: row.name }, c.req.valid("json"));
-      return c.json({ success: true, data: row });
+      const body = c.req.valid("json");
+      const device = await updateDevice(c.get("db"), c.req.valid("param").id, body);
+      await record(c, "tvbox.device.updated", { type: "tvbox_device", id: device.id, name: device.name }, body);
+      return c.json({ success: true, data: device });
     },
   );
 
-  router.delete("/tvbox/tokens/:id", doc("Revoke a token", jsonOk(tokenSchema)), validator("param", idParam), async (c) => {
-    const row = await deleteToken(c.get("db"), c.req.valid("param").id);
-    await record(c, "tvbox.token.deleted", { type: "tvbox_token", id: row.id, name: row.name });
-    return c.json({ success: true, data: row });
+  router.post("/tvbox/devices/:id/rotate", doc("Give a device a new subscription URL", jsonOk(deviceSchema)), validator("param", idParam), async (c) => {
+    const device = await rotateDevice(c.get("db"), c.req.valid("param").id);
+    await record(c, "tvbox.device.rotated", { type: "tvbox_device", id: device.id, name: device.name });
+    return c.json({ success: true, data: device });
+  });
+
+  router.delete("/tvbox/devices/:id", doc("Delete a device", jsonOk(deviceSchema)), validator("param", idParam), async (c) => {
+    const device = await deleteDevice(c.get("db"), c.req.valid("param").id);
+    await record(c, "tvbox.device.deleted", { type: "tvbox_device", id: device.id, name: device.name });
+    return c.json({ success: true, data: device });
   });
 
   return router;

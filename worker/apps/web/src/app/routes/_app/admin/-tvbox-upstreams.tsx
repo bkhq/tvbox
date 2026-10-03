@@ -91,6 +91,7 @@ export function UpstreamsTab() {
           <TableHeader>
             <TableRow>
               <TableHead>{t("tvbox:upstreams.name")}</TableHead>
+              <TableHead>{t("tvbox:upstreams.usage")}</TableHead>
               <TableHead>{t("tvbox:upstreams.lastSync")}</TableHead>
               <TableHead>{t("tvbox:upstreams.scheduled")}</TableHead>
               <TableHead className="text-right">{t("tvbox:actions")}</TableHead>
@@ -105,6 +106,9 @@ export function UpstreamsTab() {
                     {up.isPrimary && <Badge>{t("tvbox:upstreams.primary")}</Badge>}
                   </div>
                   <div className="truncate text-xs text-muted-foreground" title={up.url}>{up.url}</div>
+                </TableCell>
+                <TableCell className="text-xs whitespace-nowrap">
+                  {t("tvbox:upstreams.usageText", { entries: up.entryCount, devices: up.deviceCount })}
                 </TableCell>
                 <TableCell className="text-xs">
                   {up.lastSyncedAt ? new Date(up.lastSyncedAt).toLocaleString() : "—"}

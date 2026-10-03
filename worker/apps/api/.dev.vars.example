@@ -2,7 +2,7 @@
 # fill in. These mirror the secrets you would set with `wrangler secret put`
 # for a real deployment.
 NODE_ENV=development
-BASE_PATH=
+BASE_PATH=/mg
 LOG_LEVEL=warn
 LOG_TO_STDOUT=true
 DEFAULT_ADMIN=admin@example.com

@@ -5,7 +5,7 @@
 > [`api.md`](api.md); this file is the flat per-route index that CI
 > verifies is up to date.
 
-> 78 routes total.
+> 85 routes total.
 
 | Method | Path |
 |---|---|
@@ -55,17 +55,28 @@
 | GET | `/api/metrics` |
 | GET | `/api/raw/health` |
 | POST | `/api/raw/releases` |
+| POST | `/api/raw/tvbox/enroll` |
 | GET | `/api/settings` |
 | DELETE | `/api/settings/:key` |
 | GET | `/api/settings/:key` |
 | PUT | `/api/settings/:key` |
 | GET | `/api/system/upload-limits` |
 | GET | `/api/system/version` |
+| GET | `/api/tvbox/devices` |
+| POST | `/api/tvbox/devices` |
+| DELETE | `/api/tvbox/devices/:id` |
+| PATCH | `/api/tvbox/devices/:id` |
+| POST | `/api/tvbox/devices/:id/rotate` |
+| GET | `/api/tvbox/enrollments` |
+| DELETE | `/api/tvbox/enrollments/:id` |
+| POST | `/api/tvbox/enrollments/:id/approve` |
+| POST | `/api/tvbox/enrollments/:id/reject` |
 | GET | `/api/tvbox/entries` |
 | POST | `/api/tvbox/entries` |
 | DELETE | `/api/tvbox/entries/:id` |
 | PATCH | `/api/tvbox/entries/:id` |
 | POST | `/api/tvbox/entries/:id/revert` |
+| POST | `/api/tvbox/entries/bulk` |
 | POST | `/api/tvbox/entries/reorder` |
 | GET | `/api/tvbox/globals` |
 | DELETE | `/api/tvbox/globals/:key` |
@@ -78,10 +89,6 @@
 | GET | `/api/tvbox/releases` |
 | DELETE | `/api/tvbox/releases/:id` |
 | PATCH | `/api/tvbox/releases/:id` |
-| GET | `/api/tvbox/tokens` |
-| POST | `/api/tvbox/tokens` |
-| DELETE | `/api/tvbox/tokens/:id` |
-| PATCH | `/api/tvbox/tokens/:id` |
 | GET | `/api/tvbox/upstreams` |
 | POST | `/api/tvbox/upstreams` |
 | DELETE | `/api/tvbox/upstreams/:id` |

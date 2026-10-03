@@ -52,7 +52,8 @@
     "home": "首页",
     "expandSidebar": "展开侧边栏",
     "collapseSidebar": "折叠侧边栏",
-    "tvbox": "TVBox",
-    "releases": "版本发布"
+    "tvbox": "内容管理",
+    "releases": "版本发布",
+    "devices": "设备"
   }
 }

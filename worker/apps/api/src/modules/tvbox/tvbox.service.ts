@@ -1,11 +1,17 @@
 import type { JsonObject, ListKind } from "./parse";
 import type { AppDatabase } from "@/db";
-import { and, eq, inArray, max, ne } from "drizzle-orm";
+import { and, count, eq, inArray, isNull, max, ne } from "drizzle-orm";
 import { AppError, NotFoundError } from "@/shared/lib/errors";
 import { ulid } from "@/shared/lib/id";
-import { tvboxEntries, tvboxGlobals, tvboxUpstreams } from "./schema";
+import { writeDevicesFile } from "./devices.service";
+import { tvboxDeviceUpstreams, tvboxEntries, tvboxGlobals, tvboxUpstreams } from "./schema";
 
 export type UpstreamRow = typeof tvboxUpstreams.$inferSelect;
+export interface UpstreamView extends UpstreamRow {
+  readonly entryCount: number;
+  /** Devices that picked it explicitly; devices on every upstream are not counted. */
+  readonly deviceCount: number;
+}
 type EntryRow = typeof tvboxEntries.$inferSelect;
 type GlobalRow = typeof tvboxGlobals.$inferSelect;
 
@@ -37,8 +43,15 @@ function globalView(row: GlobalRow): GlobalView {
 
 // ─── Upstreams ───
 
-export async function listUpstreams(db: AppDatabase): Promise<UpstreamRow[]> {
-  return await db.select().from(tvboxUpstreams).orderBy(tvboxUpstreams.id).all();
+export async function listUpstreams(db: AppDatabase): Promise<UpstreamView[]> {
+  const rows = await db.select().from(tvboxUpstreams).orderBy(tvboxUpstreams.id).all();
+  const entries = await db.select({ id: tvboxEntries.upstreamId, n: count() }).from(tvboxEntries).groupBy(tvboxEntries.upstreamId).all();
+  const devices = await db.select({ id: tvboxDeviceUpstreams.upstreamId, n: count() }).from(tvboxDeviceUpstreams).groupBy(tvboxDeviceUpstreams.upstreamId).all();
+  return rows.map(r => ({
+    ...r,
+    entryCount: entries.find(e => e.id === r.id)?.n ?? 0,
+    deviceCount: devices.find(d => d.id === r.id)?.n ?? 0,
+  }));
 }
 
 export async function getUpstream(db: AppDatabase, id: string): Promise<UpstreamRow> {
@@ -82,10 +95,11 @@ export async function updateUpstream(
   return await getUpstream(db, id);
 }
 
-/** Its entries go with it; globals it supplied stay, they are ours now. */
+/** Its entries and device links go with it; globals it supplied stay, they are ours now. */
 export async function deleteUpstream(db: AppDatabase, id: string): Promise<UpstreamRow> {
   const row = await getUpstream(db, id);
   await db.delete(tvboxUpstreams).where(eq(tvboxUpstreams.id, id)).run();
+  await writeDevicesFile(db);
   return row;
 }
 
@@ -105,8 +119,12 @@ function assertEntryShape(kind: ListKind, data: JsonObject): void {
     throw new AppError(`A ${kind} entry needs a non-empty "${field}"`, 422, "INVALID_ENTRY");
 }
 
-export async function listEntries(db: AppDatabase, kind?: ListKind): Promise<EntryView[]> {
-  const rows = await db.select().from(tvboxEntries).where(kind ? eq(tvboxEntries.kind, kind) : undefined).orderBy(tvboxEntries.kind, tvboxEntries.sort, tvboxEntries.id).all();
+/** `source`: an upstream id, or "common" for the entries added here. */
+export async function listEntries(db: AppDatabase, kind?: ListKind, source?: string): Promise<EntryView[]> {
+  const bySource = source === undefined
+    ? undefined
+    : source === "common" ? isNull(tvboxEntries.upstreamId) : eq(tvboxEntries.upstreamId, source);
+  const rows = await db.select().from(tvboxEntries).where(and(kind ? eq(tvboxEntries.kind, kind) : undefined, bySource)).orderBy(tvboxEntries.kind, tvboxEntries.sort, tvboxEntries.id).all();
   return rows.map(entryView);
 }
 
@@ -154,6 +172,18 @@ export async function updateEntry(
     updatedAt: new Date().toISOString(),
   }).where(eq(tvboxEntries.id, id)).run();
   return await getEntry(db, id);
+}
+
+/** Enable or disable many entries at once. */
+export async function setEntriesEnabled(db: AppDatabase, ids: readonly string[], enabled: boolean): Promise<number> {
+  const unique = [...new Set(ids)];
+  if (unique.length === 0)
+    return 0;
+  await db.update(tvboxEntries)
+    .set({ enabled, updatedAt: new Date().toISOString() })
+    .where(inArray(tvboxEntries.id, unique))
+    .run();
+  return unique.length;
 }
 
 /** Drop the local edit and follow the upstream again. */

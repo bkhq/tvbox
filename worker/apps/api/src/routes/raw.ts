@@ -1,7 +1,7 @@
 import type { AppEnv } from "@/shared/lib/types";
 import { Hono } from "hono";
 import { describeRoute } from "hono-openapi";
-import { releaseRawRoutes } from "@/modules/tvbox";
+import { enrollRawRoutes, releaseRawRoutes } from "@/modules/tvbox";
 import { TAGS } from "@/shared/lib/openapi";
 
 /**
@@ -34,6 +34,7 @@ export function rawRoutes() {
   );
 
   app.route("/", releaseRawRoutes());
+  app.route("/", enrollRawRoutes());
 
   return app;
 }

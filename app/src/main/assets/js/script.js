@@ -183,7 +183,9 @@ function confirmDelConfig(yes) {
 // ── player ──
 
 function renderPlayer(player) {
+    const seek = $('#player_seek');
     if (!player || !player.active) {
+        seek.prop('disabled', true).attr('max', 0).val(0);
         $('#player_title').text('未在播放');
         $('#player_position').text('00:00');
         $('#player_duration').text('00:00');
@@ -193,9 +195,30 @@ function renderPlayer(player) {
     $('#player_title').text(player.title || '正在播放');
     $('#player_position').text(formatTime(player.position));
     $('#player_duration').text(formatTime(player.duration));
+    if (!seeking) seek.prop('disabled', !(player.duration > 0)).attr('max', player.duration).val(player.position);
     $('#player_toggle').text(player.playing ? '暂停' : '播放');
     const speed = String(Number(player.speed));
     if ($('#player_speed option[value="' + speed + '"]').length) $('#player_speed').val(speed);
+}
+
+let seeking = false;
+
+function remoteKey(key) {
+    if (navigator.vibrate) navigator.vibrate(10);
+    api('remote', { do: 'key', value: key });
+}
+
+function volume(direction) {
+    api('remote', { do: 'volume', value: direction });
+}
+
+function remoteText() {
+    const text = $('#remote_text').val();
+    if (!text) return;
+    api('remote', { do: 'text', value: text }, function () {
+        $('#remote_text').val('');
+        warnToast('已发送');
+    });
 }
 
 function formatTime(ms) {
@@ -543,6 +566,10 @@ window.addEventListener('popstate', function () {
 
 $(function () {
     applyToken();
+    $('#player_seek')
+        .on('input', function () { seeking = true; $('#player_position').text(formatTime(Number(this.value))); })
+        .on('change', function () { seeking = false; control('seekto', this.value); });
+    $('#remote_text').on('keydown', function (e) { if (e.key === 'Enter') { this.blur(); remoteText(); } });
     showPanel(Math.min(Math.max(tab, 1), PANELS));
     loadState();
     $('#pair_code, #pair_name').on('keydown', function (e) { if (e.key === 'Enter') { this.blur(); confirmPair(); } });

@@ -53,6 +53,7 @@
                 <div class="panel-content">
                     <div class="section">
                         <div class="now-title" id="player_title">未在播放</div>
+                        <input type="range" class="seek-bar" id="player_seek" min="0" max="0" step="1000" value="0" disabled />
                         <div class="now-time"><span id="player_position">00:00</span><span id="player_duration">00:00</span></div>
                         <div class="control-grid">
                             <button class="md-btn md-btn-tonal" onclick="control('prev')">上一集</button>
@@ -72,6 +73,29 @@
                                 <option value="3">3.0x</option>
                             </select>
                             <button class="md-btn md-btn-tonal" onclick="control('stop')">停止</button>
+                        </div>
+                    </div>
+                    <div class="section">
+                        <div class="section-title">遥控器</div>
+                        <div class="dpad">
+                            <button class="md-btn md-btn-tonal dpad-up" onclick="remoteKey('up')" aria-label="上">▲</button>
+                            <button class="md-btn md-btn-tonal dpad-left" onclick="remoteKey('left')" aria-label="左">◀</button>
+                            <button class="md-btn md-btn-filled dpad-ok" onclick="remoteKey('ok')">OK</button>
+                            <button class="md-btn md-btn-tonal dpad-right" onclick="remoteKey('right')" aria-label="右">▶</button>
+                            <button class="md-btn md-btn-tonal dpad-down" onclick="remoteKey('down')" aria-label="下">▼</button>
+                        </div>
+                        <div class="remote-row">
+                            <button class="md-btn md-btn-tonal" onclick="remoteKey('back')">返回</button>
+                            <button class="md-btn md-btn-tonal" onclick="remoteKey('menu')">菜单</button>
+                        </div>
+                        <div class="remote-row">
+                            <button class="md-btn md-btn-tonal" onclick="volume('down')">音量 −</button>
+                            <button class="md-btn md-btn-tonal" onclick="volume('mute')">静音</button>
+                            <button class="md-btn md-btn-tonal" onclick="volume('up')">音量 +</button>
+                        </div>
+                        <div class="field-row remote-text">
+                            <div class="md-field"><input id="remote_text" class="md-input" type="text" placeholder="输入文字发送到电视的输入框" /></div>
+                            <button class="md-btn md-btn-tonal" onclick="remoteText()">发送</button>
                         </div>
                     </div>
                     <div class="section">

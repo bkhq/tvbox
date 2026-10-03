@@ -9,7 +9,7 @@ App 会启动一个本地 HTTP 服务（从 9978 开始取第一个可用端口�
 | 页签 | 功能 |
 | --- | --- |
 | 配置 | 已保存的点播、直播、壁纸配置：点击切换，长按删除，输入地址添加新配置，电视会立即加载；首页站点、解析、直播源的切换。 |
-| 播放 | 当前播放的标题和进度；上一集 / 播放暂停 / 下一集、±15 秒和 ±60 秒、倍速、停止；推送地址播放；搜索。 |
+| 播放 | 当前播放的标题和进度，可拖动进度条跳转；上一集 / 播放暂停 / 下一集、±15 秒和 ±60 秒、倍速、停止；遥控器（方向键、确定、返回、菜单）、音量加减和静音、把文字发送到电视当前的输入框；推送地址播放；搜索。 |
 | 设置 | 电视设置页的全部选项，按通用、播放器、倍速、解码、预加载、弹幕、直播分组，只显示当前适用的项（例如切到 mpv 后才出现 mpv 选项）；清除缓存、立即备份；服务器关联（设备编码，申请关联、刷新、取消关联）；已配对设备列表及删除。 |
 | 文件 | 浏览设备存储、上传、新建文件夹、删除；把文件用作配置。 |
 
@@ -35,8 +35,9 @@ App 会启动一个本地 HTTP 服务（从 9978 开始取第一个可用端口�
 | `/api/config` | `do` = `use` \| `delete`，`type`（0 点播、1 直播、2 壁纸），`url`，`name` | `OK`；拒绝删除正在使用的配置 |
 | `/api/setting` | `key`、`value` | `OK`；`key` 为 `/api/state` 中 `settings` 里的任一项，`enum` 传选项序号，`bool` 传 `true` / `false` |
 | `/api/source` | `do` = `site` \| `live` \| `parse`（`value` 为站点 key、直播源名称、解析名称），或 `do` = `cache`（清除缓存）\| `backup`（立即备份） | `OK`；找不到时返回 `404` |
-| `/api/control` | `do` = `play` \| `pause` \| `toggle` \| `stop` \| `prev` \| `next` \| `seek` \| `speed`，`value`（`seek` 为毫秒偏移，`speed` 为倍速） | `OK`；没有在播放时返回 `400` |
+| `/api/control` | `do` = `play` \| `pause` \| `toggle` \| `stop` \| `prev` \| `next` \| `seek` \| `seekto` \| `speed`，`value`（`seek` 为毫秒偏移，`seekto` 为毫秒位置，`speed` 为倍速） | `OK`；没有在播放时返回 `400` |
 | `/api/enroll` | `do` = `request` \| `refresh` \| `unlink` | `OK`；与电视「服务器关联」弹窗的操作相同，状态见 `/api/state` 的 `enroll` |
+| `/api/remote` | `do` = `key`（`value` = `up` / `down` / `left` / `right` / `ok` / `back` / `menu`）\| `text`（`value` 为文字）\| `volume`（`value` = `up` / `down` / `mute`） | `OK`；按键和文字只作用于本 App 在前台的界面，App 不在前台或没有聚焦的输入框时返回 `400` |
 | `/api/push` | `url` | 播放该地址 |
 | `/api/search` | `word` | 打开搜索 |
 | `/api/file` | `path`（`file:/…`） | 打开 APK、加载字幕，或把文件用作点播配置 |

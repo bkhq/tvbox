@@ -29,6 +29,7 @@ public class ControlApi implements Endpoint {
             case "prev" -> service::dispatchPrev;
             case "next" -> service::dispatchNext;
             case "seek" -> () -> service.player().seekTo(Math.max(0, service.player().getPosition() + Long.parseLong(value)));
+            case "seekto" -> () -> service.player().seekTo(Math.max(0, Long.parseLong(value)));
             case "speed" -> () -> service.player().setSpeed(Float.parseFloat(value));
             default -> null;
         };

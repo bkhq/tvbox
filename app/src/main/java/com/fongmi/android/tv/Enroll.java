@@ -1,5 +1,6 @@
 package com.fongmi.android.tv;
 
+import android.net.Uri;
 import android.os.Build;
 import android.text.TextUtils;
 
@@ -15,6 +16,7 @@ import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 
 import java.security.SecureRandom;
+import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
 import okhttp3.MediaType;
@@ -33,11 +35,17 @@ public final class Enroll {
     private static final String KEY_ENABLED = "enroll";
     private static final String KEY_CODE = "enroll_code";
     private static final String KEY_SUBSCRIPTION = "enroll_subscription";
+    private static final String KEY_DEVICE_KEY = "enroll_device_key";
+    private static final String HEADER_DEVICE_ID = "X-Device-Id";
+    private static final String HEADER_DEVICE_KEY = "X-Device-Key";
     private static final String ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
     private static final long POLL_SECONDS = 15;
     private static final MediaType JSON = MediaType.get("application/json; charset=utf-8");
 
+    private static final long RECOVER_INTERVAL_MS = TimeUnit.MINUTES.toMillis(1);
+
     private static volatile boolean running;
+    private static volatile long lastRecover;
 
     private Enroll() {
     }
@@ -57,11 +65,35 @@ public final class Enroll {
         return code;
     }
 
+    /** Sends the device id and key with every request to the worker, so a copied subscription URL is useless elsewhere. */
+    public static void init() {
+        if (!isAvailable()) return;
+        String key = Prefers.getString(KEY_DEVICE_KEY);
+        String host = Uri.parse(BuildConfig.WORKER_URL).getHost();
+        if (TextUtils.isEmpty(key) || !Prefers.getBoolean(KEY_ENABLED)) OkHttp.requestInterceptor().setFixed(host, null);
+        else OkHttp.requestInterceptor().setFixed(host, Map.of(HEADER_DEVICE_ID, DeviceId.get(), HEADER_DEVICE_KEY, key));
+    }
+
+    /** Asks the worker right away; reloads the config even when the subscription did not change. */
+    public static void refresh() {
+        if (!isAvailable() || !Prefers.getBoolean(KEY_ENABLED)) return;
+        Task.execute(() -> check(true));
+    }
+
+    /** A failing linked subscription usually means the token changed upstream; fetch the current one. */
+    public static void onConfigError(String url) {
+        if (TextUtils.isEmpty(url) || !url.equals(Prefers.getString(KEY_SUBSCRIPTION))) return;
+        long now = System.currentTimeMillis();
+        if (now - lastRecover < RECOVER_INTERVAL_MS) return;
+        lastRecover = now;
+        refresh();
+    }
+
     /** Resumes polling or refreshes the subscription when the user has linked this device. */
     public static void start() {
         if (!isAvailable() || !Prefers.getBoolean(KEY_ENABLED) || running) return;
         running = true;
-        Task.execute(Enroll::check);
+        Task.execute(() -> check(false));
     }
 
     public static void request() {
@@ -72,12 +104,14 @@ public final class Enroll {
     public static void unlink() {
         Prefers.put(KEY_ENABLED, false);
         Prefers.remove(KEY_SUBSCRIPTION);
+        Prefers.remove(KEY_DEVICE_KEY);
+        init();
         String code = getCode();
         Prefers.put(KEY_CODE, newCode());
         Task.execute(() -> post("unlink", code));
     }
 
-    private static void check() {
+    private static void check(boolean manual) {
         if (!Prefers.getBoolean(KEY_ENABLED)) {
             running = false;
             return;
@@ -86,12 +120,18 @@ public final class Enroll {
             JsonObject result = response == null || response.body() == null ? new JsonObject() : JsonParser.parseString(response.body().string()).getAsJsonObject();
             String status = result.has("status") ? result.get("status").getAsString() : "";
             switch (status) {
-                case "approved" -> apply(result.get("subscription").getAsString());
-                case "pending" -> retry();
+                case "approved" -> apply(result.get("subscription").getAsString(), result.has("deviceKey") ? result.get("deviceKey").getAsString() : "", manual);
+                case "pending" -> {
+                    if (manual) App.post(() -> Notify.show(R.string.enroll_waiting));
+                    retry();
+                }
                 case "rejected" -> {
                     running = false;
                     Prefers.put(KEY_ENABLED, false);
                     Prefers.remove(KEY_SUBSCRIPTION);
+                    Prefers.remove(KEY_DEVICE_KEY);
+                    init();
+                    if (manual) App.post(() -> Notify.show(R.string.enroll_off));
                 }
                 default -> retry();
             }
@@ -120,12 +160,14 @@ public final class Enroll {
         }
     }
 
-    private static void apply(String subscription) {
+    private static void apply(String subscription, String deviceKey, boolean manual) {
         running = false;
         if (TextUtils.isEmpty(subscription)) return;
         boolean changed = !subscription.equals(Prefers.getString(KEY_SUBSCRIPTION));
         Prefers.put(KEY_SUBSCRIPTION, subscription);
-        if (!changed) return;
+        if (!TextUtils.isEmpty(deviceKey)) Prefers.put(KEY_DEVICE_KEY, deviceKey);
+        init();
+        if (!changed && !manual) return;
         App.post(() -> {
             Notify.show(R.string.enroll_approved);
             ServerEvent.config(Config.find(subscription, 0));
@@ -133,7 +175,7 @@ public final class Enroll {
     }
 
     private static void retry() {
-        if (Prefers.getBoolean(KEY_ENABLED)) Task.schedule(Enroll::check, POLL_SECONDS, TimeUnit.SECONDS);
+        if (Prefers.getBoolean(KEY_ENABLED)) Task.schedule(() -> check(false), POLL_SECONDS, TimeUnit.SECONDS);
         else running = false;
     }
 

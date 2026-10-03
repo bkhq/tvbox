@@ -24,6 +24,9 @@ public final class EnrollDialog {
         else builder.setPositiveButton(R.string.enroll_unlink, (dialog, which) -> {
             Enroll.unlink();
             onChange.run();
+        }).setNeutralButton(R.string.enroll_refresh, (dialog, which) -> {
+            Enroll.refresh();
+            onChange.run();
         });
         builder.show();
     }

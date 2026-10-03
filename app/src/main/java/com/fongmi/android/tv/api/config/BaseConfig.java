@@ -3,6 +3,7 @@ package com.fongmi.android.tv.api.config;
 import android.text.TextUtils;
 
 import com.fongmi.android.tv.App;
+import com.fongmi.android.tv.Enroll;
 import com.fongmi.android.tv.R;
 import com.fongmi.android.tv.bean.Config;
 import com.fongmi.android.tv.event.ConfigEvent;
@@ -99,6 +100,7 @@ abstract class BaseConfig {
             e.printStackTrace();
             if (isCanceled(e)) return;
             if (taskId.get() != id) return;
+            Enroll.onConfigError(config.getUrl());
             if (TextUtils.isEmpty(config.getUrl())) App.post(() -> callback.error(""));
             else App.post(() -> callback.error(Notify.getError(R.string.error_config_get, e)));
         } finally {

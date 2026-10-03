@@ -271,6 +271,7 @@
     <string name="enroll_linked">已關聯</string>
     <string name="enroll_request">申請關聯</string>
     <string name="enroll_unlink">取消關聯</string>
+    <string name="enroll_refresh">重新整理</string>
     <string name="enroll_message">裝置編碼：%1$s\n狀態：%2$s\n\n在伺服器後台批准這個編碼後，裝置會自動取得設定。</string>
     <string name="enroll_approved">已從伺服器取得設定</string>
     <string name="update_latest">已是最新版本</string>

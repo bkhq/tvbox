@@ -271,6 +271,7 @@
     <string name="enroll_linked">已关联</string>
     <string name="enroll_request">申请关联</string>
     <string name="enroll_unlink">取消关联</string>
+    <string name="enroll_refresh">刷新</string>
     <string name="enroll_message">设备编码：%1$s\n状态：%2$s\n\n在服务器后台批准这个编码后，设备会自动获取配置。</string>
     <string name="enroll_approved">已从服务器获取配置</string>
     <string name="update_latest">已是最新版本</string>

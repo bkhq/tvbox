@@ -272,6 +272,7 @@
     <string name="enroll_linked">Linked</string>
     <string name="enroll_request">Request link</string>
     <string name="enroll_unlink">Unlink</string>
+    <string name="enroll_refresh">Refresh</string>
     <string name="enroll_message">Device code: %1$s\nStatus: %2$s\n\nApprove this code in the server console to receive its configuration.</string>
     <string name="enroll_approved">Got the configuration from the server</string>
     <string name="update_latest">You are on the latest version</string>

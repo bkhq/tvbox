@@ -76,6 +76,7 @@ public class App extends Application implements Application.ActivityLifecycleCal
         super.onCreate();
         Notify.createChannel();
         setExceptionHandler();
+        Enroll.init();
         registerActivityLifecycleCallbacks(this);
     }
 

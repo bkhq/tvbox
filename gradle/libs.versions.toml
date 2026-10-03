@@ -48,7 +48,25 @@ smbj = "0.14.0"
 textdrawable = "1.0.3"
 zxingCore = "3.5.4"
 
+curve25519 = "0.5.0"
+ddPlist = "1.28"
+eddsa = "0.3.0"
+jmdns = "3.6.1"
+lombok = "1.18.38"
+m3u8Parser = "0.30"
+netty = "4.1.121.Final"
+slf4j = "2.0.17"
+
 [libraries]
+curve25519 = { group = "org.whispersystems", name = "curve25519-java", version.ref = "curve25519" }
+dd-plist = { group = "com.googlecode.plist", name = "dd-plist", version.ref = "ddPlist" }
+eddsa = { group = "net.i2p.crypto", name = "eddsa", version.ref = "eddsa" }
+jmdns = { group = "org.jmdns", name = "jmdns", version.ref = "jmdns" }
+lombok = { group = "org.projectlombok", name = "lombok", version.ref = "lombok" }
+m3u8-parser = { group = "io.lindstrom", name = "m3u8-parser", version.ref = "m3u8Parser" }
+netty-codec-http = { group = "io.netty", name = "netty-codec-http", version.ref = "netty" }
+netty-handler = { group = "io.netty", name = "netty-handler", version.ref = "netty" }
+slf4j-api = { group = "org.slf4j", name = "slf4j-api", version.ref = "slf4j" }
 annotation = { group = "androidx.annotation", name = "annotation", version.ref = "annotation" }
 appcompat = { group = "androidx.appcompat", name = "appcompat", version.ref = "appcompat" }
 biometric = { group = "androidx.biometric", name = "biometric", version.ref = "biometric" }

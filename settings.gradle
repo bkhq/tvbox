@@ -20,6 +20,7 @@ dependencyResolutionManagement {
     }
 }
 
+include ':airplay'
 include ':app'
 include ':catvod'
 include ':quickjs'

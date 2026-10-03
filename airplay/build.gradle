@@ -1,0 +1,35 @@
+plugins {
+    alias libs.plugins.android.library
+}
+
+android {
+    namespace = 'com.github.serezhka.airplay'
+
+    compileSdk libs.versions.compileSdk.get().toInteger()
+
+    defaultConfig {
+        minSdk libs.versions.minSdk.get().toInteger()
+        targetSdk libs.versions.targetSdk.get().toInteger()
+        consumerProguardFiles 'proguard-rules.pro'
+    }
+
+    compileOptions {
+        coreLibraryDesugaringEnabled = true
+        sourceCompatibility JavaVersion.VERSION_21
+        targetCompatibility JavaVersion.VERSION_21
+    }
+}
+
+dependencies {
+    api libs.slf4j.api
+    implementation libs.curve25519
+    implementation libs.dd.plist
+    implementation libs.eddsa
+    implementation libs.jmdns
+    implementation libs.m3u8.parser
+    implementation libs.netty.codec.http
+    implementation libs.netty.handler
+    compileOnly libs.lombok
+    annotationProcessor libs.lombok
+    coreLibraryDesugaring libs.desugar
+}

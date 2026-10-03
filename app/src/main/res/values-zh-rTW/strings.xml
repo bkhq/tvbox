@@ -267,7 +267,13 @@
     <string name="setting_restore">還原</string>
     <string name="setting_version">版本</string>
     <string name="update_check">正在檢查更新…</string>
-    <string name="enroll_pending">已向伺服器登記，等待後台批准「%s」</string>
+    <string name="setting_server">伺服器關聯</string>
+    <string name="enroll_off">未關聯</string>
+    <string name="enroll_waiting">等待批准</string>
+    <string name="enroll_linked">已關聯</string>
+    <string name="enroll_request">申請關聯</string>
+    <string name="enroll_unlink">取消關聯</string>
+    <string name="enroll_message">裝置編碼：%1$s\n狀態：%2$s\n\n在伺服器後台批准這個編碼後，裝置會自動取得設定。</string>
     <string name="enroll_approved">已從伺服器取得設定</string>
     <string name="update_latest">已是最新版本</string>
     <string name="update_failed">更新失敗</string>

@@ -268,7 +268,13 @@
     <string name="setting_restore">Restore</string>
     <string name="setting_version">Version</string>
     <string name="update_check">Checking for updates…</string>
-    <string name="enroll_pending">Registered with the server, waiting for approval of “%s”</string>
+    <string name="setting_server">Server link</string>
+    <string name="enroll_off">Not linked</string>
+    <string name="enroll_waiting">Waiting for approval</string>
+    <string name="enroll_linked">Linked</string>
+    <string name="enroll_request">Request link</string>
+    <string name="enroll_unlink">Unlink</string>
+    <string name="enroll_message">Device code: %1$s\nStatus: %2$s\n\nApprove this code in the server console to receive its configuration.</string>
     <string name="enroll_approved">Got the configuration from the server</string>
     <string name="update_latest">You are on the latest version</string>
     <string name="update_failed">Update failed</string>

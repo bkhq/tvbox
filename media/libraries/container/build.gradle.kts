@@ -33,5 +33,4 @@ dependencies {
   testImplementation(libs.truth)
   testImplementation(libs.junit)
   testImplementation(libs.robolectric)
-  testImplementation(project(":test-utils"))
 }

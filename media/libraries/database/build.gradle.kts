@@ -25,5 +25,4 @@ dependencies {
   testImplementation(libs.androidx.test.ext.junit)
   testImplementation(libs.truth)
   testImplementation(libs.robolectric)
-  testImplementation(project(":test-utils"))
 }

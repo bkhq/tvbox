@@ -34,12 +34,10 @@ dependencies {
   androidTestRuntimeOnly(libs.dexmaker.mockito)
   androidTestImplementation(libs.androidx.test.runner)
   androidTestImplementation(libs.okhttp.mockwebserver)
-  androidTestImplementation(project(":test-utils"))
   testImplementation(libs.mockito.core)
   testImplementation(libs.androidx.test.core)
   testImplementation(libs.androidx.test.ext.junit)
   testImplementation(libs.truth)
   testImplementation(libs.okhttp.mockwebserver)
   testImplementation(libs.robolectric)
-  testImplementation(project(":test-utils"))
 }

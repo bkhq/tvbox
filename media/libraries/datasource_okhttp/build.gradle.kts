@@ -23,7 +23,6 @@ dependencies {
   api(project(":lib-datasource"))
   implementation(libs.androidx.annotation)
   androidTestRuntimeOnly(libs.dexmaker.mockito)
-  androidTestImplementation(project(":test-utils"))
   androidTestImplementation(libs.androidx.test.runner)
   androidTestImplementation(libs.okhttp.mockwebserver)
   androidTestImplementation(libs.okhttp.urlconnection)

@@ -25,11 +25,7 @@ android {
 dependencies {
   implementation(libs.androidx.annotation)
   api(project(":lib-exoplayer"))
-  testImplementation(project(":test-utils-robolectric"))
-  testImplementation(project(":test-utils"))
-  testImplementation(project(":test-data"))
   testImplementation(libs.checkerframework.qual)
   testImplementation(libs.robolectric)
-  androidTestImplementation(project(":test-utils"))
   androidTestImplementation(libs.androidx.test.runner)
 }

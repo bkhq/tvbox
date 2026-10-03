@@ -26,12 +26,8 @@ dependencies {
   implementation(libs.androidx.annotation)
   implementation(libs.androidx.concurrent.futures)
   api(project(":lib-exoplayer"))
-  testImplementation(project(":test-utils-robolectric"))
-  testImplementation(project(":test-utils"))
-  testImplementation(project(":test-data"))
   testImplementation(libs.test.parameter.injector)
   testImplementation(libs.okhttp.mockwebserver)
   testImplementation(libs.robolectric)
-  androidTestImplementation(project(":test-utils"))
   androidTestImplementation(libs.androidx.test.runner)
 }

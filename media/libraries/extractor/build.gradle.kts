@@ -32,11 +32,7 @@ dependencies {
   api(project(":lib-container"))
   // TODO(b/203752187): Remove this dependency.
   implementation(project(":lib-decoder"))
-  testImplementation(project(":lib-exoplayer"))
-  testImplementation(project(":test-utils"))
-  testImplementation(project(":test-data"))
   testImplementation(libs.test.parameter.injector)
   testImplementation(libs.robolectric)
   androidTestImplementation(libs.androidx.test.runner)
-  androidTestImplementation(project(":test-utils"))
 }

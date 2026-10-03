@@ -53,9 +53,5 @@ dependencies {
   testImplementation(libs.test.parameter.injector)
   testImplementation(libs.truth)
   testImplementation(libs.robolectric)
-  testImplementation(project(":lib-exoplayer"))
-  testImplementation(project(":test-utils"))
-
   androidTestImplementation(libs.androidx.test.runner)
-  androidTestImplementation(project(":test-utils"))
 }

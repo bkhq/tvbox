@@ -25,7 +25,5 @@ android {
 dependencies {
   api(project(":lib-exoplayer"))
   implementation(libs.androidx.annotation)
-  testImplementation(project(":test-utils-robolectric"))
-  testImplementation(project(":test-utils"))
   testImplementation(libs.robolectric)
 }

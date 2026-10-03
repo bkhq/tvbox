@@ -40,12 +40,9 @@ dependencies {
   implementation(libs.juniversalchardet)
   androidTestRuntimeOnly(libs.dexmaker.mockito)
   androidTestImplementation(libs.androidx.test.runner)
-  androidTestImplementation(project(":test-utils"))
   androidTestImplementation(libs.kotlinx.coroutines.android)
   androidTestImplementation(libs.okhttp.mockwebserver)
   testImplementation(libs.test.parameter.injector)
   testImplementation(libs.okhttp.mockwebserver)
   testImplementation(libs.robolectric)
-  testImplementation(project(":test-utils"))
-  testImplementation(project(":test-utils-robolectric"))
 }

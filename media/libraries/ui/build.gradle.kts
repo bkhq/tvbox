@@ -32,8 +32,5 @@ dependencies {
   api(project(":lib-ui-danmaku"))
   implementation(libs.androidx.annotation)
   implementation(libs.androidx.recyclerview)
-  testImplementation(project(":lib-exoplayer"))
-  testImplementation(project(":test-utils-robolectric"))
-  testImplementation(project(":test-utils"))
   testImplementation(libs.robolectric)
 }

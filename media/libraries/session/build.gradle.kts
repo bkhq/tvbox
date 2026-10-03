@@ -33,10 +33,6 @@ dependencies {
   implementation(libs.androidx.media)
   implementation(libs.androidx.core)
   testImplementation(libs.okhttp.mockwebserver)
-  testImplementation(project(":test-data"))
-  testImplementation(project(":test-utils"))
-  testImplementation(project(":test-utils-robolectric"))
-  testImplementation(project(":lib-exoplayer"))
   testImplementation(libs.robolectric)
   testImplementation(libs.test.parameter.injector)
 }

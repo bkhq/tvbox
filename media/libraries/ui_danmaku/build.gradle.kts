@@ -32,6 +32,4 @@ dependencies {
   testImplementation(libs.okhttp.mockwebserver)
   testImplementation(libs.junit)
   testImplementation(libs.robolectric)
-  testImplementation(project(":test-utils"))
-  testImplementation(project(":test-utils-robolectric"))
 }

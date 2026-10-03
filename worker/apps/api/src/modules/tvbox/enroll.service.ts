@@ -1,5 +1,6 @@
 import type { AppDatabase } from "@/db";
 import { desc, eq, inArray } from "drizzle-orm";
+import { chunked } from "@/shared/lib/chunk";
 import { AppError, NotFoundError } from "@/shared/lib/errors";
 import { ulid } from "@/shared/lib/id";
 import { createDevice, getDevice } from "./devices.service";
@@ -46,8 +47,8 @@ function reported(report: EnrollReport, ip: string): Partial<typeof tvboxEnrollm
 async function prunePending(db: AppDatabase): Promise<void> {
   const pending = await db.select({ id: tvboxEnrollments.id }).from(tvboxEnrollments).where(eq(tvboxEnrollments.status, "pending")).orderBy(desc(tvboxEnrollments.lastSeenAt)).all();
   const stale = pending.slice(MAX_PENDING).map(r => r.id);
-  if (stale.length > 0)
-    await db.delete(tvboxEnrollments).where(inArray(tvboxEnrollments.id, stale)).run();
+  for (const ids of chunked(stale))
+    await db.delete(tvboxEnrollments).where(inArray(tvboxEnrollments.id, ids)).run();
 }
 
 /**

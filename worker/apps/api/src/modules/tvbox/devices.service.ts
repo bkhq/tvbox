@@ -1,7 +1,7 @@
 import type { DevicesFile } from "./storage";
 import type { AppDatabase } from "@/db";
 import { randomBytes } from "node:crypto";
-import { desc, eq, inArray } from "drizzle-orm";
+import { desc, eq } from "drizzle-orm";
 import { AppError, NotFoundError } from "@/shared/lib/errors";
 import { ulid } from "@/shared/lib/id";
 import { tvboxDevices, tvboxDeviceUpstreams, tvboxUpstreams } from "./schema";
@@ -59,8 +59,8 @@ export async function getDevice(db: AppDatabase, id: string): Promise<DeviceView
 async function setUpstreams(db: AppDatabase, deviceId: string, upstreamIds: readonly string[]): Promise<void> {
   const unique = [...new Set(upstreamIds)];
   if (unique.length > 0) {
-    const found = await db.select({ id: tvboxUpstreams.id }).from(tvboxUpstreams).where(inArray(tvboxUpstreams.id, unique)).all();
-    if (found.length !== unique.length)
+    const known = new Set((await db.select({ id: tvboxUpstreams.id }).from(tvboxUpstreams).all()).map(r => r.id));
+    if (!unique.every(id => known.has(id)))
       throw new AppError("Unknown upstream", 422, "UNKNOWN_UPSTREAM");
   }
   await db.transaction(async (tx) => {

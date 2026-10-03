@@ -213,6 +213,36 @@ const cases: Case[] = [
     },
   },
   {
+    // Durable Object SQLite binds at most 100 parameters per statement; the
+    // synced upstream gives well over 100 entries to act on at once.
+    name: "bulk updates, a full reorder and a health report cover more than 100 entries",
+    async run() {
+      const all = await json<{ data: { id: string; kind: string }[] }>(await call(`${BASE_PATH}/api/tvbox/entries`));
+      assert(all.data.length > 100, `only ${all.data.length} entries to act on`);
+      const post = (path: string, body: unknown) => call(`${BASE_PATH}/api/tvbox${path}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+
+      const bulk = await post("/entries/bulk", { ids: all.data.map(e => e.id), enabled: true });
+      assert(bulk.status === 200, `bulk update returned ${bulk.status}`);
+      await bulk.text();
+
+      const sites = all.data.filter(e => e.kind === "sites").map(e => e.id);
+      const reorder = await post("/entries/reorder", { kind: "sites", ids: [...sites].reverse() });
+      assert(reorder.status === 200, `reordering ${sites.length} sites returned ${reorder.status}`);
+      await reorder.text();
+      const back = await post("/entries/reorder", { kind: "sites", ids: sites });
+      await back.text();
+
+      const health = await post("/health", { results: all.data.map(e => ({ id: e.id, status: "ok", detail: "smoke" })) });
+      assert(health.status === 200, `the health report returned ${health.status}`);
+      const outcome = await json<{ data: { recorded: number } }>(health);
+      assert(outcome.data.recorded === all.data.length, "the health report did not record every entry");
+    },
+  },
+  {
     name: "the subscription serves the published config and its mirrored spider",
     async run() {
       const res = await fetch(`${baseUrl}/s/${subscriptionToken}/api.json`);

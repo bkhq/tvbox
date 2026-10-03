@@ -1,6 +1,7 @@
 import type { JsonObject, ListKind } from "./parse";
 import type { AppDatabase } from "@/db";
 import { and, count, eq, inArray, isNull, max, ne } from "drizzle-orm";
+import { chunked } from "@/shared/lib/chunk";
 import { AppError, NotFoundError } from "@/shared/lib/errors";
 import { ulid } from "@/shared/lib/id";
 import { writeDevicesFile } from "./devices.service";
@@ -192,16 +193,18 @@ export async function setEntriesEnabled(db: AppDatabase, ids: readonly string[],
     return 0;
   const updatedAt = new Date().toISOString();
   await db.transaction(async (tx) => {
-    if (enabled) {
+    for (const ids of chunked(unique)) {
+      if (enabled) {
+        await tx.update(tvboxEntries)
+          .set({ healthExempt: true, disabledByHealth: false })
+          .where(and(inArray(tvboxEntries.id, ids), eq(tvboxEntries.disabledByHealth, true)))
+          .run();
+      }
       await tx.update(tvboxEntries)
-        .set({ healthExempt: true, disabledByHealth: false })
-        .where(and(inArray(tvboxEntries.id, unique), eq(tvboxEntries.disabledByHealth, true)))
+        .set({ enabled, updatedAt, ...(enabled ? {} : { disabledByHealth: false }) })
+        .where(inArray(tvboxEntries.id, ids))
         .run();
     }
-    await tx.update(tvboxEntries)
-      .set({ enabled, updatedAt, ...(enabled ? {} : { disabledByHealth: false }) })
-      .where(inArray(tvboxEntries.id, unique))
-      .run();
   });
   return unique.length;
 }
@@ -229,7 +232,8 @@ export async function deleteEntry(db: AppDatabase, id: string): Promise<EntryVie
 
 /** `ids` in their new order; every id must belong to `kind`. */
 export async function reorderEntries(db: AppDatabase, kind: ListKind, ids: readonly string[]): Promise<void> {
-  const rows = await db.select({ id: tvboxEntries.id }).from(tvboxEntries).where(and(eq(tvboxEntries.kind, kind), inArray(tvboxEntries.id, [...ids]))).all();
+  const known = new Set((await db.select({ id: tvboxEntries.id }).from(tvboxEntries).where(eq(tvboxEntries.kind, kind)).all()).map(r => r.id));
+  const rows = ids.filter(id => known.has(id));
   if (rows.length !== new Set(ids).size || rows.length !== ids.length)
     throw new AppError(`Every id must be a distinct ${kind} entry`, 422, "INVALID_ORDER");
   await db.transaction(async (tx) => {

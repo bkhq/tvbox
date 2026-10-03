@@ -1,5 +1,5 @@
 import type { AppDatabase } from "@/db";
-import { eq, inArray } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { tvboxEntries } from "./schema";
 
 export type HealthStatus = "ok" | "blocked" | "fail" | "skip";
@@ -30,7 +30,9 @@ export async function applyHealth(db: AppDatabase, results: readonly HealthResul
   const ids = [...new Set(results.map(r => r.id))];
   if (ids.length === 0)
     return { recorded: 0, disabled: [], enabled: [] };
-  const rows = new Map((await db.select().from(tvboxEntries).where(inArray(tvboxEntries.id, ids)).all()).map(r => [r.id, r]));
+  // A run covers every entry, so load them all rather than list ids.
+  const wanted = new Set(ids);
+  const rows = new Map((await db.select().from(tvboxEntries).all()).filter(r => wanted.has(r.id)).map(r => [r.id, r]));
   const now = new Date().toISOString();
   const disabled: string[] = [];
   const enabled: string[] = [];

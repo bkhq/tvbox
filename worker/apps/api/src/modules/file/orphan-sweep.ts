@@ -7,12 +7,9 @@ import { fileReferences } from "./schema";
 
 /**
  * Background sweep that releases `file_references` rows whose owner row
- * has gone away. The shipped use case is `owner_type =
- * 'item_comment_attachment'`:
- * comment deletes intentionally skip cascading the attachment release
- * (a libsql encrypted-WAL recovery bug surfaces when the cascade runs
- * inside the same transaction), so the leftover rows pile up and are
- * collected out-of-band here. Each orphan reference triggers the
+ * has gone away, for owners that skip releasing their attachments when they
+ * are deleted. No module here does today (the item comments it was written
+ * for are gone); a rule goes in ORPHAN_RULES when one does. Each orphan reference triggers the
  * normal `releaseReference` path, which decrements `files.ref_count`
  * and lets the existing unreferenced-files GC reclaim the blob.
  *
@@ -20,14 +17,7 @@ import { fileReferences } from "./schema";
  * starve the scheduler. Designed to run alongside `runFileGcOnce`.
  */
 
-const ORPHAN_RULES: readonly OrphanRule[] = [
-  // Comment attachments — the canonical libsql case.
-  {
-    ownerType: "item_comment_attachment",
-    parentTable: "item_comments",
-    parentKey: "id",
-  },
-];
+const ORPHAN_RULES: readonly OrphanRule[] = [];
 
 interface OrphanRule {
   readonly ownerType: string;

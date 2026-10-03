@@ -14,7 +14,8 @@
  *   doh      the resolver answers
  *
  * Only what the app would also fail on counts as dead: no connection, a
- * timeout, 5xx, or 404/410. Certificates are not checked (the app trusts
+ * timeout, 5xx (but 505: an HTTP/2-only server such as a DoH resolver
+ * refusing this HTTP/1.1 client is up), or 404/410. Certificates are not checked (the app trusts
  * any), and 401/403/429 mean the server is up but refuses this network, so
  * they are reported as blocked rather than dead. A failed probe is retried
  * once.
@@ -121,7 +122,7 @@ async function probeOnce(p: Probe): Promise<Outcome> {
       tls: { rejectUnauthorized: false },
     } as RequestInit);
     const detail = `${p.url} → ${res.status}`;
-    if (res.status >= 500 || (p.expect !== "alive" && GONE.has(res.status))) {
+    if ((res.status >= 500 && res.status !== 505) || (p.expect !== "alive" && GONE.has(res.status))) {
       await res.body?.cancel();
       return { status: "fail", detail };
     }
@@ -200,6 +201,10 @@ async function main(): Promise<void> {
       console.log(`  [${r.kind}] ${r.name}: ${r.detail}`);
   }
 
+  const jsonAt = process.argv.indexOf("--json");
+  if (jsonAt !== -1 && process.argv[jsonAt + 1])
+    writeFileSync(process.argv[jsonAt + 1]!, JSON.stringify(results, null, 2));
+
   if (process.argv.includes("--apply")) {
     const call = async <T>(method: string, path: string, body?: unknown): Promise<T> => {
       const r = await fetch(`${base}/api${path}`, {
@@ -227,10 +232,6 @@ async function main(): Promise<void> {
       console.log("nothing switched; not published");
     }
   }
-
-  const jsonAt = process.argv.indexOf("--json");
-  if (jsonAt !== -1 && process.argv[jsonAt + 1])
-    writeFileSync(process.argv[jsonAt + 1]!, JSON.stringify(results, null, 2));
 }
 
 if (import.meta.main) {

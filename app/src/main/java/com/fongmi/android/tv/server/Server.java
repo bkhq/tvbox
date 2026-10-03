@@ -8,6 +8,7 @@ import com.github.catvod.utils.Util;
 public class Server {
 
     private volatile PlaybackService service;
+    private final Mdns mdns = new Mdns();
     private volatile Nano nano;
 
     private static class Loader {
@@ -38,6 +39,11 @@ public class Server {
         return getAddress(true) + path;
     }
 
+    /** The mDNS address, e.g. {@code http://tvbox.local:9978}. */
+    public String getLocalName() {
+        return "http://" + Mdns.HOST + ".local:" + Proxy.getPort();
+    }
+
     public String getAddress(boolean local) {
         return "http://" + (local ? "127.0.0.1" : Util.getIp()) + ":" + Proxy.getPort();
     }
@@ -49,6 +55,8 @@ public class Server {
                 nano = new Nano(i);
                 nano.start(500);
                 Proxy.set(i);
+                int port = i;
+                Task.execute(() -> mdns.start(port));
                 break;
             } catch (Throwable e) {
                 nano = null;
@@ -58,6 +66,7 @@ public class Server {
 
     public void stop() {
         Task.execute(() -> {
+            mdns.stop();
             if (nano != null) nano.stop();
             service = null;
             nano = null;

@@ -130,6 +130,7 @@ dependencies {
     implementation libs.customactivityoncrash
     implementation libs.eventbus
     implementation libs.flexbox
+    implementation libs.jmdns
     implementation libs.rtmp.client
     implementation libs.lottie
     implementation libs.material

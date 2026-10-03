@@ -16,6 +16,8 @@
     <!-- Push -->
     <string name="push_clip">推送剪贴板内容</string>
     <string name="push_pair">配对码 <xliff:g name="name">%s</xliff:g></string>
-    <string name="push_info">使用手机扫描二维码，或于浏览器访问地址\n<xliff:g name="name">%s</xliff:g></string>
+    <string name="push_info">使用手机扫描二维码，或于浏览器访问地址
+<xliff:g name="name">%1$s</xliff:g>
+iPhone、iPad、Mac 也可访问 <xliff:g name="local">%2$s</xliff:g></string>
 
 </resources>

@@ -29,6 +29,22 @@ jobs:
 
       - uses: gradle/actions/setup-gradle@v4
 
+      # The Media3 AARs are built from media/ and cached by its contents, so
+      # they are rebuilt only when the fork changes.
+      - name: Restore media AARs
+        id: aars
+        uses: actions/cache@v4
+        with:
+          path: app/libs/lib-*.aar
+          key: media-aars-${{ hashFiles('media/**', '!media/**/buildout/**') }}
+
+      - name: Build media AARs
+        if: steps.aars.outputs.cache-hit != 'true'
+        run: |
+          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "platforms;android-36" "ndk;29.0.14206865" "cmake;3.22.1" > /dev/null
+          echo "sdk.dir=$ANDROID_HOME" > media/local.properties
+          bash media/build-aars.sh
+
       - name: Configure signing
         run: cp keystore/release.properties local.properties
 

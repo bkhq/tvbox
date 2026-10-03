@@ -4,6 +4,7 @@
 .settings
 *build
 *.jks
+app/libs/lib-*.aar
 !keystore/release.jks
 local.properties
 buildout/

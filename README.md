@@ -17,7 +17,7 @@ app/        App 本体；src/main 为共用代码，src/leanback（电视）和 
 catvod/     爬虫接口、网络和与爬虫共用的工具类
 quickjs/    JavaScript 爬虫运行时
 airplay/    AirPlay 协议与服务端，来自 serezhka/java-airplay（MIT）
-media/      Media3 fork 源码（FongMi/media），用于构建 app/libs 中的 AAR
+media/      Media3 fork 源码（FongMi/media，已裁剪为 App 用到的 20 个模块），用于构建 app/libs 中的 AAR
 keystore/   CI 与本地构建共用的签名密钥
 worker/     Cloudflare Worker：订阅、App 更新、管理后台（见 worker/README.md）
 docs/       配置、直播、爬虫、本地接口等参考文档
@@ -48,11 +48,13 @@ APK 按设备（`leanback` 电视、`mobile` 手机）和 ABI（`arm64_v8a`、`a
 | `-PupdateUrl=<worker>/u` | 启用 App 内检查更新 |
 | `-PworkerUrl=<worker>` | 启用可选的服务器关联 |
 
-`app/libs` 中的媒体 AAR 已预先编好并提交。如需从 `media/` 重新构建（需要 NDK 29.0.14206865 和 CMake 3.22.1）：
+App 依赖的 20 个 Media3 AAR 不提交到仓库，第一次编译前先从 `media/` 构建，放到 `app/libs/`（需要 NDK 29.0.14206865、CMake 3.22.1 和 platform 36）：
 
 ```bash
 cd media && echo "sdk.dir=/path/to/android-sdk" > local.properties && ./build-aars.sh
 ```
+
+`media/` 只保留了这 20 个模块，删掉了其余模块和测试源码。CI 按 `media/` 的内容缓存构建结果，只有改动 fork 时才重新构建。
 
 `media/` 里的 FFmpeg、mpv、libplacebo、MPEG-H 原生库是上游预编译的二进制，来源记录在 `media/libraries/decoder_ffmpeg/src/main/resources/META-INF/androidx.media3.decoder.ffmpeg/native-dependencies.properties`。
 

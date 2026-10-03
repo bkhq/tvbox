@@ -269,7 +269,7 @@
     <string name="setting_airplay">AirPlay</string>
     <string name="airplay_name">AirPlay 名称</string>
     <string name="live_boot">开机直播</string>
-    <string name="airplay_name_hint">iPhone、iPad、Mac 投屏列表中显示的名称，留空使用 AirPlay。</string>
+    <string name="airplay_name_hint">iPhone、iPad、Mac 投屏列表中显示的名称，留空使用 tvbox。</string>
     <string name="airplay_turn_on">开启</string>
     <string name="airplay_turn_off">关闭</string>
     <string name="airplay_off">已关闭</string>

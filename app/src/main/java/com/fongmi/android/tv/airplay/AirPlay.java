@@ -88,7 +88,7 @@ public class AirPlay implements Playback {
         return config;
     }
 
-    public static final String DEFAULT_NAME = "AirPlay";
+    public static final String DEFAULT_NAME = "tvbox";
 
     public static String getName() {
         String name = Setting.getAirPlayName();

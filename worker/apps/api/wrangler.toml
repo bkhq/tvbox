@@ -1,4 +1,4 @@
-name = "tvbox"
+name = "tv-bk-io"
 main = "src/workers/entry.ts"
 compatibility_date = "2026-09-01"
 # node:crypto / node:buffer / node:path / node:util are used across the shared

@@ -356,7 +356,7 @@ public class VideoActivity extends PlaybackActivity implements VodPlaybackHost, 
         mBinding.part.setAdapter(mPartAdapter = new PartAdapter(item -> mVod.search(item)));
         mBinding.quick.setHorizontalSpacing(ResUtil.dp2px(8));
         mBinding.quick.setRowHeight(ViewGroup.LayoutParams.WRAP_CONTENT);
-        mBinding.quick.setAdapter(mQuickAdapter = new QuickAdapter(this));
+        mBinding.quick.setAdapter(mQuickAdapter = new QuickAdapter(this, (ResUtil.getScreenWidth() - ResUtil.dp2px(56)) / 4));
     }
 
     private void setVideoView() {

@@ -14,22 +14,18 @@ import java.util.List;
 
 public class QuickAdapter extends RecyclerView.Adapter<QuickAdapter.ViewHolder> {
 
-    private final OnClickListener listener;
+    private final OnClickListener mListener;
     private final List<Vod> mItems;
+    private final int width;
 
     public QuickAdapter(OnClickListener listener) {
-        this.listener = listener;
-        this.mItems = new ArrayList<>();
+        this(listener, 0);
     }
 
-    public interface OnClickListener {
-
-        void onItemClick(Vod item);
-    }
-
-    public void clear() {
-        mItems.clear();
-        notifyDataSetChanged();
+    public QuickAdapter(OnClickListener listener, int width) {
+        mListener = listener;
+        mItems = new ArrayList<>();
+        this.width = width;
     }
 
     public void addAll(List<Vod> items) {
@@ -38,13 +34,18 @@ public class QuickAdapter extends RecyclerView.Adapter<QuickAdapter.ViewHolder> 
         notifyItemRangeInserted(start, items.size());
     }
 
-    public Vod get(int position) {
-        return mItems.get(position);
-    }
-
     public void remove(int position) {
         mItems.remove(position);
         notifyItemRemoved(position);
+    }
+
+    public void clear() {
+        mItems.clear();
+        notifyDataSetChanged();
+    }
+
+    public Vod get(int position) {
+        return mItems.get(position);
     }
 
     public boolean isEmpty() {
@@ -59,7 +60,9 @@ public class QuickAdapter extends RecyclerView.Adapter<QuickAdapter.ViewHolder> 
     @NonNull
     @Override
     public ViewHolder onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
-        return new ViewHolder(AdapterQuickBinding.inflate(LayoutInflater.from(parent.getContext()), parent, false));
+        ViewHolder holder = new ViewHolder(AdapterQuickBinding.inflate(LayoutInflater.from(parent.getContext()), parent, false));
+        if (width > 0) holder.binding.getRoot().getLayoutParams().width = width;
+        return holder;
     }
 
     @Override
@@ -68,10 +71,15 @@ public class QuickAdapter extends RecyclerView.Adapter<QuickAdapter.ViewHolder> 
         holder.binding.name.setText(item.getName());
         holder.binding.site.setText(item.getSiteName());
         holder.binding.remark.setText(item.getRemarks());
-        holder.binding.getRoot().setOnClickListener(v -> listener.onItemClick(item));
+        holder.binding.getRoot().setOnClickListener(v -> mListener.onItemClick(item));
     }
 
-    public class ViewHolder extends RecyclerView.ViewHolder {
+    public interface OnClickListener {
+
+        void onItemClick(Vod item);
+    }
+
+    public static class ViewHolder extends RecyclerView.ViewHolder {
 
         private final AdapterQuickBinding binding;
 

@@ -49,6 +49,10 @@ public class FlagAdapter extends RecyclerView.Adapter<FlagAdapter.ViewHolder> {
         return 0;
     }
 
+    public boolean isEmpty() {
+        return getItemCount() == 0;
+    }
+
     public void setNextFocusDown(int nextFocusDown) {
         this.nextFocusDown = nextFocusDown;
         notifyDataSetChanged();

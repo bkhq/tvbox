@@ -98,6 +98,9 @@ jobs:
           VERSION_CODE: ${{ steps.version.outputs.code }}
           VERSION_NAME: ${{ steps.version.outputs.name }}
         run: |
+          # actions/checkout fetches the tag as a lightweight ref; fetch the
+          # annotated tag object so its message becomes the release notes.
+          git fetch --force --depth=1 origin "+refs/tags/$GITHUB_REF_NAME:refs/tags/$GITHUB_REF_NAME"
           notes="$(git tag -l --format='%(contents)' "$GITHUB_REF_NAME")"
           assets="$(for apk in dist/*.apk; do
             name="$(basename "$apk" .apk)"

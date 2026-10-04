@@ -65,29 +65,34 @@ describe('fallback decision', () => {
   const loaded = { loaded: true, fallbackUsed: false };
   const fresh = { loaded: false, fallbackUsed: false };
 
-  it('iOS mpv falls back to video on init / open errors and DRM', () => {
+  it('iOS mpv falls back to video on init, open, format, decoder and DRM errors', () => {
     expect(fallbackDecision('ios', 'mpv', error('init', 'init'), fresh)).toBe('video');
     expect(fallbackDecision('ios', 'mpv', error('open'), loaded)).toBe('video');
-    expect(fallbackDecision('ios', 'mpv', error('network'), fresh)).toBe('video');
+    expect(fallbackDecision('ios', 'mpv', error('format', 'init'), fresh)).toBe('video');
+    expect(fallbackDecision('ios', 'mpv', error('decoder'), loaded)).toBe('video');
     expect(fallbackDecision('ios', 'mpv', error('drm'), loaded)).toBe('video');
-    expect(fallbackDecision('ios', 'mpv', error('other'), { ...loaded, source: { drm: { type: 'fairplay' } } })).toBe('video');
+    expect(fallbackDecision('ios', 'mpv', error('network', 'init'), fresh)).toBeUndefined();
     expect(fallbackDecision('ios', 'mpv', error('network'), loaded)).toBeUndefined();
+    expect(fallbackDecision('ios', 'mpv', error('other'), { ...loaded, source: { drm: { type: 'fairplay' } } })).toBeUndefined();
   });
 
   it('Android video falls back to mpv on init, format and decoder errors only', () => {
-    expect(fallbackDecision('android', 'video', error('other', 'init'), fresh)).toBe('mpv');
+    expect(fallbackDecision('android', 'video', error('init', 'init'), fresh)).toBe('mpv');
     expect(fallbackDecision('android', 'video', error('format'), loaded)).toBe('mpv');
-    expect(fallbackDecision('android', 'video', error('decoder'), fresh)).toBe('mpv');
-    expect(fallbackDecision('android', 'video', error('network'), fresh)).toBeUndefined();
-    expect(fallbackDecision('android', 'video', error('open'), fresh)).toBeUndefined();
+    expect(fallbackDecision('android', 'video', error('decoder', 'init'), fresh)).toBe('mpv');
+    expect(fallbackDecision('android', 'video', error('network', 'init'), fresh)).toBeUndefined();
+    expect(fallbackDecision('android', 'video', error('other', 'init'), fresh)).toBeUndefined();
+    expect(fallbackDecision('android', 'video', error('open', 'init'), fresh)).toBeUndefined();
+    expect(fallbackDecision('android', 'video', error('drm'), fresh)).toBeUndefined();
     expect(fallbackDecision('android', 'video', error('other'), loaded)).toBeUndefined();
   });
 
   it('other combinations fall back on init failure only', () => {
     expect(fallbackDecision('ios', 'video', error('init', 'init'), fresh)).toBe('mpv');
-    expect(fallbackDecision('ios', 'video', error('format'), fresh)).toBeUndefined();
+    expect(fallbackDecision('ios', 'video', error('format', 'init'), fresh)).toBeUndefined();
     expect(fallbackDecision('android', 'mpv', error('init'), fresh)).toBe('video');
     expect(fallbackDecision('android', 'mpv', error('decoder'), fresh)).toBeUndefined();
+    expect(fallbackDecision('android', 'mpv', error('network', 'init'), fresh)).toBeUndefined();
   });
 
   it('never falls back twice for one item', () => {

@@ -50,6 +50,8 @@ export interface UsePlaybackOptions {
   settings?: SettingsStore;
   fetch?: FetchLike;
   getProvider?: (site: Site) => SiteProvider;
+  /** Attach as the app-wide playback host (default true); the screen passes its focus state. */
+  attach?: boolean;
 }
 
 export interface UsePlayback {
@@ -131,6 +133,7 @@ export function usePlayback(params: PlayerParams, options: UsePlaybackOptions = 
   const skippedRef = useRef(-1);
   const startedRef = useRef('');
   const optionsRef = useRef(options);
+  const attach = options.attach ?? true;
   useEffect(() => {
     stateRef.current = state;
     optionsRef.current = options;
@@ -263,6 +266,7 @@ export function usePlayback(params: PlayerParams, options: UsePlaybackOptions = 
   const replay = useCallback(() => dispatch({ type: 'replay' }), []);
 
   useEffect(() => {
+    if (!attach) return;
     const pushes = pushRef.current;
     const detach = attachPlaybackHost({
       play,
@@ -292,7 +296,7 @@ export function usePlayback(params: PlayerParams, options: UsePlaybackOptions = 
       detach();
       void trackerRef.current?.flush();
     };
-  }, [play, pause, stop, prev, next, repeat, replay, seek, setSpeed]);
+  }, [attach, play, pause, stop, prev, next, repeat, replay, seek, setSpeed]);
 
   const onEngineEvent = useCallback((event: EngineEvent) => {
     const current = stateRef.current;

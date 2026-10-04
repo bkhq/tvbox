@@ -10,7 +10,8 @@
     "test": "jest",
     "prebuild:android": "expo prebuild --platform android --no-install",
     "prebuild:tv-ios": "EXPO_TV=1 expo prebuild --platform ios --no-install",
-    "android:debug": "cd android && ./gradlew assembleDebug"
+    "android:debug": "cd android && ./gradlew assembleDebug",
+    "android:debug:docker": "bash scripts/android-debug.sh"
   },
   "dependencies": {
     "@react-native-async-storage/async-storage": "2.2.0",

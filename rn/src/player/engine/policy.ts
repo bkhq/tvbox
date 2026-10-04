@@ -1,4 +1,4 @@
-import type { EngineError, EngineKind, EngineSource } from './types';
+import type { EngineError, EngineErrorReason, EngineKind, EngineSource } from './types';
 
 /**
  * Engine choice and fallback policy. Defaults per platform: iOS / tvOS use
@@ -38,14 +38,19 @@ export interface FallbackContext {
   source?: Pick<EngineSource, 'drm'>;
 }
 
+/** Error reasons that switch engines, per platform and active engine. */
+const IOS_MPV_REASONS: readonly EngineErrorReason[] = ['init', 'open', 'format', 'decoder', 'drm'];
+const ANDROID_VIDEO_REASONS: readonly EngineErrorReason[] = ['init', 'format', 'decoder'];
+const OTHER_REASONS: readonly EngineErrorReason[] = ['init'];
+
 /**
- * Engine to retry the item on after `error`, or undefined to fail:
- * - iOS on mpv -> video when mpv cannot init or open the item (init / open
- *   errors, any error before the first load) or the source needs DRM.
- * - Android on video -> mpv on init failure or unsupported format / decoder errors;
- *   network and other source errors do not switch engines.
- * - Otherwise -> the other engine on init failure only.
- * At most one fallback per item. Availability is checked by the caller.
+ * Engine to retry the item on after `error`, or undefined to fail. Decided on
+ * `reason` only (adapters report any pre-load error as phase 'init'):
+ * - iOS on mpv -> video on init, open, format, decoder or DRM errors.
+ * - Android on video -> mpv on init, format or decoder errors.
+ * - Otherwise (an explicit choice of the other engine) -> on init errors only.
+ * Network and other errors never switch engines. At most one fallback per
+ * item. Availability is checked by the caller.
  */
 export function fallbackDecision(
   platform: EnginePlatform,
@@ -54,14 +59,8 @@ export function fallbackDecision(
   context: FallbackContext,
 ): EngineKind | undefined {
   if (context.fallbackUsed) return undefined;
-  const init = error.phase === 'init' || error.reason === 'init';
-  const other = otherEngine(active);
-  if (platform === 'ios' && active === 'mpv') {
-    const cannotOpen = error.reason === 'open' || !context.loaded;
-    return init || cannotOpen || error.reason === 'drm' || !!context.source?.drm ? other : undefined;
-  }
-  if (platform !== 'ios' && active === 'video') {
-    return init || error.reason === 'format' || error.reason === 'decoder' ? other : undefined;
-  }
-  return init ? other : undefined;
+  let reasons = OTHER_REASONS;
+  if (platform === 'ios' && active === 'mpv') reasons = IOS_MPV_REASONS;
+  else if (platform !== 'ios' && active === 'video') reasons = ANDROID_VIDEO_REASONS;
+  return reasons.includes(error.reason) ? otherEngine(active) : undefined;
 }

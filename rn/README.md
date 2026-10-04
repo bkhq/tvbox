@@ -281,12 +281,14 @@ once per item, never written back to the setting, keeping the position:
 
 | Platform / active engine | Falls back to the other engine on                                         |
 | ------------------------ | ------------------------------------------------------------------------ |
-| iOS, `mpv`               | init or open failure (`reason` `init` / `open`, or any error before the first `load`), DRM |
-| Android, `video`         | init failure, `format` or `decoder` errors; network / source errors fail |
-| anything else            | init failure only                                                        |
+| iOS, `mpv`               | `reason` `init`, `open`, `format`, `decoder` or `drm`                     |
+| Android, `video`         | `reason` `init`, `format` or `decoder`                                    |
+| anything else            | `reason` `init` only                                                      |
 
-A second failure, or an error with no fallback, ends in the `error` state
-with a Chinese message.
+The decision uses `reason` only, not `phase` (adapters report every error
+before the first `load` as phase `init`): `network` and `other` errors never
+switch engines. A second failure, or an error with no fallback, ends in the
+`error` state with a Chinese message.
 
 ### mpv engine (`modules/mpv`, `src/player/engines/mpv`)
 

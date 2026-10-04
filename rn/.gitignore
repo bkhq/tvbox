@@ -25,3 +25,6 @@ coverage/
 
 # Env
 .env*.local
+
+# CMake intermediates of local native modules
+.cxx/

@@ -1,0 +1,10 @@
+{
+  "platforms": ["apple", "android"],
+  "apple": {
+    "podspecPath": "ExpoQuickJS.podspec",
+    "modules": ["QuickJSModule"]
+  },
+  "android": {
+    "modules": ["expo.modules.quickjs.QuickJSModule"]
+  }
+}

@@ -518,6 +518,82 @@ getLiveController(): {
 `App.tsx` registers `setLiveOpener` next to `setPlayerOpener`:
 `navigate('Live', params)`.
 
+## LAN services
+
+The phone control page (`docs/REMOTE.md`), DLNA and AirPlay. `App.tsx` calls
+`startLanServices()` once after the bootstrap start and binds the navigation
+container with `bindLanNavigation(navigationRef)`.
+
+```
+src/lan/
+  types.ts          LanRequest / LanResponse (the httpd transport shapes), LanEndpoint, LanProcess
+  ports.ts          LanPlayer, LanRemote, LanNavigator, LanSources, LanEnv; setLanPorts / getLanPorts
+  pairing.ts        6-digit pairing code and paired devices (Pairing.java)
+  server.ts         createLanServer(deps, files?): auth, /api/<name>, processes, web UI
+  api/              one file per /api endpoint (pair, state, config, source, control, setting, remote, push, search, file, ...)
+  settingRegistry.ts  settings shown and changed by the web page
+  files.ts          FileSystemPort, createExpoFileSystem() (File tab, rooted at the document dir)
+  web/              assets.generated.ts (the bundled web UI) and serveAsset
+  cast/             startAirPlay, startDlna: native receivers -> LanPlayer
+  runtime.ts        startLanServices, LanStatus, getLanPairing (wiring)
+  playerAdapter.ts  createLanPlayer (playback controller), createLanSources (live sources)
+  navigation.ts     bindLanNavigation, createLanNavigator (search -> Search route)
+```
+
+**Runtime.** `startLanServices()` (idempotent, never rejects) creates the
+pairing on `asyncStorageStore`, registers the ports, starts the httpd module
+on the first free port of 9978..9998 with mDNS name `tvbox`, and answers each
+request with `server.handle` (500 with the message on an unexpected error).
+`getLanStatus()` / `subscribeLanStatus()` expose
+`{ state: 'idle' | 'starting' | 'running' | 'error', port, address, localName, error }`
+(`address` = `http://<lan ip>:<port>`, `localName` = `http://tvbox.local:<port>`);
+`refreshLanAddress()` re-reads the IP. Without the native module (Jest, web)
+the state is `error` and the app runs on. On Android TV it also starts the
+AirPlay and DLNA receivers. The Control screen (`src/screens/control`, title
+手机控制) shows the address QR code (`?tab=1`), both addresses, the pairing
+code (new on every focus) and the number of paired devices.
+
+**Ports.** The server only reaches the app through ports, all optional (the
+API answers without them):
+
+| Port           | Registered by                                      | Used for                                    |
+| -------------- | -------------------------------------------------- | ------------------------------------------- |
+| `LanPlayer`    | runtime: `createLanPlayer()` on `getPlaybackController()` | `/api/control`, `/api/state` player, push, DLNA, AirPlay |
+| `LanSources`   | runtime: `createLanSources()` (live sources; no parsers yet) | `/api/source`, `/api/state` sources         |
+| `LanRemote`    | runtime: httpd `sendKey` / `sendText` / `adjustVolume` | `/api/remote`                               |
+| `LanNavigator` | runtime: `createLanNavigator()`                    | `/api/search`                               |
+| `LanEnv`       | runtime: app version and address                   | `/api/state`                                |
+
+Another workstream plugs in by replacing a port, without touching the server:
+
+```ts
+import { getLanPorts, setLanPorts } from './src/lan';
+
+setLanPorts({ sources: { ...getLanPorts().sources!, parses, currentParse, setParse, clearCache } });
+```
+
+Extra endpoints: `server.registerApi(name, endpoint)` and
+`server.registerProcess(process)`.
+
+**httpd module** (`modules/httpd`, Android, iOS, tvOS). Native code parses
+requests and writes responses; routing and auth are in JS.
+`startServer({ portFrom, portTo, mdnsName })` resolves the bound port,
+`addRequestListener(listener)` delivers `HttpdRequest`s that must be answered
+with `respond(id, { status, headers?, body?, bodyEncoding?, filePath? })`
+within 30 s (else 504), plus `stopServer`, `getLocalIpAddress`, `isAvailable`
+and the remote helpers `sendKey`, `sendText`, `adjustVolume`.
+
+**AirPlay / DLNA modules** (`modules/airplay`, `modules/dlna`). Android TV
+only; `isSupported()` is false and every call is inert elsewhere (iOS, tvOS,
+phones, Jest). `startAirPlay` runs the receiver while the `airplay` setting is
+on, under `airplayName` (default `tvbox`), and sends HLS casts to the
+`LanPlayer`; `startDlna` runs the renderer under the device name. Both push
+the player state back to the sender every second while casting.
+
+**Web UI.** The page is `assets/web` (from the Java app); the server serves
+the generated `src/lan/web/assets.generated.ts`. After changing anything in
+`assets/web`, run `npm run gen:lan-web` and commit both.
+
 ## Android debug build
 
 The APK is built in a sibling container; the host needs only Docker:

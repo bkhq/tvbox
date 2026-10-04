@@ -1,3 +1,5 @@
+import { Platform } from 'react-native';
+
 import { isObject } from '../types';
 import { readJson, storageKey, writeJson } from '../storage/json';
 import { asyncStorageStore, type KeyValueStore } from '../storage/keyValueStore';
@@ -36,9 +38,11 @@ export interface SettingsStore {
 /**
  * Cross-key rules from the Java putters: ExoPlayer tunnelling needs the
  * surface renderer (PlayerSetting.putEngine / putRender, DecodeSetting.putTunnel).
+ * 'auto' is the video engine everywhere but iOS / tvOS.
  */
 function applyLinked(next: Settings, key: SettingKey): void {
-  if (next.playerEngine !== 'video' || !next.tunnel) return;
+  const video = next.playerEngine === 'video' || (next.playerEngine === 'auto' && Platform.OS !== 'ios');
+  if (!video || !next.tunnel) return;
   if (key === 'render' && next.render === 'texture') next.tunnel = false;
   else next.render = 'surface';
 }

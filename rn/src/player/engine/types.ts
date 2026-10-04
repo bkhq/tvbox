@@ -79,6 +79,8 @@ export interface EngineViewProps {
   /** Text track id; null turns subtitles off, undefined leaves the engine default. */
   selectedTextTrack?: TrackId | null;
   style?: StyleProp<ViewStyle>;
+  /** Keep playing while the app is in the background (the `background` setting). */
+  background?: boolean;
   onEvent(event: EngineEvent): void;
 }
 

@@ -78,7 +78,7 @@ export const settingsSchema = {
   homeSiteKey: text(), // Config.home (home site key of the active VOD config)
 
   // --- PlayerSetting.java
-  playerEngine: choice(['video', 'mpv'], 'video'), // "player_engine" (0 = ExoPlayer, 1 = mpv)
+  playerEngine: choice(['auto', 'video', 'mpv'], 'auto'), // "player_engine" (0 = ExoPlayer, 1 = mpv); 'auto' = platform default (iOS mpv, Android video), 'video' / 'mpv' = explicit choice
   playerDebug: boolean(false), // "player_debug"
   mpvGpuNext: boolean(false), // "mpv_gpu_next"
   mpvVulkan: boolean(false), // "mpv_vulkan"

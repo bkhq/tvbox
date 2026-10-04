@@ -288,6 +288,45 @@ once per item, never written back to the setting, keeping the position:
 A second failure, or an error with no fallback, ends in the `error` state
 with a Chinese message.
 
+### mpv engine (`modules/mpv`, `src/player/engines/mpv`)
+
+`mpvEngineFactory` (kind `mpv`, label `MPV`) renders the local Expo module's
+native `MpvView` and maps `EngineViewProps` to native props (seconds, mpv
+`aid` / `sid` values `auto` / `no` / id, the `decode` setting as hardware or
+software decoding) and native `onMpvEvent` payloads to engine events.
+`isAvailable()` is `isMpvAvailable()`: false in Jest and on web, on Android
+ABIs without libmpv (x86 / x86_64) and on iOS builds without MPVKit; it never
+throws. A missing native view or a failed library load / `mpv_create` /
+`mpv_initialize` is an `error` with `phase: 'init'`, `reason: 'init'`.
+End-file errors are classified by `classifyMpvError`: unrecognized format /
+nothing to play -> `format`, audio / video output init -> `decoder`,
+network / HTTP failures in mpv's last warning -> `network`, other failures
+before the first `load` -> `open`, later failures on a network URL ->
+`network`, else `other`.
+
+**Android.** `modules/mpv/android/src/main/jniLibs/{arm64-v8a,armeabi-v7a}`
+carries the Java app's prebuilt `libmpv.so`, `libplayer.so` (mpv-android JNI
+bridge for `is.xyz.mpv.MPVLib`, ported unchanged in package `is.xyz.mpv`) and
+the FFmpeg libraries libmpv links against (`libav*`, `libsw*`, from
+`media/libraries/decoder_ffmpeg`), copied because the build container mounts
+only `rn/`. They need the bundled `libc++_shared.so` (NDK r29); React
+Native's NDK 27 copy lacks `std::__from_chars_floating_point`.
+`app.config.ts` sets `pickFirst` for `**/libc++_shared.so` (that keeps the
+app's NDK 27 copy) and `modules/mpv/android/build.gradle` then overwrites it
+in the app's merged native libs for arm64-v8a / armeabi-v7a; the r29 copy
+exports every libc++ symbol the React Native libraries use. libplayer holds one global mpv instance, so a new view releases
+the previous one first. Options follow the Java app (`vo=gpu`,
+`hwdec=mediacodec,mediacodec-copy` or `no`, `profile=fast`, `config-dir`
+`files/mpv` for a user `mpv.conf`).
+
+**iOS / tvOS.** MPVKit is SwiftPM-only, so `modules/mpv/ios/fetch-mpvkit.sh`
+downloads the LGPL xcframeworks listed in MPVKit's `Package.swift`
+(`MPVKIT_VERSION`, default `1.0.0`) into `modules/mpv/ios/Frameworks/`
+(gitignored); `TvboxMpv.podspec` vendors whatever is there. Run it before
+`pod install`. Without the frameworks the module still compiles
+(`#if canImport(Libmpv)`) and reports unavailable. Rendering uses
+`vo=gpu-next` with MoltenVK on a `CAMetalLayer` (`wid`), `hwdec=videotoolbox`.
+
 ### Player route
 
 `Player` params are either a VOD episode

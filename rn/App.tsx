@@ -6,6 +6,7 @@ import { getBootstrap } from './src/core/bootstrap';
 import { RootNavigator, type RootStackParamList } from './src/navigation';
 import { setPlayerOpener } from './src/player';
 import { registerBuiltinEngines } from './src/player/engines';
+import { setLiveOpener } from './src/player/live';
 import { UpdatePrompt } from './src/update';
 
 registerBuiltinEngines();
@@ -21,7 +22,10 @@ export default function App() {
     <NavigationContainer
       ref={navigationRef}
       theme={DarkTheme}
-      onReady={() => setPlayerOpener((request) => navigationRef.navigate('Player', request))}
+      onReady={() => {
+        setPlayerOpener((request) => navigationRef.navigate('Player', request));
+        setLiveOpener((params) => navigationRef.navigate('Live', params));
+      }}
     >
       <RootNavigator />
       <UpdatePrompt />

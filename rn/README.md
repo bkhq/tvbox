@@ -366,6 +366,44 @@ errors a Chinese message with 重试 (re-opens the item).
 - Not done: no orientation lock (`expo-screen-orientation` is not a
   dependency); no long-press speed boost (`speedLongPress`).
 
+### Live screen (`src/screens/live`)
+
+Live sources come from `loadLiveSources()` (`src/player/live/source.ts`): the
+active saved live config (`createConfigRepository(store, 'live')`, loaded
+with `loadLiveConfig`), else the `lives` of the loaded VOD config. The
+selected source and the last channel per source (`keepValue`, Live.keep) live
+in the `tvbox.live.state.v1` cell (`readLiveState`, `saveLiveHome`,
+`saveLiveKeep`). `loadLiveGroups(live)` runs `loadLive` with the live
+favourites and splits off password-protected groups.
+
+- Start channel: the route `{ groupIndex, channelIndex }` when valid, else
+  the saved keep (`findKeepPosition`), else the first channel after 收藏.
+- The engine host is the Player screen's pattern on `usePlayback(request,
+  { attach: false })` with the channel's current source URL, name and
+  `channelHeaders` (ua / referer / origin / header, inherited from the live);
+  `scaleLive` sets the resize mode. On a fatal error the next source is tried
+  while `change` is on (`lineAfterError`), then the engine fallback applies.
+- TV remote: up / down (and channel up / down) change channel through
+  `invert` / `across`, media next / previous step channel, left / right
+  switch source, OK opens the channel list, menu (Android) / info opens the
+  live panel (sources, `invert` / `across` / `change`). react-native-tvos
+  reports no digit keys, so channel numbers cannot be typed.
+- Phone: tap toggles the channel list (with 返回 and 直播源 buttons), a
+  vertical swipe changes channel (up = next).
+- Channel list: group column, channels with number, logo and current
+  programme, and on TV the focused channel's guide. EPG comes from the
+  source's XMLTV files (`loadXmltv`, once per source) or the channel's
+  `{date}` URL (`fetchChannelEpg`, on demand). The info bar shows name,
+  number, logo, "线路 n/m" and the current / next programme for 5 s after a
+  channel or source change.
+- Password groups: five presses on 收藏 open the password prompt
+  (PassDialog); matching groups are appended to the list.
+- While focused the screen is the playback host (prev / next = channel,
+  seek / speed reach the engine, title = channel name) and the live select
+  target below.
+- Not done: channel `click` / `parse` resolution, favourites editing (long
+  press), catch-up playback, the boot-to-live (`bootLive`) start.
+
 ### Control API
 
 For LAN services (phone control page, DLNA, AirPlay casts):
@@ -410,6 +448,22 @@ player.seekTo(60_000);
 player.setSpeed(1.5);
 off();
 ```
+
+Live select surface (`src/player/live/controller.ts`):
+
+```ts
+getLiveController(): {
+  // Active live source; password-protected groups are excluded.
+  listGroups(): Promise<Array<{ index: number; name: string;
+    channels: Array<{ index: number; name: string; number: string; logo: string }> }>>;
+  // Switches in place when the Live screen is focused, else opens the Live
+  // route with { groupIndex, channelIndex } through setLiveOpener(fn).
+  selectChannel(groupIndex: number, channelIndex: number): void;
+}
+```
+
+`App.tsx` registers `setLiveOpener` next to `setPlayerOpener`:
+`navigate('Live', params)`.
 
 ## Android debug build
 

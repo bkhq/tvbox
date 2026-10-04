@@ -45,3 +45,25 @@ export {
 } from './navigation';
 export { buildCatchupUrl, type CatchupRange, channelCatchup, hasCatchup, rtspRange } from './catchup';
 export { dateInZone } from './zone';
+export {
+  type LiveGroups,
+  type LiveSources,
+  type LiveState,
+  loadLiveGroups,
+  loadLiveSources,
+  readLiveState,
+  saveLiveHome,
+  saveLiveKeep,
+} from './source';
+export {
+  attachLiveScreen,
+  createLiveControllerHub,
+  describeGroups,
+  getLiveController,
+  type LiveChannelInfo,
+  type LiveController,
+  type LiveGroupInfo,
+  type LiveOpener,
+  type LiveScreenHost,
+  setLiveOpener,
+} from './controller';

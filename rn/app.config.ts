@@ -29,6 +29,8 @@ export default ({ config }: ConfigContext): ExpoConfig =>
       '@react-native-tvos/config-tv',
       // Android-only AirPlay receiver: app-level desugaring and Netty packaging excludes.
       './modules/airplay/app.plugin.js',
+      // Local network usage text and Bonjour service for the httpd module (iOS/tvOS).
+      './modules/httpd/app.plugin.js',
     ],
     extra: {
       workerUrl,

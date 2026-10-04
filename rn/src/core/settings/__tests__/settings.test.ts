@@ -9,7 +9,7 @@ describe('settings defaults', () => {
     const settings = createSettingsStore(new MemoryStore());
     expect(settings.getSettings()).toEqual(defaultSettings());
     expect(settings.getSettings()).toMatchObject({
-      playerEngine: 'video',
+      playerEngine: 'auto',
       decode: 'hard',
       speedPlayback: 1,
       speedLongPress: 2,
@@ -104,13 +104,14 @@ describe('validation', () => {
     const store = new MemoryStore();
     await store.setItem(SETTINGS_STORAGE_KEY, JSON.stringify({ playerEngine: 'vlc', speedPlayback: 99, airplay: false }));
     const settings = await createSettingsStore(store).loadSettings();
-    expect(settings.playerEngine).toBe('video');
+    expect(settings.playerEngine).toBe('auto');
     expect(settings.speedPlayback).toBe(5);
     expect(settings.airplay).toBe(false);
   });
 
   it('keeps tunnelling on the surface renderer for the video engine', async () => {
     const settings = createSettingsStore(new MemoryStore());
+    await settings.set('playerEngine', 'video');
     await settings.set('render', 'texture');
     await settings.set('tunnel', true);
     expect(settings.get('render')).toBe('surface');

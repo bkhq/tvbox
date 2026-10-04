@@ -186,6 +186,147 @@ reported to `onConfigError`, which re-queries the worker on a 404. UI uses
 **Routes.** Add a route by extending `RootStackParamList` in
 `navigation/types.ts` and the table in `navigation/routes.ts`.
 
+## Playback
+
+`src/player/` holds the player core: engine contract and registry, the
+playback state machine (`machine.ts`), the VOD resolve flow (`resolve.ts`),
+history (`history.ts`), the app-wide control API (`controller.ts`) and the
+`usePlayback(params)` hook the Player screen is built on. Engine
+implementations live in sibling workstreams and register themselves.
+
+### Engines
+
+```ts
+type EngineKind = 'video' | 'mpv';
+
+interface EngineSource {
+  url: string;
+  headers: Record<string, string>;
+  title?: string;
+  startPosition?: number; // ms
+  format?: string; // MIME hint
+  subtitles: ExternalSubtitle[]; // { url, name, lang?, format? }
+  drm?: { type: string; licenseUrl?: string; headers?: Record<string, string> };
+}
+
+interface EngineViewProps {
+  source: EngineSource;
+  paused: boolean;
+  rate: number;
+  resizeMode: 'contain' | 'cover' | 'stretch' | 'fill'; // resizeModeFromScale(scale setting)
+  selectedAudioTrack?: TrackId;
+  selectedTextTrack?: TrackId | null; // null = subtitles off
+  style?: StyleProp<ViewStyle>;
+  onEvent(event: EngineEvent): void;
+}
+
+interface EngineHandle { seek(ms: number): void; release?(): void } // the component's ref
+
+type EngineEvent =
+  | { type: 'load'; duration: number; tracks: EngineTracks }
+  | { type: 'progress'; position: number; duration: number; buffered: number }
+  | { type: 'buffering'; value: boolean }
+  | { type: 'playing' } | { type: 'paused' } | { type: 'ended' }
+  | { type: 'tracks'; audio: Track[]; text: Track[]; video: Track[] }
+  | { type: 'error'; code: string | number; message: string; fatal: boolean;
+      phase: 'init' | 'playback';
+      reason: 'init' | 'open' | 'format' | 'decoder' | 'drm' | 'network' | 'other' };
+
+interface EngineFactory {
+  kind: EngineKind;
+  label: string; // Chinese UI name: "系统播放器", "MPV"
+  isAvailable(): boolean;
+  Component: React.ComponentType<EngineViewProps & React.RefAttributes<EngineHandle>>;
+}
+```
+
+Register at startup; times are milliseconds everywhere:
+
+```ts
+import { registerEngine } from './src/player';
+
+registerEngine({ kind: 'mpv', label: 'MPV', isAvailable: () => MpvModule.isAvailable(), Component: MpvView });
+```
+
+`getEngine(kind)`, `listEngines()`, `resolveEngine(preferred)` (preferred if
+registered and available, else the other one) and `fallbackEngine(failed)`
+complete the registry. Engine adapters map native errors to `reason`; the
+player keys the engine view on `sourceKey`, so a new source remounts it.
+
+**Default engine.** The `playerEngine` setting is `'auto' | 'video' | 'mpv'`
+(default `'auto'`). `'auto'` is the platform default: `mpv` on iOS / tvOS,
+`video` (Media3) on Android phone and TV. `'video'` / `'mpv'` are explicit
+user choices. `setPreferredEngine(kind | 'auto')` persists the choice;
+`chooseEngine(preference, Platform.OS, source?)` resolves it, sending DRM
+sources to `video` up front.
+
+**Fallback** (`fallbackDecision(platform, active, error, context)`), at most
+once per item, never written back to the setting, keeping the position:
+
+| Platform / active engine | Falls back to the other engine on                                         |
+| ------------------------ | ------------------------------------------------------------------------ |
+| iOS, `mpv`               | init or open failure (`reason` `init` / `open`, or any error before the first `load`), DRM |
+| Android, `video`         | init failure, `format` or `decoder` errors; network / source errors fail |
+| anything else            | init failure only                                                        |
+
+A second failure, or an error with no fallback, ends in the `error` state
+with a Chinese message.
+
+### Player route
+
+`Player` params are either a VOD episode
+`{ siteKey, vodId, flag?, episodeUrl?, position? }` or a direct URL
+`{ url, title?, headers?, position? }`; tell them apart with
+`isVodPlayerParams` / `isUrlPlayerParams`. VOD playback resumes and updates
+the history record Detail wrote for `(cid, historyKey(siteKey, vodId))`
+through `getHistoryRepository()` (none while `incognito`); direct URLs write
+no history.
+
+### Control API
+
+For LAN services (phone control page, DLNA, AirPlay casts):
+
+```ts
+getPlaybackController(): {
+  getState(): PlaybackSnapshot;
+  play(): void; pause(): void; stop(): void;
+  prev(): void; next(): void;          // VOD: episode, Live: channel
+  repeat(): void;                      // toggle repeat-one, see snapshot.repeat
+  replay(): void;                      // restart the current item from 0
+  seekTo(ms: number): void;
+  setSpeed(n: number): void;           // clamped to 0.1..5 (speedPlayback range)
+  playUrl(url: string, opts?: { title?: string; position?: number; headers?: Record<string, string> }): void;
+  subscribe(listener: (s: PlaybackSnapshot) => void): () => void;
+}
+
+interface PlaybackSnapshot {
+  active: boolean; playing: boolean; title: string;
+  position: number; duration: number; // ms
+  speed: number; repeat: boolean;
+  url?: string; engine?: EngineKind;
+  status: 'idle' | 'resolving' | 'parsing' | 'loading' | 'buffering' | 'playing' | 'paused' | 'ended' | 'error';
+}
+```
+
+The screen that owns playback attaches as the host with
+`attachPlaybackHost(host)` (returns the detach function). A host implements
+the same commands plus `getState()`, `subscribe(push)` to push snapshots, and
+optionally `playUrl(request)`; the Player screen does all of this through
+`usePlayback`. Without a host `getState().active` is false and the commands
+are no-ops. `playUrl` goes to the attached host when it accepts URLs;
+otherwise it calls the opener registered with `setPlayerOpener(fn)` (wired to
+navigate to `Player` with the direct-URL params) and the request is queued
+for the next host that accepts URLs.
+
+```ts
+const player = getPlaybackController();
+const off = player.subscribe((s) => send({ playing: s.playing, position: s.position }));
+player.playUrl('https://example.com/a.m3u8', { title: '投屏', position: 30_000 });
+player.seekTo(60_000);
+player.setSpeed(1.5);
+off();
+```
+
 ## Android debug build
 
 The APK is built in a sibling container; the host needs only Docker:

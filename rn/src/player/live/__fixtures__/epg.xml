@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE tv SYSTEM "xmltv.dtd">
+<tv date="20261004000000 +0800" generator-info-name="fixture">
+  <channel id="cctv1"><display-name lang="zh">CCTV1</display-name><icon src="http://icon.example.com/cctv1.png"/></channel>
+  <channel id="100"><display-name>浙江</display-name><display-name>Zhejiang</display-name><icon src="http://icon.example.com/zj.png"/></channel>
+  <channel id="hunan"><display-name>湖南卫视</display-name></channel>
+  <channel id="nobody"><display-name>Unknown</display-name></channel>
+  <programme start="20261004190000 +0800" stop="20261004200000 +0800" channel="cctv1"><title lang="zh">新闻联播</title></programme>
+  <programme start="20261004200000 +0800" stop="20261005003000 +0800" channel="cctv1"><title lang="zh"></title><title lang="en">Evening Film</title></programme>
+  <programme start="20261005003000 +0800" stop="20261005010000 +0800" channel="cctv1"><title>午夜新闻 &amp; 天气</title></programme>
+  <programme start="20261004120000" stop="20261004130000" channel="100"><title>浙江午间</title></programme>
+  <programme start="20261004080000 +00:00" stop="20261004090000 +00:00" channel="hunan"><title>快乐大本营</title></programme>
+  <programme start="20261004080000 +0000" stop="20261004090000 +0000" channel="nobody"><title>Nothing</title></programme>
+</tv>

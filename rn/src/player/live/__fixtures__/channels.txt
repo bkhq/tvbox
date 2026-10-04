@@ -1,0 +1,9 @@
+CCTV0,http://pre.example.com/0.m3u8
+央视频道,#genre#
+ua=TxtUA/2.0
+CCTV1,http://a.example.com/1.m3u8#http://b.example.com/1.m3u8$备用线路
+CCTV2,http://a.example.com/2.m3u8
+CCTV1,http://c.example.com/1.m3u8|Referer=http://ref.txt.example.com/
+地方_8888,#genre#
+北京卫视,http://bj.example.com/bj.m3u8
+not a channel line

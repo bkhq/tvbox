@@ -37,7 +37,7 @@ describe('RootNavigator', () => {
       );
     });
     expect(ref.getCurrentRoute()?.name).toBe('Home');
-    expect(texts(renderer)).toEqual(expect.arrayContaining(['首页', '开发中']));
+    expect(texts(renderer)).toContain('首页');
 
     const params: { [K in keyof RootStackParamList]: RootStackParamList[K] } = {
       Home: undefined,

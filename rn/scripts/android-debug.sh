@@ -43,7 +43,7 @@ docker run --rm \
 
     # SDK overlay: link every shared package, install what is missing here.
     mkdir -p "$sdk"
-    cp -rn "$SHARED_SDK/licenses" "$sdk/"
+    cp -r --update=none "$SHARED_SDK/licenses" "$sdk/"
     ln -sfn "$SHARED_SDK/platform-tools" "$sdk/platform-tools"
     for group in build-tools platforms cmake ndk cmdline-tools; do
       [ -d "$SHARED_SDK/$group" ] || continue

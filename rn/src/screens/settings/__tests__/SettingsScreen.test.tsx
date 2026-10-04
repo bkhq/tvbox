@@ -191,9 +191,17 @@ describe('SettingsScreen', () => {
     expect(appSettings.get('incognito')).toBe(true);
     await press(renderer, 'settings-decode');
     expect(appSettings.get('decode')).toBe('soft');
+    const engineLabels = () => byID(renderer, 'settings-playerEngine').findAllByType(Text).map((node) => node.props.children);
+    expect(appSettings.get('playerEngine')).toBe('auto');
+    expect(engineLabels()).toContain('自动（iOS 默认 MPV，Android 默认系统播放器）');
+    await press(renderer, 'settings-playerEngine');
+    expect(appSettings.get('playerEngine')).toBe('video');
     await press(renderer, 'settings-playerEngine');
     expect(appSettings.get('playerEngine')).toBe('mpv');
-    expect(byID(renderer, 'settings-playerEngine').findAllByType(Text).map((node) => node.props.children)).toContain('MPV');
+    expect(engineLabels()).toContain('MPV');
+    await press(renderer, 'settings-playerEngine');
+    expect(appSettings.get('playerEngine')).toBe('auto');
+    expect(engineLabels()).toContain('自动（iOS 默认 MPV，Android 默认系统播放器）');
     await act(async () => renderer.unmount());
   });
 

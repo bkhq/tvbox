@@ -1,0 +1,61 @@
+{
+  "name": "tvbox",
+  "version": "1.0.0",
+  "private": true,
+  "main": "index.ts",
+  "scripts": {
+    "start": "expo start --dev-client",
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit",
+    "test": "jest",
+    "prebuild:android": "expo prebuild --platform android --no-install",
+    "prebuild:tv-ios": "EXPO_TV=1 expo prebuild --platform ios --no-install",
+    "android:debug": "cd android && ./gradlew assembleDebug",
+    "android:debug:docker": "bash scripts/android-debug.sh"
+  },
+  "dependencies": {
+    "@react-native-async-storage/async-storage": "2.2.0",
+    "@react-native-tvos/config-tv": "^0.1.7",
+    "@react-navigation/native": "^7.5.0",
+    "@react-navigation/native-stack": "^7.20.0",
+    "expo": "~57.0.26",
+    "expo-build-properties": "~57.0.22",
+    "expo-constants": "~57.0.20",
+    "expo-crypto": "~57.0.3",
+    "expo-status-bar": "~57.0.1",
+    "fast-xml-parser": "^5.11.2",
+    "react": "19.2.3",
+    "react-native": "npm:react-native-tvos@0.86.3-0",
+    "react-native-safe-area-context": "~5.7.0",
+    "react-native-screens": "~4.26.0"
+  },
+  "expo": {
+    "install": {
+      "exclude": [
+        "react-native"
+      ]
+    }
+  },
+  "devDependencies": {
+    "@react-native/jest-preset": "0.86.3",
+    "@types/jest": "29.5.14",
+    "@types/react": "~19.2.4",
+    "eslint": "^9.39.5",
+    "eslint-config-expo": "~57.0.2",
+    "jest": "~29.7.0",
+    "jest-expo": "~57.0.5",
+    "typescript": "~6.0.3"
+  },
+  "jest": {
+    "preset": "jest-expo",
+    "setupFiles": [
+      "<rootDir>/jest.setup.ts"
+    ],
+    "testPathIgnorePatterns": [
+      "/node_modules/",
+      "/android/",
+      "/ios/",
+      "/.tmp/"
+    ]
+  }
+}

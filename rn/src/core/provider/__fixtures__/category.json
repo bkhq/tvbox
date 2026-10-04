@@ -1,0 +1,11 @@
+{
+  "code": 1,
+  "msg": "数据列表",
+  "page": "2",
+  "pagecount": "5",
+  "limit": "20",
+  "total": 100,
+  "list": [
+    { "vod_id": 21, "vod_name": "电影B", "type_name": "电影", "vod_pic": "https://img.example.com/21.jpg", "vod_remarks": "HD" }
+  ]
+}

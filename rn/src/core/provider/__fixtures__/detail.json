@@ -1,0 +1,17 @@
+{
+  "code": 1,
+  "page": 1,
+  "pagecount": 1,
+  "list": [
+    {
+      "vod_id": 21,
+      "vod_name": "电影B",
+      "type_name": "电影",
+      "vod_pic": "https://img.example.com/21.jpg",
+      "vod_year": "2026",
+      "vod_content": "简介",
+      "vod_play_from": "m3u8$$$yun",
+      "vod_play_url": "正片$https://cdn.example.com/21.m3u8$$$正片$https://share.example.com/21.html"
+    }
+  ]
+}

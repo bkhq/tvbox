@@ -27,6 +27,8 @@ export default ({ config }: ConfigContext): ExpoConfig =>
       'expo-build-properties',
       // Switches prebuild output to Android TV / tvOS when EXPO_TV=1.
       '@react-native-tvos/config-tv',
+      // Local network usage text and Bonjour service for the httpd module (iOS/tvOS).
+      './modules/httpd/app.plugin.js',
     ],
     extra: {
       workerUrl,

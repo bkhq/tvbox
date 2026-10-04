@@ -1,9 +1,14 @@
+import { Modal, Pressable, ScrollView, Text, View } from 'react-native';
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 
 import { createUpdateController, type UpdateControllerDeps } from '../controller';
 import type { DownloadedApk, InstallDeps } from '../install';
 import { UpdateDialog } from '../UpdateDialog';
 import { UpdateSettingsItem } from '../UpdateSettingsItem';
+
+// react-native resolves components lazily on first access; resolve the ones the
+// dialog and settings item render while the file loads so no test pays that cost inside its timeout.
+void [Modal, Pressable, ScrollView, Text, View];
 
 // Keeps the singleton (and its native deps) out of these tests.
 jest.mock('../updater', () => ({ getUpdateController: jest.fn() }));

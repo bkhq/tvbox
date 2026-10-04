@@ -1,0 +1,18 @@
+#EXTM3U x-tvg-url="http://epg.example.com/e.xml.gz" catchup="append" catchup-source="?playseek=${(b)yyyyMMddHHmmss}-${(e)yyyyMMddHHmmss}"
+#EXTINF:-1 tvg-id="cctv1" tvg-name="CCTV1" tvg-logo="http://logo.example.com/cctv1.png" group-title="央视",CCTV-1 综合
+#EXTVLCOPT:http-user-agent=TestUA/1.0
+#EXTVLCOPT:http-referrer=http://ref.example.com/
+http://a.example.com/cctv1.m3u8
+#EXTINF:-1 tvg-id="cctv1" tvg-name="CCTV1" group-title="央视",CCTV-1 综合
+http://b.example.com/cctv1.m3u8|User-Agent=PipeUA&Referer=http://pipe.example.com/
+#EXTINF:-1 tvg-chno="20" group-title="卫视" catchup="default" catchup-source="http://tv.example.com/{utc:x}/{utcend:x}",湖南卫视
+#KODIPROP:inputstream.adaptive.manifest_type=mpd
+#KODIPROP:inputstream.adaptive.stream_headers=X-Token=abc&Origin=http://o.example.com
+http://c.example.com/hunan.mpd
+#EXTINF:-1 tvg-name="浙江" group-title="卫视",浙江卫视
+#EXTHTTP:{"Cookie":"k=v"}
+http://d.example.com/zj.m3u8
+#EXTINF:-1,无分组频道
+http://e.example.com/x.m3u8
+#EXTINF:-1 group-title="VIP_1234",秘密频道
+http://f.example.com/vip.m3u8

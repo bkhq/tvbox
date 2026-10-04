@@ -1,0 +1,401 @@
+name: RN Release
+
+# Builds the React Native app (rn/) for Android, iOS and tvOS. Pushes to main
+# only build; rn-vX.Y.Z tags also publish to GitHub releases, the worker
+# bucket and the rn update manifests. Path filters do not apply to tags.
+on:
+  push:
+    branches: [main]
+    tags: ["rn-v*"]
+    paths:
+      - "rn/**"
+      - ".github/workflows/rn-release.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: rn-release-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  BUNDLE_ID: cc.bkhq.tvbox
+
+jobs:
+  # Release tags are rn-vX.Y.Z; versionCode = X*10000 + Y*100 + Z, used for
+  # both the Android versionCode and the iOS buildNumber. Other runs leave the
+  # outputs empty so app.config.ts keeps its defaults.
+  version:
+    runs-on: ubuntu-latest
+    outputs:
+      code: ${{ steps.version.outputs.code }}
+      name: ${{ steps.version.outputs.name }}
+    steps:
+      - name: Version from tag
+        id: version
+        if: startsWith(github.ref, 'refs/tags/rn-v')
+        run: |
+          if [[ ! "$GITHUB_REF_NAME" =~ ^rn-v([0-9]+)\.([0-9]{1,2})\.([0-9]{1,2})$ ]]; then
+            echo "::error::rn release tags must look like rn-v1.2.3 (minor and patch below 100), got $GITHUB_REF_NAME"
+            exit 1
+          fi
+          code=$(( 10#${BASH_REMATCH[1]} * 10000 + 10#${BASH_REMATCH[2]} * 100 + 10#${BASH_REMATCH[3]} ))
+          echo "code=$code" >> "$GITHUB_OUTPUT"
+          echo "name=${GITHUB_REF_NAME#rn-v}" >> "$GITHUB_OUTPUT"
+
+  android:
+    needs: version
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: rn
+    env:
+      VERSION_CODE: ${{ needs.version.outputs.code }}
+      VERSION_NAME: ${{ needs.version.outputs.name }}
+      WORKER_URL: ${{ vars.WORKER_URL }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: rn/package-lock.json
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - uses: android-actions/setup-android@v3
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - run: npm ci
+
+      - name: Install the SDK packages React Native pins
+        run: |
+          version() { sed -n "s/^$1 = \"\(.*\)\"/\1/p" node_modules/react-native/gradle/libs.versions.toml; }
+          yes | sdkmanager "platforms;android-$(version compileSdk)" "build-tools;$(version buildTools)" "ndk;$(version ndkVersion)" > /dev/null
+
+      - name: Prebuild
+        run: npx expo prebuild --platform android --no-install
+
+      # The generated release build type signs with the debug keystore. When
+      # the rnRelease* gradle properties are set this block replaces it.
+      - name: Configure release signing
+        env:
+          RN_ANDROID_KEYSTORE_BASE64: ${{ secrets.RN_ANDROID_KEYSTORE_BASE64 }}
+          RN_ANDROID_KEYSTORE_PASSWORD: ${{ secrets.RN_ANDROID_KEYSTORE_PASSWORD }}
+          RN_ANDROID_KEY_ALIAS: ${{ secrets.RN_ANDROID_KEY_ALIAS }}
+          RN_ANDROID_KEY_PASSWORD: ${{ secrets.RN_ANDROID_KEY_PASSWORD }}
+        run: |
+          if [ -z "$RN_ANDROID_KEYSTORE_BASE64" ] || [ -z "$RN_ANDROID_KEYSTORE_PASSWORD" ] \
+            || [ -z "$RN_ANDROID_KEY_ALIAS" ] || [ -z "$RN_ANDROID_KEY_PASSWORD" ]; then
+            echo "::warning::RN_ANDROID_* signing secrets are not set; the release APK is signed with the debug keystore"
+            exit 0
+          fi
+          printf '%s' "$RN_ANDROID_KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/rn-release.keystore"
+          echo "ORG_GRADLE_PROJECT_rnReleaseStoreFile=$RUNNER_TEMP/rn-release.keystore" >> "$GITHUB_ENV"
+          cat >> android/app/build.gradle <<'GRADLE'
+
+          if (project.hasProperty('rnReleaseStoreFile')) {
+              android {
+                  signingConfigs {
+                      rnRelease {
+                          storeFile file(project.property('rnReleaseStoreFile'))
+                          storePassword project.property('rnReleaseStorePassword')
+                          keyAlias project.property('rnReleaseKeyAlias')
+                          keyPassword project.property('rnReleaseKeyPassword')
+                      }
+                  }
+                  buildTypes {
+                      release {
+                          signingConfig signingConfigs.rnRelease
+                      }
+                  }
+              }
+          }
+          GRADLE
+
+      - name: Build
+        working-directory: rn/android
+        env:
+          ORG_GRADLE_PROJECT_rnReleaseStorePassword: ${{ secrets.RN_ANDROID_KEYSTORE_PASSWORD }}
+          ORG_GRADLE_PROJECT_rnReleaseKeyAlias: ${{ secrets.RN_ANDROID_KEY_ALIAS }}
+          ORG_GRADLE_PROJECT_rnReleaseKeyPassword: ${{ secrets.RN_ANDROID_KEY_PASSWORD }}
+        run: ./gradlew --no-daemon assembleRelease
+
+      - name: Collect
+        run: |
+          mkdir -p dist
+          cp android/app/build/outputs/apk/release/app-release.apk dist/android-universal.apk
+          ls -l dist
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: rn-android-universal
+          path: rn/dist/android-universal.apk
+          if-no-files-found: error
+
+  apple:
+    needs: version
+    runs-on: macos-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        target: [ios, tvos]
+    defaults:
+      run:
+        working-directory: rn
+    env:
+      TARGET: ${{ matrix.target }}
+      VERSION_CODE: ${{ needs.version.outputs.code }}
+      VERSION_NAME: ${{ needs.version.outputs.name }}
+      WORKER_URL: ${{ vars.WORKER_URL }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: rn/package-lock.json
+
+      - run: npm ci
+
+      - name: Prebuild
+        run: |
+          if [ "$TARGET" = tvos ]; then export EXPO_TV=1; fi
+          npx expo prebuild --platform ios --no-install
+          cd ios && pod install
+
+      # The display name is Chinese, so the project, workspace and scheme
+      # names are discovered instead of hard-coded.
+      - name: Find the workspace and scheme
+        id: project
+        run: |
+          workspace="$(find ios -maxdepth 1 -name '*.xcworkspace' | head -n1)"
+          project="$(find ios -maxdepth 1 -name '*.xcodeproj' ! -name 'Pods.xcodeproj' | head -n1)"
+          scheme="$(xcodebuild -list -json -project "$project" | jq -r '.project.schemes[0] // empty')"
+          if [ -z "$workspace" ] || [ -z "$scheme" ]; then
+            echo "::error::no workspace or scheme found under rn/ios"
+            exit 1
+          fi
+          {
+            echo "workspace=$workspace"
+            echo "project=$project"
+            echo "scheme=$scheme"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Import signing assets
+        id: signing
+        env:
+          APPLE_CERTIFICATE_P12_BASE64: ${{ secrets.APPLE_CERTIFICATE_P12_BASE64 }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APPLE_PROVISIONING_PROFILE_IOS_BASE64: ${{ secrets.APPLE_PROVISIONING_PROFILE_IOS_BASE64 }}
+          APPLE_PROVISIONING_PROFILE_TVOS_BASE64: ${{ secrets.APPLE_PROVISIONING_PROFILE_TVOS_BASE64 }}
+        run: |
+          if [ "$TARGET" = tvos ]; then profile="$APPLE_PROVISIONING_PROFILE_TVOS_BASE64"; else profile="$APPLE_PROVISIONING_PROFILE_IOS_BASE64"; fi
+          if [ -z "$APPLE_CERTIFICATE_P12_BASE64" ] || [ -z "$APPLE_CERTIFICATE_PASSWORD" ] \
+            || [ -z "$APPLE_TEAM_ID" ] || [ -z "$profile" ]; then
+            echo "::warning::Apple signing secrets for $TARGET are not set; building unsigned for the simulator, nothing is published"
+            echo "signed=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          keychain_password="$(openssl rand -hex 24)"
+          echo "::add-mask::$keychain_password"
+          printf '%s' "$APPLE_CERTIFICATE_P12_BASE64" | base64 --decode > "$RUNNER_TEMP/rn-signing.p12"
+          keychain="$RUNNER_TEMP/rn-signing.keychain-db"
+          security create-keychain -p "$keychain_password" "$keychain"
+          security set-keychain-settings -lut 21600 "$keychain"
+          security unlock-keychain -p "$keychain_password" "$keychain"
+          security import "$RUNNER_TEMP/rn-signing.p12" -P "$APPLE_CERTIFICATE_PASSWORD" -A -t cert -f pkcs12 -k "$keychain"
+          security set-key-partition-list -S apple-tool:,apple: -s -k "$keychain_password" "$keychain" > /dev/null
+          read -r -a keychains <<< "$(security list-keychains -d user | tr -d '"' | xargs)"
+          security list-keychains -d user -s "$keychain" "${keychains[@]}"
+          rm -f "$RUNNER_TEMP/rn-signing.p12"
+          identity="$(security find-identity -v -p codesigning "$keychain" | awk 'NR == 1 { print $2 }')"
+
+          printf '%s' "$profile" | base64 --decode > "$RUNNER_TEMP/rn-$TARGET.mobileprovision"
+          security cms -D -i "$RUNNER_TEMP/rn-$TARGET.mobileprovision" > "$RUNNER_TEMP/rn-$TARGET-profile.plist"
+          uuid="$(/usr/libexec/PlistBuddy -c 'Print :UUID' "$RUNNER_TEMP/rn-$TARGET-profile.plist")"
+          for dir in "$HOME/Library/MobileDevice/Provisioning Profiles" "$HOME/Library/Developer/Xcode/UserData/Provisioning Profiles"; do
+            mkdir -p "$dir"
+            cp "$RUNNER_TEMP/rn-$TARGET.mobileprovision" "$dir/$uuid.mobileprovision"
+          done
+
+          {
+            echo "signed=true"
+            echo "identity=$identity"
+            echo "uuid=$uuid"
+            echo "team=$APPLE_TEAM_ID"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Build for the simulator (unsigned)
+        if: steps.signing.outputs.signed != 'true'
+        env:
+          WORKSPACE: ${{ steps.project.outputs.workspace }}
+          SCHEME: ${{ steps.project.outputs.scheme }}
+        run: |
+          if [ "$TARGET" = tvos ]; then sdk=appletvsimulator; platform="tvOS Simulator"; else sdk=iphonesimulator; platform="iOS Simulator"; fi
+          xcodebuild build -quiet -workspace "$WORKSPACE" -scheme "$SCHEME" -configuration Release \
+            -sdk "$sdk" -destination "generic/platform=$platform" CODE_SIGNING_ALLOWED=NO
+
+      # Manual signing is set on the app target only; command-line settings
+      # would also apply to the Pods targets, which cannot take a profile.
+      - name: Archive and export the ipa
+        if: steps.signing.outputs.signed == 'true'
+        env:
+          WORKSPACE: ${{ steps.project.outputs.workspace }}
+          PROJECT: ${{ steps.project.outputs.project }}
+          SCHEME: ${{ steps.project.outputs.scheme }}
+          TEAM_ID: ${{ steps.signing.outputs.team }}
+          IDENTITY: ${{ steps.signing.outputs.identity }}
+          PROFILE_UUID: ${{ steps.signing.outputs.uuid }}
+        run: |
+          ruby -rxcodeproj -e '
+            project = Xcodeproj::Project.open(ARGV[0])
+            project.targets.select { |t| t.product_type == "com.apple.product-type.application" }.each do |target|
+              target.build_configurations.each do |config|
+                settings = config.build_settings
+                settings["CODE_SIGN_STYLE"] = "Manual"
+                settings["DEVELOPMENT_TEAM"] = ENV.fetch("TEAM_ID")
+                # The project level sets CODE_SIGN_IDENTITY[sdk=iphoneos*]; override every variant.
+                %w[CODE_SIGN_IDENTITY CODE_SIGN_IDENTITY[sdk=iphoneos*] CODE_SIGN_IDENTITY[sdk=appletvos*]].each do |key|
+                  settings[key] = ENV.fetch("IDENTITY")
+                end
+                settings["PROVISIONING_PROFILE_SPECIFIER"] = ENV.fetch("PROFILE_UUID")
+              end
+            end
+            project.save
+          ' "$PROJECT"
+
+          if [ "$TARGET" = tvos ]; then platform=tvOS; else platform=iOS; fi
+          xcodebuild archive -quiet -workspace "$WORKSPACE" -scheme "$SCHEME" -configuration Release \
+            -destination "generic/platform=$platform" -archivePath "$RUNNER_TEMP/rn-$TARGET.xcarchive" \
+            OTHER_CODE_SIGN_FLAGS="--keychain $RUNNER_TEMP/rn-signing.keychain-db"
+
+          cat > "$RUNNER_TEMP/rn-export-options.plist" <<PLIST
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+            <key>method</key><string>release-testing</string>
+            <key>teamID</key><string>$TEAM_ID</string>
+            <key>signingStyle</key><string>manual</string>
+            <key>signingCertificate</key><string>$IDENTITY</string>
+            <key>provisioningProfiles</key>
+            <dict>
+              <key>$BUNDLE_ID</key><string>$PROFILE_UUID</string>
+            </dict>
+            <key>thinning</key><string>&lt;none&gt;</string>
+          </dict>
+          </plist>
+          PLIST
+          xcodebuild -exportArchive -archivePath "$RUNNER_TEMP/rn-$TARGET.xcarchive" \
+            -exportOptionsPlist "$RUNNER_TEMP/rn-export-options.plist" -exportPath "$RUNNER_TEMP/rn-$TARGET-export"
+
+          ipa="$(find "$RUNNER_TEMP/rn-$TARGET-export" -name '*.ipa' | head -n1)"
+          if [ -z "$ipa" ]; then
+            echo "::error::xcodebuild -exportArchive produced no ipa"
+            exit 1
+          fi
+          mkdir -p dist
+          cp "$ipa" "dist/$TARGET-universal.ipa"
+          ls -l dist
+
+      - uses: actions/upload-artifact@v4
+        if: steps.signing.outputs.signed == 'true'
+        with:
+          name: rn-${{ matrix.target }}-universal
+          path: rn/dist/${{ matrix.target }}-universal.ipa
+          if-no-files-found: error
+
+      - name: Remove the signing keychain
+        if: always()
+        run: |
+          if [ -f "$RUNNER_TEMP/rn-signing.keychain-db" ]; then security delete-keychain "$RUNNER_TEMP/rn-signing.keychain-db"; fi
+          rm -f "$RUNNER_TEMP"/rn-*.mobileprovision "$RUNNER_TEMP"/rn-*-profile.plist "$RUNNER_TEMP/rn-signing.p12"
+
+  # Publishes the APK plus every ipa that was signed; unsigned Apple targets
+  # only ran a compile check and contribute nothing.
+  publish:
+    needs: [version, android, apple]
+    if: startsWith(github.ref, 'refs/tags/rn-v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      VERSION_CODE: ${{ needs.version.outputs.code }}
+      VERSION_NAME: ${{ needs.version.outputs.name }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: rn-*
+          path: dist
+          merge-multiple: true
+
+      - name: Collect
+        run: |
+          ls -l dist
+          if [ ! -f dist/android-universal.apk ]; then
+            echo "::error::android-universal.apk is missing"
+            exit 1
+          fi
+          for target in ios tvos; do
+            [ -f "dist/$target-universal.ipa" ] || echo "::warning::$target-universal.ipa was not built (unsigned); it is not published"
+          done
+
+      - name: Release notes from the tag
+        run: |
+          # actions/checkout fetches the tag as a lightweight ref; fetch the
+          # annotated tag object so its message becomes the release notes.
+          git fetch --force --depth=1 origin "+refs/tags/$GITHUB_REF_NAME:refs/tags/$GITHUB_REF_NAME"
+          printf '%s' "$(git tag -l --format='%(contents)' "$GITHUB_REF_NAME")" > "$RUNNER_TEMP/notes.md"
+
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "$GITHUB_REF_NAME" dist/* --title "$GITHUB_REF_NAME" --notes-file "$RUNNER_TEMP/notes.md"
+
+      # Binaries go straight to the bucket; the worker only records them and
+      # rewrites the rn update manifests the app polls.
+      - name: Upload binaries to the worker bucket
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          bucket="$(grep -oP 'bucket_name = "\K[^"]+' worker/apps/api/wrangler.toml)"
+          for file in dist/*; do
+            case "$file" in
+              *.apk) type=application/vnd.android.package-archive ;;
+              *) type=application/octet-stream ;;
+            esac
+            npx --yes wrangler@4 r2 object put "$bucket/tvbox/rn/releases/$VERSION_CODE/$(basename "$file")" \
+              --file "$file" --content-type "$type" --remote
+          done
+
+      - name: Register the release with the worker
+        env:
+          WORKER_URL: ${{ vars.WORKER_URL }}
+          SERVICE_TOKEN_RELEASE: ${{ secrets.SERVICE_TOKEN_RELEASE }}
+        run: |
+          assets="$(for file in dist/*; do
+            name="$(basename "${file%.*}")"
+            jq -n --arg mode "${name%%-*}" --arg abi "${name#*-}" \
+              --arg sha256 "$(sha256sum "$file" | cut -d' ' -f1)" --argjson size "$(stat -c%s "$file")" \
+              --arg bundleId "$BUNDLE_ID" \
+              '{mode: $mode, abi: $abi, sha256: $sha256, size: $size}
+                + (if $mode == "ios" or $mode == "tvos" then {bundleId: $bundleId} else {} end)'
+          done | jq -s .)"
+          jq -n --argjson versionCode "$VERSION_CODE" --arg versionName "$VERSION_NAME" \
+            --rawfile notes "$RUNNER_TEMP/notes.md" --argjson assets "$assets" \
+            '{app: "rn", versionCode: $versionCode, versionName: $versionName, notes: $notes, assets: $assets}' > "$RUNNER_TEMP/release.json"
+          curl --fail-with-body -sS -X POST "${WORKER_URL%/}/mg/api/raw/releases" \
+            -H "Authorization: Bearer $SERVICE_TOKEN_RELEASE" -H "Content-Type: application/json" --data @"$RUNNER_TEMP/release.json"

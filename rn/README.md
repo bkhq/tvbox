@@ -118,7 +118,7 @@ to avoid an import cycle).
 | `History`  | none                                                                     | VOD UI              |
 | `Collect`  | none                                                                     | VOD UI              |
 | `Settings` | none                                                                     | VOD UI              |
-| `Player`   | `{ siteKey, vodId, flag?, episodeUrl?, position? }`                      | playback / live    |
+| `Player`   | `{ siteKey, vodId, flag?, episodeUrl?, position? } \| { url, title?, headers?, position? }` | playback / live    |
 | `Live`     | `{ groupIndex?, channelIndex? } \| undefined`                            | playback / live    |
 | `Control`  | none                                                                     | LAN services        |
 
@@ -186,6 +186,361 @@ reported to `onConfigError`, which re-queries the worker on a 404. UI uses
 **Routes.** Add a route by extending `RootStackParamList` in
 `navigation/types.ts` and the table in `navigation/routes.ts`.
 
+## Playback
+
+`src/player/` holds the player core: engine contract and registry, the
+playback state machine (`machine.ts`), the VOD resolve flow (`resolve.ts`),
+history (`history.ts`), the app-wide control API (`controller.ts`) and the
+`usePlayback(params)` hook the Player screen is built on. Engine
+implementations live in sibling workstreams and register themselves.
+
+### Engines
+
+```ts
+type EngineKind = 'video' | 'mpv';
+
+interface EngineSource {
+  url: string;
+  headers: Record<string, string>;
+  title?: string;
+  startPosition?: number; // ms
+  format?: string; // MIME hint
+  subtitles: ExternalSubtitle[]; // { url, name, lang?, format? }
+  drm?: { type: string; licenseUrl?: string; headers?: Record<string, string> };
+}
+
+interface EngineViewProps {
+  source: EngineSource;
+  paused: boolean;
+  rate: number;
+  resizeMode: 'contain' | 'cover' | 'stretch' | 'fill'; // resizeModeFromScale(scale setting)
+  selectedAudioTrack?: TrackId;
+  selectedTextTrack?: TrackId | null; // null = subtitles off
+  style?: StyleProp<ViewStyle>;
+  onEvent(event: EngineEvent): void;
+}
+
+interface EngineHandle { seek(ms: number): void; release?(): void } // the component's ref
+
+type EngineEvent =
+  | { type: 'load'; duration: number; tracks: EngineTracks }
+  | { type: 'progress'; position: number; duration: number; buffered: number }
+  | { type: 'buffering'; value: boolean }
+  | { type: 'playing' } | { type: 'paused' } | { type: 'ended' }
+  | { type: 'tracks'; audio: Track[]; text: Track[]; video: Track[] }
+  | { type: 'error'; code: string | number; message: string; fatal: boolean;
+      phase: 'init' | 'playback';
+      reason: 'init' | 'open' | 'format' | 'decoder' | 'drm' | 'network' | 'other' };
+
+interface EngineFactory {
+  kind: EngineKind;
+  label: string; // Chinese UI name: "系统播放器", "MPV"
+  isAvailable(): boolean;
+  Component: React.ComponentType<EngineViewProps & React.RefAttributes<EngineHandle>>;
+}
+```
+
+Register at startup; times are milliseconds everywhere:
+
+```ts
+import { registerEngine } from './src/player';
+
+registerEngine({ kind: 'mpv', label: 'MPV', isAvailable: () => MpvModule.isAvailable(), Component: MpvView });
+```
+
+`registerBuiltinEngines()` (`src/player/engines/`, called once in `App.tsx`)
+registers the bundled engines. Engine views take an optional
+`background?: boolean` prop, the `background` setting (keep playing while the
+app is in the background).
+
+**Video engine** (`src/player/engines/video/`, kind `video`, "系统播放器"):
+`react-native-video` 6.19.3 (Media3 on Android with HLS / DASH /
+SmoothStreaming, AVPlayer on iOS / tvOS), enabled through its config plugin
+with `enableBackgroundAudio` (iOS `UIBackgroundModes` audio). External
+subtitles: SRT, VTT and TTML (by MIME hint, else file extension); ASS / SSA
+are skipped. Errors before the first `load` are phase `init`; Media3 codes map
+`IO_*` / timeout -> `network`, `PARSING_*` / `DECODING_FORMAT_*` -> `format`,
+`DECODER_*` / `DECODING_*` / `AUDIO_TRACK_*` -> `decoder`, `DRM_*` -> `drm`;
+AVPlayer `NSURLErrorDomain` -> `network`, AVFoundation unsupported / decode
+errors -> `format` / `decoder` (table in `errors.ts`).
+
+`getEngine(kind)`, `listEngines()`, `resolveEngine(preferred)` (preferred if
+registered and available, else the other one) and `fallbackEngine(failed)`
+complete the registry. Engine adapters map native errors to `reason`; the
+player keys the engine view on `sourceKey`, so a new source remounts it.
+
+**Default engine.** The `playerEngine` setting is `'auto' | 'video' | 'mpv'`
+(default `'auto'`). `'auto'` is the platform default: `mpv` on iOS / tvOS,
+`video` (Media3) on Android phone and TV. `'video'` / `'mpv'` are explicit
+user choices. `setPreferredEngine(kind | 'auto')` persists the choice;
+`chooseEngine(preference, Platform.OS, source?)` resolves it, sending DRM
+sources to `video` up front.
+
+**Fallback** (`fallbackDecision(platform, active, error, context)`), at most
+once per item, never written back to the setting, keeping the position:
+
+| Platform / active engine | Falls back to the other engine on                                         |
+| ------------------------ | ------------------------------------------------------------------------ |
+| iOS, `mpv`               | `reason` `init`, `open`, `format`, `decoder` or `drm`                     |
+| Android, `video`         | `reason` `init`, `format` or `decoder`                                    |
+| anything else            | `reason` `init` only                                                      |
+
+The decision uses `reason` only, not `phase` (adapters report every error
+before the first `load` as phase `init`): `network` and `other` errors never
+switch engines. A second failure, or an error with no fallback, ends in the
+`error` state with a Chinese message.
+
+### mpv engine (`modules/mpv`, `src/player/engines/mpv`)
+
+`mpvEngineFactory` (kind `mpv`, label `MPV`) renders the local Expo module's
+native `MpvView` and maps `EngineViewProps` to native props (seconds, mpv
+`aid` / `sid` values `auto` / `no` / id, the `decode` setting as hardware or
+software decoding) and native `onMpvEvent` payloads to engine events.
+`isAvailable()` is `isMpvAvailable()`: false in Jest and on web, on Android
+ABIs without libmpv (x86 / x86_64) and on iOS builds without MPVKit; it never
+throws. A missing native view or a failed library load / `mpv_create` /
+`mpv_initialize` is an `error` with `phase: 'init'`, `reason: 'init'`.
+End-file errors are classified by `classifyMpvError`: unrecognized format /
+nothing to play -> `format`, audio / video output init -> `decoder`,
+network / HTTP failures in mpv's last warning -> `network`, other failures
+before the first `load` -> `open`, later failures on a network URL ->
+`network`, else `other`.
+
+**Android.** `modules/mpv/android/src/main/jniLibs/{arm64-v8a,armeabi-v7a}`
+carries the Java app's prebuilt `libmpv.so`, `libplayer.so` (mpv-android JNI
+bridge for `is.xyz.mpv.MPVLib`, ported unchanged in package `is.xyz.mpv`) and
+the FFmpeg libraries libmpv links against (`libav*`, `libsw*`, from
+`media/libraries/decoder_ffmpeg`), copied because the build container mounts
+only `rn/`. They need the bundled `libc++_shared.so` (NDK r29); React
+Native's NDK 27 copy lacks `std::__from_chars_floating_point`.
+`app.config.ts` sets `pickFirst` for `**/libc++_shared.so` (that keeps the
+app's NDK 27 copy) and `modules/mpv/android/build.gradle` then overwrites it
+in the app's merged native libs for arm64-v8a / armeabi-v7a; the r29 copy
+exports every libc++ symbol the React Native libraries use. libplayer holds one global mpv instance, so a new view releases
+the previous one first. Options follow the Java app (`vo=gpu`,
+`hwdec=mediacodec,mediacodec-copy` or `no`, `profile=fast`, `config-dir`
+`files/mpv` for a user `mpv.conf`).
+
+**iOS / tvOS.** MPVKit is SwiftPM-only, so `modules/mpv/ios/fetch-mpvkit.sh`
+downloads the LGPL xcframeworks listed in MPVKit's `Package.swift`
+(`MPVKIT_VERSION`, default `1.0.0`, checksum-verified, see Release > MPVKit) into `modules/mpv/ios/Frameworks/`
+(gitignored); `TvboxMpv.podspec` vendors whatever is there. Run it before
+`pod install`. Without the frameworks the module still compiles
+(`#if canImport(Libmpv)`) and reports unavailable. Rendering uses
+`vo=gpu-next` with MoltenVK on a `CAMetalLayer` (`wid`), `hwdec=videotoolbox`.
+
+### Player route
+
+`Player` params are either a VOD episode
+`{ siteKey, vodId, flag?, episodeUrl?, position? }` or a direct URL
+`{ url, title?, headers?, position? }`; tell them apart with
+`isVodPlayerParams` / `isUrlPlayerParams`. VOD playback resumes and updates
+the history record Detail wrote for `(cid, historyKey(siteKey, vodId))`
+through `getHistoryRepository()` (none while `incognito`); direct URLs write
+no history.
+
+### Player screen (`src/screens/player`)
+
+Renders the active engine full screen (keyed on `sourceKey`, `background`
+setting passed through) and is the playback host while focused
+(`usePlayback(params, { attach: focused })`). An engine fallback shows a
+toast ("已切换到 MPV 播放"); resolve / parse / load show a spinner text and
+errors a Chinese message with 重试 (re-opens the item).
+
+- TV remote (`useRemoteKeys`): left / right seek 10 s per press, accumulating
+  while the key repeats and applied 500 ms after the last press; OK
+  pauses / resumes while the controls are hidden; up (and the Android menu
+  key) shows the controls, down the episode panel; play / pause / next /
+  previous media keys and channel up / down work directly. Back closes the
+  panel, then the controls, then leaves.
+- Touch (`useTouchGestures`): tap toggles the controls, double tap pauses,
+  a horizontal drag seeks (a full-width drag is 3 min) with a target-time
+  preview. Phones get a 返回 button; the header is hidden.
+- Controls auto-hide after 5 s; panels: 选集 (with line switch), 倍速
+  (`SPEED_PRESETS`), 音轨, 字幕 (关闭, engine text tracks, `Result.subs`,
+  add by URL), 播放器 (writes `playerEngine`, restarts at the position).
+- With `background` off the screen pauses on AppState `background` /
+  `inactive` for every engine and does not resume.
+- `App.tsx` registers the player opener on `NavigationContainer` ready:
+  `navigate('Player', request)`.
+- Not done: no orientation lock (`expo-screen-orientation` is not a
+  dependency); no long-press speed boost (`speedLongPress`).
+
+### Live screen (`src/screens/live`)
+
+Live sources come from `loadLiveSources()` (`src/player/live/source.ts`): the
+active saved live config (`createConfigRepository(store, 'live')`, loaded
+with `loadLiveConfig`), else the `lives` of the loaded VOD config. The
+selected source and the last channel per source (`keepValue`, Live.keep) live
+in the `tvbox.live.state.v1` cell (`readLiveState`, `saveLiveHome`,
+`saveLiveKeep`). `loadLiveGroups(live)` runs `loadLive` with the live
+favourites and splits off password-protected groups.
+
+- Start channel: the route `{ groupIndex, channelIndex }` when valid, else
+  the saved keep (`findKeepPosition`), else the first channel after 收藏.
+- The engine host is the Player screen's pattern on `usePlayback(request,
+  { attach: false })` with the channel's current source URL, name and
+  `channelHeaders` (ua / referer / origin / header, inherited from the live);
+  `scaleLive` sets the resize mode. On a fatal error the next source is tried
+  while `change` is on (`lineAfterError`), then the engine fallback applies.
+- TV remote: up / down (and channel up / down) change channel through
+  `invert` / `across`, media next / previous step channel, left / right
+  switch source, OK opens the channel list, menu (Android) / info opens the
+  live panel (sources, `invert` / `across` / `change`). react-native-tvos
+  reports no digit keys, so channel numbers cannot be typed.
+- Phone: tap toggles the channel list (with 返回 and 直播源 buttons), a
+  vertical swipe changes channel (up = next).
+- Channel list: group column, channels with number, logo and current
+  programme, and on TV the focused channel's guide. EPG comes from the
+  source's XMLTV files (`loadXmltv`, once per source) or the channel's
+  `{date}` URL (`fetchChannelEpg`, on demand). The info bar shows name,
+  number, logo, "线路 n/m" and the current / next programme for 5 s after a
+  channel or source change.
+- Password groups: five presses on 收藏 open the password prompt
+  (PassDialog); matching groups are appended to the list.
+- While focused the screen is the playback host (prev / next = channel,
+  seek / speed reach the engine, title = channel name) and the live select
+  target below.
+- Not done: channel `click` / `parse` resolution, favourites editing (long
+  press), catch-up playback, the boot-to-live (`bootLive`) start.
+
+### Control API
+
+For LAN services (phone control page, DLNA, AirPlay casts):
+
+```ts
+getPlaybackController(): {
+  getState(): PlaybackSnapshot;
+  play(): void; pause(): void; stop(): void;
+  prev(): void; next(): void;          // VOD: episode, Live: channel
+  repeat(): void;                      // toggle repeat-one, see snapshot.repeat
+  replay(): void;                      // restart the current item from 0
+  seekTo(ms: number): void;
+  setSpeed(n: number): void;           // clamped to 0.1..5 (speedPlayback range)
+  playUrl(url: string, opts?: { title?: string; position?: number; headers?: Record<string, string> }): void;
+  subscribe(listener: (s: PlaybackSnapshot) => void): () => void;
+}
+
+interface PlaybackSnapshot {
+  active: boolean; playing: boolean; title: string;
+  position: number; duration: number; // ms
+  speed: number; repeat: boolean;
+  url?: string; engine?: EngineKind;
+  status: 'idle' | 'resolving' | 'parsing' | 'loading' | 'buffering' | 'playing' | 'paused' | 'ended' | 'error';
+}
+```
+
+The screen that owns playback attaches as the host with
+`attachPlaybackHost(host)` (returns the detach function). A host implements
+the same commands plus `getState()`, `subscribe(push)` to push snapshots, and
+optionally `playUrl(request)`; the Player screen does all of this through
+`usePlayback`. Without a host `getState().active` is false and the commands
+are no-ops. `playUrl` goes to the attached host when it accepts URLs;
+otherwise it calls the opener registered with `setPlayerOpener(fn)` (wired to
+navigate to `Player` with the direct-URL params) and the request is queued
+for the next host that accepts URLs.
+
+```ts
+const player = getPlaybackController();
+const off = player.subscribe((s) => send({ playing: s.playing, position: s.position }));
+player.playUrl('https://example.com/a.m3u8', { title: '投屏', position: 30_000 });
+player.seekTo(60_000);
+player.setSpeed(1.5);
+off();
+```
+
+Live select surface (`src/player/live/controller.ts`):
+
+```ts
+getLiveController(): {
+  // Active live source; password-protected groups are excluded.
+  listGroups(): Promise<Array<{ index: number; name: string;
+    channels: Array<{ index: number; name: string; number: string; logo: string }> }>>;
+  // Switches in place when the Live screen is focused, else opens the Live
+  // route with { groupIndex, channelIndex } through setLiveOpener(fn).
+  selectChannel(groupIndex: number, channelIndex: number): void;
+}
+```
+
+`App.tsx` registers `setLiveOpener` next to `setPlayerOpener`:
+`navigate('Live', params)`.
+
+## LAN services
+
+The phone control page (`docs/REMOTE.md`), DLNA and AirPlay. `App.tsx` calls
+`startLanServices()` once after the bootstrap start and binds the navigation
+container with `bindLanNavigation(navigationRef)`.
+
+```
+src/lan/
+  types.ts          LanRequest / LanResponse (the httpd transport shapes), LanEndpoint, LanProcess
+  ports.ts          LanPlayer, LanRemote, LanNavigator, LanSources, LanEnv; setLanPorts / getLanPorts
+  pairing.ts        6-digit pairing code and paired devices (Pairing.java)
+  server.ts         createLanServer(deps, files?): auth, /api/<name>, processes, web UI
+  api/              one file per /api endpoint (pair, state, config, source, control, setting, remote, push, search, file, ...)
+  settingRegistry.ts  settings shown and changed by the web page
+  files.ts          FileSystemPort, createExpoFileSystem() (File tab, rooted at the document dir)
+  web/              assets.generated.ts (the bundled web UI) and serveAsset
+  cast/             startAirPlay, startDlna: native receivers -> LanPlayer
+  runtime.ts        startLanServices, LanStatus, getLanPairing (wiring)
+  playerAdapter.ts  createLanPlayer (playback controller), createLanSources (live sources)
+  navigation.ts     bindLanNavigation, createLanNavigator (search -> Search route)
+```
+
+**Runtime.** `startLanServices()` (idempotent, never rejects) creates the
+pairing on `asyncStorageStore`, registers the ports, starts the httpd module
+on the first free port of 9978..9998 with mDNS name `tvbox`, and answers each
+request with `server.handle` (500 with the message on an unexpected error).
+`getLanStatus()` / `subscribeLanStatus()` expose
+`{ state: 'idle' | 'starting' | 'running' | 'error', port, address, localName, error }`
+(`address` = `http://<lan ip>:<port>`, `localName` = `http://tvbox.local:<port>`);
+`refreshLanAddress()` re-reads the IP. Without the native module (Jest, web)
+the state is `error` and the app runs on. On Android TV it also starts the
+AirPlay and DLNA receivers. The Control screen (`src/screens/control`, title
+手机控制) shows the address QR code (`?tab=1`), both addresses, the pairing
+code (new on every focus) and the number of paired devices.
+
+**Ports.** The server only reaches the app through ports, all optional (the
+API answers without them):
+
+| Port           | Registered by                                      | Used for                                    |
+| -------------- | -------------------------------------------------- | ------------------------------------------- |
+| `LanPlayer`    | runtime: `createLanPlayer()` on `getPlaybackController()` | `/api/control`, `/api/state` player, push, DLNA, AirPlay |
+| `LanSources`   | runtime: `createLanSources()` (live sources; no parsers yet) | `/api/source`, `/api/state` sources         |
+| `LanRemote`    | runtime: httpd `sendKey` / `sendText` / `adjustVolume` | `/api/remote`                               |
+| `LanNavigator` | runtime: `createLanNavigator()`                    | `/api/search`                               |
+| `LanEnv`       | runtime: app version and address                   | `/api/state`                                |
+
+Another workstream plugs in by replacing a port, without touching the server:
+
+```ts
+import { getLanPorts, setLanPorts } from './src/lan';
+
+setLanPorts({ sources: { ...getLanPorts().sources!, parses, currentParse, setParse, clearCache } });
+```
+
+Extra endpoints: `server.registerApi(name, endpoint)` and
+`server.registerProcess(process)`.
+
+**httpd module** (`modules/httpd`, Android, iOS, tvOS). Native code parses
+requests and writes responses; routing and auth are in JS.
+`startServer({ portFrom, portTo, mdnsName })` resolves the bound port,
+`addRequestListener(listener)` delivers `HttpdRequest`s that must be answered
+with `respond(id, { status, headers?, body?, bodyEncoding?, filePath? })`
+within 30 s (else 504), plus `stopServer`, `getLocalIpAddress`, `isAvailable`
+and the remote helpers `sendKey`, `sendText`, `adjustVolume`.
+
+**AirPlay / DLNA modules** (`modules/airplay`, `modules/dlna`). Android TV
+only; `isSupported()` is false and every call is inert elsewhere (iOS, tvOS,
+phones, Jest). `startAirPlay` runs the receiver while the `airplay` setting is
+on, under `airplayName` (default `tvbox`), and sends HLS casts to the
+`LanPlayer`; `startDlna` runs the renderer under the device name. Both push
+the player state back to the sender every second while casting.
+
+**Web UI.** The page is `assets/web` (from the Java app); the server serves
+the generated `src/lan/web/assets.generated.ts`. After changing anything in
+`assets/web`, run `npm run gen:lan-web` and commit both.
+
 ## Android debug build
 
 The APK is built in a sibling container; the host needs only Docker:
@@ -214,3 +569,111 @@ React Native needs but the shared SDK lacks (compile platform, build-tools
 and NDK versions from `node_modules/react-native/gradle/libs.versions.toml`;
 currently `ndk;27.1.12297006`) are installed there with `sdkmanager`.
 Everything under `rn/.tmp/` is gitignored and can be deleted to start over.
+
+## Release
+
+The RN app has its own release channel, separate from the Java app's.
+
+### Versioning
+
+Release tags are `rn-vX.Y.Z` (the Java app keeps `vX.Y.Z`). The version job
+derives `versionName = X.Y.Z` and `versionCode = X*10000 + Y*100 + Z`
+(minor and patch below 100; any other `rn-v*` tag fails the run). CI passes
+them as `VERSION_NAME` / `VERSION_CODE` to `app.config.ts`, which sets
+`version`, `android.versionCode` and `ios.buildNumber` (the same code on
+both platforms). Unset or blank values fall back to `1.0.0` / `1`; a
+`VERSION_CODE` that is not a positive integer fails at config time.
+
+### Workflows
+
+- `.github/workflows/rn-ci.yml`: on pull requests and pushes to `main` that
+  touch `rn/`: `npm ci`, lint, typecheck and tests on Node 24.
+- `.github/workflows/rn-release.yml`: on pushes to `main` that touch `rn/`,
+  on `rn-v*` tags and on manual dispatch.
+  - `android`: prebuild and `gradlew assembleRelease` -> `android-universal.apk`
+    (one APK for phones and Android TV).
+  - `apple` (matrix `ios`, `tvos`; `EXPO_TV=1` for tvOS): fetch MPVKit
+    (see below), prebuild, `pod install`, then `xcodebuild archive` + `-exportArchive` (ad-hoc /
+    `release-testing`, manual signing of `cc.bkhq.tvbox`) ->
+    `ios-universal.ipa` / `tvos-universal.ipa`.
+  - `publish` (tags only): creates the GitHub release with the binaries and
+    the annotated tag message as notes, uploads them to R2 at
+    `tvbox/rn/releases/<versionCode>/<flavor>.apk|.ipa`, and registers them
+    with `POST <WORKER_URL>/mg/api/raw/releases` (`app: "rn"`, ipa assets
+    carry `bundleId`). The worker then rewrites the rn update manifests.
+
+Branch and manual runs only build; they never publish.
+
+### MPVKit
+
+Before prebuild the `apple` job runs `bash modules/mpv/ios/fetch-mpvkit.sh`,
+which downloads the MPVKit LGPL xcframeworks into
+`modules/mpv/ios/Frameworks/` for `pod install` to vendor. The script pins
+MPVKit `1.0.0` (`pinned_version`) and the SHA-256 of that tag's
+`Package.swift` (`pinned_package_sha256`), and checks every archive against
+the SwiftPM `checksum:` (SHA-256) listed for it in `Package.swift`. Any
+mismatch or download failure fails the job, so a build never ships without
+mpv silently. `MPVKIT_VERSION` / `MPVKIT_PACKAGE_SHA256` override the pins
+locally; another version without `MPVKIT_PACKAGE_SHA256` only warns that
+`Package.swift` itself is unverified.
+
+To bump MPVKit, set both pins in the script to the new tag and
+`curl -fsSL https://raw.githubusercontent.com/mpvkit/MPVKit/<tag>/Package.swift | shasum -a 256`
+(archive checksums come from that `Package.swift`), check the skipped
+targets (GPL variants, `Libsmbclient`, `Libluajit`) and the podspec's system
+frameworks still match, then run the script once.
+
+### Update endpoints
+
+`WORKER_URL` is baked into the build. The app checks
+`<WORKER_URL>/u/rn/stable/<flavor>.json` (`android-universal`,
+`ios-universal`, `tvos-universal`). Android downloads the APK the manifest
+points at; iOS installs through
+`itms-services://?action=download-manifest&url=<WORKER_URL>/u/rn/stable/<flavor>.plist`
+(URL-encoded), a plist the worker generates from the JSON manifest.
+
+### Secrets and variables
+
+| Name                                     | Kind     | Purpose                                                             |
+| ---------------------------------------- | -------- | ------------------------------------------------------------------- |
+| `WORKER_URL`                             | variable | Worker base URL baked into the app and used to register releases   |
+| `APPLE_CERTIFICATE_P12_BASE64`           | secret   | Base64 of the Apple Distribution certificate and key (`.p12`)       |
+| `APPLE_CERTIFICATE_PASSWORD`             | secret   | Password of the `.p12`                                              |
+| `APPLE_TEAM_ID`                          | secret   | Apple Developer team id                                             |
+| `APPLE_PROVISIONING_PROFILE_IOS_BASE64`  | secret   | Base64 of the iOS ad-hoc profile for `cc.bkhq.tvbox`                |
+| `APPLE_PROVISIONING_PROFILE_TVOS_BASE64` | secret   | Base64 of the tvOS ad-hoc profile for `cc.bkhq.tvbox`               |
+| `CLOUDFLARE_API_TOKEN`                   | secret   | Wrangler token with R2 write access to the worker bucket            |
+| `CLOUDFLARE_ACCOUNT_ID`                  | secret   | Cloudflare account of the bucket                                    |
+| `SERVICE_TOKEN_RELEASE`                  | secret   | Worker `release` service token for the register call                |
+
+The Android APK needs no secrets: it is signed with the committed
+`keystore/release.jks`, using the alias and password from
+`keystore/release.properties` (the same key as the Java app, which keeps
+in-place updates possible). A missing keystore or property fails the build;
+there is no debug-keystore fallback.
+
+The bucket name is read from `worker/apps/api/wrangler.toml`. The temporary
+keychain password is generated in the job, and the keychain is deleted at
+the end of the job even when it fails.
+
+### Unsigned fallback
+
+- iOS/tvOS without the `APPLE_*` secrets for that target: the job builds
+  for the simulator with `CODE_SIGNING_ALLOWED=NO` as a compile check, logs a
+  warning and produces no ipa. The run does not fail; `publish` releases and
+  registers only the binaries that exist (at least the APK).
+
+### Adding an ad-hoc device
+
+Ad-hoc ipas install only on devices listed in the profile:
+
+1. Add the device UDID in the Apple Developer portal (Devices).
+2. Regenerate the iOS and/or tvOS ad-hoc profiles for `cc.bkhq.tvbox` so
+   they include the device, and download them.
+3. Update `APPLE_PROVISIONING_PROFILE_IOS_BASE64` /
+   `APPLE_PROVISIONING_PROFILE_TVOS_BASE64` (`base64 -i profile.mobileprovision`).
+4. Push a new `rn-vX.Y.Z` tag so a re-signed ipa is built and published.
+
+iPhones then install or update over the air from the plist link. tvOS has no
+OTA install: install the tvOS ipa on the Apple TV with Xcode (Devices and
+Simulators) or Apple Configurator.

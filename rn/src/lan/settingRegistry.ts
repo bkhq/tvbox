@@ -1,6 +1,8 @@
+import { Platform } from 'react-native';
 import type { Doh } from '../core/types';
 import type { SettingKey, Settings } from '../core/settings/schema';
 import { InvalidSettingError, type SettingsStore } from '../core/settings/settings';
+import { chooseEngine } from '../player/engine/policy';
 
 /**
  * Port of SettingRegistry.java: every setting the phone control page can show and change.
@@ -84,8 +86,10 @@ type BoolKey = KeysOf<boolean>;
 type NumberKey = KeysOf<number>;
 type TextKey = KeysOf<string>;
 
-const isExo = (get: Get) => get('playerEngine') === 'video';
-const isMpv = (get: Get) => get('playerEngine') === 'mpv';
+/** 'auto' resolves to the platform default engine, so the web page shows the engine in use. */
+const engineOf = (get: Get) => chooseEngine(get('playerEngine'), Platform.OS);
+const isExo = (get: Get) => engineOf(get) === 'video';
+const isMpv = (get: Get) => engineOf(get) === 'mpv';
 const preloadExo = (get: Get) => get('preload') && isExo(get);
 
 function bool(group: string, key: string, label: string, setting: BoolKey, visible?: Item['visible']): Item {
@@ -173,7 +177,10 @@ function items(dohs: () => Doh[]): Item[] {
     bool('general', 'airplay', 'AirPlay', 'airplay'),
     text('general', 'airplay_name', 'AirPlay 名称', 'airplayName', (get) => get('airplay'), true),
     // Player
-    choice('player', 'engine', '播放引擎', 'playerEngine', ['video', 'mpv'], ['EXO', 'MPV']),
+    {
+      ...choice('player', 'engine', '播放引擎', 'playerEngine', ['video', 'mpv'], ['EXO', 'MPV']),
+      get: (get) => (engineOf(get) === 'mpv' ? 1 : 0),
+    },
     choice('player', 'render', '渲染方式', 'render', ['surface', 'texture'], ['Surface', 'Texture']),
     {
       group: 'player',

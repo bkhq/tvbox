@@ -22,6 +22,7 @@ export default ({ config }: ConfigContext): ExpoConfig =>
     android: {
       package: APP_ID,
       versionCode: 1,
+      permissions: ['android.permission.REQUEST_INSTALL_PACKAGES'],
     },
     plugins: [
       'expo-build-properties',

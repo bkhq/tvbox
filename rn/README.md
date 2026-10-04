@@ -321,7 +321,7 @@ the previous one first. Options follow the Java app (`vo=gpu`,
 
 **iOS / tvOS.** MPVKit is SwiftPM-only, so `modules/mpv/ios/fetch-mpvkit.sh`
 downloads the LGPL xcframeworks listed in MPVKit's `Package.swift`
-(`MPVKIT_VERSION`, default `1.0.0`) into `modules/mpv/ios/Frameworks/`
+(`MPVKIT_VERSION`, default `1.0.0`, checksum-verified, see Release > MPVKit) into `modules/mpv/ios/Frameworks/`
 (gitignored); `TvboxMpv.podspec` vendors whatever is there. Run it before
 `pod install`. Without the frameworks the module still compiles
 (`#if canImport(Libmpv)`) and reports unavailable. Rendering uses
@@ -433,8 +433,8 @@ both platforms). Unset or blank values fall back to `1.0.0` / `1`; a
   on `rn-v*` tags and on manual dispatch.
   - `android`: prebuild and `gradlew assembleRelease` -> `android-universal.apk`
     (one APK for phones and Android TV).
-  - `apple` (matrix `ios`, `tvos`; `EXPO_TV=1` for tvOS): prebuild,
-    `pod install`, then `xcodebuild archive` + `-exportArchive` (ad-hoc /
+  - `apple` (matrix `ios`, `tvos`; `EXPO_TV=1` for tvOS): fetch MPVKit
+    (see below), prebuild, `pod install`, then `xcodebuild archive` + `-exportArchive` (ad-hoc /
     `release-testing`, manual signing of `cc.bkhq.tvbox`) ->
     `ios-universal.ipa` / `tvos-universal.ipa`.
   - `publish` (tags only): creates the GitHub release with the binaries and
@@ -444,6 +444,25 @@ both platforms). Unset or blank values fall back to `1.0.0` / `1`; a
     carry `bundleId`). The worker then rewrites the rn update manifests.
 
 Branch and manual runs only build; they never publish.
+
+### MPVKit
+
+Before prebuild the `apple` job runs `bash modules/mpv/ios/fetch-mpvkit.sh`,
+which downloads the MPVKit LGPL xcframeworks into
+`modules/mpv/ios/Frameworks/` for `pod install` to vendor. The script pins
+MPVKit `1.0.0` (`pinned_version`) and the SHA-256 of that tag's
+`Package.swift` (`pinned_package_sha256`), and checks every archive against
+the SwiftPM `checksum:` (SHA-256) listed for it in `Package.swift`. Any
+mismatch or download failure fails the job, so a build never ships without
+mpv silently. `MPVKIT_VERSION` / `MPVKIT_PACKAGE_SHA256` override the pins
+locally; another version without `MPVKIT_PACKAGE_SHA256` only warns that
+`Package.swift` itself is unverified.
+
+To bump MPVKit, set both pins in the script to the new tag and
+`curl -fsSL https://raw.githubusercontent.com/mpvkit/MPVKit/<tag>/Package.swift | shasum -a 256`
+(archive checksums come from that `Package.swift`), check the skipped
+targets (GPL variants, `Libsmbclient`, `Libluajit`) and the podspec's system
+frameworks still match, then run the script once.
 
 ### Update endpoints
 

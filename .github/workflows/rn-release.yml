@@ -184,6 +184,11 @@ jobs:
 
       - run: npm ci
 
+      # TvboxMpv.podspec vendors whatever is in modules/mpv/ios/Frameworks
+      # when pod install runs; the script fails on any checksum mismatch.
+      - name: Fetch MPVKit
+        run: bash modules/mpv/ios/fetch-mpvkit.sh
+
       - name: Prebuild
         run: |
           if [ "$TARGET" = tvos ]; then export EXPO_TV=1; fi

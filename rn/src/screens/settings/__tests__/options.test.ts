@@ -2,6 +2,7 @@ import { CHOICES, choiceOptions, cycleOption, formatBoolean, formatSpeed, format
 
 describe('settings options', () => {
   it('labels choices and falls back to the raw value', () => {
+    expect(optionLabel(choiceOptions('playerEngine'), 'auto')).toBe('自动（iOS 默认 MPV，Android 默认系统播放器）');
     expect(optionLabel(choiceOptions('playerEngine'), 'video')).toBe('系统播放器');
     expect(optionLabel(choiceOptions('playerEngine'), 'mpv')).toBe('MPV');
     expect(optionLabel(choiceOptions('decode'), 'hard')).toBe('硬解');

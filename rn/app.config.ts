@@ -38,9 +38,18 @@ export default ({ config }: ConfigContext): ExpoConfig =>
       permissions: ['android.permission.REQUEST_INSTALL_PACKAGES'],
     },
     plugins: [
-      'expo-build-properties',
+      [
+        'expo-build-properties',
+        {
+          // modules/mpv ships the newer libc++_shared.so libmpv was built against; React Native
+          // ships one too.
+          android: { packagingOptions: { pickFirst: ['**/libc++_shared.so'] } },
+        },
+      ],
       // Switches prebuild output to Android TV / tvOS when EXPO_TV=1.
       '@react-native-tvos/config-tv',
+      // Media3 HLS / DASH / SmoothStreaming are on by default; UIBackgroundModes audio for the background setting.
+      ['react-native-video', { enableBackgroundAudio: true }],
     ],
     extra: {
       workerUrl,

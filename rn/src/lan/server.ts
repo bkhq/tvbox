@@ -1,7 +1,10 @@
+import { mediaProcess, pushApi, searchApi } from './api/action';
 import { configApi } from './api/config';
 import { controlApi } from './api/control';
 import { enrollApi } from './api/enroll';
 import { pairApi, unpairApi } from './api/pair';
+import { remoteApi } from './api/remote';
+import { settingApi } from './api/setting';
 import { sourceApi } from './api/source';
 import { stateApi } from './api/state';
 import type { LanContext, LanServerDeps } from './context';
@@ -9,6 +12,7 @@ import { getLanPorts } from './ports';
 import { notFound, serverError, unauthorized } from './reply';
 import { type LanEndpoint, type LanProcess, type LanRequest, type LanResponse, paramsOf } from './types';
 import { serveAsset, webAssets } from './web';
+import { createSettingRegistry } from './settingRegistry';
 
 export interface LanServer {
   handle(req: LanRequest): Promise<LanResponse>;
@@ -26,9 +30,13 @@ function messageOf(error: unknown): string {
 
 /** Nano.serve: auth, then /api/<name>, then processes, then the bundled web UI. */
 export function createLanServer(deps: LanServerDeps): LanServer {
+  const registry = createSettingRegistry({
+    settings: deps.settings,
+    configDoh: () => deps.bootstrap.getSnapshot().config?.doh ?? [],
+  });
   const context: LanContext = {
     ports: getLanPorts,
-    settingsProvider: () => [],
+    settingsProvider: () => registry.toJson(),
     assets: webAssets,
     ...deps,
   };
@@ -40,8 +48,12 @@ export function createLanServer(deps: LanServerDeps): LanServer {
     ['source', sourceApi(context)],
     ['control', controlApi(context)],
     ['enroll', enrollApi(context)],
+    ['setting', settingApi(registry)],
+    ['remote', remoteApi(context)],
+    ['push', pushApi(context)],
+    ['search', searchApi(context)],
   ]);
-  const processes: LanProcess[] = [];
+  const processes: LanProcess[] = [mediaProcess(context)];
 
   async function run(fn: () => LanResponse | Promise<LanResponse>): Promise<LanResponse> {
     try {

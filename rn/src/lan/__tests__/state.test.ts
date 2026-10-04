@@ -66,7 +66,7 @@ describe('/api/state', () => {
       token: '',
       devices: [],
       vod: { current: '', items: [] },
-      settings: [],
+      settings: expect.arrayContaining([expect.objectContaining({ key: 'general' })]),
       sources: { sites: [], site: '', lives: [], live: '', parses: [], parse: '' },
       cache: '0 B',
       enroll: { available: false, state: 'off', code: '' },

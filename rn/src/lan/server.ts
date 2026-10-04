@@ -1,10 +1,12 @@
 import { configApi } from './api/config';
 import { controlApi } from './api/control';
 import { enrollApi } from './api/enroll';
+import { fileApi, fileProcess } from './api/file';
 import { pairApi, unpairApi } from './api/pair';
 import { sourceApi } from './api/source';
 import { stateApi } from './api/state';
 import type { LanContext, LanServerDeps } from './context';
+import type { FileSystemPort } from './files';
 import { getLanPorts } from './ports';
 import { notFound, serverError, unauthorized } from './reply';
 import { type LanEndpoint, type LanProcess, type LanRequest, type LanResponse, paramsOf } from './types';
@@ -24,8 +26,11 @@ function messageOf(error: unknown): string {
   return error instanceof Error ? error.message || error.name : String(error);
 }
 
-/** Nano.serve: auth, then /api/<name>, then processes, then the bundled web UI. */
-export function createLanServer(deps: LanServerDeps): LanServer {
+/**
+ * Nano.serve: auth, then /api/<name>, then processes, then the bundled web UI.
+ * With `files`, the File tab routes and /api/file serve that sandbox.
+ */
+export function createLanServer(deps: LanServerDeps, files?: FileSystemPort): LanServer {
   const context: LanContext = {
     ports: getLanPorts,
     settingsProvider: () => [],
@@ -42,6 +47,10 @@ export function createLanServer(deps: LanServerDeps): LanServer {
     ['enroll', enrollApi(context)],
   ]);
   const processes: LanProcess[] = [];
+  if (files) {
+    endpoints.set('file', fileApi(context, files));
+    processes.push(fileProcess(files));
+  }
 
   async function run(fn: () => LanResponse | Promise<LanResponse>): Promise<LanResponse> {
     try {

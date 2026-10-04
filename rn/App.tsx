@@ -5,6 +5,7 @@ import { useEffect } from 'react';
 import { getBootstrap } from './src/core/bootstrap';
 import { RootNavigator } from './src/navigation';
 import { registerBuiltinEngines } from './src/player/engines';
+import { UpdatePrompt } from './src/update';
 
 registerBuiltinEngines();
 
@@ -16,6 +17,7 @@ export default function App() {
   return (
     <NavigationContainer theme={DarkTheme}>
       <RootNavigator />
+      <UpdatePrompt />
       <StatusBar style="light" />
     </NavigationContainer>
   );

@@ -321,7 +321,7 @@ the previous one first. Options follow the Java app (`vo=gpu`,
 
 **iOS / tvOS.** MPVKit is SwiftPM-only, so `modules/mpv/ios/fetch-mpvkit.sh`
 downloads the LGPL xcframeworks listed in MPVKit's `Package.swift`
-(`MPVKIT_VERSION`, default `1.0.0`) into `modules/mpv/ios/Frameworks/`
+(`MPVKIT_VERSION`, default `1.0.0`, checksum-verified, see Release > MPVKit) into `modules/mpv/ios/Frameworks/`
 (gitignored); `TvboxMpv.podspec` vendors whatever is there. Run it before
 `pod install`. Without the frameworks the module still compiles
 (`#if canImport(Libmpv)`) and reports unavailable. Rendering uses
@@ -410,3 +410,111 @@ React Native needs but the shared SDK lacks (compile platform, build-tools
 and NDK versions from `node_modules/react-native/gradle/libs.versions.toml`;
 currently `ndk;27.1.12297006`) are installed there with `sdkmanager`.
 Everything under `rn/.tmp/` is gitignored and can be deleted to start over.
+
+## Release
+
+The RN app has its own release channel, separate from the Java app's.
+
+### Versioning
+
+Release tags are `rn-vX.Y.Z` (the Java app keeps `vX.Y.Z`). The version job
+derives `versionName = X.Y.Z` and `versionCode = X*10000 + Y*100 + Z`
+(minor and patch below 100; any other `rn-v*` tag fails the run). CI passes
+them as `VERSION_NAME` / `VERSION_CODE` to `app.config.ts`, which sets
+`version`, `android.versionCode` and `ios.buildNumber` (the same code on
+both platforms). Unset or blank values fall back to `1.0.0` / `1`; a
+`VERSION_CODE` that is not a positive integer fails at config time.
+
+### Workflows
+
+- `.github/workflows/rn-ci.yml`: on pull requests and pushes to `main` that
+  touch `rn/`: `npm ci`, lint, typecheck and tests on Node 24.
+- `.github/workflows/rn-release.yml`: on pushes to `main` that touch `rn/`,
+  on `rn-v*` tags and on manual dispatch.
+  - `android`: prebuild and `gradlew assembleRelease` -> `android-universal.apk`
+    (one APK for phones and Android TV).
+  - `apple` (matrix `ios`, `tvos`; `EXPO_TV=1` for tvOS): fetch MPVKit
+    (see below), prebuild, `pod install`, then `xcodebuild archive` + `-exportArchive` (ad-hoc /
+    `release-testing`, manual signing of `cc.bkhq.tvbox`) ->
+    `ios-universal.ipa` / `tvos-universal.ipa`.
+  - `publish` (tags only): creates the GitHub release with the binaries and
+    the annotated tag message as notes, uploads them to R2 at
+    `tvbox/rn/releases/<versionCode>/<flavor>.apk|.ipa`, and registers them
+    with `POST <WORKER_URL>/mg/api/raw/releases` (`app: "rn"`, ipa assets
+    carry `bundleId`). The worker then rewrites the rn update manifests.
+
+Branch and manual runs only build; they never publish.
+
+### MPVKit
+
+Before prebuild the `apple` job runs `bash modules/mpv/ios/fetch-mpvkit.sh`,
+which downloads the MPVKit LGPL xcframeworks into
+`modules/mpv/ios/Frameworks/` for `pod install` to vendor. The script pins
+MPVKit `1.0.0` (`pinned_version`) and the SHA-256 of that tag's
+`Package.swift` (`pinned_package_sha256`), and checks every archive against
+the SwiftPM `checksum:` (SHA-256) listed for it in `Package.swift`. Any
+mismatch or download failure fails the job, so a build never ships without
+mpv silently. `MPVKIT_VERSION` / `MPVKIT_PACKAGE_SHA256` override the pins
+locally; another version without `MPVKIT_PACKAGE_SHA256` only warns that
+`Package.swift` itself is unverified.
+
+To bump MPVKit, set both pins in the script to the new tag and
+`curl -fsSL https://raw.githubusercontent.com/mpvkit/MPVKit/<tag>/Package.swift | shasum -a 256`
+(archive checksums come from that `Package.swift`), check the skipped
+targets (GPL variants, `Libsmbclient`, `Libluajit`) and the podspec's system
+frameworks still match, then run the script once.
+
+### Update endpoints
+
+`WORKER_URL` is baked into the build. The app checks
+`<WORKER_URL>/u/rn/stable/<flavor>.json` (`android-universal`,
+`ios-universal`, `tvos-universal`). Android downloads the APK the manifest
+points at; iOS installs through
+`itms-services://?action=download-manifest&url=<WORKER_URL>/u/rn/stable/<flavor>.plist`
+(URL-encoded), a plist the worker generates from the JSON manifest.
+
+### Secrets and variables
+
+| Name                                     | Kind     | Purpose                                                             |
+| ---------------------------------------- | -------- | ------------------------------------------------------------------- |
+| `WORKER_URL`                             | variable | Worker base URL baked into the app and used to register releases   |
+| `APPLE_CERTIFICATE_P12_BASE64`           | secret   | Base64 of the Apple Distribution certificate and key (`.p12`)       |
+| `APPLE_CERTIFICATE_PASSWORD`             | secret   | Password of the `.p12`                                              |
+| `APPLE_TEAM_ID`                          | secret   | Apple Developer team id                                             |
+| `APPLE_PROVISIONING_PROFILE_IOS_BASE64`  | secret   | Base64 of the iOS ad-hoc profile for `cc.bkhq.tvbox`                |
+| `APPLE_PROVISIONING_PROFILE_TVOS_BASE64` | secret   | Base64 of the tvOS ad-hoc profile for `cc.bkhq.tvbox`               |
+| `CLOUDFLARE_API_TOKEN`                   | secret   | Wrangler token with R2 write access to the worker bucket            |
+| `CLOUDFLARE_ACCOUNT_ID`                  | secret   | Cloudflare account of the bucket                                    |
+| `SERVICE_TOKEN_RELEASE`                  | secret   | Worker `release` service token for the register call                |
+
+The Android APK needs no secrets: it is signed with the committed
+`keystore/release.jks`, using the alias and password from
+`keystore/release.properties` (the same key as the Java app, which keeps
+in-place updates possible). A missing keystore or property fails the build;
+there is no debug-keystore fallback.
+
+The bucket name is read from `worker/apps/api/wrangler.toml`. The temporary
+keychain password is generated in the job, and the keychain is deleted at
+the end of the job even when it fails.
+
+### Unsigned fallback
+
+- iOS/tvOS without the `APPLE_*` secrets for that target: the job builds
+  for the simulator with `CODE_SIGNING_ALLOWED=NO` as a compile check, logs a
+  warning and produces no ipa. The run does not fail; `publish` releases and
+  registers only the binaries that exist (at least the APK).
+
+### Adding an ad-hoc device
+
+Ad-hoc ipas install only on devices listed in the profile:
+
+1. Add the device UDID in the Apple Developer portal (Devices).
+2. Regenerate the iOS and/or tvOS ad-hoc profiles for `cc.bkhq.tvbox` so
+   they include the device, and download them.
+3. Update `APPLE_PROVISIONING_PROFILE_IOS_BASE64` /
+   `APPLE_PROVISIONING_PROFILE_TVOS_BASE64` (`base64 -i profile.mobileprovision`).
+4. Push a new `rn-vX.Y.Z` tag so a re-signed ipa is built and published.
+
+iPhones then install or update over the air from the plist link. tvOS has no
+OTA install: install the tvOS ipa on the Apple TV with Xcode (Devices and
+Simulators) or Apple Configurator.

@@ -1,0 +1,9 @@
+{
+  "platforms": ["apple", "android"],
+  "apple": {
+    "modules": ["MpvModule"]
+  },
+  "android": {
+    "modules": ["cc.bkhq.tvbox.mpv.MpvModule"]
+  }
+}

@@ -5,7 +5,9 @@ export type RootStackParamList = {
   Category: { siteKey: string; typeId: string; typeName: string };
   Search: { keyword?: string } | undefined;
   Detail: { siteKey: string; vodId: string; vodName?: string; vodPic?: string };
-  Player: { siteKey: string; vodId: string; flag?: string; episodeUrl?: string; position?: number };
+  Player:
+    | { siteKey: string; vodId: string; flag?: string; episodeUrl?: string; position?: number }
+    | { url: string; title?: string; headers?: Record<string, string>; position?: number };
   Live: { groupIndex?: number; channelIndex?: number } | undefined;
   History: undefined;
   Collect: undefined;

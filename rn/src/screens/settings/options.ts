@@ -15,6 +15,7 @@ export type TextKey = { [K in SettingKey]: string extends Settings[K] ? K : neve
 /** Settings edited by cycling through a short option list. */
 export const CHOICES = {
   playerEngine: [
+    { value: 'auto', label: '自动（iOS 默认 MPV，Android 默认系统播放器）' },
     { value: 'video', label: '系统播放器' },
     { value: 'mpv', label: 'MPV' },
   ],

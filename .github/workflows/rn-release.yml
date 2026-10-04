@@ -82,38 +82,55 @@ jobs:
       - name: Prebuild
         run: npx expo prebuild --platform android --no-install
 
-      # The generated release build type signs with the debug keystore. When
-      # the rnRelease* gradle properties are set this block replaces it.
+      # Sign with the committed keystore/release.jks and the alias/passwords
+      # from keystore/release.properties, mapped like app/build.gradle
+      # (storePassword also serves as keyPassword), so the RN app shares the
+      # Java app's key. The block replaces the generated debug signing.
       - name: Configure release signing
-        env:
-          RN_ANDROID_KEYSTORE_BASE64: ${{ secrets.RN_ANDROID_KEYSTORE_BASE64 }}
-          RN_ANDROID_KEYSTORE_PASSWORD: ${{ secrets.RN_ANDROID_KEYSTORE_PASSWORD }}
-          RN_ANDROID_KEY_ALIAS: ${{ secrets.RN_ANDROID_KEY_ALIAS }}
-          RN_ANDROID_KEY_PASSWORD: ${{ secrets.RN_ANDROID_KEY_PASSWORD }}
         run: |
-          if [ -z "$RN_ANDROID_KEYSTORE_BASE64" ] || [ -z "$RN_ANDROID_KEYSTORE_PASSWORD" ] \
-            || [ -z "$RN_ANDROID_KEY_ALIAS" ] || [ -z "$RN_ANDROID_KEY_PASSWORD" ]; then
-            echo "::warning::RN_ANDROID_* signing secrets are not set; the release APK is signed with the debug keystore"
-            exit 0
+          props="$GITHUB_WORKSPACE/keystore/release.properties"
+          if [ ! -f "$props" ]; then
+            echo "::error::keystore/release.properties is missing"
+            exit 1
           fi
-          printf '%s' "$RN_ANDROID_KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/rn-release.keystore"
-          echo "ORG_GRADLE_PROJECT_rnReleaseStoreFile=$RUNNER_TEMP/rn-release.keystore" >> "$GITHUB_ENV"
+          prop() { sed -n "s/^$1=//p" "$props" | head -n 1 | tr -d '\r'; }
+          store_file=$(prop storeFile)
+          key_alias=$(prop keyAlias)
+          store_password=$(prop storePassword)
+          if [ -z "$store_file" ] || [ -z "$key_alias" ] || [ -z "$store_password" ]; then
+            echo "::error::keystore/release.properties must set storeFile, keyAlias and storePassword"
+            exit 1
+          fi
+          case "$store_file" in
+            /*) ;;
+            *) store_file="$GITHUB_WORKSPACE/keystore/$store_file" ;;
+          esac
+          if [ ! -f "$store_file" ]; then
+            echo "::error::Release keystore from keystore/release.properties (storeFile) is missing"
+            exit 1
+          fi
+          echo "::add-mask::$key_alias"
+          echo "::add-mask::$store_password"
+          {
+            echo "ORG_GRADLE_PROJECT_rnReleaseStoreFile=$store_file"
+            echo "ORG_GRADLE_PROJECT_rnReleaseKeyAlias=$key_alias"
+            echo "ORG_GRADLE_PROJECT_rnReleaseStorePassword=$store_password"
+            echo "ORG_GRADLE_PROJECT_rnReleaseKeyPassword=$store_password"
+          } >> "$GITHUB_ENV"
           cat >> android/app/build.gradle <<'GRADLE'
 
-          if (project.hasProperty('rnReleaseStoreFile')) {
-              android {
-                  signingConfigs {
-                      rnRelease {
-                          storeFile file(project.property('rnReleaseStoreFile'))
-                          storePassword project.property('rnReleaseStorePassword')
-                          keyAlias project.property('rnReleaseKeyAlias')
-                          keyPassword project.property('rnReleaseKeyPassword')
-                      }
+          android {
+              signingConfigs {
+                  rnRelease {
+                      storeFile file(project.property('rnReleaseStoreFile'))
+                      storePassword project.property('rnReleaseStorePassword')
+                      keyAlias project.property('rnReleaseKeyAlias')
+                      keyPassword project.property('rnReleaseKeyPassword')
                   }
-                  buildTypes {
-                      release {
-                          signingConfig signingConfigs.rnRelease
-                      }
+              }
+              buildTypes {
+                  release {
+                      signingConfig signingConfigs.rnRelease
                   }
               }
           }
@@ -121,16 +138,18 @@ jobs:
 
       - name: Build
         working-directory: rn/android
-        env:
-          ORG_GRADLE_PROJECT_rnReleaseStorePassword: ${{ secrets.RN_ANDROID_KEYSTORE_PASSWORD }}
-          ORG_GRADLE_PROJECT_rnReleaseKeyAlias: ${{ secrets.RN_ANDROID_KEY_ALIAS }}
-          ORG_GRADLE_PROJECT_rnReleaseKeyPassword: ${{ secrets.RN_ANDROID_KEY_PASSWORD }}
         run: ./gradlew --no-daemon assembleRelease
 
       - name: Collect
         run: |
           mkdir -p dist
           cp android/app/build/outputs/apk/release/app-release.apk dist/android-universal.apk
+          apksigner=$(find "$ANDROID_HOME/build-tools" -name apksigner -type f | sort -V | tail -n 1)
+          certs=$("$apksigner" verify --print-certs dist/android-universal.apk)
+          if printf '%s\n' "$certs" | grep -q 'CN=Android Debug'; then
+            echo "::error::android-universal.apk is signed with the debug keystore"
+            exit 1
+          fi
           ls -l dist
 
       - uses: actions/upload-artifact@v4

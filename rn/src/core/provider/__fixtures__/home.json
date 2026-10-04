@@ -1,0 +1,25 @@
+{
+  "class": [
+    { "type_id": "1", "type_name": "电影" },
+    { "type_id": "2", "type_name": "电视剧" },
+    { "type_id": "3", "type_name": "动漫" }
+  ],
+  "filters": {
+    "1": [
+      {
+        "key": "year",
+        "name": "年份",
+        "value": [
+          { "n": "全部", "v": "" },
+          { "n": "2026", "v": "2026" }
+        ]
+      }
+    ],
+    "2": {
+      "key": "area",
+      "name": "地区",
+      "value": [{ "n": "大陆", "v": "大陆" }]
+    }
+  },
+  "list": [{ "vod_id": "11", "vod_name": "电影A", "vod_pic": "https://img.example.com/11.jpg", "vod_remarks": "HD" }]
+}

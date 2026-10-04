@@ -1,0 +1,10 @@
+{
+  "extends": "expo/tsconfig.base",
+  "compilerOptions": {
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "types": ["jest"]
+  },
+  "include": ["**/*.ts", "**/*.tsx", "plugins/**/*.js"],
+  "exclude": ["node_modules", "android", "ios", ".tmp", "coverage"]
+}

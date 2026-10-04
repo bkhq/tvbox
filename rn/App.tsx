@@ -4,6 +4,9 @@ import { useEffect } from 'react';
 
 import { getBootstrap } from './src/core/bootstrap';
 import { RootNavigator } from './src/navigation';
+import { registerBuiltinEngines } from './src/player/engines';
+
+registerBuiltinEngines();
 
 export default function App() {
   useEffect(() => {

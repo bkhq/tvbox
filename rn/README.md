@@ -118,7 +118,7 @@ to avoid an import cycle).
 | `History`  | none                                                                     | VOD UI              |
 | `Collect`  | none                                                                     | VOD UI              |
 | `Settings` | none                                                                     | VOD UI              |
-| `Player`   | `{ siteKey, vodId, flag?, episodeUrl?, position? }`                      | playback / live    |
+| `Player`   | `{ siteKey, vodId, flag?, episodeUrl?, position? } \| { url, title?, headers?, position? }` | playback / live    |
 | `Live`     | `{ groupIndex?, channelIndex? } \| undefined`                            | playback / live    |
 | `Control`  | none                                                                     | LAN services        |
 
@@ -247,6 +247,22 @@ import { registerEngine } from './src/player';
 
 registerEngine({ kind: 'mpv', label: 'MPV', isAvailable: () => MpvModule.isAvailable(), Component: MpvView });
 ```
+
+`registerBuiltinEngines()` (`src/player/engines/`, called once in `App.tsx`)
+registers the bundled engines. Engine views take an optional
+`background?: boolean` prop, the `background` setting (keep playing while the
+app is in the background).
+
+**Video engine** (`src/player/engines/video/`, kind `video`, "系统播放器"):
+`react-native-video` 6.19.3 (Media3 on Android with HLS / DASH /
+SmoothStreaming, AVPlayer on iOS / tvOS), enabled through its config plugin
+with `enableBackgroundAudio` (iOS `UIBackgroundModes` audio). External
+subtitles: SRT, VTT and TTML (by MIME hint, else file extension); ASS / SSA
+are skipped. Errors before the first `load` are phase `init`; Media3 codes map
+`IO_*` / timeout -> `network`, `PARSING_*` / `DECODING_FORMAT_*` -> `format`,
+`DECODER_*` / `DECODING_*` / `AUDIO_TRACK_*` -> `decoder`, `DRM_*` -> `drm`;
+AVPlayer `NSURLErrorDomain` -> `network`, AVFoundation unsupported / decode
+errors -> `format` / `decoder` (table in `errors.ts`).
 
 `getEngine(kind)`, `listEngines()`, `resolveEngine(preferred)` (preferred if
 registered and available, else the other one) and `fallbackEngine(failed)`

@@ -27,6 +27,8 @@ export default ({ config }: ConfigContext): ExpoConfig =>
       'expo-build-properties',
       // Switches prebuild output to Android TV / tvOS when EXPO_TV=1.
       '@react-native-tvos/config-tv',
+      // Media3 HLS / DASH / SmoothStreaming are on by default; UIBackgroundModes audio for the background setting.
+      ['react-native-video', { enableBackgroundAudio: true }],
     ],
     extra: {
       workerUrl,

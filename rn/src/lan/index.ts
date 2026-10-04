@@ -7,4 +7,6 @@ export * from './server';
 export { devicesJson } from './api/pair';
 export { playerJson, sourcesJson } from './api/state';
 export { MAX_SPEED, MIN_SPEED, playerCommand, type PlayerCommand } from './api/control';
+export { mediaJson } from './api/action';
+export * from './settingRegistry';
 export { serveAsset, webAssets, type WebAsset } from './web';

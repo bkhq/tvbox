@@ -1,5 +1,16 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Modal, Platform, Text } from 'react-native';
+import {
+  ActivityIndicator,
+  FlatList,
+  Image,
+  Modal,
+  Platform,
+  Pressable,
+  ScrollView,
+  Text,
+  TextInput,
+  TVFocusGuideView,
+} from 'react-native';
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 
 import { type Bootstrap, BootstrapProvider, createBootstrap } from '../../../core/bootstrap';
@@ -8,6 +19,10 @@ import type { ServerLinkState } from '../../../core/serverLink';
 import { appSettings } from '../../../core/settings';
 import { configRepositories } from '../ConfigPanel';
 import SettingsScreen from '..';
+
+// react-native resolves components lazily on first access; resolve the ones the
+// screen renders while the file loads so no test pays that cost inside its timeout.
+void [ActivityIndicator, FlatList, Image, Modal, Pressable, ScrollView, TextInput, TVFocusGuideView];
 
 jest.mock('../../../navigation/useAppNavigation', () => ({
   useAppNavigation: () => ({ navigate: jest.fn() }),
@@ -79,6 +94,10 @@ async function setup(saved: string[] = []) {
 }
 
 describe('SettingsScreen', () => {
+  // VirtualizedList batches cell updates on a 50 ms timer; fake timers keep it from
+  // firing outside act() on a slow host, and unmounting clears it.
+  beforeEach(() => jest.useFakeTimers());
+  afterEach(() => jest.useRealTimers());
   const originalOS = Platform.OS;
   const originalIsTV = Platform.isTV;
 

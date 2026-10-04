@@ -1,4 +1,14 @@
-import { Text } from 'react-native';
+import {
+  ActivityIndicator,
+  FlatList,
+  Image,
+  Modal,
+  Pressable,
+  ScrollView,
+  Text,
+  TextInput,
+  TVFocusGuideView,
+} from 'react-native';
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 
 import { BootstrapProvider, createBootstrap } from '../../../core/bootstrap';
@@ -10,6 +20,10 @@ import { normalizeResult, type Result } from '../../../core/types';
 import { getHistoryRepository, getKeepRepository, setUserDataStore } from '../../../core/userData';
 import type { RootStackScreenProps } from '../../../navigation/types';
 import DetailScreen from '..';
+
+// react-native resolves components lazily on first access; resolve the ones the
+// screen renders while the file loads so no test pays that cost inside its timeout.
+void [ActivityIndicator, FlatList, Image, Modal, Pressable, ScrollView, TextInput, TVFocusGuideView];
 
 const mockNavigate = jest.fn();
 jest.mock('../../../navigation/useAppNavigation', () => ({
@@ -106,6 +120,10 @@ const episodeTitles = (renderer: ReactTestRenderer) =>
     .map((node) => node.props.title as string);
 
 describe('DetailScreen', () => {
+  // VirtualizedList batches cell updates on a 50 ms timer; fake timers keep it from
+  // firing outside act() on a slow host, and unmounting clears it.
+  beforeEach(() => jest.useFakeTimers());
+  afterEach(() => jest.useRealTimers());
   beforeEach(() => {
     mockNavigate.mockClear();
     setUserDataStore(new MemoryStore());

@@ -7,7 +7,11 @@ import {
   type KeyValueStore,
 } from './storage';
 
-/** App-wide history and keep repositories, created lazily over one KeyValueStore. */
+/**
+ * App-wide user data (watch history and favourites), created lazily over
+ * AsyncStorage. Screens and the player share these instances; tests swap the
+ * backing store with setUserDataStore.
+ */
 
 let store: KeyValueStore = asyncStorageStore;
 let history: HistoryRepository | undefined;
@@ -23,9 +27,9 @@ export function getKeepRepository(): KeepRepository {
   return keep;
 }
 
-/** Tests: swap the backing store and reset the singletons. */
-export function setUserDataStore(next: KeyValueStore): void {
-  store = next;
+/** Test hook: drops both singletons and rebuilds them on `next` (undefined = AsyncStorage). */
+export function setUserDataStore(next: KeyValueStore | undefined): void {
+  store = next ?? asyncStorageStore;
   history = undefined;
   keep = undefined;
 }

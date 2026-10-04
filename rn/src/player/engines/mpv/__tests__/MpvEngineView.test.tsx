@@ -4,7 +4,7 @@ import { act, create } from 'react-test-renderer';
 import type { MpvNativeEvent, MpvViewHandle, MpvViewProps } from '../../../../../modules/mpv';
 import { clearEngines, getEngine } from '../../../engine/registry';
 import type { EngineEvent, EngineHandle, EngineViewProps } from '../../../engine/types';
-import { registerEngines } from '../..';
+import { registerBuiltinEngines } from '../..';
 import { mpvEngineFactory } from '..';
 
 const mockNative: {
@@ -49,12 +49,13 @@ beforeEach(() => {
   mockNative.seek.mockClear();
 });
 
-it('describes itself as the mpv engine and registers through registerEngines', () => {
+it('describes itself as the mpv engine and registers through registerBuiltinEngines', () => {
   clearEngines();
   expect(mpvEngineFactory.kind).toBe('mpv');
   expect(mpvEngineFactory.label).toBe('MPV');
-  registerEngines();
+  registerBuiltinEngines();
   expect(getEngine('mpv')).toBe(mpvEngineFactory);
+  expect(getEngine('video')?.kind).toBe('video');
   clearEngines();
 });
 

@@ -1,0 +1,9 @@
+{
+  "platforms": ["apple", "android"],
+  "apple": {
+    "modules": ["HttpdModule"]
+  },
+  "android": {
+    "modules": ["expo.modules.httpd.HttpdModule"]
+  }
+}

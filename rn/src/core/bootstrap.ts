@@ -6,6 +6,7 @@ import { clearProviders } from './provider';
 import { createServerLink, defaultDeviceInfo, type ServerLink, setServerLink } from './serverLink';
 import { appSettings, type SettingsStore } from './settings';
 import { asyncStorageStore, type ConfigRepository, createConfigRepository, type SavedConfig } from './storage';
+import { installJsSpiders } from '../spider/nativeRuntime';
 
 /**
  * App startup: settings, server link, then the active VOD config. The CMS
@@ -137,9 +138,13 @@ export function createBootstrap(deps: BootstrapDeps): Bootstrap {
 
 let shared: Bootstrap | undefined;
 
-/** App-wide bootstrap backed by AsyncStorage; also installs the app-wide server link when enabled. */
+/**
+ * App-wide bootstrap backed by AsyncStorage; also installs the app-wide server
+ * link when enabled, and the QuickJS spider runtime + JS spider provider.
+ */
 export function getBootstrap(): Bootstrap {
   if (!shared) {
+    installJsSpiders();
     const { workerUrl, versionName, versionCode } = getAppConfig();
     const configs = createConfigRepository(asyncStorageStore, 'vod');
     shared = createBootstrap({

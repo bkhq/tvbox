@@ -10,7 +10,7 @@ import { createDb } from "@/db";
 import { __setLocalDriverRootForTests } from "@/modules/file/storage/local";
 import { __resetDriverRegistryForTests, setActiveDriver } from "@/modules/file/storage/registry";
 import { deleteRelease, listReleases, registerRelease, updateRelease } from "./release.service";
-import { objectExists, putObject, readObjectText, releaseApkKey, updateManifestKey } from "./storage";
+import { MANIFEST_INDEX_KEY, manifestIndexKey, objectExists, putObject, readObjectText, releaseFileKey, updateManifestKey } from "./storage";
 
 const nanoid = customAlphabet("0123456789abcdefghijklmnopqrstuvwxyz", 8);
 const SHA = "e".repeat(64);
@@ -37,12 +37,12 @@ const FLAVORS = [["leanback", "arm64_v8a"], ["mobile", "arm64_v8a"]] as const;
 async function release(versionCode: number, over: Partial<RegisterReleaseInput> = {}, keep = 10) {
   const assets = over.assets ?? FLAVORS.map(([mode, abi]) => ({ mode, abi, sha256: SHA, size: 100 }));
   for (const a of assets)
-    await putObject(releaseApkKey(versionCode, a.mode, a.abi), "apk");
+    await putObject(releaseFileKey(versionCode, a.mode, a.abi, over.app), "bin");
   return await registerRelease(db, { versionCode, versionName: `v${versionCode}`, channel: "stable", notes: "", ...over, assets }, keep);
 }
 
-async function manifest(channel: string, mode = "mobile", abi = "arm64_v8a"): Promise<UpdateManifest | null> {
-  const key = updateManifestKey(channel, mode, abi);
+async function manifest(channel: string, mode = "mobile", abi = "arm64_v8a", app: "tvbox" | "rn" = "tvbox"): Promise<UpdateManifest | null> {
+  const key = updateManifestKey(channel, mode, abi, app);
   return (await objectExists(key)) ? JSON.parse(await readObjectText(key)) as UpdateManifest : null;
 }
 
@@ -96,7 +96,46 @@ describe("registering a release", () => {
     await release(2, {}, 2);
     await release(3, {}, 2);
     expect((await listReleases(db)).map(r => r.versionCode)).toEqual([3, 2]);
-    expect(await objectExists(releaseApkKey(1, "mobile", "arm64_v8a"))).toBe(false);
+    expect(await objectExists(releaseFileKey(1, "mobile", "arm64_v8a"))).toBe(false);
+  });
+});
+
+describe("the rn app", () => {
+  const RN = { app: "rn", assets: [
+    { mode: "android", abi: "universal", sha256: SHA, size: 10 },
+    { mode: "ios", abi: "universal", sha256: SHA, size: 20, bundleId: "io.bk.tv" },
+  ] } as const;
+
+  test("has its own manifests, pointing at the APK or the ipa", async () => {
+    await release(10000, RN);
+    expect(await manifest("stable", "android", "universal", "rn")).toMatchObject({ url: "../apk/10000/android-universal.apk", size: 10 });
+    const ios = await manifest("stable", "ios", "universal", "rn");
+    expect(ios).toMatchObject({ versionCode: 10000, url: "../ipa/10000/ios-universal.ipa", size: 20, bundleId: "io.bk.tv" });
+    expect(await manifest("stable", "android", "universal")).toBeNull();
+    expect(JSON.parse(await readObjectText(manifestIndexKey("rn")))).toHaveLength(4);
+    expect(await objectExists(MANIFEST_INDEX_KEY)).toBe(false);
+  });
+
+  test("neither replaces nor prunes a tvbox release with the same version code", async () => {
+    await release(10000);
+    await release(10000, RN, 1);
+    await release(10001, RN, 1);
+    expect((await listReleases(db)).map(r => [r.app, r.versionCode])).toEqual([["rn", 10001], ["tvbox", 10000]]);
+    expect(await objectExists(releaseFileKey(10000, "mobile", "arm64_v8a"))).toBe(true);
+    expect(await objectExists(releaseFileKey(10000, "ios", "universal", "rn"))).toBe(false);
+    expect((await manifest("stable"))?.versionCode).toBe(10000);
+    expect((await manifest("stable", "ios", "universal", "rn"))?.versionCode).toBe(10001);
+
+    const [rn] = await listReleases(db);
+    await deleteRelease(db, rn!.id);
+    expect(await manifest("stable", "ios", "universal", "rn")).toBeNull();
+    expect((await manifest("stable"))?.versionCode).toBe(10000);
+  });
+
+  test("refuses an ipa flavor without a bundle id", async () => {
+    await expect(release(10000, { app: "rn", assets: [{ mode: "tvos", abi: "universal", sha256: SHA, size: 1 }] }))
+      .rejects
+      .toMatchObject({ statusCode: 422, message: "No bundle id for tvos-universal" });
   });
 });
 
@@ -111,7 +150,7 @@ describe("managing releases", () => {
     expect((await manifest("stable"))?.versionCode).toBe(2);
 
     await deleteRelease(db, second.id);
-    expect(await objectExists(releaseApkKey(2, "mobile", "arm64_v8a"))).toBe(false);
+    expect(await objectExists(releaseFileKey(2, "mobile", "arm64_v8a"))).toBe(false);
     expect((await manifest("stable"))?.versionCode).toBe(1);
 
     const [first] = await listReleases(db);

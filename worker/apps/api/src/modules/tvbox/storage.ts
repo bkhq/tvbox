@@ -34,28 +34,52 @@ export interface DevicesFile {
   }>;
 }
 
-/** APK uploaded by CI for one flavor of a release. */
-export function releaseApkKey(versionCode: number, mode: string, abi: string): string {
-  return `tvbox/releases/${versionCode}/${mode}-${abi}.apk`;
+/**
+ * The Java app ("tvbox") and the React Native app ("rn") are released on
+ * separate channels: the rn objects live under `tvbox/rn/`, so the tvbox keys
+ * stay as they always were.
+ */
+export const APPS = ["tvbox", "rn"] as const;
+export type App = typeof APPS[number];
+
+/** iOS and tvOS builds of the rn app ship as an ipa, everything else as an APK. */
+export function releaseKind(app: App, mode: string): "apk" | "ipa" {
+  return app === "rn" && (mode === "ios" || mode === "tvos") ? "ipa" : "apk";
 }
 
-/** Keys of every update manifest currently written (a JSON array). */
-export const MANIFEST_INDEX_KEY = "tvbox/updates/index.json";
+function appPrefix(app: App): string {
+  return app === "rn" ? "tvbox/rn" : "tvbox";
+}
+
+/** Binary uploaded by CI for one flavor of a release. */
+export function releaseFileKey(versionCode: number, mode: string, abi: string, app: App = "tvbox"): string {
+  return `${appPrefix(app)}/releases/${versionCode}/${mode}-${abi}.${releaseKind(app, mode)}`;
+}
+
+/** Keys of every update manifest of `app` currently written (a JSON array). */
+export function manifestIndexKey(app: App): string {
+  return `${appPrefix(app)}/updates/index.json`;
+}
+
+/** The tvbox one, which the download page lists. */
+export const MANIFEST_INDEX_KEY = manifestIndexKey("tvbox");
 
 /** Update manifest a client of `mode`/`abi` on `channel` reads. */
-export function updateManifestKey(channel: string, mode: string, abi: string): string {
-  return `tvbox/updates/${channel}/${mode}-${abi}.json`;
+export function updateManifestKey(channel: string, mode: string, abi: string, app: App = "tvbox"): string {
+  return `${appPrefix(app)}/updates/${channel}/${mode}-${abi}.json`;
 }
 
 export interface UpdateManifest {
   readonly versionCode: number;
   readonly versionName: string;
   readonly notes: string;
-  /** Path of the APK, relative to the manifest. */
+  /** Path of the APK (or ipa), relative to the manifest. */
   readonly url: string;
   readonly sha256: string;
   readonly size: number;
   readonly createdAt: string;
+  /** Only for ipa flavors: the itms-services manifest needs it. */
+  readonly bundleId?: string;
 }
 
 export function hashHex(algorithm: "sha256" | "md5", data: ArrayBuffer | string): string {

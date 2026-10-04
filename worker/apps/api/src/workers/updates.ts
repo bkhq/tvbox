@@ -1,5 +1,6 @@
-import type { SubscriptionEnv } from "./subscription";
-import { releaseApkKey, updateManifestKey } from "@/modules/tvbox/storage";
+import type { SubscriptionBucket, SubscriptionEnv } from "./subscription";
+import type { UpdateManifest } from "@/modules/tvbox/storage";
+import { releaseFileKey, releaseKind, updateManifestKey } from "@/modules/tvbox/storage";
 
 /**
  * App update endpoints, public and answered by the stateless Worker from the
@@ -7,15 +8,107 @@ import { releaseApkKey, updateManifestKey } from "@/modules/tvbox/storage";
  *
  *   /u/<channel>/<mode>-<abi>.json        newest release for that flavor
  *   /u/apk/<versionCode>/<mode>-<abi>.apk  the APK a manifest points at
+ *
+ * The React Native app has its own channel under /u/rn/: the same json and
+ * apk paths, `/u/rn/ipa/<versionCode>/<mode>-<abi>.ipa` for iOS and tvOS, and
+ * `/u/rn/<channel>/<mode>-<abi>.plist`, the itms-services manifest that
+ * installs that ipa.
  */
 
 export const UPDATES_PREFIX = "/u/";
 
 const RE_MANIFEST = /^\/u\/(stable|beta)\/([a-z0-9_]{1,32})-([a-z0-9_]{1,32})\.json$/;
 const RE_APK = /^\/u\/apk\/(\d{1,10})\/([a-z0-9_]{1,32})-([a-z0-9_]{1,32})\.apk$/;
+const RE_RN_MANIFEST = /^\/u\/rn\/(stable|beta)\/([a-z0-9_]{1,32})-([a-z0-9_]{1,32})\.(json|plist)$/;
+const RE_RN_BINARY = /^\/u\/rn\/(apk|ipa)\/(\d{1,10})\/([a-z0-9_]{1,32})-([a-z0-9_]{1,32})\.(apk|ipa)$/;
+
+const CONTENT_TYPES = { apk: "application/vnd.android.package-archive", ipa: "application/octet-stream" };
 
 function notFound(): Response {
   return new Response("Not Found", { status: 404 });
+}
+
+function xmlEscape(value: string): string {
+  return value.replace(/[<>&'"]/g, c => `&#${c.charCodeAt(0)};`);
+}
+
+function itmsManifest(ipaUrl: string, manifest: UpdateManifest & { bundleId: string }): string {
+  const string = (value: string) => `<string>${xmlEscape(value)}</string>`;
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>items</key>
+  <array>
+    <dict>
+      <key>assets</key>
+      <array>
+        <dict>
+          <key>kind</key>${string("software-package")}
+          <key>url</key>${string(ipaUrl)}
+        </dict>
+      </array>
+      <key>metadata</key>
+      <dict>
+        <key>bundle-identifier</key>${string(manifest.bundleId)}
+        <key>bundle-version</key>${string(manifest.versionName)}
+        <key>kind</key>${string("software")}
+        <key>title</key>${string("影视")}
+      </dict>
+    </dict>
+  </array>
+</dict>
+</plist>
+`;
+}
+
+async function serveBinary(bucket: SubscriptionBucket, key: string, kind: "apk" | "ipa", filename: string): Promise<Response> {
+  const object = await bucket.get(key);
+  if (!object)
+    return notFound();
+  return new Response(object.body, {
+    headers: {
+      "content-type": CONTENT_TYPES[kind],
+      "content-disposition": `attachment; filename="${filename}"`,
+      ...(object.size !== undefined ? { "content-length": String(object.size) } : {}),
+      "cache-control": "public, max-age=31536000, immutable",
+    },
+  });
+}
+
+async function handleRn(request: Request, pathname: string, bucket: SubscriptionBucket): Promise<Response> {
+  const manifest = RE_RN_MANIFEST.exec(pathname);
+  if (manifest) {
+    const mode = manifest[2]!;
+    const ext = manifest[4]!;
+    if (ext === "plist" && releaseKind("rn", mode) !== "ipa")
+      return notFound();
+    const object = await bucket.get(updateManifestKey(manifest[1]!, mode, manifest[3]!, "rn"));
+    if (!object)
+      return notFound();
+    if (ext === "json") {
+      return new Response(object.body, {
+        headers: { "content-type": "application/json; charset=utf-8", "cache-control": "public, max-age=60" },
+      });
+    }
+    const data = JSON.parse(await object.text()) as UpdateManifest;
+    if (typeof data.bundleId !== "string")
+      return notFound();
+    const ipaUrl = new URL(data.url, request.url).href;
+    return new Response(itmsManifest(ipaUrl, { ...data, bundleId: data.bundleId }), {
+      headers: { "content-type": "application/xml; charset=utf-8", "cache-control": "public, max-age=60" },
+    });
+  }
+
+  const binary = RE_RN_BINARY.exec(pathname);
+  if (binary) {
+    const [, dir, code, mode, abi, ext] = binary;
+    const kind = releaseKind("rn", mode!);
+    if (dir !== kind || ext !== kind)
+      return notFound();
+    return await serveBinary(bucket, releaseFileKey(Number(code), mode!, abi!, "rn"), kind, `rn-${code}-${mode}-${abi}.${kind}`);
+  }
+  return notFound();
 }
 
 export async function handleUpdates(request: Request, env: SubscriptionEnv): Promise<Response> {
@@ -26,6 +119,9 @@ export async function handleUpdates(request: Request, env: SubscriptionEnv): Pro
     return new Response("Method Not Allowed", { status: 405 });
 
   const { pathname } = new URL(request.url);
+  if (pathname.startsWith("/u/rn/"))
+    return await handleRn(request, pathname, bucket);
+
   const manifest = RE_MANIFEST.exec(pathname);
   if (manifest) {
     const object = await bucket.get(updateManifestKey(manifest[1]!, manifest[2]!, manifest[3]!));
@@ -37,18 +133,7 @@ export async function handleUpdates(request: Request, env: SubscriptionEnv): Pro
   }
 
   const apk = RE_APK.exec(pathname);
-  if (apk) {
-    const object = await bucket.get(releaseApkKey(Number(apk[1]), apk[2]!, apk[3]!));
-    if (!object)
-      return notFound();
-    return new Response(object.body, {
-      headers: {
-        "content-type": "application/vnd.android.package-archive",
-        "content-disposition": `attachment; filename="tvbox-${apk[1]}-${apk[2]}-${apk[3]}.apk"`,
-        ...(object.size !== undefined ? { "content-length": String(object.size) } : {}),
-        "cache-control": "public, max-age=31536000, immutable",
-      },
-    });
-  }
+  if (apk)
+    return await serveBinary(bucket, releaseFileKey(Number(apk[1]), apk[2]!, apk[3]!), "apk", `tvbox-${apk[1]}-${apk[2]}-${apk[3]}.apk`);
   return notFound();
 }

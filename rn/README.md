@@ -118,7 +118,7 @@ to avoid an import cycle).
 | `History`  | none                                                                     | VOD UI              |
 | `Collect`  | none                                                                     | VOD UI              |
 | `Settings` | none                                                                     | VOD UI              |
-| `Player`   | `{ siteKey, vodId, flag?, episodeUrl?, position? }`                      | playback / live    |
+| `Player`   | `{ siteKey, vodId, flag?, episodeUrl?, position? } \| { url, title?, headers?, position? }` | playback / live    |
 | `Live`     | `{ groupIndex?, channelIndex? } \| undefined`                            | playback / live    |
 | `Control`  | none                                                                     | LAN services        |
 
@@ -186,6 +186,231 @@ reported to `onConfigError`, which re-queries the worker on a 404. UI uses
 **Routes.** Add a route by extending `RootStackParamList` in
 `navigation/types.ts` and the table in `navigation/routes.ts`.
 
+## Playback
+
+`src/player/` holds the player core: engine contract and registry, the
+playback state machine (`machine.ts`), the VOD resolve flow (`resolve.ts`),
+history (`history.ts`), the app-wide control API (`controller.ts`) and the
+`usePlayback(params)` hook the Player screen is built on. Engine
+implementations live in sibling workstreams and register themselves.
+
+### Engines
+
+```ts
+type EngineKind = 'video' | 'mpv';
+
+interface EngineSource {
+  url: string;
+  headers: Record<string, string>;
+  title?: string;
+  startPosition?: number; // ms
+  format?: string; // MIME hint
+  subtitles: ExternalSubtitle[]; // { url, name, lang?, format? }
+  drm?: { type: string; licenseUrl?: string; headers?: Record<string, string> };
+}
+
+interface EngineViewProps {
+  source: EngineSource;
+  paused: boolean;
+  rate: number;
+  resizeMode: 'contain' | 'cover' | 'stretch' | 'fill'; // resizeModeFromScale(scale setting)
+  selectedAudioTrack?: TrackId;
+  selectedTextTrack?: TrackId | null; // null = subtitles off
+  style?: StyleProp<ViewStyle>;
+  onEvent(event: EngineEvent): void;
+}
+
+interface EngineHandle { seek(ms: number): void; release?(): void } // the component's ref
+
+type EngineEvent =
+  | { type: 'load'; duration: number; tracks: EngineTracks }
+  | { type: 'progress'; position: number; duration: number; buffered: number }
+  | { type: 'buffering'; value: boolean }
+  | { type: 'playing' } | { type: 'paused' } | { type: 'ended' }
+  | { type: 'tracks'; audio: Track[]; text: Track[]; video: Track[] }
+  | { type: 'error'; code: string | number; message: string; fatal: boolean;
+      phase: 'init' | 'playback';
+      reason: 'init' | 'open' | 'format' | 'decoder' | 'drm' | 'network' | 'other' };
+
+interface EngineFactory {
+  kind: EngineKind;
+  label: string; // Chinese UI name: "系统播放器", "MPV"
+  isAvailable(): boolean;
+  Component: React.ComponentType<EngineViewProps & React.RefAttributes<EngineHandle>>;
+}
+```
+
+Register at startup; times are milliseconds everywhere:
+
+```ts
+import { registerEngine } from './src/player';
+
+registerEngine({ kind: 'mpv', label: 'MPV', isAvailable: () => MpvModule.isAvailable(), Component: MpvView });
+```
+
+`registerBuiltinEngines()` (`src/player/engines/`, called once in `App.tsx`)
+registers the bundled engines. Engine views take an optional
+`background?: boolean` prop, the `background` setting (keep playing while the
+app is in the background).
+
+**Video engine** (`src/player/engines/video/`, kind `video`, "系统播放器"):
+`react-native-video` 6.19.3 (Media3 on Android with HLS / DASH /
+SmoothStreaming, AVPlayer on iOS / tvOS), enabled through its config plugin
+with `enableBackgroundAudio` (iOS `UIBackgroundModes` audio). External
+subtitles: SRT, VTT and TTML (by MIME hint, else file extension); ASS / SSA
+are skipped. Errors before the first `load` are phase `init`; Media3 codes map
+`IO_*` / timeout -> `network`, `PARSING_*` / `DECODING_FORMAT_*` -> `format`,
+`DECODER_*` / `DECODING_*` / `AUDIO_TRACK_*` -> `decoder`, `DRM_*` -> `drm`;
+AVPlayer `NSURLErrorDomain` -> `network`, AVFoundation unsupported / decode
+errors -> `format` / `decoder` (table in `errors.ts`).
+
+`getEngine(kind)`, `listEngines()`, `resolveEngine(preferred)` (preferred if
+registered and available, else the other one) and `fallbackEngine(failed)`
+complete the registry. Engine adapters map native errors to `reason`; the
+player keys the engine view on `sourceKey`, so a new source remounts it.
+
+**Default engine.** The `playerEngine` setting is `'auto' | 'video' | 'mpv'`
+(default `'auto'`). `'auto'` is the platform default: `mpv` on iOS / tvOS,
+`video` (Media3) on Android phone and TV. `'video'` / `'mpv'` are explicit
+user choices. `setPreferredEngine(kind | 'auto')` persists the choice;
+`chooseEngine(preference, Platform.OS, source?)` resolves it, sending DRM
+sources to `video` up front.
+
+**Fallback** (`fallbackDecision(platform, active, error, context)`), at most
+once per item, never written back to the setting, keeping the position:
+
+| Platform / active engine | Falls back to the other engine on                                         |
+| ------------------------ | ------------------------------------------------------------------------ |
+| iOS, `mpv`               | `reason` `init`, `open`, `format`, `decoder` or `drm`                     |
+| Android, `video`         | `reason` `init`, `format` or `decoder`                                    |
+| anything else            | `reason` `init` only                                                      |
+
+The decision uses `reason` only, not `phase` (adapters report every error
+before the first `load` as phase `init`): `network` and `other` errors never
+switch engines. A second failure, or an error with no fallback, ends in the
+`error` state with a Chinese message.
+
+### mpv engine (`modules/mpv`, `src/player/engines/mpv`)
+
+`mpvEngineFactory` (kind `mpv`, label `MPV`) renders the local Expo module's
+native `MpvView` and maps `EngineViewProps` to native props (seconds, mpv
+`aid` / `sid` values `auto` / `no` / id, the `decode` setting as hardware or
+software decoding) and native `onMpvEvent` payloads to engine events.
+`isAvailable()` is `isMpvAvailable()`: false in Jest and on web, on Android
+ABIs without libmpv (x86 / x86_64) and on iOS builds without MPVKit; it never
+throws. A missing native view or a failed library load / `mpv_create` /
+`mpv_initialize` is an `error` with `phase: 'init'`, `reason: 'init'`.
+End-file errors are classified by `classifyMpvError`: unrecognized format /
+nothing to play -> `format`, audio / video output init -> `decoder`,
+network / HTTP failures in mpv's last warning -> `network`, other failures
+before the first `load` -> `open`, later failures on a network URL ->
+`network`, else `other`.
+
+**Android.** `modules/mpv/android/src/main/jniLibs/{arm64-v8a,armeabi-v7a}`
+carries the Java app's prebuilt `libmpv.so`, `libplayer.so` (mpv-android JNI
+bridge for `is.xyz.mpv.MPVLib`, ported unchanged in package `is.xyz.mpv`) and
+the FFmpeg libraries libmpv links against (`libav*`, `libsw*`, from
+`media/libraries/decoder_ffmpeg`), copied because the build container mounts
+only `rn/`. They need the bundled `libc++_shared.so` (NDK r29); React
+Native's NDK 27 copy lacks `std::__from_chars_floating_point`.
+`app.config.ts` sets `pickFirst` for `**/libc++_shared.so` (that keeps the
+app's NDK 27 copy) and `modules/mpv/android/build.gradle` then overwrites it
+in the app's merged native libs for arm64-v8a / armeabi-v7a; the r29 copy
+exports every libc++ symbol the React Native libraries use. libplayer holds one global mpv instance, so a new view releases
+the previous one first. Options follow the Java app (`vo=gpu`,
+`hwdec=mediacodec,mediacodec-copy` or `no`, `profile=fast`, `config-dir`
+`files/mpv` for a user `mpv.conf`).
+
+**iOS / tvOS.** MPVKit is SwiftPM-only, so `modules/mpv/ios/fetch-mpvkit.sh`
+downloads the LGPL xcframeworks listed in MPVKit's `Package.swift`
+(`MPVKIT_VERSION`, default `1.0.0`, checksum-verified, see Release > MPVKit) into `modules/mpv/ios/Frameworks/`
+(gitignored); `TvboxMpv.podspec` vendors whatever is there. Run it before
+`pod install`. Without the frameworks the module still compiles
+(`#if canImport(Libmpv)`) and reports unavailable. Rendering uses
+`vo=gpu-next` with MoltenVK on a `CAMetalLayer` (`wid`), `hwdec=videotoolbox`.
+
+### Player route
+
+`Player` params are either a VOD episode
+`{ siteKey, vodId, flag?, episodeUrl?, position? }` or a direct URL
+`{ url, title?, headers?, position? }`; tell them apart with
+`isVodPlayerParams` / `isUrlPlayerParams`. VOD playback resumes and updates
+the history record Detail wrote for `(cid, historyKey(siteKey, vodId))`
+through `getHistoryRepository()` (none while `incognito`); direct URLs write
+no history.
+
+### Player screen (`src/screens/player`)
+
+Renders the active engine full screen (keyed on `sourceKey`, `background`
+setting passed through) and is the playback host while focused
+(`usePlayback(params, { attach: focused })`). An engine fallback shows a
+toast ("已切换到 MPV 播放"); resolve / parse / load show a spinner text and
+errors a Chinese message with 重试 (re-opens the item).
+
+- TV remote (`useRemoteKeys`): left / right seek 10 s per press, accumulating
+  while the key repeats and applied 500 ms after the last press; OK
+  pauses / resumes while the controls are hidden; up (and the Android menu
+  key) shows the controls, down the episode panel; play / pause / next /
+  previous media keys and channel up / down work directly. Back closes the
+  panel, then the controls, then leaves.
+- Touch (`useTouchGestures`): tap toggles the controls, double tap pauses,
+  a horizontal drag seeks (a full-width drag is 3 min) with a target-time
+  preview. Phones get a 返回 button; the header is hidden.
+- Controls auto-hide after 5 s; panels: 选集 (with line switch), 倍速
+  (`SPEED_PRESETS`), 音轨, 字幕 (关闭, engine text tracks, `Result.subs`,
+  add by URL), 播放器 (writes `playerEngine`, restarts at the position).
+- With `background` off the screen pauses on AppState `background` /
+  `inactive` for every engine and does not resume.
+- `App.tsx` registers the player opener on `NavigationContainer` ready:
+  `navigate('Player', request)`.
+- Not done: no orientation lock (`expo-screen-orientation` is not a
+  dependency); no long-press speed boost (`speedLongPress`).
+
+### Control API
+
+For LAN services (phone control page, DLNA, AirPlay casts):
+
+```ts
+getPlaybackController(): {
+  getState(): PlaybackSnapshot;
+  play(): void; pause(): void; stop(): void;
+  prev(): void; next(): void;          // VOD: episode, Live: channel
+  repeat(): void;                      // toggle repeat-one, see snapshot.repeat
+  replay(): void;                      // restart the current item from 0
+  seekTo(ms: number): void;
+  setSpeed(n: number): void;           // clamped to 0.1..5 (speedPlayback range)
+  playUrl(url: string, opts?: { title?: string; position?: number; headers?: Record<string, string> }): void;
+  subscribe(listener: (s: PlaybackSnapshot) => void): () => void;
+}
+
+interface PlaybackSnapshot {
+  active: boolean; playing: boolean; title: string;
+  position: number; duration: number; // ms
+  speed: number; repeat: boolean;
+  url?: string; engine?: EngineKind;
+  status: 'idle' | 'resolving' | 'parsing' | 'loading' | 'buffering' | 'playing' | 'paused' | 'ended' | 'error';
+}
+```
+
+The screen that owns playback attaches as the host with
+`attachPlaybackHost(host)` (returns the detach function). A host implements
+the same commands plus `getState()`, `subscribe(push)` to push snapshots, and
+optionally `playUrl(request)`; the Player screen does all of this through
+`usePlayback`. Without a host `getState().active` is false and the commands
+are no-ops. `playUrl` goes to the attached host when it accepts URLs;
+otherwise it calls the opener registered with `setPlayerOpener(fn)` (wired to
+navigate to `Player` with the direct-URL params) and the request is queued
+for the next host that accepts URLs.
+
+```ts
+const player = getPlaybackController();
+const off = player.subscribe((s) => send({ playing: s.playing, position: s.position }));
+player.playUrl('https://example.com/a.m3u8', { title: '投屏', position: 30_000 });
+player.seekTo(60_000);
+player.setSpeed(1.5);
+off();
+```
+
 ## Android debug build
 
 The APK is built in a sibling container; the host needs only Docker:
@@ -237,8 +462,8 @@ both platforms). Unset or blank values fall back to `1.0.0` / `1`; a
   on `rn-v*` tags and on manual dispatch.
   - `android`: prebuild and `gradlew assembleRelease` -> `android-universal.apk`
     (one APK for phones and Android TV).
-  - `apple` (matrix `ios`, `tvos`; `EXPO_TV=1` for tvOS): prebuild,
-    `pod install`, then `xcodebuild archive` + `-exportArchive` (ad-hoc /
+  - `apple` (matrix `ios`, `tvos`; `EXPO_TV=1` for tvOS): fetch MPVKit
+    (see below), prebuild, `pod install`, then `xcodebuild archive` + `-exportArchive` (ad-hoc /
     `release-testing`, manual signing of `cc.bkhq.tvbox`) ->
     `ios-universal.ipa` / `tvos-universal.ipa`.
   - `publish` (tags only): creates the GitHub release with the binaries and
@@ -248,6 +473,25 @@ both platforms). Unset or blank values fall back to `1.0.0` / `1`; a
     carry `bundleId`). The worker then rewrites the rn update manifests.
 
 Branch and manual runs only build; they never publish.
+
+### MPVKit
+
+Before prebuild the `apple` job runs `bash modules/mpv/ios/fetch-mpvkit.sh`,
+which downloads the MPVKit LGPL xcframeworks into
+`modules/mpv/ios/Frameworks/` for `pod install` to vendor. The script pins
+MPVKit `1.0.0` (`pinned_version`) and the SHA-256 of that tag's
+`Package.swift` (`pinned_package_sha256`), and checks every archive against
+the SwiftPM `checksum:` (SHA-256) listed for it in `Package.swift`. Any
+mismatch or download failure fails the job, so a build never ships without
+mpv silently. `MPVKIT_VERSION` / `MPVKIT_PACKAGE_SHA256` override the pins
+locally; another version without `MPVKIT_PACKAGE_SHA256` only warns that
+`Package.swift` itself is unverified.
+
+To bump MPVKit, set both pins in the script to the new tag and
+`curl -fsSL https://raw.githubusercontent.com/mpvkit/MPVKit/<tag>/Package.swift | shasum -a 256`
+(archive checksums come from that `Package.swift`), check the skipped
+targets (GPL variants, `Libsmbclient`, `Libluajit`) and the podspec's system
+frameworks still match, then run the script once.
 
 ### Update endpoints
 

@@ -1,10 +1,16 @@
-import { DarkTheme, NavigationContainer } from '@react-navigation/native';
+import { createNavigationContainerRef, DarkTheme, NavigationContainer } from '@react-navigation/native';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
 
 import { getBootstrap } from './src/core/bootstrap';
-import { RootNavigator } from './src/navigation';
+import { RootNavigator, type RootStackParamList } from './src/navigation';
+import { setPlayerOpener } from './src/player';
+import { registerBuiltinEngines } from './src/player/engines';
 import { UpdatePrompt } from './src/update';
+
+registerBuiltinEngines();
+
+const navigationRef = createNavigationContainerRef<RootStackParamList>();
 
 export default function App() {
   useEffect(() => {
@@ -12,7 +18,11 @@ export default function App() {
   }, []);
 
   return (
-    <NavigationContainer theme={DarkTheme}>
+    <NavigationContainer
+      ref={navigationRef}
+      theme={DarkTheme}
+      onReady={() => setPlayerOpener((request) => navigationRef.navigate('Player', request))}
+    >
       <RootNavigator />
       <UpdatePrompt />
       <StatusBar style="light" />

@@ -1,4 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Platform } from 'react-native';
 
 import { asyncStorageStore, type KeyValueStore, MemoryStore } from '../../storage/keyValueStore';
 import { defaultSettings, SETTING_KEYS, type Settings } from '../schema';
@@ -9,7 +10,7 @@ describe('settings defaults', () => {
     const settings = createSettingsStore(new MemoryStore());
     expect(settings.getSettings()).toEqual(defaultSettings());
     expect(settings.getSettings()).toMatchObject({
-      playerEngine: 'video',
+      playerEngine: 'auto',
       decode: 'hard',
       speedPlayback: 1,
       speedLongPress: 2,
@@ -104,18 +105,36 @@ describe('validation', () => {
     const store = new MemoryStore();
     await store.setItem(SETTINGS_STORAGE_KEY, JSON.stringify({ playerEngine: 'vlc', speedPlayback: 99, airplay: false }));
     const settings = await createSettingsStore(store).loadSettings();
-    expect(settings.playerEngine).toBe('video');
+    expect(settings.playerEngine).toBe('auto');
     expect(settings.speedPlayback).toBe(5);
     expect(settings.airplay).toBe(false);
   });
 
   it('keeps tunnelling on the surface renderer for the video engine', async () => {
     const settings = createSettingsStore(new MemoryStore());
+    await settings.set('playerEngine', 'video');
     await settings.set('render', 'texture');
     await settings.set('tunnel', true);
     expect(settings.get('render')).toBe('surface');
     await settings.set('render', 'texture');
     expect(settings.get('tunnel')).toBe(false);
+  });
+
+  it.each<[string, string]>([
+    ['android', 'surface'],
+    ['ios', 'texture'],
+  ])("links tunnelling for 'auto' on %s", async (os, render) => {
+    const original = Platform.OS;
+    Platform.OS = os as typeof Platform.OS;
+    try {
+      const settings = createSettingsStore(new MemoryStore());
+      await settings.set('render', 'texture');
+      await settings.set('tunnel', true);
+      expect(settings.get('playerEngine')).toBe('auto');
+      expect(settings.get('render')).toBe(render);
+    } finally {
+      Platform.OS = original;
+    }
   });
 });
 

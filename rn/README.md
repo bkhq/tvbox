@@ -297,9 +297,11 @@ bridge for `is.xyz.mpv.MPVLib`, ported unchanged in package `is.xyz.mpv`) and
 the FFmpeg libraries libmpv links against (`libav*`, `libsw*`, from
 `media/libraries/decoder_ffmpeg`), copied because the build container mounts
 only `rn/`. They need the bundled `libc++_shared.so` (NDK r29); React
-Native's NDK 27 copy lacks `std::__from_chars_floating_point`, so
-`app.config.ts` sets `pickFirst` for `**/libc++_shared.so` and the module's
-copy wins. libplayer holds one global mpv instance, so a new view releases
+Native's NDK 27 copy lacks `std::__from_chars_floating_point`.
+`app.config.ts` sets `pickFirst` for `**/libc++_shared.so` (that keeps the
+app's NDK 27 copy) and `modules/mpv/android/build.gradle` then overwrites it
+in the app's merged native libs for arm64-v8a / armeabi-v7a; the r29 copy
+exports every libc++ symbol the React Native libraries use. libplayer holds one global mpv instance, so a new view releases
 the previous one first. Options follow the Java app (`vo=gpu`,
 `hwdec=mediacodec,mediacodec-copy` or `no`, `profile=fast`, `config-dir`
 `files/mpv` for a user `mpv.conf`).

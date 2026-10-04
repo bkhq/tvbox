@@ -1,0 +1,56 @@
+plugins {
+  id 'com.android.library'
+  id 'expo-module-gradle-plugin'
+}
+
+group = 'cc.bkhq.tvbox'
+version = '1.0.0'
+
+// Bundled JS libraries (../assets/lib, may be absent) are packaged as
+// assets under quickjs/lib/.
+def quickjsAssetsDir = new File(layout.buildDirectory.get().asFile, 'generated/quickjs-assets')
+def syncQuickJSLibs = tasks.register('syncQuickJSLibs', Sync) {
+  from(file('../assets/lib'))
+  into(new File(quickjsAssetsDir, 'quickjs/lib'))
+}
+tasks.matching { it.name == 'preBuild' }.configureEach {
+  dependsOn(syncQuickJSLibs)
+}
+
+android {
+  if (rootProject.hasProperty('ndkPath')) {
+    ndkPath rootProject.ext.ndkPath
+  }
+  if (rootProject.hasProperty('ndkVersion')) {
+    ndkVersion rootProject.ext.ndkVersion
+  }
+
+  namespace 'expo.modules.quickjs'
+  defaultConfig {
+    versionCode 1
+    versionName '1.0.0'
+    consumerProguardFiles 'consumer-rules.pro'
+    externalNativeBuild {
+      cmake {
+        arguments '-DANDROID_SUPPORT_FLEXIBLE_PAGE_SIZES=ON'
+      }
+    }
+  }
+
+  externalNativeBuild {
+    cmake {
+      path 'CMakeLists.txt'
+    }
+  }
+
+  sourceSets {
+    main {
+      assets.srcDirs += quickjsAssetsDir
+    }
+  }
+}
+
+dependencies {
+  // OkHttp comes with React Native.
+  implementation 'com.facebook.react:react-android'
+}

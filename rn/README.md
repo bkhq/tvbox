@@ -76,6 +76,7 @@ rn/
   docker/              Dockerfile of the Android build image
   scripts/             build helpers (android-debug.sh)
   src/core/            app logic, no UI except React hooks
+  src/spider/          JS spider runtime: prelude, JsSpiderProvider, QuickJS adapter
   src/navigation/      root stack, route table, param types
   src/ui/              shared TV/phone primitives
   src/screens/<feature>/index.tsx   one screen per route
@@ -140,6 +141,58 @@ with layout-derived columns), `HorizontalRow`, `PlaceholderScreen`,
 Local native code is an Expo module built with the Expo Modules API
 (`npx create-expo-module@latest --local <name>`), autolinked from `modules/`.
 Never edit generated `android/` or `ios/` directly.
+
+## JS spiders
+
+Type 3 sites whose `api` ends in `.js` run in QuickJS, one context per site
+(`JsSpiderProvider`, provider id `js-spider`). `getBootstrap()` calls
+`installJsSpiders()` (`src/spider/nativeRuntime.ts`) once on every platform:
+it installs the native runtime with `setSpiderRuntime` and registers the
+provider. JAR spiders (type 3 non-`.js`), Python spiders and type 4 sites stay
+unsupported (`supported: false`).
+
+| Path                                 | Contents                                                                                                    |
+| ------------------------------------ | ----------------------------------------------------------------------------------------------------------- |
+| `src/spider/runtime.ts`              | `SpiderRuntime` seam, `setSpiderRuntime` / `getSpiderRuntime`, `SpiderError`, `SpiderTimeoutError`           |
+| `src/spider/prelude.ts`              | sources evaluated in each context: `PRELUDE` script, crypto and parser modules, `spiderEntry(api)`           |
+| `src/spider/provider.ts`             | `JsSpiderProvider` (bootstrap per `Spider.java`, results per `SiteApi.java`)                                 |
+| `src/spider/nativeRuntime.ts`        | `nativeSpiderRuntime` (pass-through to the native module, error mapping), `installJsSpiders()`               |
+| `modules/quickjs/`                   | Expo module `QuickJS`: quickjs-ng + `cpp/qjs_bridge.c`, Android JNI and iOS/tvOS Swift wrappers              |
+| `modules/quickjs/assets/lib/`        | bundled libs (`cat.js`, `cheerio.min.js`, `crypto-js.js`, `gbk.js`, `similarity.js`), copies of `quickjs/`   |
+
+**Native contract** (`modules/quickjs/index.ts`): `createContext()`,
+`registerModule(ctx, name, source)`, `evaluate(ctx, code, filename, asModule, timeoutMs)`,
+`call(ctx, objectName, method, argsJson, timeoutMs)` (resolves the JSON of the
+result, awaiting promises and driving `__drainTimers`), `destroyContext(ctx)`.
+Each context has its own runtime and serial thread. Rejections carry
+`ERR_QUICKJS_EXCEPTION | TIMEOUT | STALLED | NO_OBJECT | NO_CONTEXT`; the
+adapter turns them into `SpiderError` (`SpiderTimeoutError` for timeouts). The
+module loader resolves registered sources first, then `lib/X` /
+`assets://js/lib/X` from the bundled libs, then http(s) URLs.
+
+**Host APIs available to spiders**: `req` / `http` / `_http` (get, post with
+json / form / form-data / body, HEAD via `header`, headers, timeout, redirect,
+`buffer` 0-3), `local.get/set/delete` (persisted per app in
+`quickjs_local`), `console.*`, `setTimeout` / `clearTimeout`, `joinUrl`,
+`md5X`, `aesX`, `pd` / `pdfh` / `pdfa` / `pdfl`, the `global` / `window` /
+`self` aliases, and ES module imports of the bundled libs. Spider methods
+called: `init`, `home`, `homeVod`, `category`, `detail`, `search`, `play`,
+`destroy`.
+
+**Not implemented (deferred)**: `proxy` / `getProxy` / `js2Proxy` / `getPort`
+(no local proxy server), `s2t` / `t2s`, `rsaX`, and the spider methods
+`liveContent`, `action`, `sniffer`, `isVideo` and `proxy`.
+
+**Tests.** Jest runs spiders in a node `vm` runtime
+(`src/spider/__testutils__/nodeRuntime.ts`); `jest.setup.ts` mocks the native
+module. `bash modules/quickjs/cpp/test/run.sh` (gcc + node, no device) runs
+the C bridge test and a smoke test that evaluates the real prelude, crypto and
+parser modules and two fixture spiders (FongMi default export and cat-style
+`__jsEvalReturn`) on quickjs-ng with the bundled libs.
+
+**iOS/tvOS risk.** The Swift wrapper and the podspec are only checked here by
+typecheck and `expo prebuild` autolinking; they are first compiled by the
+macOS CI build, so iOS/tvOS compile errors surface there.
 
 ## Extension seams
 

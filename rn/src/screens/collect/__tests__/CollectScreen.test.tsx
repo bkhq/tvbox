@@ -1,0 +1,126 @@
+import {
+  ActivityIndicator,
+  FlatList,
+  Image,
+  Modal,
+  Pressable,
+  ScrollView,
+  Text,
+  TextInput,
+  TVFocusGuideView,
+} from 'react-native';
+import { act, create, type ReactTestRenderer } from 'react-test-renderer';
+
+import { BootstrapProvider, createBootstrap } from '../../../core/bootstrap';
+import { parseVodConfig } from '../../../core/config';
+import { createSettingsStore } from '../../../core/settings';
+import { createConfigRepository, historyKey, MemoryStore } from '../../../core/storage';
+import { getKeepRepository, setUserDataStore } from '../../../core/userData';
+import CollectScreen from '..';
+
+// react-native resolves components lazily on first access; resolve the ones the
+// screen renders while the file loads so no test pays that cost inside its timeout.
+void [ActivityIndicator, FlatList, Image, Modal, Pressable, ScrollView, TextInput, TVFocusGuideView];
+
+const mockNavigate = jest.fn();
+jest.mock('../../../navigation/useAppNavigation', () => ({
+  useAppNavigation: () => ({ navigate: mockNavigate, addListener: () => () => undefined }),
+}));
+
+const URL = 'https://example.com/config.json';
+const CONFIG_TEXT = JSON.stringify({ sites: [{ key: 'cms', name: 'CMS 站', type: 1, api: 'https://cms.example.com/api.php/provide/vod' }] });
+
+// Repositories stamp createTime with Date.now; distinct stamps keep the order deterministic.
+// Runs under fake timers, so this moves Date.now without waiting.
+const tick = () => jest.advanceTimersByTime(5);
+
+function texts(renderer: ReactTestRenderer): string[] {
+  return renderer.root.findAllByType(Text).map((node) => [node.props.children].flat().join(''));
+}
+
+function byTestId(renderer: ReactTestRenderer, testID: string) {
+  return renderer.root.findAll((node) => node.props.testID === testID)[0]!;
+}
+
+const cardIds = (renderer: ReactTestRenderer) =>
+  renderer.root
+    .findAll((node) => typeof node.type === 'string' && String(node.props.testID ?? '').startsWith('collect-card-'))
+    .map((node) => String(node.props.testID).slice('collect-card-'.length));
+
+async function render(options: { saved?: boolean; seed?: boolean } = {}) {
+  const store = new MemoryStore();
+  setUserDataStore(new MemoryStore());
+  const configs = createConfigRepository(store, 'vod');
+  if (options.saved !== false) {
+    await configs.add({ url: URL });
+    await configs.setActive(URL);
+  }
+  const bootstrap = createBootstrap({
+    configs,
+    settings: createSettingsStore(store),
+    loadConfig: (url) => Promise.resolve(parseVodConfig(CONFIG_TEXT, url)),
+  });
+  await bootstrap.start();
+  const cid = bootstrap.getSnapshot().entry?.id ?? -1;
+  if (options.seed) {
+    const repo = getKeepRepository();
+    await repo.add({ key: historyKey('cms', 'a'), cid, siteName: 'CMS 站', vodName: '甲', vodPic: 'https://img/a.jpg' });
+    // A site the current config no longer has still opens Detail.
+    tick();
+    await repo.add({ key: historyKey('gone', 'b'), cid, siteName: '旧站', vodName: '乙', vodPic: 'https://img/b.jpg' });
+    tick();
+    await repo.add({ key: historyKey('cms', 'c'), cid: cid + 1, siteName: 'CMS 站', vodName: '别的配置', vodPic: '' });
+  }
+  let renderer!: ReactTestRenderer;
+  await act(async () => {
+    renderer = create(
+      <BootstrapProvider value={bootstrap}>
+        <CollectScreen />
+      </BootstrapProvider>,
+    );
+  });
+  return { renderer, cid };
+}
+
+describe('CollectScreen', () => {
+  // VirtualizedList batches cell updates on a 50 ms timer; fake timers keep it from
+  // firing outside act() on a slow host, and unmounting clears it.
+  beforeEach(() => jest.useFakeTimers());
+  afterEach(() => jest.useRealTimers());
+  beforeEach(() => mockNavigate.mockClear());
+  afterAll(() => setUserDataStore(undefined));
+
+  it('lists the keeps of the active config and opens Detail', async () => {
+    const { renderer } = await render({ seed: true });
+    expect(cardIds(renderer)).toEqual(['gone@@@b', 'cms@@@a']);
+    expect(texts(renderer)).toEqual(expect.arrayContaining(['收藏', '旧站', 'CMS 站']));
+    expect(byTestId(renderer, 'collect-card-gone@@@b').props.hasTVPreferredFocus).toBe(true);
+    expect(renderer.root.findAll((node) => node.props.testID === 'collect-clear')).toHaveLength(0);
+
+    await act(async () => byTestId(renderer, 'collect-card-gone@@@b').props.onPress());
+    expect(mockNavigate).toHaveBeenCalledWith('Detail', { siteKey: 'gone', vodId: 'b', vodName: '乙', vodPic: 'https://img/b.jpg' });
+    await act(async () => renderer.unmount());
+  });
+
+  it('removes a keep in edit mode', async () => {
+    const { renderer, cid } = await render({ seed: true });
+    await act(async () => byTestId(renderer, 'collect-edit').props.onPress());
+    await act(async () => byTestId(renderer, 'collect-card-cms@@@a').props.onPress());
+    expect(mockNavigate).not.toHaveBeenCalled();
+    expect(cardIds(renderer)).toEqual(['gone@@@b']);
+    expect(await getKeepRepository().isKept(historyKey('cms', 'a'), cid)).toBe(false);
+    expect(await getKeepRepository().isKept(historyKey('cms', 'c'), cid + 1)).toBe(true);
+    await act(async () => renderer.unmount());
+  });
+
+  it('shows the empty and no-config states', async () => {
+    const empty = await render();
+    expect(texts(empty.renderer)).toContain('暂无收藏');
+    expect(byTestId(empty.renderer, 'collect-edit').props.hasTVPreferredFocus).toBe(true);
+    await act(async () => empty.renderer.unmount());
+
+    const none = await render({ saved: false });
+    expect(texts(none.renderer)).toEqual(expect.arrayContaining(['收藏', '请先添加配置']));
+    await act(async () => none.renderer.unmount());
+  });
+});

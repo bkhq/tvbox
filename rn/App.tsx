@@ -1,24 +1,13 @@
+import { DarkTheme, NavigationContainer } from '@react-navigation/native';
 import { StatusBar } from 'expo-status-bar';
-import { StyleSheet, Text, View } from 'react-native';
+
+import { RootNavigator } from './src/navigation';
 
 export default function App() {
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>影视</Text>
+    <NavigationContainer theme={DarkTheme}>
+      <RootNavigator />
       <StatusBar style="light" />
-    </View>
+    </NavigationContainer>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#000',
-  },
-  title: {
-    color: '#fff',
-    fontSize: 32,
-  },
-});

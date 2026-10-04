@@ -30,12 +30,16 @@ import {
 import { ErrorView, LoadingView, openVod, VodGrid } from "../common";
 
 const NAV_LINKS: {
-  route: Extract<RouteName, "Settings" | "History" | "Collect" | "Search">;
+  route: Extract<
+    RouteName,
+    "Settings" | "History" | "Collect" | "Search" | "Control"
+  >;
   title: string;
 }[] = [
   { route: "Search", title: "搜索" },
   { route: "History", title: "历史记录" },
   { route: "Collect", title: "收藏" },
+  { route: "Control", title: "手机控制" },
   { route: "Settings", title: "设置" },
 ];
 

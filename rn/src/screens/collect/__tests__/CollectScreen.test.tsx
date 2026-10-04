@@ -1,4 +1,14 @@
-import { Text } from 'react-native';
+import {
+  ActivityIndicator,
+  FlatList,
+  Image,
+  Modal,
+  Pressable,
+  ScrollView,
+  Text,
+  TextInput,
+  TVFocusGuideView,
+} from 'react-native';
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 
 import { BootstrapProvider, createBootstrap } from '../../../core/bootstrap';
@@ -7,6 +17,10 @@ import { createSettingsStore } from '../../../core/settings';
 import { createConfigRepository, historyKey, MemoryStore } from '../../../core/storage';
 import { getKeepRepository, setUserDataStore } from '../../../core/userData';
 import CollectScreen from '..';
+
+// react-native resolves components lazily on first access; resolve the ones the
+// screen renders while the file loads so no test pays that cost inside its timeout.
+void [ActivityIndicator, FlatList, Image, Modal, Pressable, ScrollView, TextInput, TVFocusGuideView];
 
 const mockNavigate = jest.fn();
 jest.mock('../../../navigation/useAppNavigation', () => ({
@@ -17,7 +31,8 @@ const URL = 'https://example.com/config.json';
 const CONFIG_TEXT = JSON.stringify({ sites: [{ key: 'cms', name: 'CMS 站', type: 1, api: 'https://cms.example.com/api.php/provide/vod' }] });
 
 // Repositories stamp createTime with Date.now; distinct stamps keep the order deterministic.
-const tick = () => new Promise((resolve) => setTimeout(resolve, 5));
+// Runs under fake timers, so this moves Date.now without waiting.
+const tick = () => jest.advanceTimersByTime(5);
 
 function texts(renderer: ReactTestRenderer): string[] {
   return renderer.root.findAllByType(Text).map((node) => [node.props.children].flat().join(''));
@@ -51,9 +66,9 @@ async function render(options: { saved?: boolean; seed?: boolean } = {}) {
     const repo = getKeepRepository();
     await repo.add({ key: historyKey('cms', 'a'), cid, siteName: 'CMS 站', vodName: '甲', vodPic: 'https://img/a.jpg' });
     // A site the current config no longer has still opens Detail.
-    await tick();
+    tick();
     await repo.add({ key: historyKey('gone', 'b'), cid, siteName: '旧站', vodName: '乙', vodPic: 'https://img/b.jpg' });
-    await tick();
+    tick();
     await repo.add({ key: historyKey('cms', 'c'), cid: cid + 1, siteName: 'CMS 站', vodName: '别的配置', vodPic: '' });
   }
   let renderer!: ReactTestRenderer;
@@ -68,6 +83,10 @@ async function render(options: { saved?: boolean; seed?: boolean } = {}) {
 }
 
 describe('CollectScreen', () => {
+  // VirtualizedList batches cell updates on a 50 ms timer; fake timers keep it from
+  // firing outside act() on a slow host, and unmounting clears it.
+  beforeEach(() => jest.useFakeTimers());
+  afterEach(() => jest.useRealTimers());
   beforeEach(() => mockNavigate.mockClear());
   afterAll(() => setUserDataStore(undefined));
 

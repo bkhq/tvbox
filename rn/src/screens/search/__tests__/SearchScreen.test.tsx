@@ -1,4 +1,14 @@
-import { Text } from 'react-native';
+import {
+  ActivityIndicator,
+  FlatList,
+  Image,
+  Modal,
+  Pressable,
+  ScrollView,
+  Text,
+  TextInput,
+  TVFocusGuideView,
+} from 'react-native';
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 
 import { BootstrapProvider, createBootstrap } from '../../../core/bootstrap';
@@ -10,6 +20,10 @@ import { normalizeResult, type Result } from '../../../core/types';
 import type { RootStackScreenProps } from '../../../navigation/types';
 import SearchScreen from '..';
 import { clearHistory } from '../history';
+
+// react-native resolves components lazily on first access; resolve the ones the
+// screen renders while the file loads so no test pays that cost inside its timeout.
+void [ActivityIndicator, FlatList, Image, Modal, Pressable, ScrollView, TextInput, TVFocusGuideView];
 
 const mockNavigate = jest.fn();
 jest.mock('../../../navigation/useAppNavigation', () => ({
@@ -85,6 +99,10 @@ const cardIds = (renderer: ReactTestRenderer) =>
     .map((node) => node.props.testID as string);
 
 describe('SearchScreen', () => {
+  // VirtualizedList batches cell updates on a 50 ms timer; fake timers keep it from
+  // firing outside act() on a slow host, and unmounting clears it.
+  beforeEach(() => jest.useFakeTimers());
+  afterEach(() => jest.useRealTimers());
   beforeEach(() => {
     mockNavigate.mockClear();
     clearHistory();
@@ -104,6 +122,7 @@ describe('SearchScreen', () => {
     expect(texts(renderer)).toEqual(expect.arrayContaining(['甲站', '乙站']));
     expect(byTestId(renderer, 'vod-card-a1').props.hasTVPreferredFocus).toBe(true);
     expect(byTestId(renderer, 'search-input').props.hasTVPreferredFocus).toBe(false);
+    await act(async () => renderer.unmount());
   });
 
   it('narrows the grid to the selected site and opens Detail with its key', async () => {
@@ -120,6 +139,7 @@ describe('SearchScreen', () => {
     await act(async () => byTestId(renderer, 'search-filter-all').props.onPress());
     await act(async () => byTestId(renderer, 'vod-card-a2').props.onPress());
     expect(mockNavigate).toHaveBeenLastCalledWith('Detail', expect.objectContaining({ siteKey: 'a', vodId: 'a2' }));
+    await act(async () => renderer.unmount());
   });
 
   it('focuses the input without a keyword and searches on submit, keeping history', async () => {
@@ -137,6 +157,7 @@ describe('SearchScreen', () => {
 
     await act(async () => byTestId(renderer, 'search-input').props.onChangeText(''));
     expect(hasTestId(renderer, 'search-history-星际')).toBe(true);
+    await act(async () => renderer.unmount());
   });
 
   it('skips sites without quick search in quick mode', async () => {
@@ -148,6 +169,7 @@ describe('SearchScreen', () => {
     expect(search.mock.calls.map(([siteKey]) => siteKey).sort()).toEqual(['a', 'none']);
     expect(search).toHaveBeenCalledWith('a', '流浪', true);
     expect(cardIds(renderer)).toEqual(['vod-card-a1', 'vod-card-a2']);
+    await act(async () => renderer.unmount());
   });
 
   it('shows 未找到结果 when no site returns anything', async () => {
@@ -157,5 +179,6 @@ describe('SearchScreen', () => {
 
     expect(texts(renderer)).toEqual(expect.arrayContaining(['搜索', '未找到结果']));
     expect(byTestId(renderer, 'search-input').props.hasTVPreferredFocus).toBe(true);
+    await act(async () => renderer.unmount());
   });
 });

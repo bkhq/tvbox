@@ -1,4 +1,15 @@
-import { BackHandler, Text } from 'react-native';
+import {
+  ActivityIndicator,
+  BackHandler,
+  FlatList,
+  Image,
+  Modal,
+  Pressable,
+  ScrollView,
+  Text,
+  TextInput,
+  TVFocusGuideView,
+} from 'react-native';
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 
 import { BootstrapProvider, createBootstrap } from '../../../core/bootstrap';
@@ -7,6 +18,10 @@ import { createSettingsStore } from '../../../core/settings';
 import { createConfigRepository, historyKey, MemoryStore } from '../../../core/storage';
 import { getHistoryRepository, setUserDataStore } from '../../../core/userData';
 import HistoryScreen, { formatPosition } from '..';
+
+// react-native resolves components lazily on first access; resolve the ones the
+// screen renders while the file loads so no test pays that cost inside its timeout.
+void [ActivityIndicator, FlatList, Image, Modal, Pressable, ScrollView, TextInput, TVFocusGuideView];
 
 const mockNavigate = jest.fn();
 const mockFocusListeners: (() => void)[] = [];
@@ -24,7 +39,8 @@ const URL = 'https://example.com/config.json';
 const CONFIG_TEXT = JSON.stringify({ sites: [{ key: 'cms', name: 'CMS 站', type: 1, api: 'https://cms.example.com/api.php/provide/vod' }] });
 
 // Repositories stamp createTime with Date.now; distinct stamps keep the order deterministic.
-const tick = () => new Promise((resolve) => setTimeout(resolve, 5));
+// Runs under fake timers, so this moves Date.now without waiting.
+const tick = () => jest.advanceTimersByTime(5);
 
 function texts(renderer: ReactTestRenderer): string[] {
   return renderer.root.findAllByType(Text).map((node) => [node.props.children].flat().join(''));
@@ -69,11 +85,15 @@ async function render(options: { saved?: boolean; seed?: (cid: number) => Promis
 async function seedTwo(cid: number) {
   const repo = getHistoryRepository();
   await repo.upsert({ key: historyKey('cms', 'old'), cid, vodName: '旧片', vodPic: 'https://img/old.jpg', vodRemarks: '第1集' });
-  await tick();
+  tick();
   await repo.upsert({ key: historyKey('cms', 'new'), cid, vodName: '新片', vodPic: 'https://img/new.jpg', position: 65_000 });
 }
 
 describe('HistoryScreen', () => {
+  // VirtualizedList batches cell updates on a 50 ms timer; fake timers keep it from
+  // firing outside act() on a slow host, and unmounting clears it.
+  beforeEach(() => jest.useFakeTimers());
+  afterEach(() => jest.useRealTimers());
   beforeEach(() => {
     mockNavigate.mockClear();
     mockFocusListeners.length = 0;

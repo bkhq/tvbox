@@ -13,3 +13,26 @@ android {
     versionName "1.0.0"
   }
 }
+
+// libmpv needs the libc++_shared.so shipped in jniLibs (NDK r29, adds
+// std::__from_chars_floating_point). pickFirst keeps the app's own NDK 27 copy, so
+// overwrite it in the app's merged native libs; the r29 copy exports every libc++
+// symbol the React Native libraries use.
+def mpvJniLibs = file('src/main/jniLibs')
+rootProject.allprojects { p ->
+  p.plugins.withId('com.android.application') {
+    p.tasks.matching { it.name ==~ /merge\w*NativeLibs/ }.configureEach { task ->
+      task.inputs.dir(mpvJniLibs)
+      task.doLast {
+        def out = task.outputDir.get().asFile
+        mpvJniLibs.eachDir { abi ->
+          def target = new File(out, "lib/${abi.name}/libc++_shared.so")
+          if (target.parentFile.isDirectory()) {
+            java.nio.file.Files.copy(new File(abi, 'libc++_shared.so').toPath(), target.toPath(),
+              java.nio.file.StandardCopyOption.REPLACE_EXISTING)
+          }
+        }
+      }
+    }
+  }
+}

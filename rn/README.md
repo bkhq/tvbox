@@ -339,6 +339,33 @@ the history record Detail wrote for `(cid, historyKey(siteKey, vodId))`
 through `getHistoryRepository()` (none while `incognito`); direct URLs write
 no history.
 
+### Player screen (`src/screens/player`)
+
+Renders the active engine full screen (keyed on `sourceKey`, `background`
+setting passed through) and is the playback host while focused
+(`usePlayback(params, { attach: focused })`). An engine fallback shows a
+toast ("已切换到 MPV 播放"); resolve / parse / load show a spinner text and
+errors a Chinese message with 重试 (re-opens the item).
+
+- TV remote (`useRemoteKeys`): left / right seek 10 s per press, accumulating
+  while the key repeats and applied 500 ms after the last press; OK
+  pauses / resumes while the controls are hidden; up (and the Android menu
+  key) shows the controls, down the episode panel; play / pause / next /
+  previous media keys and channel up / down work directly. Back closes the
+  panel, then the controls, then leaves.
+- Touch (`useTouchGestures`): tap toggles the controls, double tap pauses,
+  a horizontal drag seeks (a full-width drag is 3 min) with a target-time
+  preview. Phones get a 返回 button; the header is hidden.
+- Controls auto-hide after 5 s; panels: 选集 (with line switch), 倍速
+  (`SPEED_PRESETS`), 音轨, 字幕 (关闭, engine text tracks, `Result.subs`,
+  add by URL), 播放器 (writes `playerEngine`, restarts at the position).
+- With `background` off the screen pauses on AppState `background` /
+  `inactive` for every engine and does not resume.
+- `App.tsx` registers the player opener on `NavigationContainer` ready:
+  `navigate('Player', request)`.
+- Not done: no orientation lock (`expo-screen-orientation` is not a
+  dependency); no long-press speed boost (`speedLongPress`).
+
 ### Control API
 
 For LAN services (phone control page, DLNA, AirPlay casts):

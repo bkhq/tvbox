@@ -1,0 +1,8 @@
+The sources under src/main/java/com/github/serezhka/airplay and the tables in
+src/main/resources are vendored from serezhka/java-airplay at commit 00e6e3c
+(MIT, see LICENSE), via the airplay/ library of this repository, which merges
+the protocol and server modules and adapts them to Android (NIO-only Netty,
+Android 7 API replacements, no debug file watcher, mDNS skips loopback).
+
+The receiver glue in src/main/java/cc/bkhq/tvbox/airplay is ported from
+app/src/main/java/com/fongmi/android/tv/airplay.

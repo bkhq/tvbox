@@ -41,3 +41,14 @@ describe('app.config versioning', () => {
     expect(() => loadConfig({ VERSION_CODE: code })).toThrow('VERSION_CODE must be a positive integer');
   });
 });
+
+describe('app.config network policy', () => {
+  it('allows plain http on Android and iOS', () => {
+    const config = loadConfig({});
+    const buildProperties = config.plugins?.find(
+      (plugin) => Array.isArray(plugin) && plugin[0] === 'expo-build-properties',
+    ) as [string, { android?: { usesCleartextTraffic?: boolean } }] | undefined;
+    expect(buildProperties?.[1].android?.usesCleartextTraffic).toBe(true);
+    expect(config.ios?.infoPlist?.NSAppTransportSecurity).toEqual({ NSAllowsArbitraryLoads: true });
+  });
+});

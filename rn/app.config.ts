@@ -31,6 +31,8 @@ export default ({ config }: ConfigContext): ExpoConfig =>
     ios: {
       bundleIdentifier: APP_ID,
       buildNumber: String(versionCode),
+      // TVBox configs, CMS APIs and streams are commonly plain http.
+      infoPlist: { NSAppTransportSecurity: { NSAllowsArbitraryLoads: true } },
     },
     android: {
       package: APP_ID,
@@ -43,7 +45,11 @@ export default ({ config }: ConfigContext): ExpoConfig =>
         {
           // modules/mpv ships the newer libc++_shared.so libmpv was built against; React Native
           // ships one too.
-          android: { packagingOptions: { pickFirst: ['**/libc++_shared.so'] } },
+          android: {
+            packagingOptions: { pickFirst: ['**/libc++_shared.so'] },
+            // Same reason as NSAllowsArbitraryLoads: sources are commonly plain http.
+            usesCleartextTraffic: true,
+          },
         },
       ],
       // Switches prebuild output to Android TV / tvOS when EXPO_TV=1.

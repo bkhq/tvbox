@@ -3,6 +3,7 @@ import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
 
 import { getBootstrap } from './src/core/bootstrap';
+import { bindLanNavigation, startLanServices } from './src/lan';
 import { RootNavigator, type RootStackParamList } from './src/navigation';
 import { setPlayerOpener } from './src/player';
 import { registerBuiltinEngines } from './src/player/engines';
@@ -16,6 +17,7 @@ const navigationRef = createNavigationContainerRef<RootStackParamList>();
 export default function App() {
   useEffect(() => {
     void getBootstrap().start();
+    void startLanServices();
   }, []);
 
   return (
@@ -25,6 +27,7 @@ export default function App() {
       onReady={() => {
         setPlayerOpener((request) => navigationRef.navigate('Player', request));
         setLiveOpener((params) => navigationRef.navigate('Live', params));
+        bindLanNavigation(navigationRef);
       }}
     >
       <RootNavigator />

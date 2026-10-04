@@ -236,6 +236,14 @@ describe("HomeScreen", () => {
       byTestID(renderer, "home-nav-Settings").props.onPress(),
     );
     expect(mockNavigate).toHaveBeenLastCalledWith("Settings");
+
+    expect(texts(renderer)).toEqual(
+      expect.arrayContaining(["搜索", "历史记录", "收藏", "手机控制", "设置"]),
+    );
+    await act(async () =>
+      byTestID(renderer, "home-nav-Control").props.onPress(),
+    );
+    expect(mockNavigate).toHaveBeenLastCalledWith("Control");
     await act(async () => renderer.unmount());
   });
 

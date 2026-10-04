@@ -1,0 +1,31 @@
+plugins {
+  id 'com.android.library'
+  id 'expo-module-gradle-plugin'
+}
+
+group = 'cc.bkhq.tvbox'
+version = '1.0.0'
+
+android {
+  namespace 'cc.bkhq.tvbox.dlna'
+  defaultConfig {
+    versionCode 1
+    versionName '1.0.0'
+    consumerProguardFiles 'proguard-rules.pro'
+  }
+  // Records and switch expressions in the ported renderer.
+  compileOptions {
+    sourceCompatibility JavaVersion.VERSION_17
+    targetCompatibility JavaVersion.VERSION_17
+  }
+}
+
+dependencies {
+  // Same version as gradle/libs.versions.toml of the Java app.
+  implementation 'org.jupnp:org.jupnp:3.0.4'
+  implementation 'org.jupnp:org.jupnp.android:3.0.4'
+  implementation 'org.jupnp:org.jupnp.support:3.0.4'
+  // The okhttp React Native already ships (node_modules/react-native/gradle/libs.versions.toml),
+  // so the app keeps a single okhttp version.
+  implementation 'com.squareup.okhttp3:okhttp:4.9.2'
+}

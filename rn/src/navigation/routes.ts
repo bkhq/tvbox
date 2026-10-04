@@ -32,7 +32,7 @@ export const routes: { [K in RouteName]: RouteDefinition<K> } = {
   History: { component: HistoryScreen, title: '历史记录' },
   Collect: { component: CollectScreen, title: '收藏' },
   Settings: { component: SettingsScreen, title: '设置' },
-  Control: { component: ControlScreen, title: '遥控' },
+  Control: { component: ControlScreen, title: '手机控制' },
 };
 
 export const routeNames = Object.keys(routes) as RouteName[];

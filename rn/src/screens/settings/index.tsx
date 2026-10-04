@@ -8,6 +8,7 @@ import { isServerLinkEnabled, SERVER_LINK_STATE_TEXT, useServerLink } from '../.
 import { SPEED_PRESETS, useSetting } from '../../core/settings';
 import type { ConfigKind } from '../../core/storage';
 import { colors, fontSize, spacing, useLayout } from '../../ui';
+import { UpdateSettingsItem } from '../../update';
 import { unsupportedText } from '../home';
 import { CONFIG_TITLE, ConfigPanel, useSavedConfigs } from './ConfigPanel';
 import {
@@ -245,6 +246,7 @@ export default function SettingsScreen() {
         ) : null}
         <Section title="关于">
           <SettingRow testID="settings-version" title="版本" value={`${versionName} (${versionCode})`} />
+          <UpdateSettingsItem />
         </Section>
       </ScrollView>
       {panel ? <PanelView panel={panel} onClose={() => setPanel(undefined)} /> : null}

@@ -157,12 +157,14 @@ export const tvboxEnrollments = sqliteTable("tvbox_enrollments", {
   index("idx_tvbox_enrollments_device").on(t.deviceRef),
 ]);
 
-// App releases registered by CI. The APKs are uploaded straight to the
-// bucket (`tvbox/releases/<versionCode>/<mode>-<abi>.apk`); these rows hold
-// what the update manifests need. A withdrawn release stays listed but is
-// never offered.
+// App releases registered by CI. The binaries are uploaded straight to the
+// bucket (`tvbox/releases/<versionCode>/<mode>-<abi>.apk` for the Java app,
+// `tvbox/rn/releases/…` for the React Native one); these rows hold what the
+// update manifests need. A withdrawn release stays listed but is never
+// offered.
 export const tvboxReleases = sqliteTable("tvbox_releases", {
   id: text("id").primaryKey(),
+  app: text("app", { enum: ["tvbox", "rn"] }).notNull().default("tvbox"),
   versionCode: integer("version_code").notNull(),
   versionName: text("version_name").notNull(),
   channel: text("channel", { enum: ["stable", "beta"] }).notNull().default("stable"),
@@ -170,7 +172,7 @@ export const tvboxReleases = sqliteTable("tvbox_releases", {
   withdrawn: integer("withdrawn", { mode: "boolean" }).notNull().default(false),
   createdAt: text("created_at").notNull().$defaultFn(now),
 }, t => [
-  uniqueIndex("idx_tvbox_releases_version").on(t.versionCode),
+  uniqueIndex("idx_tvbox_releases_version").on(t.app, t.versionCode),
 ]);
 
 export const tvboxReleaseAssets = sqliteTable("tvbox_release_assets", {
@@ -180,6 +182,9 @@ export const tvboxReleaseAssets = sqliteTable("tvbox_release_assets", {
   abi: text("abi").notNull(),
   sha256: text("sha256").notNull(),
   size: integer("size").notNull(),
+  // iOS/tvOS builds of the React Native app: the itms-services manifest
+  // needs it.
+  bundleId: text("bundle_id"),
 }, t => [
   uniqueIndex("idx_tvbox_release_assets_flavor").on(t.releaseId, t.mode, t.abi),
 ]);

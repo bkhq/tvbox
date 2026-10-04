@@ -8,9 +8,11 @@ import { describeRoute, errors, jsonCreated, jsonOk, SECURITY, TAGS, validator }
 import { adminRequired, authRequired } from "@/shared/middleware/auth";
 import { serviceTokenRequired } from "@/shared/middleware/service-token";
 import { CHANNELS, deleteRelease, listReleases, registerRelease, updateRelease } from "./release.service";
+import { APPS } from "./storage";
 
 const flavorPart = z.string().regex(/^[a-z0-9_]{1,32}$/);
 const channelSchema = z.enum(CHANNELS);
+const appSchema = z.enum(APPS);
 
 const assetSchema = z.object({
   id: z.string(),
@@ -19,10 +21,12 @@ const assetSchema = z.object({
   abi: z.string(),
   sha256: z.string(),
   size: z.number(),
+  bundleId: z.string().nullable(),
 });
 
 const releaseSchema = z.object({
   id: z.string(),
+  app: appSchema,
   versionCode: z.number(),
   versionName: z.string(),
   channel: channelSchema,
@@ -33,6 +37,7 @@ const releaseSchema = z.object({
 });
 
 const registerSchema = z.object({
+  app: appSchema.default("tvbox").describe("`tvbox` is the Java app, `rn` the React Native one; each has its own version codes and manifests."),
   versionCode: z.number().int().positive(),
   versionName: z.string().trim().min(1).max(50),
   channel: channelSchema.default("stable"),
@@ -42,6 +47,7 @@ const registerSchema = z.object({
     abi: flavorPart,
     sha256: z.string().regex(/^[0-9a-f]{64}$/),
     size: z.number().int().positive(),
+    bundleId: z.string().regex(/^[A-Z0-9.-]{1,155}$/i).optional().describe("Required for the `ios` and `tvos` flavors of the `rn` app."),
   })).min(1).max(32),
 });
 
@@ -56,7 +62,7 @@ export function releaseRawRoutes() {
     describeRoute({
       tags: [TAGS.Tvbox],
       summary: "Register an app release",
-      description: "Records a release whose APKs are already at `tvbox/releases/<versionCode>/<mode>-<abi>.apk` in the bucket, and republishes the update manifests. Re-registering a version replaces it. Authorized by the `release` service token.",
+      description: "Records a release whose binaries are already in the bucket, and republishes the update manifests of its app. For `tvbox` they are at `tvbox/releases/<versionCode>/<mode>-<abi>.apk`; for `rn` at `tvbox/rn/releases/<versionCode>/<mode>-<abi>.apk`, or `.ipa` for the `ios` and `tvos` modes. Re-registering a version of the same app replaces it. Authorized by the `release` service token.",
       security: SECURITY.serviceToken,
       responses: { ...jsonCreated(releaseSchema, "Release registered"), ...errors(401, 422, 503) },
     }),
@@ -73,7 +79,7 @@ export function releaseRawRoutes() {
         resourceType: "tvbox_release",
         resourceId: release.id,
         resourceName: release.versionName,
-        detail: { versionCode: release.versionCode, channel: release.channel, flavors: release.assets.length },
+        detail: { app: release.app, versionCode: release.versionCode, channel: release.channel, flavors: release.assets.length },
         ip: getClientIp(c),
         userAgent: c.req.header("user-agent") ?? "unknown",
         result: "success",
@@ -124,7 +130,7 @@ export function releaseRoutes() {
     },
   );
 
-  router.delete("/tvbox/releases/:id", doc("Delete a release and its APKs", jsonOk(releaseSchema)), validator("param", idParam), async (c) => {
+  router.delete("/tvbox/releases/:id", doc("Delete a release and its binaries", jsonOk(releaseSchema)), validator("param", idParam), async (c) => {
     const release = await deleteRelease(c.get("db"), c.req.valid("param").id);
     await record(c, "tvbox.release.deleted", release);
     return c.json({ success: true, data: release });

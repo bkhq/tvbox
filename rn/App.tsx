@@ -4,6 +4,7 @@ import { useEffect } from 'react';
 
 import { getBootstrap } from './src/core/bootstrap';
 import { RootNavigator } from './src/navigation';
+import { UpdatePrompt } from './src/update';
 
 export default function App() {
   useEffect(() => {
@@ -13,6 +14,7 @@ export default function App() {
   return (
     <NavigationContainer theme={DarkTheme}>
       <RootNavigator />
+      <UpdatePrompt />
       <StatusBar style="light" />
     </NavigationContainer>
   );

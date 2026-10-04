@@ -1,8 +1,12 @@
-import { StyleSheet } from 'react-native';
+import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 
 import { FocusableCard } from '../FocusableCard';
 import { colors, focusScale } from '../theme';
+
+// react-native resolves components lazily on first access; resolve the ones the
+// card renders while the file loads so no test pays that cost inside its timeout.
+void [Image, Pressable, Text, View];
 
 // The host view rendered by Pressable; it receives the focus events and the style.
 function card(renderer: ReactTestRenderer) {

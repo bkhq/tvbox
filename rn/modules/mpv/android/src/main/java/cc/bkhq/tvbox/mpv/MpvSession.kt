@@ -2,7 +2,7 @@ package cc.bkhq.tvbox.mpv
 
 import android.os.Handler
 import android.os.Looper
-import is.xyz.mpv.MPVLib
+import `is`.xyz.mpv.MPVLib
 
 /**
  * libplayer.so holds a single global mpv instance, so only one view owns it at a time. A new

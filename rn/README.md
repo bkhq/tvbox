@@ -263,10 +263,6 @@ points at; iOS installs through
 | Name                                     | Kind     | Purpose                                                             |
 | ---------------------------------------- | -------- | ------------------------------------------------------------------- |
 | `WORKER_URL`                             | variable | Worker base URL baked into the app and used to register releases   |
-| `RN_ANDROID_KEYSTORE_BASE64`             | secret   | Base64 of the Android release keystore                              |
-| `RN_ANDROID_KEYSTORE_PASSWORD`           | secret   | Keystore password                                                   |
-| `RN_ANDROID_KEY_ALIAS`                   | secret   | Key alias in the keystore                                           |
-| `RN_ANDROID_KEY_PASSWORD`                | secret   | Key password                                                        |
 | `APPLE_CERTIFICATE_P12_BASE64`           | secret   | Base64 of the Apple Distribution certificate and key (`.p12`)       |
 | `APPLE_CERTIFICATE_PASSWORD`             | secret   | Password of the `.p12`                                              |
 | `APPLE_TEAM_ID`                          | secret   | Apple Developer team id                                             |
@@ -276,15 +272,18 @@ points at; iOS installs through
 | `CLOUDFLARE_ACCOUNT_ID`                  | secret   | Cloudflare account of the bucket                                    |
 | `SERVICE_TOKEN_RELEASE`                  | secret   | Worker `release` service token for the register call                |
 
+The Android APK needs no secrets: it is signed with the committed
+`keystore/release.jks`, using the alias and password from
+`keystore/release.properties` (the same key as the Java app, which keeps
+in-place updates possible). A missing keystore or property fails the build;
+there is no debug-keystore fallback.
+
 The bucket name is read from `worker/apps/api/wrangler.toml`. The temporary
 keychain password is generated in the job, and the keychain is deleted at
 the end of the job even when it fails.
 
 ### Unsigned fallback
 
-- Android without the `RN_ANDROID_*` secrets: the release APK is signed with
-  the debug keystore and the run logs a warning. It is still published, but
-  devices cannot update across a later change of signing key.
 - iOS/tvOS without the `APPLE_*` secrets for that target: the job builds
   for the simulator with `CODE_SIGNING_ALLOWED=NO` as a compile check, logs a
   warning and produces no ipa. The run does not fail; `publish` releases and

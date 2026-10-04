@@ -1,3 +1,4 @@
+import { Platform } from 'react-native';
 import { createSettingsStore } from '../../core/settings/settings';
 import { MemoryStore } from '../../core/storage/keyValueStore';
 import type { Doh } from '../../core/types';
@@ -13,8 +14,10 @@ const keysOf = (groups: SettingGroupJson[]) => groups.map((group) => [group.key,
 const itemOf = (groups: SettingGroupJson[], key: string) => groups.flatMap((group) => group.items).find((item) => item.key === key);
 
 describe('settingRegistry.toJson', () => {
-  it('lists visible items by group in screen order for the defaults', () => {
-    expect(keysOf(registry().registry.toJson())).toEqual([
+  it('lists visible items by group in screen order for the exo engine', async () => {
+    const { settings, registry: reg } = registry();
+    await settings.set('playerEngine', 'video');
+    expect(keysOf(reg.toJson())).toEqual([
       ['general', ['incognito', 'doh', 'airplay', 'airplay_name']],
       ['player', ['engine', 'render', 'scale', 'background', 'buffer', 'adblock', 'ua']],
       ['speed', ['speed', 'long_press', 'skip_silence']],
@@ -24,8 +27,18 @@ describe('settingRegistry.toJson', () => {
     ]);
   });
 
-  it('describes each type like the Java registry', () => {
+  it('resolves the auto engine to the platform default (mpv on iOS)', () => {
     const groups = registry().registry.toJson();
+    expect(Platform.OS).toBe('ios');
+    expect(itemOf(groups, 'engine')?.value).toBe(1);
+    expect(itemOf(groups, 'mpv_gpu_next')).toBeDefined();
+    expect(itemOf(groups, 'tunnel')).toBeUndefined();
+  });
+
+  it('describes each type like the Java registry', async () => {
+    const { settings, registry: reg } = registry();
+    await settings.set('playerEngine', 'video');
+    const groups = reg.toJson();
     expect(itemOf(groups, 'incognito')).toEqual({ key: 'incognito', label: '无痕模式', type: 'bool', value: false });
     expect(itemOf(groups, 'engine')).toEqual({ key: 'engine', label: '播放引擎', type: 'enum', value: 0, options: ['EXO', 'MPV'] });
     expect(itemOf(groups, 'scale')).toMatchObject({ value: 0, options: ['原始', '16:9', '4:3', '填充', '裁剪'] });
@@ -45,6 +58,7 @@ describe('settingRegistry.toJson', () => {
 
   it('shows preload details only when preload is on, exo-only ones only on exo', async () => {
     const { settings, registry: reg } = registry();
+    await settings.set('playerEngine', 'video');
     await settings.set('preload', true);
     expect(keysOf(reg.toJson()).find(([key]) => key === 'preload')?.[1]).toEqual([
       'preload',
@@ -120,6 +134,7 @@ describe('settingRegistry.set', () => {
 describe('/api/setting', () => {
   it('applies a value and reports it in /api/state', async () => {
     const { call, settings } = await setup();
+    await settings.set('playerEngine', 'video');
     expect(await call('/api/setting', { key: 'adblock', value: 'false' })).toMatchObject({ status: 200, body: 'OK' });
     expect(settings.get('adblock')).toBe(false);
     const state = bodyJson(await call('/api/state'));

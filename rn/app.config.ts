@@ -44,6 +44,14 @@ export default ({ config }: ConfigContext): ExpoConfig => {
       package: ANDROID_PACKAGE,
       versionCode,
       permissions: ['android.permission.REQUEST_INSTALL_PACKAGES'],
+      // Prebuild template defaults nothing in the app uses. LAN / multicast / foreground
+      // service permissions come from the airplay, dlna and httpd module manifests.
+      blockedPermissions: [
+        'android.permission.READ_EXTERNAL_STORAGE',
+        'android.permission.WRITE_EXTERNAL_STORAGE',
+        'android.permission.SYSTEM_ALERT_WINDOW',
+        'android.permission.VIBRATE',
+      ],
     },
     plugins: [
       [

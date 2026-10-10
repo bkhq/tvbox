@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { StyleSheet, Text, TextInput, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 
 import { useVodConfig } from '../../core/bootstrap';
 import { getProvider, UnsupportedSiteError } from '../../core/provider';
@@ -8,7 +8,7 @@ import type { Site, Vod } from '../../core/types';
 import { useAppNavigation } from '../../navigation/useAppNavigation';
 import type { RootStackScreenProps } from '../../navigation/types';
 import { colors, FocusableButton, fontSize, HorizontalRow, radius, spacing } from '../../ui';
-import { LoadingView, openVod, VodGrid } from '../common';
+import { FocusableInput, LoadingView, openVod, VodGrid } from '../common';
 import { addHistory, getHistory } from './history';
 import { searchSites, searchTargets, type SearchProgress, type SiteGroup } from './searchSites';
 
@@ -112,6 +112,8 @@ export default function SearchScreen({ route }: RootStackScreenProps<'Search'>) 
   const [history, setHistory] = useState(() => (routeKeyword ? addHistory(routeKeyword) : getHistory()));
   const [progress, setProgress] = useState<SearchProgress>();
   const [filter, setFilter] = useState(ALL);
+  // A history keyword unmounts the pressed button, so its results take the focus.
+  const [fromHistory, setFromHistory] = useState(false);
 
   // A new query, mode or config cancels the running search; its late answers are dropped.
   useEffect(() => {
@@ -124,16 +126,17 @@ export default function SearchScreen({ route }: RootStackScreenProps<'Search'>) 
     return handle.cancel;
   }, [query, quick, sites]);
 
-  const search = (text: string) => {
+  const search = (text: string, history = false) => {
     const keyword = text.trim();
     if (!keyword) return;
+    setFromHistory(history);
     setInput(keyword);
     setFilter(ALL);
     setHistory(addHistory(keyword));
     setQuery((current) => ({ keyword, id: (current?.id ?? 0) + 1 }));
   };
 
-  const fromRoute = routeKeyword !== '';
+  const focusResults = routeKeyword !== '' || fromHistory;
   const nothingFound = progress?.done === true && progress.groups.length === 0;
 
   return (
@@ -142,7 +145,7 @@ export default function SearchScreen({ route }: RootStackScreenProps<'Search'>) 
         <Text style={styles.title}>搜索</Text>
       </View>
       <View style={styles.form}>
-        <TextInput
+        <FocusableInput
           testID="search-input"
           style={styles.input}
           value={input}
@@ -152,7 +155,7 @@ export default function SearchScreen({ route }: RootStackScreenProps<'Search'>) 
           placeholderTextColor={colors.textSecondary}
           autoCorrect={false}
           returnKeyType="search"
-          hasTVPreferredFocus={!fromRoute || nothingFound}
+          hasTVPreferredFocus={!focusResults || nothingFound}
         />
         <FocusableButton testID="search-submit" title="搜索" disabled={!input.trim()} onPress={() => search(input)} />
         <FocusableButton
@@ -172,7 +175,7 @@ export default function SearchScreen({ route }: RootStackScreenProps<'Search'>) 
               key={keyword}
               testID={`search-history-${keyword}`}
               title={keyword}
-              onPress={() => search(keyword)}
+              onPress={() => search(keyword, true)}
             />
           ))}
         </View>
@@ -185,7 +188,7 @@ export default function SearchScreen({ route }: RootStackScreenProps<'Search'>) 
         )
       ) : null}
       {query && sites && progress ? (
-        <Results progress={progress} filter={filter} onFilter={setFilter} preferFocus={fromRoute} />
+        <Results progress={progress} filter={filter} onFilter={setFilter} preferFocus={focusResults} />
       ) : null}
     </View>
   );

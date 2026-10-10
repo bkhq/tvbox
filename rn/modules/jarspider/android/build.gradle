@@ -1,0 +1,47 @@
+plugins {
+  id 'com.android.library'
+  id 'expo-module-gradle-plugin'
+}
+
+group = 'cc.bkhq.tvbox'
+version = '1.0.0'
+
+// src/main/java/com/github/catvod/** and src/main/res/values*/strings.xml are
+// unchanged copies of the Java app's catvod/ library (the build container
+// mounts only rn/). Keep them in sync with catvod/; never edit them here.
+android {
+  // catvod code imports com.github.catvod.crawler.R.
+  namespace 'com.github.catvod.crawler'
+  defaultConfig {
+    versionCode 1
+    versionName '1.0.0'
+    consumerProguardFiles 'proguard-rules.pro'
+  }
+  // catvod uses Stream.toList() and other APIs newer than minSdk; the app
+  // enables core library desugaring through app.plugin.js.
+  compileOptions {
+    coreLibraryDesugaringEnabled true
+    sourceCompatibility JavaVersion.VERSION_17
+    targetCompatibility JavaVersion.VERSION_17
+  }
+}
+
+// `api` with the same versions as catvod/build.gradle + gradle/libs.versions.toml:
+// JAR spiders link against these at runtime.
+dependencies {
+  api 'androidx.annotation:annotation:1.10.0'
+  api 'org.brotli:dec:0.1.2'
+  api 'com.squareup.okhttp3:okhttp:5.4.0'
+  api 'com.squareup.okhttp3:okhttp-dnsoverhttps:5.4.0'
+  api 'com.squareup.okhttp3:logging-interceptor:5.4.0'
+  api 'com.google.code.gson:gson:2.14.0'
+  api 'com.google.guava:guava:33.6.0-android'
+  api 'com.googlecode.juniversalchardet:juniversalchardet:1.0.3'
+  api 'com.orhanobut:logger:2.2.0'
+  api 'androidx.preference:preference:1.2.1'
+  api 'com.github.thegrizzlylabs:sardine-android:0.9'
+  api 'com.hierynomus:smbj:0.14.0'
+  api 'androidx.startup:startup-runtime:1.2.0'
+  api 'com.google.zxing:core:3.5.4'
+  coreLibraryDesugaring 'com.android.tools:desugar_jdk_libs_nio:2.1.5'
+}

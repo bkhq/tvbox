@@ -4,10 +4,11 @@
  * installer; iOS opens the itms-services URL; tvOS has no over-the-air
  * ad-hoc install, so the user is told to have the build reinstalled.
  *
- * Only the APK size is verified: no installed API can SHA-256 a file
- * natively (expo-file-system only offers MD5), and hashing in JS would read
- * the whole APK through the bridge. The Android installer still rejects an
- * APK whose signature does not match the installed app.
+ * Like the Java updater, the downloaded APK is checked against the manifest:
+ * its size when stated, then its SHA-256 (hashed natively by the Migrate
+ * module) when the manifest sha256 is non-empty. If the native hash is
+ * unavailable only the size is checked. The Android installer still rejects
+ * an APK whose signature does not match the installed app.
  */
 
 import { itmsServicesUrl, type Release } from './logic';
@@ -16,6 +17,8 @@ export interface DownloadedApk {
   size: number;
   /** content:// URI readable by the installer. */
   contentUri: string;
+  /** Lowercase hex SHA-256 of the file; absent when no native hash is available. */
+  sha256?(): Promise<string>;
   discard(): void;
 }
 
@@ -37,6 +40,16 @@ export class SizeMismatchError extends Error {
   }
 }
 
+export class ChecksumMismatchError extends Error {
+  constructor(
+    readonly expected: string,
+    readonly actual: string,
+  ) {
+    super(`APK sha256 mismatch: expected ${expected}, got ${actual}`);
+    this.name = 'ChecksumMismatchError';
+  }
+}
+
 export interface InstallOptions {
   onProgress?: (fraction: number | null) => void;
   /** Called once the APK is verified, before the installer opens. */
@@ -47,11 +60,23 @@ export interface InstallOptions {
 export async function installUpdate(release: Release, deps: InstallDeps, options: InstallOptions = {}): Promise<InstallResult> {
   const { onProgress = () => {}, onDownloaded, signal } = options;
   switch (release.flavor) {
-    case 'android-universal': {
+    case 'leanback-arm64_v8a':
+    case 'leanback-armeabi_v7a': {
       const apk = await deps.downloadApk(release.binaryUrl, onProgress, signal);
-      if (apk.size !== release.size) {
+      if (release.size !== undefined && apk.size !== release.size) {
         apk.discard();
         throw new SizeMismatchError(release.size, apk.size);
+      }
+      if (release.sha256) {
+        if (apk.sha256) {
+          const actual = await apk.sha256();
+          if (actual.toLowerCase() !== release.sha256.toLowerCase()) {
+            apk.discard();
+            throw new ChecksumMismatchError(release.sha256, actual);
+          }
+        } else {
+          console.warn('[update] native sha256 unavailable; verified APK size only');
+        }
       }
       onDownloaded?.();
       await deps.launchInstaller(apk.contentUri);

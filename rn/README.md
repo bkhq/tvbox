@@ -51,13 +51,30 @@ runtime via `getAppConfig()` in `src/core/appConfig.ts`.
 
 ## App id
 
-The app id is `cc.bkhq.tvbox` on both platforms (Android `package`, iOS
-`bundleIdentifier`), distinct from the Java app's `com.fongmi.android.tv` so
-both can be installed side by side.
+The Android `package` is `com.fongmi.android.tv`, the Java app's id: release
+APKs are signed with the same key and install over the Java app as an
+in-place upgrade (data dir differs from old `cc.bkhq.tvbox` debug installs).
+The iOS/tvOS `bundleIdentifier` stays `cc.bkhq.tvbox`.
 
 A single Android build serves phones and TV: `plugins/withAndroidLeanback.js`
 adds the `LEANBACK_LAUNCHER` category and declares leanback and touchscreen as
 optional features, independent of `EXPO_TV`.
+
+## Build variables
+
+Read by `app.config.ts` at prebuild time:
+
+- `VERSION_NAME` / `VERSION_CODE`: app version (default `1.0.0` / `1`).
+  `node plugins/version.js v1.0.5` derives them from a `vX.Y.Z` tag
+  (code `X*10000 + Y*100 + Z`, minor and patch below 100) and prints
+  `code=10005` / `name=1.0.5` in `GITHUB_OUTPUT` format; bad tags exit 1.
+- `ANDROID_ABI_FLAVORS=1`: `plugins/withAndroidAbiFlavors.js` adds the
+  `arm64_v8a` / `armeabi_v7a` product flavors (one ABI each, string resource
+  `tvbox_abi_flavor` = flavor name) and limits `reactNativeArchitectures` to
+  those ABIs. `./gradlew assembleRelease` then writes
+  `leanback-arm64_v8a.apk` and `leanback-armeabi_v7a.apk`;
+  `assembleArm64_v8aRelease` builds one. Without it the build is universal
+  (`scripts/android-debug.sh`). Switching needs `expo prebuild --clean`.
 
 ## Generated code
 
@@ -71,7 +88,7 @@ plugins in `plugins/` instead.
 rn/
   App.tsx              NavigationContainer + RootNavigator; starts getBootstrap()
   app.config.ts        Expo config (app id, WORKER_URL -> extra.workerUrl)
-  plugins/             local config plugins (withAndroidLeanback)
+  plugins/             local config plugins (withAndroidLeanback, withAndroidAbiFlavors), version.js
   modules/<name>/      local Expo native modules (Expo Modules API)
   docker/              Dockerfile of the Android build image
   scripts/             build helpers (android-debug.sh)

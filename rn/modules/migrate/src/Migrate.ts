@@ -4,6 +4,7 @@ import type { LegacyReader } from './Migrate.types';
 
 interface MigrateNativeModule extends LegacyReader {
   getAbiFlavor(): string;
+  sha256File(uri: string): Promise<string>;
 }
 
 const native = requireOptionalNativeModule<MigrateNativeModule>('Migrate');
@@ -15,3 +16,6 @@ export const legacyReader: LegacyReader | null = native;
 export function getAbiFlavor(): string {
   return native?.getAbiFlavor() ?? '';
 }
+
+/** Lowercase hex SHA-256 of a file:// URI or path, hashed natively; null where the native module is absent. */
+export const sha256File: ((uri: string) => Promise<string>) | null = native ? (uri) => native.sha256File(uri) : null;

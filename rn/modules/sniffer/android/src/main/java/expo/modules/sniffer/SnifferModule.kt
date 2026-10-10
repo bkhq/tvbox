@@ -5,8 +5,10 @@ import android.content.Context
 import android.net.http.SslError
 import android.os.Handler
 import android.os.Looper
+import android.util.Log
 import android.webkit.CookieManager
 import android.webkit.SslErrorHandler
+import android.webkit.WebResourceError
 import android.webkit.WebResourceRequest
 import android.webkit.WebResourceResponse
 import android.webkit.WebSettings
@@ -88,6 +90,7 @@ private class Session(
     }
     webView.webViewClient = client()
     handler.postDelayed(timer, timeoutMs)
+    Log.d(TAG, "[$id] load $url")
     webView.loadUrl(url, headers)
   }
 
@@ -102,8 +105,17 @@ private class Session(
     override fun onPageFinished(view: WebView, url: String) {
       super.onPageFinished(view, url)
       if (destroyed || url == BLANK) return
+      Log.d(TAG, "[$id] page finished $url")
       emit("onPageFinished", mapOf("id" to id))
       evaluate(0)
+    }
+
+    override fun onReceivedHttpError(view: WebView, request: WebResourceRequest, response: WebResourceResponse) {
+      if (request.isForMainFrame) Log.w(TAG, "[$id] HTTP ${response.statusCode} ${request.url}")
+    }
+
+    override fun onReceivedError(view: WebView, request: WebResourceRequest, error: WebResourceError) {
+      if (request.isForMainFrame) Log.w(TAG, "[$id] ${error.description} ${request.url}")
     }
 
     @SuppressLint("WebViewClientOnReceivedSslError")
@@ -125,6 +137,7 @@ private class Session(
   fun destroy() {
     if (destroyed) return
     destroyed = true
+    Log.d(TAG, "[$id] stop")
     handler.removeCallbacks(timer)
     webView.stopLoading()
     webView.loadUrl(BLANK)
@@ -133,5 +146,6 @@ private class Session(
 
   companion object {
     private const val BLANK = "about:blank"
+    private const val TAG = "Sniffer"
   }
 }

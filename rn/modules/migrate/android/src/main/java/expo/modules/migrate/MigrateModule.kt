@@ -3,13 +3,17 @@ package expo.modules.migrate
 import android.content.Context
 import android.database.Cursor
 import android.database.sqlite.SQLiteDatabase
+import android.net.Uri
 import expo.modules.kotlin.modules.Module
 import expo.modules.kotlin.modules.ModuleDefinition
+import java.io.File
+import java.security.MessageDigest
 
 /**
  * Read-only access to the Java app's data (same applicationId, so the same data
  * directory): the default SharedPreferences and the Room database "tv". Nothing
- * is ever written, migrated or deleted on the Java side.
+ * is ever written, migrated or deleted on the Java side. Also hosts small
+ * Android utilities the app needs (ABI flavor, file SHA-256).
  */
 class MigrateModule : Module() {
   private val context: Context
@@ -36,6 +40,21 @@ class MigrateModule : Module() {
       val res = context.resources
       val id = res.getIdentifier("tvbox_abi_flavor", "string", context.packageName)
       if (id == 0) "" else res.getString(id)
+    }
+
+    // Lowercase hex SHA-256 of a file:// URI or plain path, streamed in 64 KiB chunks.
+    AsyncFunction("sha256File") { uri: String ->
+      val path = if (uri.startsWith("file://")) requireNotNull(Uri.parse(uri).path) { "Invalid file URI" } else uri
+      val digest = MessageDigest.getInstance("SHA-256")
+      File(path).inputStream().use { input ->
+        val buffer = ByteArray(64 * 1024)
+        while (true) {
+          val read = input.read(buffer)
+          if (read < 0) break
+          digest.update(buffer, 0, read)
+        }
+      }
+      digest.digest().joinToString("") { "%02x".format(it) }
     }
   }
 

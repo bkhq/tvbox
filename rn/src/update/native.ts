@@ -3,6 +3,7 @@ import { startActivityAsync } from 'expo-intent-launcher';
 import { Linking } from 'react-native';
 
 import type { InstallDeps } from './install';
+import { sha256File } from '../../modules/migrate';
 
 const APK_MIME = 'application/vnd.android.package-archive';
 const FLAG_GRANT_READ_URI_PERMISSION = 0x1;
@@ -16,9 +17,11 @@ export const nativeInstallDeps: InstallDeps = {
       signal,
       onProgress: ({ bytesWritten, totalBytes }) => onProgress(totalBytes > 0 ? bytesWritten / totalBytes : null),
     });
+    const hash = sha256File;
     return {
       size: file.size,
       contentUri: file.contentUri,
+      sha256: hash ? () => hash(file.uri) : undefined,
       discard: () => {
         if (file.exists) file.delete();
       },

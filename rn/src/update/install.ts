@@ -4,7 +4,7 @@
  * installer; iOS opens the itms-services URL; tvOS has no over-the-air
  * ad-hoc install, so the user is told to have the build reinstalled.
  *
- * Only the APK size is verified: no installed API can SHA-256 a file
+ * Only the APK size is verified, when the manifest states it: no installed API can SHA-256 a file
  * natively (expo-file-system only offers MD5), and hashing in JS would read
  * the whole APK through the bridge. The Android installer still rejects an
  * APK whose signature does not match the installed app.
@@ -47,9 +47,10 @@ export interface InstallOptions {
 export async function installUpdate(release: Release, deps: InstallDeps, options: InstallOptions = {}): Promise<InstallResult> {
   const { onProgress = () => {}, onDownloaded, signal } = options;
   switch (release.flavor) {
-    case 'android-universal': {
+    case 'leanback-arm64_v8a':
+    case 'leanback-armeabi_v7a': {
       const apk = await deps.downloadApk(release.binaryUrl, onProgress, signal);
-      if (apk.size !== release.size) {
+      if (release.size !== undefined && apk.size !== release.size) {
         apk.discard();
         throw new SizeMismatchError(release.size, apk.size);
       }

@@ -17,7 +17,7 @@ const manifest = {
   versionCode: 10203,
   versionName: '1.2.3',
   notes: '修复问题',
-  url: '../apk/10203/android-universal.apk',
+  url: '../apk/10203/leanback-arm64_v8a.apk',
   sha256: '',
   size: 100,
 };
@@ -31,7 +31,7 @@ function setup(overrides: Partial<UpdateControllerDeps> = {}) {
   const controller = createUpdateController({
     workerUrl: 'https://w',
     versionCode: 10000,
-    platform: { OS: 'android', isTV: true },
+    platform: { OS: 'android', isTV: true, abi: 'arm64_v8a' },
     fetchJson: jest.fn(async () => manifest),
     install,
     ...overrides,

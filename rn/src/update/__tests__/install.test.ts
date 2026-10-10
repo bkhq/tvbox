@@ -12,7 +12,7 @@ function release(flavor: UpdateFlavor, overrides: Partial<Release> = {}): Releas
     flavor,
     manifestUrl: `https://w/u/rn/stable/${flavor}.json`,
     binaryUrl: `https://w/u/rn/apk/10203/${flavor}.apk`,
-    plistUrl: flavor === 'android-universal' ? undefined : `https://w/u/rn/stable/${flavor}.plist`,
+    plistUrl: flavor.startsWith('leanback-') ? undefined : `https://w/u/rn/stable/${flavor}.plist`,
     ...overrides,
   };
 }
@@ -35,17 +35,23 @@ describe('installUpdate', () => {
     const d = deps();
     const onProgress = jest.fn();
     const onDownloaded = jest.fn();
-    expect(await installUpdate(release('android-universal'), d, { onProgress, onDownloaded })).toEqual({ status: 'started' });
-    expect(d.downloadApk).toHaveBeenCalledWith('https://w/u/rn/apk/10203/android-universal.apk', onProgress, undefined);
+    expect(await installUpdate(release('leanback-arm64_v8a'), d, { onProgress, onDownloaded })).toEqual({ status: 'started' });
+    expect(d.downloadApk).toHaveBeenCalledWith('https://w/u/rn/apk/10203/leanback-arm64_v8a.apk', onProgress, undefined);
     expect(onProgress).toHaveBeenCalledWith(0.5);
     expect(onDownloaded).toHaveBeenCalled();
     expect(d.launchInstaller).toHaveBeenCalledWith('content://apk');
     expect(d.openURL).not.toHaveBeenCalled();
   });
 
+  it('skips the size check when the manifest has no size', async () => {
+    const d = deps(42);
+    expect(await installUpdate(release('leanback-armeabi_v7a', { size: undefined }), d)).toEqual({ status: 'started' });
+    expect(d.launchInstaller).toHaveBeenCalledWith('content://apk');
+  });
+
   it('rejects an apk with the wrong size', async () => {
     const d = deps(99);
-    await expect(installUpdate(release('android-universal'), d)).rejects.toBeInstanceOf(SizeMismatchError);
+    await expect(installUpdate(release('leanback-arm64_v8a'), d)).rejects.toBeInstanceOf(SizeMismatchError);
     expect(d.discard).toHaveBeenCalled();
     expect(d.launchInstaller).not.toHaveBeenCalled();
   });

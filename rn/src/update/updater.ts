@@ -3,6 +3,7 @@ import { Platform } from 'react-native';
 import { createUpdateController, type UpdateController } from './controller';
 import type { CheckResult } from './logic';
 import { nativeInstallDeps } from './native';
+import { getAbiFlavor } from '../../modules/migrate';
 import { getAppConfig } from '../core/appConfig';
 import { getJson } from '../core/http';
 
@@ -15,7 +16,7 @@ export function getUpdateController(): UpdateController {
     controller = createUpdateController({
       workerUrl,
       versionCode,
-      platform: { OS: Platform.OS, isTV: Platform.isTV },
+      platform: { OS: Platform.OS, isTV: Platform.isTV, abi: getAbiFlavor() },
       fetchJson: (url) => getJson(url),
       install: nativeInstallDeps,
     });

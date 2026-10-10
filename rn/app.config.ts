@@ -43,7 +43,9 @@ export default ({ config }: ConfigContext): ExpoConfig => {
     android: {
       package: ANDROID_PACKAGE,
       versionCode,
-      permissions: ['android.permission.REQUEST_INSTALL_PACKAGES'],
+      // POST_NOTIFICATIONS: the DLNA foreground service shows a notification; declaring it also
+      // keeps a grant from the Java app across the in-place upgrade.
+      permissions: ['android.permission.REQUEST_INSTALL_PACKAGES', 'android.permission.POST_NOTIFICATIONS'],
       // Prebuild template defaults nothing in the app uses. LAN / multicast / foreground
       // service permissions come from the airplay, dlna and httpd module manifests.
       blockedPermissions: [

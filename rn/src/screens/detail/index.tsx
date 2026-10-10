@@ -10,7 +10,7 @@ import { getHistoryRepository, getKeepRepository } from '../../core/userData';
 import { useAppNavigation } from '../../navigation/useAppNavigation';
 import type { RootStackScreenProps } from '../../navigation/types';
 import { colors, FocusableButton, fontSize, HorizontalRow, radius, spacing, useLayout } from '../../ui';
-import { ErrorView, LoadingView, useActiveCid, useSite } from '../common';
+import { ErrorView, htmlToText, LoadingView, useActiveCid, useSite } from '../common';
 import { buildHistoryInput, buildPlayerParams, resolveResume, sortEpisodes } from './detailState';
 
 type DetailParams = RootStackScreenProps<'Detail'>['route']['params'];
@@ -41,7 +41,7 @@ function Info({ vod }: { vod: Vod }) {
   const { isPhone } = useLayout();
   const [expanded, setExpanded] = useState(false);
   const meta = [vod.type_name, vod.vod_year, vod.vod_area, vod.vod_remarks].filter(Boolean).join(' / ');
-  const content = vod.vod_content.trim();
+  const content = useMemo(() => htmlToText(vod.vod_content), [vod.vod_content]);
   return (
     <View style={styles.info}>
       <Text style={styles.name}>{vod.vod_name}</Text>

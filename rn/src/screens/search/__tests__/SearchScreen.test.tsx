@@ -19,7 +19,7 @@ import { createConfigRepository, MemoryStore } from '../../../core/storage';
 import { normalizeResult, type Result } from '../../../core/types';
 import type { RootStackScreenProps } from '../../../navigation/types';
 import SearchScreen from '..';
-import { clearHistory } from '../history';
+import { addHistory, clearHistory } from '../history';
 
 // react-native resolves components lazily on first access; resolve the ones the
 // screen renders while the file loads so no test pays that cost inside its timeout.
@@ -157,6 +157,22 @@ describe('SearchScreen', () => {
 
     await act(async () => byTestId(renderer, 'search-input').props.onChangeText(''));
     expect(hasTestId(renderer, 'search-history-星际')).toBe(true);
+    await act(async () => renderer.unmount());
+  });
+
+  it('moves the focus to the results of a history keyword', async () => {
+    const search = mockProviders();
+    addHistory('星际');
+    const renderer = await render(undefined);
+
+    await act(async () => byTestId(renderer, 'search-history-星际').props.onPress());
+    expect(search).toHaveBeenCalledWith('a', '星际', false);
+    expect(byTestId(renderer, 'vod-card-a1').props.hasTVPreferredFocus).toBe(true);
+    expect(byTestId(renderer, 'search-input').props.hasTVPreferredFocus).toBe(false);
+
+    search.mockImplementation(async () => normalizeResult({ list: [] }));
+    await act(async () => byTestId(renderer, 'search-submit').props.onPress());
+    expect(byTestId(renderer, 'search-input').props.hasTVPreferredFocus).toBe(true);
     await act(async () => renderer.unmount());
   });
 

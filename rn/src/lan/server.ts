@@ -4,6 +4,7 @@ import { controlApi } from './api/control';
 import { enrollApi } from './api/enroll';
 import { fileApi, fileProcess } from './api/file';
 import { pairApi, unpairApi } from './api/pair';
+import { proxyProcess } from './api/proxy';
 import { remoteApi } from './api/remote';
 import { settingApi } from './api/setting';
 import { sourceApi } from './api/source';
@@ -58,7 +59,7 @@ export function createLanServer(deps: LanServerDeps, files?: FileSystemPort): La
     ['push', pushApi(context)],
     ['search', searchApi(context)],
   ]);
-  const processes: LanProcess[] = [mediaProcess(context)];
+  const processes: LanProcess[] = [mediaProcess(context), proxyProcess(context)];
   if (files) {
     endpoints.set('file', fileApi(context, files));
     processes.push(fileProcess(files));

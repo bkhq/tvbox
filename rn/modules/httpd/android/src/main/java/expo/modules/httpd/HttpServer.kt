@@ -8,6 +8,8 @@ import java.io.IOException
 import java.io.InputStream
 import java.io.OutputStream
 import java.io.RandomAccessFile
+import java.lang.reflect.InvocationTargetException
+import java.lang.reflect.Method
 import java.net.Inet6Address
 import java.net.InetSocketAddress
 import java.net.ServerSocket
@@ -93,7 +95,7 @@ internal class HttpServer(private val cacheDir: File, private val onRequest: (Re
         val request = read(client, input, output, tempFiles)
         method = request.method
         headers = request.headers
-        dispatch(request)
+        jarProxy(request) ?: dispatch(request)
       } catch (e: HttpError) {
         Response.text(e.status, e.message ?: Http.reason(e.status))
       }
@@ -118,6 +120,49 @@ internal class HttpServer(private val cacheDir: File, private val onRequest: (Re
       return waiting.response ?: Response.text(504, "No response")
     }
     return waiting.response ?: Response.text(504, "No response")
+  }
+
+  /**
+   * Native fast path for JAR spider proxies: `/proxy` requests go to
+   * `expo.modules.jarspider.JarProxy.handle(Map)` on this thread so streamed bodies skip the JS
+   * bridge. Null when the module is absent or no JAR spider handled the request (JS serves it).
+   */
+  private fun jarProxy(request: Request): Response? {
+    if (!request.path.startsWith("/proxy")) return null
+    val handle = JAR_PROXY ?: return null
+    val params = LinkedHashMap<String, String>()
+    params.putAll(request.query)
+    params.putAll(request.form)
+    params.putAll(request.headers)
+    val result = try {
+      handle.invoke(null, params) ?: return null
+    } catch (e: Throwable) {
+      val cause = (e as? InvocationTargetException)?.targetException ?: e
+      return Response.text(500, cause.message ?: cause.toString())
+    }
+    return proxyResponse(result)
+  }
+
+  /** Mirrors the Java app's Proxy.createResponse for the catvod `Object[]` shape. */
+  private fun proxyResponse(result: Any): Response {
+    val rs = result as? Array<*>
+    val body = rs?.getOrNull(2)
+    val invalid = rs == null || rs.size < 3 || rs[0] !is Int || (rs[1] != null && rs[1] !is String) ||
+      (body != null && body !is InputStream) || (rs.size > 3 && rs[3] != null && rs[3] !is Map<*, *>)
+    if (invalid) {
+      (body as? InputStream)?.let { runCatching { it.close() } }
+      return Response.text(500, "Invalid proxy response")
+    }
+    val status = (rs!![0] as Int).takeIf { it in 100..599 } ?: 500
+    val headers = LinkedHashMap<String, String>()
+    (rs.getOrNull(3) as? Map<*, *>)?.forEach { (name, value) ->
+      if (name != null && value != null) headers[name.toString()] = value.toString()
+    }
+    val mime = rs[1] as String?
+    if (!mime.isNullOrEmpty() && headers.keys.none { it.equals("content-type", ignoreCase = true) }) {
+      headers["Content-Type"] = mime
+    }
+    return Response(status, headers, stream = body as InputStream? ?: ByteArray(0).inputStream())
   }
 
   private fun read(client: Socket, input: InputStream, output: OutputStream, tempFiles: MutableList<File>): Request {
@@ -238,6 +283,7 @@ internal class HttpServer(private val cacheDir: File, private val onRequest: (Re
     var start = 0L
     var length = response.body.size.toLong()
     try {
+      if (response.stream != null) return writeStream(output, method, status, headers, response)
       if (response.file != null) {
         file = try {
           RandomAccessFile(response.file, "r")
@@ -283,6 +329,36 @@ internal class HttpServer(private val cacheDir: File, private val onRequest: (Re
       }
     } finally {
       file?.close()
+      response.stream?.let { runCatching { it.close() } }
+    }
+  }
+
+  private fun writeStream(
+    output: OutputStream,
+    method: String,
+    status: Int,
+    headers: Map<String, String>,
+    response: Response,
+  ) {
+    val length = response.headers.entries.firstOrNull { it.key.equals("content-length", ignoreCase = true) }?.value?.trim()
+    val noBody = status == 204 || status == 304
+    val head = StringBuilder("HTTP/1.1 $status ${Http.reason(status)}\r\n")
+    for ((name, value) in headers) head.append(name).append(": ").append(value).append("\r\n")
+    if (!noBody && length?.toLongOrNull() != null) head.append("Content-Length: ").append(length).append("\r\n")
+    head.append("Connection: close\r\n\r\n")
+    output.write(head.toString().toByteArray())
+    if (noBody || method == "HEAD") return
+    val stream = response.stream ?: return
+    val chunk = ByteArray(BUFFER_SIZE)
+    while (true) {
+      val count = try {
+        stream.read(chunk)
+      } catch (e: RuntimeException) {
+        // Spider streams may fail with anything; end the close-delimited body instead of crashing.
+        throw IOException(e)
+      }
+      if (count < 0) break
+      output.write(chunk, 0, count)
     }
   }
 
@@ -301,6 +377,16 @@ internal class HttpServer(private val cacheDir: File, private val onRequest: (Re
     private const val MAX_HEAD = 64 * 1024
     private const val MAX_BODY = 1024L * 1024
     private const val MAX_UPLOAD = 512L * 1024 * 1024
+    private const val JAR_PROXY_CLASS = "expo.modules.jarspider.JarProxy"
+
+    /** `JarProxy.handle(Map)`, resolved once; null (fast path off) when the jarspider module is absent. */
+    private val JAR_PROXY: Method? by lazy {
+      try {
+        Class.forName(JAR_PROXY_CLASS, true, HttpServer::class.java.classLoader).getMethod("handle", Map::class.java)
+      } catch (e: Throwable) {
+        null
+      }
+    }
     private val HOP_HEADERS = setOf("content-length", "connection", "transfer-encoding", "keep-alive")
   }
 }

@@ -2,7 +2,7 @@
  * VOD resolve flow: SiteApi.playerContent through the site provider, then
  * PlaybackActivity.startPlayer / ParseJob.java. JSON parsers (type 1) and the
  * extended / aggregate / super parsers (2, 3, 4) reduce to JSON parse calls;
- * web sniffing (type 0) is not supported.
+ * web sniffing (type 0) runs through the injected `sniff` (see sniff.ts).
  */
 
 import type { VodConfig } from '../core/config';
@@ -10,6 +10,7 @@ import { type FetchLike, getText, mergeHeaders } from '../core/http';
 import { getProvider as defaultGetProvider, type SiteProvider } from '../core/provider';
 import { type Flag, isObject, type Parse, parseFlags, type Result, type Site, str, type Vod } from '../core/types';
 import type { EngineSource, ExternalSubtitle } from './engine/types';
+import type { SniffRequest } from './sniff';
 
 /** Constant.TIMEOUT_PARSE_DEF. */
 export const TIMEOUT_PARSE = 15_000;
@@ -32,6 +33,8 @@ export interface ResolveDeps {
   ua: string;
   fetch?: FetchLike;
   getProvider?: (site: Site) => SiteProvider;
+  /** Web sniffer for type 0 parsers; without it they fail with MSG_WEB_PARSE. */
+  sniff?: (request: SniffRequest) => Promise<ResolvedMedia>;
 }
 
 /** What the engine needs, minus the per-play title and start position. */
@@ -52,6 +55,8 @@ export interface ParseJobSpec {
   format?: string;
   subtitles: ExternalSubtitle[];
   position?: number;
+  /** ParseJob.getClick: Site.click, else Result.click; run by the web sniffer. */
+  click?: string;
 }
 
 export type PlayerDecision = { type: 'direct'; media: ResolvedMedia } | { type: 'parse'; job: ParseJobSpec };
@@ -134,9 +139,19 @@ export async function resolvePlayer(site: Site, flag: string, episodeUrl: string
   const position = result.position;
   if (needParse(result) || vip) {
     const parse = selectParse(result, deps.config, vip);
+    const click = site.click || result.click;
     return {
       type: 'parse',
-      job: { parse, webUrl: value, flag: flagName, headers, format: result.format || undefined, subtitles: subtitles(result), position },
+      job: {
+        parse,
+        webUrl: value,
+        flag: flagName,
+        headers,
+        format: result.format || undefined,
+        subtitles: subtitles(result),
+        position,
+        ...(click ? { click } : {}),
+      },
     };
   }
   const url = result.playUrl + value;
@@ -158,6 +173,14 @@ function responseHeaders(object: Record<string, unknown>): Record<string, string
     else if (lower === 'cookie') headers.Cookie = str(value);
   }
   return headers;
+}
+
+/** ParseJob.startWeb: sniff parser url + page url in a hidden WebView. */
+async function webParse(parse: Parse, job: ParseJobSpec, deps: ResolveDeps): Promise<ResolvedMedia> {
+  if (!deps.sniff) throw new PlaybackError(MSG_WEB_PARSE);
+  const headers = Object.keys(parse.ext.header).length > 0 ? parse.ext.header : job.headers;
+  const media = await deps.sniff({ url: parse.url + job.webUrl, headers: withUserAgent(headers, deps.ua), click: job.click });
+  return { ...media, format: job.format, subtitles: job.subtitles, position: job.position, from: parse.name || undefined };
 }
 
 /** ParseJob.jsonParse: GET parser url + page url; a url longer than 40 chars is a hit. */
@@ -224,6 +247,8 @@ export async function runParse(job: ParseJobSpec, deps: ResolveDeps): Promise<Re
         throw new PlaybackError(MSG_PARSE_FAILED);
       }
     }
+    case 0:
+      return webParse(parse, job, deps);
     default:
       throw new PlaybackError(MSG_WEB_PARSE);
   }

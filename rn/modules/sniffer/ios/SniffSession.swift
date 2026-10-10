@@ -8,7 +8,7 @@ import WebKit
 final class SniffSession: NSObject, WKNavigationDelegate, WKScriptMessageHandler {
   let id: String
   private let scripts: [String]
-  private let emit: (String, [String: Any]) -> Void
+  private let emit: (String, [String: Any?]) -> Void
   private var webView: WKWebView?
   private var destroyed = false
 
@@ -73,7 +73,7 @@ final class SniffSession: NSObject, WKNavigationDelegate, WKScriptMessageHandler
   })();
   """
 
-  init(id: String, scripts: [String], emit: @escaping (String, [String: Any]) -> Void) {
+  init(id: String, scripts: [String], emit: @escaping (String, [String: Any?]) -> Void) {
     self.id = id
     self.scripts = scripts
     self.emit = emit

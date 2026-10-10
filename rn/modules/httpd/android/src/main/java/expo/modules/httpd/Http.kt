@@ -2,6 +2,7 @@ package expo.modules.httpd
 
 import java.io.ByteArrayOutputStream
 import java.io.File
+import java.io.InputStream
 
 /** Thrown while reading a request; answered with [status] before the connection closes. */
 internal class HttpError(val status: Int, message: String) : Exception(message)
@@ -39,6 +40,8 @@ internal class Response(
   val headers: Map<String, String> = emptyMap(),
   val body: ByteArray = ByteArray(0),
   val file: File? = null,
+  /** Close-delimited body copied to the client and always closed; no Content-Length unless [headers] carry one. */
+  val stream: InputStream? = null,
 ) {
   companion object {
     fun text(status: Int, text: String) =

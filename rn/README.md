@@ -642,13 +642,17 @@ Everything under `rn/.tmp/` is gitignored and can be deleted to start over.
 
 ## Release
 
-The RN app has its own release channel, separate from the Java app's.
+The RN app is the released product; the Java app (`app/`) is no longer
+released. The Android APKs replace the Java app on its own update channel
+(same package and key, so installs upgrade in place); iOS/tvOS use the rn
+channel.
 
 ### Versioning
 
-Release tags are `rn-vX.Y.Z` (the Java app keeps `vX.Y.Z`). The version job
-derives `versionName = X.Y.Z` and `versionCode = X*10000 + Y*100 + Z`
-(minor and patch below 100; any other `rn-v*` tag fails the run). CI passes
+Release tags are `vX.Y.Z`. The version job runs
+`node rn/plugins/version.js "$GITHUB_REF_NAME"`, which derives
+`versionName = X.Y.Z` and `versionCode = X*10000 + Y*100 + Z`
+(minor and patch below 100; any other `v*` tag fails the run). CI passes
 them as `VERSION_NAME` / `VERSION_CODE` to `app.config.ts`, which sets
 `version`, `android.versionCode` and `ios.buildNumber` (the same code on
 both platforms). Unset or blank values fall back to `1.0.0` / `1`; a
@@ -659,18 +663,24 @@ both platforms). Unset or blank values fall back to `1.0.0` / `1`; a
 - `.github/workflows/rn-ci.yml`: on pull requests and pushes to `main` that
   touch `rn/`: `npm ci`, lint, typecheck and tests on Node 24.
 - `.github/workflows/rn-release.yml`: on pushes to `main` that touch `rn/`,
-  on `rn-v*` tags and on manual dispatch.
-  - `android`: prebuild and `gradlew assembleRelease` -> `android-universal.apk`
-    (one APK for phones and Android TV).
+  on `v*` tags and on manual dispatch.
+  - `android`: prebuild with `ANDROID_ABI_FLAVORS=1` and
+    `gradlew assembleRelease` -> `leanback-arm64_v8a.apk` and
+    `leanback-armeabi_v7a.apk`; the run fails if either is signed with the
+    debug keystore.
   - `apple` (matrix `ios`, `tvos`; `EXPO_TV=1` for tvOS): fetch MPVKit
     (see below), prebuild, `pod install`, then `xcodebuild archive` + `-exportArchive` (ad-hoc /
     `release-testing`, manual signing of `cc.bkhq.tvbox`) ->
     `ios-universal.ipa` / `tvos-universal.ipa`.
   - `publish` (tags only): creates the GitHub release with the binaries and
-    the annotated tag message as notes, uploads them to R2 at
-    `tvbox/rn/releases/<versionCode>/<flavor>.apk|.ipa`, and registers them
-    with `POST <WORKER_URL>/mg/api/raw/releases` (`app: "rn"`, ipa assets
-    carry `bundleId`). The worker then rewrites the rn update manifests.
+    the annotated tag message as notes, then uploads and registers them with
+    `POST <WORKER_URL>/mg/api/raw/releases`:
+    - APKs: R2 `tvbox/releases/<versionCode>/leanback-<abi>.apk`, registered
+      without `app` (the Java app `tvbox`), so the worker rewrites
+      `/u/stable/leanback-<abi>.json`, the manifests Java installs poll.
+    - ipas: R2 `tvbox/rn/releases/<versionCode>/<flavor>.ipa`, registered as
+      `app: "rn"` with `bundleId`, so the worker rewrites the rn manifests.
+      Skipped when no ipa was signed.
 
 Branch and manual runs only build; they never publish.
 
@@ -695,10 +705,11 @@ frameworks still match, then run the script once.
 
 ### Update endpoints
 
-`WORKER_URL` is baked into the build. The app checks
-`<WORKER_URL>/u/rn/stable/<flavor>.json` (`android-universal`,
-`ios-universal`, `tvos-universal`). Android downloads the APK the manifest
-points at; iOS installs through
+`WORKER_URL` is baked into the build. Android releases are published to
+`<WORKER_URL>/u/stable/leanback-<abi>.json` (`arm64_v8a`, `armeabi_v7a`);
+nothing is published to the rn channel for Android anymore. The app checks
+`<WORKER_URL>/u/rn/stable/<flavor>.json` (`ios-universal`,
+`tvos-universal`); iOS installs through
 `itms-services://?action=download-manifest&url=<WORKER_URL>/u/rn/stable/<flavor>.plist`
 (URL-encoded), a plist the worker generates from the JSON manifest.
 
@@ -731,7 +742,7 @@ the end of the job even when it fails.
 - iOS/tvOS without the `APPLE_*` secrets for that target: the job builds
   for the simulator with `CODE_SIGNING_ALLOWED=NO` as a compile check, logs a
   warning and produces no ipa. The run does not fail; `publish` releases and
-  registers only the binaries that exist (at least the APK).
+  registers only the binaries that exist (at least the APKs).
 
 ### Adding an ad-hoc device
 
@@ -742,7 +753,7 @@ Ad-hoc ipas install only on devices listed in the profile:
    they include the device, and download them.
 3. Update `APPLE_PROVISIONING_PROFILE_IOS_BASE64` /
    `APPLE_PROVISIONING_PROFILE_TVOS_BASE64` (`base64 -i profile.mobileprovision`).
-4. Push a new `rn-vX.Y.Z` tag so a re-signed ipa is built and published.
+4. Push a new `vX.Y.Z` tag so a re-signed ipa is built and published.
 
 iPhones then install or update over the air from the plist link. tvOS has no
 OTA install: install the tvOS ipa on the Apple TV with Xcode (Devices and

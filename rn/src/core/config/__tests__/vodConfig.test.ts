@@ -1,6 +1,6 @@
 import type { FetchLike } from '../../http';
 import vodFixture from '../__fixtures__/vod.json';
-import { classifySite, loadVodConfig, parseVodConfig, SUPER_PARSE_NAME, supportedSites } from '../vodConfig';
+import { classifySite, loadVodConfig, parseSite, parseVodConfig, setJarSitesSupported, SUPER_PARSE_NAME, supportedSites } from '../vodConfig';
 
 const CONFIG_URL = 'https://config.example.com/tv/box/config.json?token=1';
 const DOT = 'https://config.example.com/tv/box/';
@@ -44,6 +44,7 @@ describe('parseVodConfig', () => {
       type: 0,
       api: 'https://cms.example.com/api.php/provide/vod/at/xml',
       ext: '',
+      jar: `${DOT}spider.jar;md5;abc`,
       click: '',
       playUrl: '',
       searchable: 1,
@@ -167,6 +168,36 @@ describe('classifySite', () => {
     expect(classifySite(3, 'https://x/a.py?v=1')).toEqual({ supported: false, unsupportedReason: 'py' });
     expect(classifySite(3, 'csp_XYZ')).toEqual({ supported: false, unsupportedReason: 'jar' });
     expect(classifySite(2, 'https://x/')).toEqual({ supported: false, unsupportedReason: 'type' });
+  });
+});
+
+describe('JAR sites', () => {
+  afterEach(() => setJarSitesSupported(false));
+
+  it('defaults a site jar to the config spider, resolved like other URLs', () => {
+    const config = parseVodConfig(VOD_TEXT, CONFIG_URL);
+    expect(config.spider).toBe(`${DOT}spider.jar;md5;abc`);
+    expect(siteByKey(config, 'jar_site').jar).toBe(`${DOT}bili.jar`);
+    expect(siteByKey(config, 'js_site').jar).toBe(`${DOT}spider.jar;md5;abc`);
+    expect(parseSite({ key: 'a', type: 3, api: 'csp_A', jar: '  https://x/a.jar  ' }, 'https://x/s.jar').jar).toBe('https://x/a.jar');
+    expect(parseSite({ key: 'a', type: 3, api: 'csp_A' }).jar).toBe('');
+  });
+
+  it('keeps JAR sites unsupported unless enabled', () => {
+    expect(parseSite({ key: 'a', type: 3, api: 'csp_A' }, 'https://x/s.jar')).toMatchObject({ supported: false, unsupportedReason: 'jar' });
+    setJarSitesSupported(true);
+    const site = parseSite({ key: 'a', type: 3, api: 'csp_A' }, 'https://x/s.jar');
+    expect(site.supported).toBe(true);
+    expect(site.unsupportedReason).toBeUndefined();
+    expect(supportedSites(parseVodConfig(VOD_TEXT, CONFIG_URL)).map((item) => item.key)).toContain('jar_site');
+  });
+
+  it('needs a csp_ api and a jar even when enabled', () => {
+    setJarSitesSupported(true);
+    expect(parseSite({ key: 'a', type: 3, api: 'csp_A' })).toMatchObject({ supported: false, unsupportedReason: 'jar' });
+    expect(parseSite({ key: 'a', type: 3, api: 'com.x.Spider' }, 'https://x/s.jar')).toMatchObject({ supported: false, unsupportedReason: 'jar' });
+    expect(parseSite({ key: 'a', type: 3, api: 'https://x/a.py' }, 'https://x/s.jar')).toMatchObject({ supported: false, unsupportedReason: 'py' });
+    expect(parseSite({ key: 'a', type: 1, api: 'https://x/api' }, 'https://x/s.jar')).toMatchObject({ supported: true });
   });
 });
 

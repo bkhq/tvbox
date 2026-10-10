@@ -6,6 +6,7 @@ import { clearProviders } from './provider';
 import { createServerLink, defaultDeviceInfo, type ServerLink, setServerLink } from './serverLink';
 import { appSettings, type SettingsStore } from './settings';
 import { asyncStorageStore, type ConfigRepository, createConfigRepository, type SavedConfig } from './storage';
+import { installJarSpiders, onJarConfigLoaded } from '../spider/jar/install';
 import { installJsSpiders } from '../spider/nativeRuntime';
 
 /**
@@ -76,6 +77,7 @@ export function createBootstrap(deps: BootstrapDeps): Bootstrap {
       const config = await loadConfig(url, { home: settings.get('homeSiteKey') || undefined });
       if (current !== generation) return undefined;
       clearProviders();
+      await onJarConfigLoaded(config);
       // Config.update: a successful load bumps the entry to the top of the list.
       const saved = await configs.add({ url });
       publish({ status: 'ready', config, entry: saved });
@@ -145,6 +147,7 @@ let shared: Bootstrap | undefined;
 export function getBootstrap(): Bootstrap {
   if (!shared) {
     installJsSpiders();
+    installJarSpiders();
     const { workerUrl, versionName, versionCode } = getAppConfig();
     const configs = createConfigRepository(asyncStorageStore, 'vod');
     shared = createBootstrap({

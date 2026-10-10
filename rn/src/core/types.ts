@@ -110,6 +110,11 @@ export interface Site {
   type: number;
   api: string;
   ext: string;
+  /**
+   * Spider JAR of a type 3 "csp_" site; the config's top-level `spider` when
+   * the site sets none. Always set by the config loader ("" when none).
+   */
+  jar?: string;
   click: string;
   playUrl: string;
   /** 1 = on, 0 = never, 2 = turned off by the user. */
@@ -387,6 +392,7 @@ export function normalizeSite(json: JsonObject): Omit<Site, 'supported' | 'unsup
     type: num(json.type),
     api: str(json.api),
     ext: extString(json.ext),
+    jar: str(json.jar).trim(),
     click: str(json.click),
     playUrl: str(json.playUrl),
     searchable: num(json.searchable, 1),

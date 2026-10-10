@@ -11,6 +11,7 @@ import {
   updateFlavor,
   type CheckOptions,
 } from '../logic';
+import javaManifest from './fixtures/leanback-arm64_v8a.json';
 
 const WORKER = 'https://w.example.com';
 
@@ -42,8 +43,11 @@ describe('version compare', () => {
 
 describe('updateFlavor', () => {
   it.each([
-    [{ OS: 'android', isTV: false }, 'android-universal'],
-    [{ OS: 'android', isTV: true }, 'android-universal'],
+    [{ OS: 'android', isTV: true, abi: 'arm64_v8a' }, 'leanback-arm64_v8a'],
+    [{ OS: 'android', isTV: false, abi: 'armeabi_v7a' }, 'leanback-armeabi_v7a'],
+    [{ OS: 'android', isTV: true, abi: '' }, null],
+    [{ OS: 'android', isTV: true }, null],
+    [{ OS: 'android', isTV: true, abi: 'x86' }, null],
     [{ OS: 'ios', isTV: false }, 'ios-universal'],
     [{ OS: 'ios', isTV: true }, 'tvos-universal'],
     [{ OS: 'web', isTV: false }, null],
@@ -55,7 +59,10 @@ describe('updateFlavor', () => {
 
 describe('urls', () => {
   it('builds manifest and plist urls', () => {
-    expect(manifestUrl(WORKER, 'stable', 'android-universal')).toBe(`${WORKER}/u/rn/stable/android-universal.json`);
+    expect(manifestUrl(WORKER, 'stable', 'leanback-arm64_v8a')).toBe(`${WORKER}/u/stable/leanback-arm64_v8a.json`);
+    expect(manifestUrl(WORKER, 'stable', 'leanback-armeabi_v7a')).toBe(`${WORKER}/u/stable/leanback-armeabi_v7a.json`);
+    expect(manifestUrl(WORKER, 'stable', 'ios-universal')).toBe(`${WORKER}/u/rn/stable/ios-universal.json`);
+    expect(manifestUrl(WORKER, 'stable', 'tvos-universal')).toBe(`${WORKER}/u/rn/stable/tvos-universal.json`);
     expect(plistUrl(WORKER, 'stable', 'ios-universal')).toBe(`${WORKER}/u/rn/stable/ios-universal.plist`);
   });
 
@@ -97,6 +104,22 @@ describe('parseManifest', () => {
     });
   });
 
+  it('accepts the Java channel manifest the worker writes', () => {
+    expect(parseManifest(javaManifest)).toEqual({
+      versionCode: 10005,
+      versionName: '1.0.5',
+      notes: javaManifest.notes,
+      url: '../apk/10005/leanback-arm64_v8a.apk',
+      sha256: javaManifest.sha256,
+      size: javaManifest.size,
+    });
+  });
+
+  it('only requires the fields the Java updater reads', () => {
+    const { versionCode, versionName, url, sha256 } = javaManifest;
+    expect(parseManifest({ versionCode, versionName, url, sha256 })).toEqual({ versionCode, versionName, notes: '', url, sha256 });
+  });
+
   it('keeps bundleId and defaults missing notes', () => {
     const { notes: _notes, ...rest } = manifestJson;
     expect(parseManifest({ ...rest, bundleId: 'cc.bkhq.tvbox' })).toMatchObject({ notes: '', bundleId: 'cc.bkhq.tvbox' });
@@ -125,7 +148,7 @@ describe('checkForUpdate', () => {
   const options = (overrides: Partial<CheckOptions> = {}): CheckOptions => ({
     workerUrl: WORKER,
     versionCode: 10000,
-    platform: { OS: 'android', isTV: true },
+    platform: { OS: 'android', isTV: true, abi: 'arm64_v8a' },
     fetchJson: jest.fn(async () => manifestJson),
     log: jest.fn(),
     ...overrides,
@@ -141,20 +164,27 @@ describe('checkForUpdate', () => {
     expect(await checkForUpdate(options({ platform: { OS: 'web', isTV: false } }))).toEqual({ status: 'unsupported' });
   });
 
+  it('skips universal android builds', async () => {
+    const fetchJson = jest.fn();
+    expect(await checkForUpdate(options({ platform: { OS: 'android', isTV: true, abi: '' }, fetchJson }))).toEqual({ status: 'unsupported' });
+    expect(fetchJson).not.toHaveBeenCalled();
+  });
+
   it('is up to date when the manifest is not newer', async () => {
     expect(await checkForUpdate(options({ versionCode: 10203 }))).toEqual({ status: 'up-to-date' });
   });
 
-  it('returns an android release with the resolved apk url', async () => {
-    const fetchJson = jest.fn(async () => manifestJson);
-    const result = await checkForUpdate(options({ fetchJson }));
-    expect(fetchJson).toHaveBeenCalledWith(`${WORKER}/u/rn/stable/android-universal.json`);
+  it.each(['arm64_v8a', 'armeabi_v7a'])('reads the Java channel on %s', async (abi) => {
+    const fetchJson = jest.fn(async () => ({ ...javaManifest, url: `../apk/10005/leanback-${abi}.apk` }));
+    const result = await checkForUpdate(options({ platform: { OS: 'android', isTV: false, abi }, fetchJson }));
+    expect(fetchJson).toHaveBeenCalledWith(`${WORKER}/u/stable/leanback-${abi}.json`);
     expect(result).toEqual({
       status: 'available',
       release: expect.objectContaining({
-        flavor: 'android-universal',
-        versionCode: 10203,
-        binaryUrl: `${WORKER}/u/rn/apk/10203/android-universal.apk`,
+        flavor: `leanback-${abi}`,
+        versionCode: 10005,
+        manifestUrl: `${WORKER}/u/stable/leanback-${abi}.json`,
+        binaryUrl: `${WORKER}/u/apk/10005/leanback-${abi}.apk`,
       }),
     });
     expect(result.status === 'available' && 'plistUrl' in result.release).toBe(false);
@@ -170,8 +200,13 @@ describe('checkForUpdate', () => {
     });
   });
 
+  it.each([true, false])('treats a missing manifest as up to date (manual %s)', async (manual) => {
+    const result = await checkForUpdate(options({ manual, fetchJson: jest.fn(async () => Promise.reject(new HttpError(404, 'x'))) }));
+    expect(result).toEqual({ status: 'up-to-date' });
+  });
+
   it.each([
-    ['404', new HttpError(404, 'x')],
+    ['500', new HttpError(500, 'x')],
     ['network', new TypeError('Network request failed')],
   ])('returns %s errors on a manual check', async (_name, error) => {
     const log = jest.fn();
@@ -182,7 +217,7 @@ describe('checkForUpdate', () => {
 
   it('swallows errors on a launch check', async () => {
     const log = jest.fn();
-    const result = await checkForUpdate(options({ log, fetchJson: jest.fn(async () => Promise.reject(new HttpError(404, 'x'))) }));
+    const result = await checkForUpdate(options({ log, fetchJson: jest.fn(async () => Promise.reject(new HttpError(500, 'x'))) }));
     expect(result).toEqual({ status: 'up-to-date' });
     expect(log).toHaveBeenCalled();
   });

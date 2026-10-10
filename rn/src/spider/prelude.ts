@@ -6,7 +6,8 @@
  *
  * - PRELUDE (script): http/req/_http (quickjs/.../lib/http.js + Global.req),
  *   local, console, setTimeout/clearTimeout/__drainTimers, joinUrl
- *   (UriUtil.resolve), md5X/aesX (Crypto.java, need CryptoJS), the
+ *   (UriUtil.resolve), getPort/getProxy (Global.java, state from
+ *   spiderProxyScript), md5X/aesX (Crypto.java, need CryptoJS), the
  *   global/window/self aliases.
  * - CRYPTO_MODULE: loads the bundled crypto-js.js (sets globalThis.CryptoJS).
  * - PARSER_MODULE: pd/pdfh/pdfa/pdfl, a port of spider/.../js/utils/Parser.java
@@ -257,6 +258,20 @@ function http(url, options = {}) {
         return resolve(parent, child);
     };
 
+    // ---- getPort / getProxy: Global.java over catvod Proxy (port -1 until the LAN server binds);
+    // the host refreshes __spider_proxy ({ port, host }) through spiderProxyScript().
+    function proxyState() {
+        var p = g.__spider_proxy;
+        return p && typeof p === 'object' ? p : { port: -1, host: '127.0.0.1' };
+    }
+    g.getPort = function () {
+        return proxyState().port;
+    };
+    g.getProxy = function (local) {
+        var p = proxyState();
+        return 'http://' + (local ? '127.0.0.1' : p.host) + ':' + p.port + '/proxy?do=js';
+    };
+
     // ---- md5X / aesX: Crypto.java on CryptoJS (loaded by CRYPTO_MODULE)
     function cryptoJS() {
         if (!g.CryptoJS) throw new Error('CryptoJS is not loaded');
@@ -491,6 +506,29 @@ globalThis.pdfh = guard((html, rule) => parseDomForUrl(html, rule, ''));
 globalThis.pdfa = guard((html, rule) => parseDomForArray(html, rule));
 globalThis.pdfl = guard((html, rule, texts, urls, urlKey) => parseDomForList(html, rule, texts, urls, urlKey));
 `;
+
+let proxyPort = -1;
+let proxyHost: () => string = () => '127.0.0.1';
+
+/**
+ * catvod Proxy.set for JS spiders: the LAN server port and the LAN address
+ * getProxy(false) uses. Pass -1 when the server stops.
+ */
+export function setSpiderProxy(port: number, host: () => string = () => '127.0.0.1'): void {
+  proxyPort = port;
+  proxyHost = host;
+}
+
+/** Script refreshing the prelude's getPort/getProxy state; evaluated before spider calls. */
+export function spiderProxyScript(): string {
+  let host = '127.0.0.1';
+  try {
+    host = proxyHost() || host;
+  } catch {
+    // keep the loopback address
+  }
+  return `globalThis.__spider_proxy = ${JSON.stringify({ port: proxyPort, host })};`;
+}
 
 /** quickjs/.../lib/spider.js with the spider module name filled in. */
 export function spiderEntry(api: string): string {

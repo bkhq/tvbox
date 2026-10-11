@@ -10,6 +10,7 @@
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react';
 import { Platform } from 'react-native';
 
+import sniffer from '../../modules/sniffer';
 import { useVodConfig } from '../core/bootstrap';
 import { type FetchLike, mergeHeaders } from '../core/http';
 import type { SiteProvider } from '../core/provider';
@@ -45,6 +46,7 @@ import {
 } from './machine';
 import { isUrlPlayerParams, type PlayerParams, type VodPlayerParams } from './params';
 import { errorMessage, loadVod, type ResolveDeps, resolvePlayer, runParse, withUserAgent } from './resolve';
+import { sniffMedia } from './sniff';
 
 export interface UsePlaybackOptions {
   settings?: SettingsStore;
@@ -194,7 +196,8 @@ export function usePlayback(params: PlayerParams, options: UsePlaybackOptions = 
         const { vod, flags } = await loadVod(site, vodRequest.vodId, { getProvider });
         const history = await tracker?.open({ vodName: vod.vod_name, vodPic: vod.vod_pic });
         const { flagIndex, episodeIndex } = pickEpisode(flags, vodRequest, history);
-        dispatch({ type: 'episodes', token, flags, flagIndex, episodeIndex, revPlay: history?.revPlay, title: vod.vod_name });
+        const changeable = site.changeable === 1;
+        dispatch({ type: 'episodes', token, flags, flagIndex, episodeIndex, revPlay: history?.revPlay, title: vod.vod_name, changeable });
       })().catch(fail);
       return;
     }
@@ -202,7 +205,13 @@ export function usePlayback(params: PlayerParams, options: UsePlaybackOptions = 
     const flag = selectFlag(state)!;
     const episode = selectCurrentEpisode(state)!;
     const title = episodeTitle(state);
-    const deps: ResolveDeps = { config, ua: settings.get('ua'), fetch, getProvider };
+    const deps: ResolveDeps = {
+      config,
+      ua: settings.get('ua'),
+      fetch,
+      getProvider,
+      sniff: (sniffRequest) => sniffMedia(sniffRequest, { native: sniffer, rules: config.rules }),
+    };
     (async () => {
       await tracker?.setEpisode(flag.flag, episode);
       const decision = await resolvePlayer(site, flag.flag, episode.url, deps);

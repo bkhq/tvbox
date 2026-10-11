@@ -6,7 +6,6 @@ import {
   Pressable,
   StyleSheet,
   Text,
-  TextInput,
   View,
 } from "react-native";
 
@@ -27,7 +26,13 @@ import {
   spacing,
   useLayout,
 } from "../../ui";
-import { ErrorView, LoadingView, openVod, VodGrid } from "../common";
+import {
+  ErrorView,
+  FocusableInput,
+  LoadingView,
+  openVod,
+  VodGrid,
+} from "../common";
 
 const NAV_LINKS: {
   route: Extract<
@@ -78,7 +83,7 @@ function AddConfigForm({ preferFocus }: { preferFocus: boolean }) {
   };
   return (
     <View style={styles.form}>
-      <TextInput
+      <FocusableInput
         testID="home-config-input"
         style={styles.input}
         value={url}

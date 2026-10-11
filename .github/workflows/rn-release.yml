@@ -138,6 +138,21 @@ jobs:
           }
           GRADLE
 
+      # The minified release build OOMs or hangs at the template's 2 GB heap.
+      - name: Raise the Gradle heap
+        run: |
+          props=android/gradle.properties
+          jvmargs='org.gradle.jvmargs=-Xmx4g -XX:MaxMetaspaceSize=1g'
+          if grep -q '^org\.gradle\.jvmargs=' "$props"; then
+            sed -i "s/^org\.gradle\.jvmargs=.*/$jvmargs/" "$props"
+          else
+            printf '\n%s\n' "$jvmargs" >> "$props"
+          fi
+          if ! grep -qxF "$jvmargs" "$props"; then
+            echo "::error::Failed to set org.gradle.jvmargs in $props"
+            exit 1
+          fi
+
       - name: Build
         working-directory: rn/android
         run: ./gradlew --no-daemon assembleRelease

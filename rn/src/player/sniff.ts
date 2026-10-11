@@ -143,6 +143,9 @@ export function sniffMedia(request: SniffRequest, deps: SniffDeps): Promise<Reso
     if (signal?.aborted) return onAbort();
     signal?.addEventListener('abort', onAbort);
     const scripts = sniffScripts(request.url, rules, request.click);
-    native.start(id, request.url, request.headers, scripts, timeout).catch(() => finish(new PlaybackError(MSG_WEB_PARSE)));
+    native.start(id, request.url, request.headers, scripts, timeout).catch((error: unknown) => {
+      console.warn('Sniffer start failed', error);
+      finish(new PlaybackError(MSG_WEB_PARSE));
+    });
   });
 }

@@ -1,12 +1,12 @@
 name: RN Release
 
 # Builds the React Native app (rn/) for Android, iOS and tvOS. Pushes to main
-# only build; rn-vX.Y.Z tags also publish to GitHub releases, the worker
-# bucket and the rn update manifests. Path filters do not apply to tags.
+# only build; vX.Y.Z tags also publish to GitHub releases, the worker bucket
+# and the update manifests. Path filters do not apply to tags.
 on:
   push:
     branches: [main]
-    tags: ["rn-v*"]
+    tags: ["v*"]
     paths:
       - "rn/**"
       - ".github/workflows/rn-release.yml"
@@ -23,7 +23,8 @@ env:
   BUNDLE_ID: cc.bkhq.tvbox
 
 jobs:
-  # Release tags are rn-vX.Y.Z; versionCode = X*10000 + Y*100 + Z, used for
+  # Release tags are vX.Y.Z; versionCode = X*10000 + Y*100 + Z (the Java
+  # app's formula, so its installs take the RN APKs as upgrades), used for
   # both the Android versionCode and the iOS buildNumber. Other runs leave the
   # outputs empty so app.config.ts keeps its defaults.
   version:
@@ -32,17 +33,13 @@ jobs:
       code: ${{ steps.version.outputs.code }}
       name: ${{ steps.version.outputs.name }}
     steps:
+      - uses: actions/checkout@v4
+        if: startsWith(github.ref, 'refs/tags/v')
+
       - name: Version from tag
         id: version
-        if: startsWith(github.ref, 'refs/tags/rn-v')
-        run: |
-          if [[ ! "$GITHUB_REF_NAME" =~ ^rn-v([0-9]+)\.([0-9]{1,2})\.([0-9]{1,2})$ ]]; then
-            echo "::error::rn release tags must look like rn-v1.2.3 (minor and patch below 100), got $GITHUB_REF_NAME"
-            exit 1
-          fi
-          code=$(( 10#${BASH_REMATCH[1]} * 10000 + 10#${BASH_REMATCH[2]} * 100 + 10#${BASH_REMATCH[3]} ))
-          echo "code=$code" >> "$GITHUB_OUTPUT"
-          echo "name=${GITHUB_REF_NAME#rn-v}" >> "$GITHUB_OUTPUT"
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: node rn/plugins/version.js "$GITHUB_REF_NAME" >> "$GITHUB_OUTPUT"
 
   android:
     needs: version
@@ -79,13 +76,18 @@ jobs:
           version() { sed -n "s/^$1 = \"\(.*\)\"/\1/p" node_modules/react-native/gradle/libs.versions.toml; }
           yes | sdkmanager "platforms;android-$(version compileSdk)" "build-tools;$(version buildTools)" "ndk;$(version ndkVersion)" > /dev/null
 
+      # Per-ABI flavors: assembleRelease writes leanback-arm64_v8a.apk and
+      # leanback-armeabi_v7a.apk, the flavors the Java app's channel serves.
       - name: Prebuild
+        env:
+          ANDROID_ABI_FLAVORS: "1"
         run: npx expo prebuild --platform android --no-install
 
       # Sign with the committed keystore/release.jks and the alias/passwords
       # from keystore/release.properties, mapped like app/build.gradle
       # (storePassword also serves as keyPassword), so the RN app shares the
-      # Java app's key. The block replaces the generated debug signing.
+      # Java app's key. The block replaces the generated debug signing for
+      # every flavor.
       - name: Configure release signing
         run: |
           props="$GITHUB_WORKSPACE/keystore/release.properties"
@@ -143,19 +145,26 @@ jobs:
       - name: Collect
         run: |
           mkdir -p dist
-          cp android/app/build/outputs/apk/release/app-release.apk dist/android-universal.apk
+          find android/app/build/outputs/apk -path '*/release/leanback-*.apk' -exec cp {} dist/ \;
           apksigner=$(find "$ANDROID_HOME/build-tools" -name apksigner -type f | sort -V | tail -n 1)
-          certs=$("$apksigner" verify --print-certs dist/android-universal.apk)
-          if printf '%s\n' "$certs" | grep -q 'CN=Android Debug'; then
-            echo "::error::android-universal.apk is signed with the debug keystore"
-            exit 1
-          fi
+          for abi in arm64_v8a armeabi_v7a; do
+            apk="dist/leanback-$abi.apk"
+            if [ ! -f "$apk" ]; then
+              echo "::error::$apk was not built"
+              exit 1
+            fi
+            certs=$("$apksigner" verify --print-certs "$apk")
+            if printf '%s\n' "$certs" | grep -q 'CN=Android Debug'; then
+              echo "::error::$apk is signed with the debug keystore"
+              exit 1
+            fi
+          done
           ls -l dist
 
       - uses: actions/upload-artifact@v4
         with:
-          name: rn-android-universal
-          path: rn/dist/android-universal.apk
+          name: rn-android
+          path: rn/dist/leanback-*.apk
           if-no-files-found: error
 
   apple:
@@ -345,11 +354,13 @@ jobs:
           if [ -f "$RUNNER_TEMP/rn-signing.keychain-db" ]; then security delete-keychain "$RUNNER_TEMP/rn-signing.keychain-db"; fi
           rm -f "$RUNNER_TEMP"/rn-*.mobileprovision "$RUNNER_TEMP"/rn-*-profile.plist "$RUNNER_TEMP/rn-signing.p12"
 
-  # Publishes the APK plus every ipa that was signed; unsigned Apple targets
-  # only ran a compile check and contribute nothing.
+  # Publishes the APKs plus every ipa that was signed; unsigned Apple targets
+  # only ran a compile check and contribute nothing. The APKs go out on the
+  # Java app's channel ("tvbox": same package and key, so existing installs
+  # upgrade in place); the ipas on the rn channel.
   publish:
     needs: [version, android, apple]
-    if: startsWith(github.ref, 'refs/tags/rn-v')
+    if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -368,10 +379,12 @@ jobs:
       - name: Collect
         run: |
           ls -l dist
-          if [ ! -f dist/android-universal.apk ]; then
-            echo "::error::android-universal.apk is missing"
-            exit 1
-          fi
+          for abi in arm64_v8a armeabi_v7a; do
+            if [ ! -f "dist/leanback-$abi.apk" ]; then
+              echo "::error::leanback-$abi.apk is missing"
+              exit 1
+            fi
+          done
           for target in ios tvos; do
             [ -f "dist/$target-universal.ipa" ] || echo "::warning::$target-universal.ipa was not built (unsigned); it is not published"
           done
@@ -389,7 +402,7 @@ jobs:
         run: gh release create "$GITHUB_REF_NAME" dist/* --title "$GITHUB_REF_NAME" --notes-file "$RUNNER_TEMP/notes.md"
 
       # Binaries go straight to the bucket; the worker only records them and
-      # rewrites the rn update manifests the app polls.
+      # rewrites the update manifests the apps poll.
       - name: Upload binaries to the worker bucket
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
@@ -398,10 +411,10 @@ jobs:
           bucket="$(grep -oP 'bucket_name = "\K[^"]+' worker/apps/api/wrangler.toml)"
           for file in dist/*; do
             case "$file" in
-              *.apk) type=application/vnd.android.package-archive ;;
-              *) type=application/octet-stream ;;
+              *.apk) prefix=tvbox type=application/vnd.android.package-archive ;;
+              *) prefix=tvbox/rn type=application/octet-stream ;;
             esac
-            npx --yes wrangler@4 r2 object put "$bucket/tvbox/rn/releases/$VERSION_CODE/$(basename "$file")" \
+            npx --yes wrangler@4 r2 object put "$bucket/$prefix/releases/$VERSION_CODE/$(basename "$file")" \
               --file "$file" --content-type "$type" --remote
           done
 
@@ -410,16 +423,30 @@ jobs:
           WORKER_URL: ${{ vars.WORKER_URL }}
           SERVICE_TOKEN_RELEASE: ${{ secrets.SERVICE_TOKEN_RELEASE }}
         run: |
-          assets="$(for file in dist/*; do
-            name="$(basename "${file%.*}")"
-            jq -n --arg mode "${name%%-*}" --arg abi "${name#*-}" \
-              --arg sha256 "$(sha256sum "$file" | cut -d' ' -f1)" --argjson size "$(stat -c%s "$file")" \
-              --arg bundleId "$BUNDLE_ID" \
-              '{mode: $mode, abi: $abi, sha256: $sha256, size: $size}
-                + (if $mode == "ios" or $mode == "tvos" then {bundleId: $bundleId} else {} end)'
-          done | jq -s .)"
-          jq -n --argjson versionCode "$VERSION_CODE" --arg versionName "$VERSION_NAME" \
-            --rawfile notes "$RUNNER_TEMP/notes.md" --argjson assets "$assets" \
-            '{app: "rn", versionCode: $versionCode, versionName: $versionName, notes: $notes, assets: $assets}' > "$RUNNER_TEMP/release.json"
-          curl --fail-with-body -sS -X POST "${WORKER_URL%/}/mg/api/raw/releases" \
-            -H "Authorization: Bearer $SERVICE_TOKEN_RELEASE" -H "Content-Type: application/json" --data @"$RUNNER_TEMP/release.json"
+          assets() {
+            for file in "$@"; do
+              name="$(basename "${file%.*}")"
+              jq -n --arg mode "${name%%-*}" --arg abi "${name#*-}" \
+                --arg sha256 "$(sha256sum "$file" | cut -d' ' -f1)" --argjson size "$(stat -c%s "$file")" \
+                --arg bundleId "$BUNDLE_ID" \
+                '{mode: $mode, abi: $abi, sha256: $sha256, size: $size}
+                  + (if $mode == "ios" or $mode == "tvos" then {bundleId: $bundleId} else {} end)'
+            done | jq -s .
+          }
+          # $1 is the app ("" registers the Java app "tvbox", the default), the rest its binaries.
+          register() {
+            app="$1"
+            shift
+            jq -n --arg app "$app" --argjson versionCode "$VERSION_CODE" --arg versionName "$VERSION_NAME" \
+              --rawfile notes "$RUNNER_TEMP/notes.md" --argjson assets "$(assets "$@")" \
+              '(if $app == "" then {} else {app: $app} end)
+                + {versionCode: $versionCode, versionName: $versionName, notes: $notes, assets: $assets}' > "$RUNNER_TEMP/release.json"
+            curl --fail-with-body -sS -X POST "${WORKER_URL%/}/mg/api/raw/releases" \
+              -H "Authorization: Bearer $SERVICE_TOKEN_RELEASE" -H "Content-Type: application/json" --data @"$RUNNER_TEMP/release.json"
+          }
+          register "" dist/*.apk
+          shopt -s nullglob
+          ipas=(dist/*.ipa)
+          if [ "${#ipas[@]}" -gt 0 ]; then
+            register rn "${ipas[@]}"
+          fi

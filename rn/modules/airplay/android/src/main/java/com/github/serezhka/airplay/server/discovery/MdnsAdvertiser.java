@@ -64,7 +64,13 @@ public class MdnsAdvertiser {
     public void stop() {
         for (final JmDNS jmDNS : jmDNSList) {
             jmDNS.unregisterAllServices();
+            try {
+                jmDNS.close();
+            } catch (IOException e) {
+                log.error(e.getMessage());
+            }
         }
+        jmDNSList.clear();
     }
 
     private Map<String, String> airPlayMDNSProps(String deviceId) {

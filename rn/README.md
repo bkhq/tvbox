@@ -249,6 +249,11 @@ history (`history.ts`), the app-wide control API (`controller.ts`) and the
 `usePlayback(params)` hook the Player screen is built on. Engine
 implementations live in sibling workstreams and register themselves.
 
+When a VOD line fails (resolve/parse/sniff error, an empty line, or a fatal
+engine error after the one engine fallback), a changeable site moves on to the
+same episode on the next untried line (`fallback.ts`, after
+`VodFallbackPolicy.fallbackToNextLine`) with a "正在切换线路至「…」" notice.
+
 ### Engines
 
 ```ts

@@ -2,7 +2,9 @@
  * Playback state machine: a pure reducer plus selectors, no React. Follows
  * playback/vod/VodPlaybackController.java (episode navigation, ended ->
  * next episode) and PlayerManager.java (resolve -> parse -> start); engine
- * fallback switches once to the other engine keeping the position.
+ * fallback switches once to the other engine keeping the position; when that
+ * is exhausted (or resolving fails) a changeable site moves on to the same
+ * episode on the next line (fallback.ts).
  *
  *   idle -> resolving -> (parsing) -> loading -> buffering | playing | paused -> ended | error
  *
@@ -13,6 +15,7 @@
  */
 
 import type { Episode, Flag } from '../core/types';
+import { nextLine, switchLineNotice } from './fallback';
 import type { EngineEvent, EngineKind, EngineSource, EngineTracks, ExternalSubtitle, TrackId } from './engine/types';
 
 export type PlaybackStatus =
@@ -43,6 +46,10 @@ export interface PlaybackState {
   engine?: EngineKind;
   /** The one engine fallback of the current item has been used. */
   fallbackUsed: boolean;
+  /** The site allows automatic line fallback (Site.isChangeable). */
+  changeable: boolean;
+  /** Flag indices tried for the current episode request. */
+  triedFlags: number[];
   /** The engine reported `load` for the current source. */
   loaded: boolean;
   /** User intent; the engine view's `paused` prop. */
@@ -65,7 +72,16 @@ export type PlaybackAction =
   /** Starts a new item. A direct URL passes its source; VOD items resolve next. */
   | { type: 'open'; title?: string; engine?: EngineKind; speed: number; source?: EngineSource }
   /** VOD detail loaded: the play sources and the episode to start with. */
-  | { type: 'episodes'; token: number; flags: Flag[]; flagIndex: number; episodeIndex: number; revPlay?: boolean; title?: string }
+  | {
+      type: 'episodes';
+      token: number;
+      flags: Flag[];
+      flagIndex: number;
+      episodeIndex: number;
+      revPlay?: boolean;
+      title?: string;
+      changeable?: boolean;
+    }
   | { type: 'parsing'; token: number }
   /** `engine` overrides the active engine for this item (e.g. DRM sources). */
   | { type: 'resolved'; token: number; source: EngineSource; engine?: EngineKind }
@@ -107,6 +123,8 @@ export const initialPlaybackState: PlaybackState = {
   episodeIndex: 0,
   revPlay: false,
   fallbackUsed: false,
+  changeable: false,
+  triedFlags: [],
   loaded: false,
   paused: false,
   repeat: false,
@@ -177,7 +195,20 @@ function newItem(state: PlaybackState): PlaybackState {
 function toEpisode(state: PlaybackState, episodeIndex: number, flagIndex = state.flagIndex): PlaybackState {
   const episodes = state.flags[flagIndex]?.episodes ?? [];
   if (episodeIndex < 0 || episodeIndex >= episodes.length) return state;
-  return { ...newItem(state), flagIndex, episodeIndex };
+  return { ...newItem(state), flagIndex, episodeIndex, triedFlags: [flagIndex] };
+}
+
+/** VodFallbackPolicy.fallbackToNextLine: the same episode on the next line, else the error. */
+function failOrNextLine(state: PlaybackState, message: string): PlaybackState {
+  const target = state.changeable ? nextLine({ ...state, tried: state.triedFlags }) : undefined;
+  if (!target) return fail(state, message);
+  return {
+    ...newItem(state),
+    flagIndex: target.flagIndex,
+    episodeIndex: target.episodeIndex,
+    triedFlags: [...state.triedFlags, target.flagIndex],
+    notice: switchLineNotice(state.flags[target.flagIndex]?.flag ?? ''),
+  };
 }
 
 function step(state: PlaybackState, direction: 1 | -1): PlaybackState {
@@ -257,7 +288,7 @@ function engineFailed(state: PlaybackState, message: string, fallback: EngineKin
   if (!state.fallbackUsed && fallback && fallback !== state.engine) {
     return { ...switchEngine(state, fallback), fallbackUsed: true };
   }
-  return fail(state, message ? `${MSG_PLAY_FAILED}：${message}` : MSG_PLAY_FAILED);
+  return failOrNextLine(state, message ? `${MSG_PLAY_FAILED}：${message}` : MSG_PLAY_FAILED);
 }
 
 export function playbackReducer(state: PlaybackState, action: PlaybackAction): PlaybackState {
@@ -270,6 +301,8 @@ export function playbackReducer(state: PlaybackState, action: PlaybackAction): P
         flagIndex: 0,
         episodeIndex: 0,
         revPlay: false,
+        changeable: false,
+        triedFlags: [],
         preferredEngine: action.engine,
         engine: action.engine,
         paused: false,
@@ -288,8 +321,10 @@ export function playbackReducer(state: PlaybackState, action: PlaybackAction): P
         episodeIndex: action.episodeIndex,
         revPlay: action.revPlay ?? false,
         title: action.title ?? state.title,
+        changeable: action.changeable ?? false,
+        triedFlags: [action.flagIndex],
       };
-      return selectEpisode(next) ? next : fail(next, MSG_NO_EPISODE);
+      return selectEpisode(next) ? next : failOrNextLine(next, MSG_NO_EPISODE);
     }
     case 'parsing':
       return action.token === state.token && state.status === 'resolving' ? { ...state, status: 'parsing' } : state;
@@ -305,7 +340,7 @@ export function playbackReducer(state: PlaybackState, action: PlaybackAction): P
       };
     case 'failed':
       if (action.token !== state.token || (state.status !== 'resolving' && state.status !== 'parsing')) return state;
-      return fail(state, action.message);
+      return failOrNextLine(state, action.message);
     case 'engine':
       return onEngineEvent(state, action.event);
     case 'engineFailed':

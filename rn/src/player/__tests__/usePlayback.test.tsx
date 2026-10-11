@@ -128,6 +128,27 @@ describe('usePlayback', () => {
     await act(async () => renderer.unmount());
   });
 
+  it('falls back to the same episode on the next line keeping the history position', async () => {
+    const detail = provider.detail as jest.Mock;
+    const player = provider.player as jest.Mock;
+    detail.mockImplementationOnce(async () =>
+      normalizeResult({
+        list: [{ vod_id: '1', vod_name: 'Show', vod_play_from: 'bad$$$good', vod_play_url: 'E1$https://bad/1#E2$https://bad/2$$$E2$https://m/2.m3u8' }],
+      }),
+    );
+    player.mockImplementationOnce(async () => {
+      throw new Error('404');
+    });
+    const key = historyKey('cms', '1');
+    await getHistoryRepository().upsert({ key, cid: 7, vodFlag: 'bad', vodRemarks: 'E2', episodeUrl: 'https://bad/2', position: 30_000, duration: 100_000 });
+    const renderer = await render({ siteKey: 'cms', vodId: '1' });
+
+    expect(captured.value!.state).toMatchObject({ flagIndex: 1, episodeIndex: 0, notice: '正在切换线路至「good」' });
+    expect(mpv.props?.source).toMatchObject({ url: 'https://m/2.m3u8', startPosition: 30_000 });
+    expect(await getHistoryRepository().get(7, key)).toMatchObject({ vodFlag: 'good', vodRemarks: 'E2' });
+    await act(async () => renderer.unmount());
+  });
+
   it('serves the app-wide controller while mounted', async () => {
     const controller = getPlaybackController();
     const renderer = await render({ url: 'https://m/a.m3u8', title: 'A' });

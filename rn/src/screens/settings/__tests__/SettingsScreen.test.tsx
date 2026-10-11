@@ -226,6 +226,18 @@ describe('SettingsScreen', () => {
     await act(async () => renderer.unmount());
   });
 
+  it('focuses the config and text inputs itself on TV', async () => {
+    Object.defineProperty(Platform, 'isTV', { value: true, configurable: true });
+    const focus = jest.spyOn(TextInput.prototype, 'focus').mockImplementation(() => undefined);
+    const { renderer } = await setup();
+    await press(renderer, 'settings-vod');
+    expect(focus).toHaveBeenCalledTimes(1);
+    await press(renderer, 'settings-panel-close');
+    await press(renderer, 'settings-doh');
+    expect(focus).toHaveBeenCalledTimes(2);
+    await act(async () => renderer.unmount());
+  });
+
   it('picks the home site and disables unsupported sites', async () => {
     const { renderer } = await setup([URL_A]);
     await press(renderer, 'settings-homeSite');

@@ -109,11 +109,24 @@ async function run(): Promise<void> {
 
   if (Platform.OS === 'android' && Platform.isTV) {
     const getPlayer = () => getLanPorts().player;
-    try {
-      cleanups.push(startAirPlay({ getPlayer, settings: appSettings }));
-    } catch (error) {
-      console.warn('AirPlay:', error);
-    }
+    // Waits for the stored settings so a custom airplayName does not restart the receiver.
+    let stopAirPlay: (() => void) | undefined;
+    let airPlayStopped = false;
+    cleanups.push(() => {
+      airPlayStopped = true;
+      stopAirPlay?.();
+    });
+    void getBootstrap()
+      .start()
+      .catch(() => undefined)
+      .then(() => {
+        if (airPlayStopped) return;
+        try {
+          stopAirPlay = startAirPlay({ getPlayer, settings: appSettings });
+        } catch (error) {
+          console.warn('AirPlay:', error);
+        }
+      });
     try {
       cleanups.push(startDlna({ getPlayer, name: () => '' }));
     } catch (error) {

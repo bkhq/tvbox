@@ -1,4 +1,4 @@
-import { installUpdate, SizeMismatchError, type DownloadedApk, type InstallDeps } from '../install';
+import { ChecksumMismatchError, installUpdate, SizeMismatchError, type DownloadedApk, type InstallDeps } from '../install';
 import type { Release, UpdateFlavor } from '../logic';
 
 function release(flavor: UpdateFlavor, overrides: Partial<Release> = {}): Release {
@@ -12,18 +12,22 @@ function release(flavor: UpdateFlavor, overrides: Partial<Release> = {}): Releas
     flavor,
     manifestUrl: `https://w/u/rn/stable/${flavor}.json`,
     binaryUrl: `https://w/u/rn/apk/10203/${flavor}.apk`,
-    plistUrl: flavor === 'android-universal' ? undefined : `https://w/u/rn/stable/${flavor}.plist`,
+    plistUrl: flavor.startsWith('leanback-') ? undefined : `https://w/u/rn/stable/${flavor}.plist`,
     ...overrides,
   };
 }
 
-function deps(size = 100): jest.Mocked<InstallDeps> & { discard: jest.Mock } {
+const HASH = 'ab'.repeat(32);
+
+function deps(size = 100, hash: string | null = HASH): jest.Mocked<InstallDeps> & { discard: jest.Mock; sha256: jest.Mock } {
   const discard = jest.fn();
+  const sha256 = jest.fn(async () => hash ?? '');
   return {
     discard,
+    sha256,
     downloadApk: jest.fn<Promise<DownloadedApk>, Parameters<InstallDeps['downloadApk']>>(async (_url, onProgress) => {
       onProgress(0.5);
-      return { size, contentUri: 'content://apk', discard };
+      return { size, contentUri: 'content://apk', discard, ...(hash === null ? {} : { sha256 }) };
     }),
     launchInstaller: jest.fn<Promise<void>, [string]>(async () => {}),
     openURL: jest.fn<Promise<void>, [string]>(async () => {}),
@@ -35,19 +39,65 @@ describe('installUpdate', () => {
     const d = deps();
     const onProgress = jest.fn();
     const onDownloaded = jest.fn();
-    expect(await installUpdate(release('android-universal'), d, { onProgress, onDownloaded })).toEqual({ status: 'started' });
-    expect(d.downloadApk).toHaveBeenCalledWith('https://w/u/rn/apk/10203/android-universal.apk', onProgress, undefined);
+    expect(await installUpdate(release('leanback-arm64_v8a'), d, { onProgress, onDownloaded })).toEqual({ status: 'started' });
+    expect(d.downloadApk).toHaveBeenCalledWith('https://w/u/rn/apk/10203/leanback-arm64_v8a.apk', onProgress, undefined);
     expect(onProgress).toHaveBeenCalledWith(0.5);
     expect(onDownloaded).toHaveBeenCalled();
     expect(d.launchInstaller).toHaveBeenCalledWith('content://apk');
     expect(d.openURL).not.toHaveBeenCalled();
   });
 
+  it('skips the size check when the manifest has no size', async () => {
+    const d = deps(42);
+    expect(await installUpdate(release('leanback-armeabi_v7a', { size: undefined }), d)).toEqual({ status: 'started' });
+    expect(d.launchInstaller).toHaveBeenCalledWith('content://apk');
+  });
+
   it('rejects an apk with the wrong size', async () => {
     const d = deps(99);
-    await expect(installUpdate(release('android-universal'), d)).rejects.toBeInstanceOf(SizeMismatchError);
+    await expect(installUpdate(release('leanback-arm64_v8a'), d)).rejects.toBeInstanceOf(SizeMismatchError);
     expect(d.discard).toHaveBeenCalled();
     expect(d.launchInstaller).not.toHaveBeenCalled();
+  });
+
+  it('launches the installer when the sha256 matches', async () => {
+    const d = deps();
+    expect(await installUpdate(release('leanback-arm64_v8a', { sha256: HASH }), d)).toEqual({ status: 'started' });
+    expect(d.sha256).toHaveBeenCalled();
+    expect(d.launchInstaller).toHaveBeenCalledWith('content://apk');
+  });
+
+  it('accepts an uppercase manifest sha256', async () => {
+    const d = deps();
+    expect(await installUpdate(release('leanback-arm64_v8a', { sha256: HASH.toUpperCase() }), d)).toEqual({ status: 'started' });
+    expect(d.launchInstaller).toHaveBeenCalledWith('content://apk');
+  });
+
+  it('rejects an apk with the wrong sha256', async () => {
+    const d = deps(100, 'cd'.repeat(32));
+    const onDownloaded = jest.fn();
+    await expect(installUpdate(release('leanback-arm64_v8a', { sha256: HASH }), d, { onDownloaded })).rejects.toBeInstanceOf(
+      ChecksumMismatchError,
+    );
+    expect(d.discard).toHaveBeenCalled();
+    expect(onDownloaded).not.toHaveBeenCalled();
+    expect(d.launchInstaller).not.toHaveBeenCalled();
+  });
+
+  it('skips the sha256 check when the manifest sha256 is empty', async () => {
+    const d = deps();
+    expect(await installUpdate(release('leanback-arm64_v8a', { sha256: '' }), d)).toEqual({ status: 'started' });
+    expect(d.sha256).not.toHaveBeenCalled();
+    expect(d.launchInstaller).toHaveBeenCalledWith('content://apk');
+  });
+
+  it('falls back to the size check when the native hash is unavailable', async () => {
+    const d = deps(100, null);
+    const warn = jest.spyOn(console, 'warn').mockImplementation(() => {});
+    expect(await installUpdate(release('leanback-arm64_v8a', { sha256: HASH }), d)).toEqual({ status: 'started' });
+    expect(warn).toHaveBeenCalled();
+    expect(d.launchInstaller).toHaveBeenCalledWith('content://apk');
+    warn.mockRestore();
   });
 
   it('opens itms-services on iOS', async () => {

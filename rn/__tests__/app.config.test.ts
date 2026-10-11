@@ -52,3 +52,15 @@ describe('app.config network policy', () => {
     expect(config.ios?.infoPlist?.NSAppTransportSecurity).toEqual({ NSAllowsArbitraryLoads: true });
   });
 });
+
+describe('app.config Android permissions', () => {
+  it('declares what the Java app had and the RN app still uses', () => {
+    const { permissions, blockedPermissions } = loadConfig({}).android ?? {};
+    expect(permissions).toEqual(
+      expect.arrayContaining(['android.permission.REQUEST_INSTALL_PACKAGES', 'android.permission.POST_NOTIFICATIONS']),
+    );
+    expect(blockedPermissions).toEqual(
+      expect.arrayContaining(['android.permission.READ_EXTERNAL_STORAGE', 'android.permission.WRITE_EXTERNAL_STORAGE']),
+    );
+  });
+});

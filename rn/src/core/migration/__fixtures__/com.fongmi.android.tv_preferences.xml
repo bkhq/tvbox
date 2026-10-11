@@ -1,0 +1,33 @@
+<?xml version='1.0' encoding='utf-8' standalone='yes' ?>
+<map>
+    <boolean name="enroll" value="true" />
+    <string name="enroll_code">ABCD-EFGH</string>
+    <string name="enroll_subscription">https://worker.example.com/sub/abc</string>
+    <string name="enroll_device_key">dk-123</string>
+    <string name="airplay_device_id">02:AB:CD:EF:01:23</string>
+    <string name="doh">https://dns.example.com/dns-query</string>
+    <string name="ua">Mozilla/5.0 Test</string>
+    <boolean name="airplay" value="false" />
+    <string name="airplay_name">客厅电视</string>
+    <boolean name="incognito" value="true" />
+    <int name="site_mode" value="1" />
+    <int name="player_engine" value="1" />
+    <int name="render" value="1" />
+    <int name="background" value="0" />
+    <int name="buffer" value="25" />
+    <boolean name="audio_pass_through" value="false" />
+    <boolean name="decode_tunnel" value="true" />
+    <float name="speed_playback" value="1.5" />
+    <float name="speed" value="3.0" />
+    <int name="subtitle_style_source" value="2" />
+    <int name="subtitle_edge_type" value="2" />
+    <int name="subtitle_foreground_color" value="-256" />
+    <float name="subtitle_scale" value="1.25" />
+    <int name="audio_channel_mode" value="7" />
+    <long name="danmaku_duration" value="8000" />
+    <set name="hot_words">
+        <string>a</string>
+        <string>b</string>
+    </set>
+    <string name="config_0">https://vod.example.com/b.json</string>
+</map>

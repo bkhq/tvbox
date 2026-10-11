@@ -4,6 +4,7 @@ import {
   initialPlaybackState,
   isPlaying,
   MSG_NO_ENGINE,
+  MSG_NO_EPISODE,
   MSG_NO_NEXT,
   MSG_NO_PREV,
   MSG_PLAY_FAILED,
@@ -179,6 +180,64 @@ describe('playback machine', () => {
       const state = playbackReducer(openVod(), { type: 'selectEpisode', flagIndex: 1, episodeIndex: 0 });
       expect(selectEpisode(state)?.url).toBe('v1');
       expect(playbackReducer(state, { type: 'selectEpisode', flagIndex: 1, episodeIndex: 5 })).toBe(state);
+    });
+  });
+
+  describe('line fallback', () => {
+    const lines = [
+      { flag: 'bad', episodes: parseEpisodes('E1$u1#E2$u2') },
+      { flag: 'empty', episodes: [] },
+      { flag: 'good', episodes: parseEpisodes('E2$w2#E1$w1') },
+      { flag: 'last', episodes: parseEpisodes('E1$x1') },
+    ];
+
+    function openLines(changeable = true, flagIndex = 0, episodeIndex = 0): PlaybackState {
+      const opened = run({ type: 'open', engine: 'video', speed: 1 });
+      return playbackReducer(opened, { type: 'episodes', token: opened.token, flags: lines, flagIndex, episodeIndex, changeable });
+    }
+
+    it('moves a failed resolve to the same episode on the next line with a notice', () => {
+      const state = openLines();
+      const next = playbackReducer(state, { type: 'failed', token: state.token, message: '404' });
+      expect(next).toMatchObject({ status: 'resolving', flagIndex: 2, episodeIndex: 1, notice: '正在切换线路至「good」', triedFlags: [0, 2] });
+      expect(next.token).toBe(state.token + 1);
+      expect(selectEpisode(next)?.url).toBe('w1');
+    });
+
+    it('uses the engine fallback before the next line', () => {
+      let state = playing(openLines());
+      state = playbackReducer(state, { type: 'engineFailed', message: 'decoder', fallback: 'mpv' });
+      expect(state).toMatchObject({ status: 'loading', engine: 'mpv', flagIndex: 0 });
+      state = playbackReducer(state, { type: 'engineFailed', message: 'again', fallback: 'video' });
+      expect(state).toMatchObject({ status: 'resolving', engine: 'video', fallbackUsed: false, flagIndex: 2 });
+    });
+
+    it('stops after every line was tried with the last failure', () => {
+      let state = openLines();
+      state = playbackReducer(state, { type: 'failed', token: state.token, message: 'a' });
+      state = playbackReducer(state, { type: 'failed', token: state.token, message: 'b' });
+      expect(state).toMatchObject({ flagIndex: 3, triedFlags: [0, 2, 3] });
+      state = playbackReducer(state, { type: 'failed', token: state.token, message: 'c' });
+      expect(state).toMatchObject({ status: 'error', error: 'c', flagIndex: 3 });
+    });
+
+    it('leaves an empty current line', () => {
+      expect(openLines(true, 1)).toMatchObject({ status: 'resolving', flagIndex: 2, notice: '正在切换线路至「good」' });
+      expect(openLines(false, 1)).toMatchObject({ status: 'error', error: MSG_NO_EPISODE });
+    });
+
+    it('fails as before when the site is not changeable', () => {
+      const state = openLines(false);
+      expect(playbackReducer(state, { type: 'failed', token: state.token, message: '404' })).toMatchObject({ status: 'error', error: '404' });
+    });
+
+    it('resets the tried lines on a manual selection', () => {
+      let state = openLines();
+      state = playbackReducer(state, { type: 'failed', token: state.token, message: 'a' });
+      state = playbackReducer(state, { type: 'selectEpisode', flagIndex: 0, episodeIndex: 1 });
+      expect(state.triedFlags).toEqual([0]);
+      state = playbackReducer(state, { type: 'failed', token: state.token, message: 'b' });
+      expect(state).toMatchObject({ status: 'resolving', flagIndex: 2, episodeIndex: 0 });
     });
   });
 

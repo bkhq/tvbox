@@ -196,7 +196,8 @@ export function usePlayback(params: PlayerParams, options: UsePlaybackOptions = 
         const { vod, flags } = await loadVod(site, vodRequest.vodId, { getProvider });
         const history = await tracker?.open({ vodName: vod.vod_name, vodPic: vod.vod_pic });
         const { flagIndex, episodeIndex } = pickEpisode(flags, vodRequest, history);
-        dispatch({ type: 'episodes', token, flags, flagIndex, episodeIndex, revPlay: history?.revPlay, title: vod.vod_name });
+        const changeable = site.changeable === 1;
+        dispatch({ type: 'episodes', token, flags, flagIndex, episodeIndex, revPlay: history?.revPlay, title: vod.vod_name, changeable });
       })().catch(fail);
       return;
     }

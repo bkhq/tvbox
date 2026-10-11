@@ -1,6 +1,7 @@
 import { Platform } from 'react-native';
 
 import * as httpd from '../../../modules/httpd';
+import { getBootstrap } from '../../core/bootstrap';
 import { startAirPlay } from '../cast/airplay';
 import { startDlna } from '../cast/dlna';
 import { request } from '../__fixtures__/fakes';
@@ -152,7 +153,9 @@ describe('startLanServices', () => {
   it('starts AirPlay and DLNA on Android TV with the LAN player', async () => {
     jest.replaceProperty(Platform, 'OS', 'android');
     jest.spyOn(Platform, 'isTV', 'get').mockReturnValue(true);
+    jest.spyOn(getBootstrap(), 'start').mockResolvedValue(undefined);
     await startLanServices();
+    await flush();
     expect(startAirPlay).toHaveBeenCalledTimes(1);
     expect(startDlna).toHaveBeenCalledTimes(1);
     const airplay = jest.mocked(startAirPlay).mock.calls[0]![0];
@@ -163,5 +166,40 @@ describe('startLanServices', () => {
     await stopLanServices();
     expect(jest.mocked(startAirPlay).mock.results[0]!.value).toHaveBeenCalled();
     expect(jest.mocked(startDlna).mock.results[0]!.value).toHaveBeenCalled();
+  });
+
+  it('starts AirPlay only after the settings are loaded, without holding up the rest', async () => {
+    jest.replaceProperty(Platform, 'OS', 'android');
+    jest.spyOn(Platform, 'isTV', 'get').mockReturnValue(true);
+    let loaded!: () => void;
+    jest.spyOn(getBootstrap(), 'start').mockReturnValue(new Promise<void>((resolve) => (loaded = resolve)));
+    await startLanServices();
+    expect(getLanStatus().state).toBe('running');
+    expect(startDlna).toHaveBeenCalledTimes(1);
+    expect(startAirPlay).not.toHaveBeenCalled();
+    loaded();
+    await flush();
+    expect(startAirPlay).toHaveBeenCalledTimes(1);
+  });
+
+  it('starts AirPlay even when the bootstrap fails', async () => {
+    jest.replaceProperty(Platform, 'OS', 'android');
+    jest.spyOn(Platform, 'isTV', 'get').mockReturnValue(true);
+    jest.spyOn(getBootstrap(), 'start').mockRejectedValue(new Error('offline'));
+    await startLanServices();
+    await flush();
+    expect(startAirPlay).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not start AirPlay when stopped before the settings are loaded', async () => {
+    jest.replaceProperty(Platform, 'OS', 'android');
+    jest.spyOn(Platform, 'isTV', 'get').mockReturnValue(true);
+    let loaded!: () => void;
+    jest.spyOn(getBootstrap(), 'start').mockReturnValue(new Promise<void>((resolve) => (loaded = resolve)));
+    await startLanServices();
+    await stopLanServices();
+    loaded();
+    await flush();
+    expect(startAirPlay).not.toHaveBeenCalled();
   });
 });

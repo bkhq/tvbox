@@ -1,10 +1,12 @@
 import { Platform } from 'react-native';
 
 import * as httpd from '../../modules/httpd';
+import { JarSpider } from '../../modules/jarspider';
 import { getAppConfig } from '../core/appConfig';
 import { getBootstrap } from '../core/bootstrap';
 import { getServerLink, isServerLinkEnabled } from '../core/serverLink';
 import { appSettings } from '../core/settings';
+import { setSpiderProxy } from '../spider/prelude';
 import { asyncStorageStore, createConfigRepository } from '../core/storage';
 import { startAirPlay } from './cast/airplay';
 import { startDlna } from './cast/dlna';
@@ -154,6 +156,9 @@ async function run(): Promise<void> {
     const subscription = httpd.addRequestListener((req) => void forward(server, req));
     cleanups.push(() => subscription.remove());
     const port = await httpd.startServer({ portFrom: LAN_PORT_FROM, portTo: LAN_PORT_TO, mdnsName: LAN_MDNS_NAME });
+    // catvod Proxy.set: spiders build their local /proxy URLs with this port.
+    JarSpider?.setProxyPort(port);
+    setSpiderProxy(port, () => httpd.getLocalIpAddress() ?? '127.0.0.1');
     setStatus({ state: 'running', port, address: addressOf(port), localName: `http://${LAN_MDNS_NAME}.local:${port}`, error: null });
   } catch (error) {
     setStatus({ state: 'error', error: messageOf(error) });
@@ -177,6 +182,7 @@ export async function stopLanServices(): Promise<void> {
   started = null;
   for (const cleanup of cleanups.splice(0)) cleanup();
   setLanPorts({ player: null, sources: null, navigator: null, remote: null, env: null });
+  setSpiderProxy(-1);
   pairing = null;
   status = IDLE;
   await httpd.stopServer().catch(() => undefined);

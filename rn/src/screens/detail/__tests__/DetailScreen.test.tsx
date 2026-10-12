@@ -161,6 +161,14 @@ describe('DetailScreen', () => {
     await act(async () => renderer.unmount());
   });
 
+  it('renders an HTML description as plain text', async () => {
+    mockProvider([{ ...VOD, vod_content: '<p>&nbsp;&nbsp;第一段&ldquo;引用&rdquo;</p><p>\u3000第二段<br/>第三行 &amp; &#20013;</p>' }]);
+    const { renderer } = await render({ siteKey: 'cms', vodId: 'v1' });
+    expect(texts(renderer)).toContain('第一段“引用”\n第二段\n第三行 & 中');
+    expect(texts(renderer).some((text) => /[<>]|&nbsp;/.test(text))).toBe(false);
+    await act(async () => renderer.unmount());
+  });
+
   it('switches episodes with the flag and reverses them', async () => {
     mockProvider();
     const { renderer } = await render({ siteKey: 'cms', vodId: 'v1' });

@@ -3,6 +3,8 @@ import { Platform } from 'react-native';
 import * as httpd from '../../../modules/httpd';
 import { getBootstrap } from '../../core/bootstrap';
 import { startAirPlay } from '../cast/airplay';
+import { JarSpider } from '../../../modules/jarspider';
+import { spiderProxyScript } from '../../spider/prelude';
 import { startDlna } from '../cast/dlna';
 import { request } from '../__fixtures__/fakes';
 import { getLanPorts } from '../ports';
@@ -26,6 +28,7 @@ jest.mock('../../../modules/httpd', () => ({
   sendText: jest.fn(async () => true),
   adjustVolume: jest.fn(async () => true),
 }));
+jest.mock('../../../modules/jarspider', () => ({ JarSpider: { setProxyPort: jest.fn() } }));
 jest.mock('../cast/airplay', () => ({ startAirPlay: jest.fn(() => jest.fn()) }));
 jest.mock('../cast/dlna', () => ({ startDlna: jest.fn(() => jest.fn()) }));
 jest.mock('../files', () => ({ createExpoFileSystem: jest.fn(async () => undefined) }));
@@ -66,6 +69,14 @@ describe('startLanServices', () => {
     });
     expect(seen).toEqual(['starting', 'running']);
     expect(getLanPairing()?.getCode()).toMatch(/^\d{6}$/);
+  });
+
+  it('hands the bound port to JAR and JS spiders, and resets the JS side on stop', async () => {
+    await startLanServices();
+    expect(JarSpider?.setProxyPort).toHaveBeenCalledWith(9978);
+    expect(spiderProxyScript()).toBe('globalThis.__spider_proxy = {"port":9978,"host":"192.168.1.5"};');
+    await stopLanServices();
+    expect(spiderProxyScript()).toContain('"port":-1');
   });
 
   it('registers the ports', async () => {

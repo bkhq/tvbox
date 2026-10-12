@@ -99,6 +99,16 @@ describe('resolvePlayer', () => {
     const web = await resolvePlayer(site, 'f', 'id', deps({ config, result: { url: 'x', parse: 1, playUrl: '' } }));
     expect(web).toMatchObject({ type: 'parse', job: { parse: { type: 0 } } });
   });
+
+  it('takes the click script from the site, else from the result', async () => {
+    const clickSite = parseSite({ key: 'c', name: 'C', type: 1, api: 'https://c/api', click: 'site()' });
+    const fromSite = await resolvePlayer(clickSite, 'f', 'id', deps({ result: { url: 'https://share/x', parse: 1, click: 'result()' } }));
+    expect(fromSite).toMatchObject({ type: 'parse', job: { parse: { type: 0, url: '' }, webUrl: 'https://share/x', click: 'site()' } });
+    const fromResult = await resolvePlayer(site, 'f', 'id', deps({ result: { url: 'https://share/x', parse: 1, click: 'result()' } }));
+    expect(fromResult).toMatchObject({ type: 'parse', job: { click: 'result()' } });
+    const none = await resolvePlayer(site, 'f', 'id', deps({ result: { url: 'https://share/x', parse: 1 } }));
+    expect(none.type === 'parse' && 'click' in none.job).toBe(false);
+  });
 });
 
 describe('runParse', () => {
@@ -125,8 +135,32 @@ describe('runParse', () => {
     await expect(runParse(job(parse({ type: 1, url: 'https://none/' })), deps({ fetch }))).rejects.toThrow(MSG_PARSE_FAILED);
   });
 
-  it('rejects web parsing', async () => {
+  it('rejects web parsing without a sniffer', async () => {
     await expect(runParse(job(parse({ type: 0, url: 'https://web/' })), deps())).rejects.toEqual(new PlaybackError(MSG_WEB_PARSE));
+  });
+
+  it('sniffs parser url + page url (type 0) with the click script and keeps the job fields', async () => {
+    const sniff = jest.fn(async () => ({ url: LONG, headers: { Referer: 'https://web/' }, subtitles: [] }));
+    const sub = { url: 's.srt', name: 'zh' };
+    const spec = { ...job(parse({ name: 'web', type: 0, url: 'https://web/?url=' })), click: 'go()', format: 'hls', subtitles: [sub], position: 5 };
+    const media = await runParse(spec, deps({ sniff, ua: 'MyUA' }));
+    expect(sniff).toHaveBeenCalledWith({
+      url: 'https://web/?url=https://v.qq.com/x',
+      headers: { Referer: 'https://site/', 'User-Agent': 'MyUA' },
+      click: 'go()',
+    });
+    expect(media).toEqual({ url: LONG, headers: { Referer: 'https://web/' }, format: 'hls', subtitles: [sub], position: 5, from: 'web' });
+  });
+
+  it('sniffs the page url itself for a type 0 parser without url, preferring the parser headers', async () => {
+    const sniff = jest.fn(async () => ({ url: LONG, headers: {}, subtitles: [] }));
+    await runParse(job(parse({ type: 0, url: '', ext: { header: { Cookie: 'c' } } })), deps({ sniff }));
+    expect(sniff).toHaveBeenCalledWith({ url: 'https://v.qq.com/x', headers: { Cookie: 'c' }, click: undefined });
+  });
+
+  it('passes sniff failures through', async () => {
+    const sniff = jest.fn(async () => Promise.reject(new PlaybackError(MSG_PARSE_FAILED)));
+    await expect(runParse(job(parse({ type: 0, url: 'https://web/' })), deps({ sniff }))).rejects.toEqual(new PlaybackError(MSG_PARSE_FAILED));
   });
 
   it('super parse (type 4) races the JSON parsers for the flag', async () => {

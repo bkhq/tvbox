@@ -33,7 +33,6 @@
 client/     React Native App（主产品），见 client/README.md
 worker/     Cloudflare Worker：订阅、设备、App 更新、管理后台，见 worker/README.md
 spider/     自有爬虫 JAR（tvbox.jar）
-keystore/   CI 与本地构建共用的签名密钥
 docs/       配置、爬虫、直播、本地接口等文档
 backup/     旧版 Java App 及其模块（app、media、airplay、catvod、quickjs），不再构建
 ```
@@ -55,7 +54,7 @@ iOS / tvOS 和 release 构建见 [client/README.md](client/README.md)。
 
 - GitHub Release 包含 `leanback-arm64_v8a.apk`、`leanback-armeabi_v7a.apk`，以及已签名的 iOS / tvOS ipa；标签说明即更新说明。
 - Android APK 与旧版 Java App 包名、签名相同，登记在原有的更新通道（`/u/stable/leanback-<abi>.json`）；iOS / tvOS 走 rn 通道（`/u/rn/`）。
-- 上传和登记需要仓库变量 `WORKER_URL` 和密钥 `CLOUDFLARE_API_TOKEN`、`CLOUDFLARE_ACCOUNT_ID`、`SERVICE_TOKEN_RELEASE`；详见 [client/README.md](client/README.md) 的 Release 一节。
+- 上传和登记需要仓库变量 `WORKER_URL` 和密钥 `CLOUDFLARE_API_TOKEN`、`CLOUDFLARE_ACCOUNT_ID`、`SERVICE_TOKEN_RELEASE`，以及下文的签名密钥；详见 [client/README.md](client/README.md) 的 Release 一节。
 
 推送 `main` 只构建，不发布。
 
@@ -63,7 +62,7 @@ iOS / tvOS 和 release 构建见 [client/README.md](client/README.md)。
 git tag -a v1.2.3 -m "更新说明" && git push origin v1.2.3
 ```
 
-签名密钥在 `keystore/` 中：能读取本仓库的人都能用它签名；更换密钥会导致已安装的 App 无法覆盖升级。
+Android 签名密钥保存在仓库密钥 `ANDROID_KEYSTORE_BASE64`、`ANDROID_KEY_ALIAS`、`ANDROID_KEYSTORE_PASSWORD` 中，不在仓库里；更换密钥会导致已安装的 App 无法覆盖升级。
 
 worker 的开发、部署和上游管理见 [worker/README.md](worker/README.md)。
 

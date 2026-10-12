@@ -5,9 +5,9 @@
 *build
 *.jks
 backup/app/libs/lib-*.aar
-!keystore/release.jks
 local.properties
 buildout/
 .kotlin/
 /backup/Release
 .tmp/
+keystore/

@@ -834,12 +834,15 @@ nothing is published to the rn channel for Android anymore. The app checks
 | `CLOUDFLARE_API_TOKEN`                   | secret   | Wrangler token with R2 write access to the worker bucket            |
 | `CLOUDFLARE_ACCOUNT_ID`                  | secret   | Cloudflare account of the bucket                                    |
 | `SERVICE_TOKEN_RELEASE`                  | secret   | Worker `release` service token for the register call                |
+| `ANDROID_KEYSTORE_BASE64`                | secret   | Base64 of the Android release keystore (`.jks`)                     |
+| `ANDROID_KEY_ALIAS`                      | secret   | Key alias in the keystore                                           |
+| `ANDROID_KEYSTORE_PASSWORD`              | secret   | Store and key password                                              |
 
-The Android APK needs no secrets: it is signed with the committed
-`keystore/release.jks`, using the alias and password from
-`keystore/release.properties` (the same key as the Java app, which keeps
-in-place updates possible). A missing keystore or property fails the build;
-there is no debug-keystore fallback.
+The Android APK is signed with the Java app's key (which keeps in-place
+updates possible) from the `ANDROID_KEYSTORE_BASE64` (base64 of the `.jks`),
+`ANDROID_KEY_ALIAS` and `ANDROID_KEYSTORE_PASSWORD` secrets; the store
+password also serves as the key password. A missing secret fails the build;
+there is no debug-keystore fallback. The keystore is not in the repository.
 
 The bucket name is read from `worker/apps/api/wrangler.toml`. The temporary
 keychain password is generated in the job, and the keychain is deleted at

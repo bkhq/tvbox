@@ -59,6 +59,8 @@ The iOS/tvOS `bundleIdentifier` stays `cc.bkhq.tvbox`.
 A single Android build serves phones and TV: `plugins/withAndroidLeanback.js`
 adds the `LEANBACK_LAUNCHER` category and declares leanback and touchscreen as
 optional features, independent of `EXPO_TV`.
+`plugins/withAndroidLauncherAssets.js` copies the Java app's launcher icon and
+TV banner from `assets/android-res/` into the prebuild output.
 
 ## Build variables
 
@@ -88,7 +90,7 @@ plugins in `plugins/` instead.
 rn/
   App.tsx              NavigationContainer + RootNavigator; starts getBootstrap()
   app.config.ts        Expo config (app id, WORKER_URL -> extra.workerUrl)
-  plugins/             local config plugins (withAndroidLeanback, withAndroidAbiFlavors), version.js
+  plugins/             local config plugins (withAndroidLeanback, withAndroidLauncherAssets, withAndroidAbiFlavors), version.js
   modules/<name>/      local Expo native modules (Expo Modules API)
   docker/              Dockerfile of the Android build image
   scripts/             build helpers (android-debug.sh)

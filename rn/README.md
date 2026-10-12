@@ -77,6 +77,7 @@ rn/
   scripts/             build helpers (android-debug.sh)
   src/core/            app logic, no UI except React hooks
   src/spider/          JS spider runtime: prelude, JsSpiderProvider, QuickJS adapter
+  src/spider/jar/      JAR spider provider, install hook, jarParse (Android)
   src/navigation/      root stack, route table, param types
   src/ui/              shared TV/phone primitives
   src/screens/<feature>/index.tsx   one screen per route
@@ -150,8 +151,9 @@ Type 3 sites whose `api` ends in `.js` run in QuickJS, one context per site
 (`JsSpiderProvider`, provider id `js-spider`). `getBootstrap()` calls
 `installJsSpiders()` (`src/spider/nativeRuntime.ts`) once on every platform:
 it installs the native runtime with `setSpiderRuntime` and registers the
-provider. JAR spiders (type 3 non-`.js`), Python spiders and type 4 sites stay
-unsupported (`supported: false`).
+provider. JAR spiders (type 3 `csp_` sites) run on Android only (see
+[JAR spiders](#jar-spiders)); Python spiders and type 4 sites stay unsupported
+(`supported: false`).
 
 | Path                                 | Contents                                                                                                    |
 | ------------------------------------ | ----------------------------------------------------------------------------------------------------------- |
@@ -181,9 +183,13 @@ json / form / form-data / body, HEAD via `header`, headers, timeout, redirect,
 called: `init`, `home`, `homeVod`, `category`, `detail`, `search`, `play`,
 `destroy`.
 
-**Not implemented (deferred)**: `proxy` / `getProxy` / `js2Proxy` / `getPort`
-(no local proxy server), `s2t` / `t2s`, `rsaX`, and the spider methods
-`liveContent`, `action`, `sniffer`, `isVideo` and `proxy`.
+**Spider proxy**: `getPort()` / `getProxy(local)` return the LAN server port
+and `http://<host>:<port>/proxy?do=js` (port -1 until the server binds), and
+the spider method `proxy(params)` answers `/proxy` requests (see
+[JAR spiders](#jar-spiders) for the routing).
+
+**Not implemented (deferred)**: `js2Proxy`, `s2t` / `t2s`, `rsaX`, and the
+spider methods `liveContent`, `action`, `sniffer` and `isVideo`.
 
 **Tests.** Jest runs spiders in a node `vm` runtime
 (`src/spider/__testutils__/nodeRuntime.ts`); `jest.setup.ts` mocks the native
@@ -195,6 +201,84 @@ parser modules and two fixture spiders (FongMi default export and cat-style
 **iOS/tvOS risk.** The Swift wrapper and the podspec are only checked here by
 typecheck and `expo prebuild` autolinking; they are first compiled by the
 macOS CI build, so iOS/tvOS compile errors surface there.
+
+## JAR spiders
+
+Type 3 sites whose `api` starts with `csp_` run TVBox JAR spiders on Android
+(phone and TV) exactly like the Java app: the native module `JarSpider`
+(`modules/jarspider`, Android only) is a port of `JarLoader` plus the JAR part
+of `BaseLoader`, with the catvod library bundled so `DexClassLoader`'d spider
+JARs link against the same classes (`com.github.catvod.**`, OkHttp, Gson,
+Guava, ...). iOS and tvOS cannot load dex code: the module is not autolinked
+there (`expo-module.config.json` lists only `android`), `JarSpider` is `null`
+and JAR sites stay `supported: false` with `unsupportedReason: 'jar'`, shown
+as 不支持.
+
+| Path                              | Contents                                                                                              |
+| --------------------------------- | ----------------------------------------------------------------------------------------------------- |
+| `modules/jarspider/`              | Expo module `JarSpider`: `JarLoader.kt`, `JarProxy.kt`, `JarSpiderModule.kt`, bundled catvod sources  |
+| `modules/jarspider/app.plugin.js` | app-level core library desugaring and the JitPack repository (sardine-android)                        |
+| `src/spider/jar/install.ts`       | `installJarSpiders()` (Android + module only), `onJarConfigLoaded(config)`, `getInstalledJarSpider()` |
+| `src/spider/jar/provider.ts`      | `JarSpiderProvider`, `createJarSpiderProviderFactory()` (provider id `jar-spider`)                    |
+| `src/spider/jar/parse.ts`         | `jarParse` / `tryJarParse`: type 2 / 3 parsers run in the JAR loader                                  |
+
+**Config.** The top-level `spider` (with an optional `;md5;<md5 or md5 url>`
+suffix) is the default `jar` of every site; a site's own `jar` wins. A site is
+a JAR site when `type === 3`, `api` starts with `csp_` and it has a jar
+(`isJarSite`). After each successful config load the bootstrap calls
+`onJarConfigLoaded`: `JarLoader.clear()`, then `loadJar(spider, recent=true)`
+in the background (`VodConfig.initSite`). JARs are cached by URL + md5 like
+the Java app; `assets://` jars are not supported.
+
+**Native contract** (`modules/jarspider/src/JarSpider.types.ts`):
+`setProxyPort(port)`, `loadJar(jar, recent)`, `setRecent(jar)`,
+`initSpider(key, api, ext, jar)` (creates `com.github.catvod.spider.<Name>`
+for `csp_<Name>`, sets `siteKey`, calls `init(context, ext)`), the spider
+calls `homeContent`, `homeVideoContent`, `categoryContent`, `detailContent`,
+`searchContent`, `playerContent` (each resolves the raw string the spider
+returned), `proxy(paramsJson)`, `jsonExt`, `jsonExtMix`, `destroySpider(key)`
+and `clear()`. Calls run on a cached thread pool, off the JS thread.
+Rejections carry `ERR_JARSPIDER_LOAD | NO_SPIDER | CALL`; the provider maps
+them to `SpiderError` and applies the site `timeout` (default
+`DEFAULT_SPIDER_TIMEOUT`). Results go through the same type 3 handling as JS
+spiders (`SiteApi.java`).
+
+**Proxy routing.** `startLanServices()` passes the bound LAN port to
+`JarSpider.setProxyPort` (catvod `Proxy.set`), so spiders build
+`http://127.0.0.1:<port>/proxy?...` URLs. A `/proxy` request is served:
+
+1. natively first (Android): the httpd module calls
+   `expo.modules.jarspider.JarProxy.handle(params)` by reflection on the
+   connection thread and streams the spider's `InputStream` body without
+   crossing the JS bridge. Params are query + form + request headers.
+   `siteKey` of a JAR site -> that spider's `proxy(params)` (its exceptions
+   become a 500 with the message); `do=js` -> not handled here; anything else
+   -> `Proxy.proxy` of the recent JAR, then of the other loaded JARs.
+2. otherwise by JS (`src/lan/api/proxy.ts`): `siteKey` of a JS spider site ->
+   that spider, `do=js` -> the recent JS spider, anything else ->
+   `JarSpider.proxy` (null off Android). Nothing handled it -> 500
+   `Invalid proxy response`, like `server/process/Proxy.java`.
+
+**jarParse.** Type 2 (`Json<name>`) and type 3 (`Mix<name>`) parsers run in
+the recent JAR's `com.github.catvod.parser` classes (`ParseJob.jsonExtend` /
+`jsonMix`). When the loader is unavailable, the class is missing or the call
+fails, the resolve flow falls back to the type 1 JSON parsers in order.
+
+**Limits.** Android only; no `assets://` jars; a failed `initSpider` is not
+cached as `SpiderNull` (the next call retries); release builds keep
+`com.github.catvod.**` and the libraries spiders link against unobfuscated
+(`modules/jarspider/android/proguard-rules.pro`, a consumer ProGuard file).
+The catvod sources under `modules/jarspider/android/src/main/java/com/github/catvod/`
+are copies of `catvod/` (the build container mounts only `rn/`); keep them in
+sync and never edit them here.
+
+**Tests.** Jest mocks the native module
+(`src/spider/jar/__testutils__/mockNative.ts`); `install.test.ts` checks that
+the install is a no-op off Android, so JAR sites stay unsupported on iOS and
+tvOS. The emulator regression (release x86 build on the Android TV emulator,
+this repo's `tvbox.jar` from `spider/` with `csp_MacCms`, a site with its own
+`jar`, and `csp_Local` for the siteKey proxy) covers home, category, detail,
+play and `/proxy`.
 
 ## Extension seams
 
@@ -213,7 +297,10 @@ registerProvider({
 
 Screens call `getProvider(site)`; it throws `UnsupportedSiteError` when no
 factory matches. Sites the app cannot run stay in `config.sites` with
-`supported: false` and `unsupportedReason` (`'jar' | 'py' | 'type'`).
+`supported: false` and `unsupportedReason` (`'jar' | 'py' | 'type'`). `'jar'`
+is only reported off Android (iOS, tvOS, web, Jest) or for a `csp_` site
+without any JAR; on Android `installJarSpiders()` flips JAR sites to
+`supported: true`.
 
 **Settings.** Keys and validation live in `settings/schema.ts`; add a key
 there. Read with `get(key)` or `useSetting(key)`, write with `set(key, value)`

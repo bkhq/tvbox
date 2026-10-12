@@ -9,6 +9,7 @@ import type { VodConfig } from '../core/config';
 import { type FetchLike, getText, mergeHeaders } from '../core/http';
 import { getProvider as defaultGetProvider, type SiteProvider } from '../core/provider';
 import { type Flag, isObject, type Parse, parseFlags, type Result, type Site, str, type Vod } from '../core/types';
+import { tryJarParse } from '../spider/jar/parse';
 import type { EngineSource, ExternalSubtitle } from './engine/types';
 import type { SniffRequest } from './sniff';
 
@@ -234,9 +235,12 @@ export async function runParse(job: ParseJobSpec, deps: ResolveDeps): Promise<Re
         throw new PlaybackError(MSG_PARSE_FAILED);
       }
     case 2:
-    case 3:
+    case 3: {
       // jsonExt / jsonExtMix run in the JAR loader; without it, try the JSON parsers in order.
+      const media = await tryJarParse(job, deps.config.parses, deps.ua);
+      if (media) return media;
       return firstSequential(parsesFor(deps.config.parses, 1), job, deps);
+    }
     case 4: {
       // superParse: every JSON parser for the flag at once, first hit wins.
       const parses = parsesFor(deps.config.parses, 1, job.flag);

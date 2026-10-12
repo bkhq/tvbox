@@ -142,6 +142,8 @@ with layout-derived columns), `HorizontalRow`, `PlaceholderScreen`,
 Local native code is an Expo module built with the Expo Modules API
 (`npx create-expo-module@latest --local <name>`), autolinked from `modules/`.
 Never edit generated `android/` or `ios/` directly.
+Modules: `quickjs` (JS spiders), `mpv` (mpv engine), `httpd`, `airplay`,
+`dlna` (LAN services), `sniffer` (web sniffing, see Playback).
 
 ## JS spiders
 
@@ -334,6 +336,11 @@ history (`history.ts`), the app-wide control API (`controller.ts`) and the
 `usePlayback(params)` hook the Player screen is built on. Engine
 implementations live in sibling workstreams and register themselves.
 
+When a VOD line fails (resolve/parse/sniff error, an empty line, or a fatal
+engine error after the one engine fallback), a changeable site moves on to the
+same episode on the next untried line (`fallback.ts`, after
+`VodFallbackPolicy.fallbackToNextLine`) with a "正在切换线路至「…」" notice.
+
 ### Engines
 
 ```ts
@@ -468,6 +475,18 @@ downloads the LGPL xcframeworks listed in MPVKit's `Package.swift`
 `pod install`. Without the frameworks the module still compiles
 (`#if canImport(Libmpv)`) and reports unavailable. Rendering uses
 `vo=gpu-next` with MoltenVK on a `CAMetalLayer` (`wid`), `hwdec=videotoolbox`.
+
+### Web sniffing (`modules/sniffer`, `src/player/sniff.ts`)
+
+Type 0 parsers (web pages, e.g. share links) load `parse.url + page url` in a
+hidden WebView (`sniffMedia`, 15 s timeout). Native code reports every request
+URL and runs the rule / `Site.click` scripts after each page load; the first
+URL `isVideoFormat` accepts (config `rules`, then the `Sniffer.SNIFFER`
+pattern) plays with that request's headers. Android uses `WebView` with
+`shouldInterceptRequest`; iOS uses an offscreen `WKWebView` whose
+document-start script reports fetch / XHR / media `src` / resource URLs.
+tvOS has no WebView: `isSupported()` is false and such lines fail with
+「暂不支持网页解析」.
 
 ### Player route
 

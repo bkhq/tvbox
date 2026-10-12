@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useState } from 'react';
-import { StyleSheet, Text, TextInput, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 
 import { useVodConfig } from '../../core/bootstrap';
 import { asyncStorageStore, type ConfigKind, type ConfigRepository, createConfigRepository, type SavedConfig } from '../../core/storage';
 import { colors, FocusableButton, fontSize, radius, spacing } from '../../ui';
+import { FocusableInput } from '../common';
 import { vodStatusText } from './options';
 import { Panel } from './Panel';
 import { SettingRow } from './SettingRow';
@@ -97,7 +98,7 @@ export function ConfigPanel({ kind, onClose }: { kind: ConfigKind; onClose: () =
       ))}
       {items.length === 0 ? <Text style={styles.status}>尚未添加配置</Text> : null}
       <View style={styles.form}>
-        <TextInput
+        <FocusableInput
           testID="settings-config-input"
           style={styles.input}
           value={url}

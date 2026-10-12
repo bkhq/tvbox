@@ -1,0 +1,9 @@
+{
+  "platforms": ["apple", "android"],
+  "apple": {
+    "modules": ["SnifferModule"]
+  },
+  "android": {
+    "modules": ["expo.modules.sniffer.SnifferModule"]
+  }
+}

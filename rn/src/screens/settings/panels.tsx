@@ -1,9 +1,10 @@
 import { useState } from 'react';
-import { StyleSheet, Text, TextInput, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 
 import { SERVER_LINK_STATE_TEXT, useServerLink } from '../../core/serverLink';
 import { useSetting } from '../../core/settings';
 import { colors, FocusableButton, fontSize, radius, spacing } from '../../ui';
+import { FocusableInput } from '../common';
 import { formatText, STEPS, stepValue, type StepKey, type TextKey } from './options';
 import { Panel } from './Panel';
 import { SettingRow } from './SettingRow';
@@ -92,7 +93,7 @@ export function TextPanel({
   return (
     <Panel title={title} onClose={onClose}>
       <Text style={styles.note}>{`当前：${formatText(value)}`}</Text>
-      <TextInput
+      <FocusableInput
         testID="settings-text-input"
         style={styles.input}
         value={text}

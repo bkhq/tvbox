@@ -2,6 +2,7 @@ import { createContext, createElement, type ReactNode, useContext, useSyncExtern
 
 import { getAppConfig } from './appConfig';
 import { loadVodConfig, type VodConfig, type VodConfigPrefs } from './config';
+import { runMigration } from './migration';
 import { clearProviders } from './provider';
 import { createServerLink, defaultDeviceInfo, type ServerLink, setServerLink } from './serverLink';
 import { appSettings, type SettingsStore } from './settings';
@@ -10,9 +11,10 @@ import { installJarSpiders, onJarConfigLoaded } from '../spider/jar/install';
 import { installJsSpiders } from '../spider/nativeRuntime';
 
 /**
- * App startup: settings, server link, then the active VOD config. The CMS
- * provider is built into the provider registry, so nothing is registered
- * here; providers cached for the previous config are dropped on every load.
+ * App startup: migration from the Java app (once, Android), settings, server
+ * link, then the active VOD config. The CMS provider is built into the
+ * provider registry, so nothing is registered here; providers cached for the
+ * previous config are dropped on every load.
  */
 
 export type VodConfigStatus = 'loading' | 'ready' | 'empty' | 'error';
@@ -47,6 +49,8 @@ export interface BootstrapDeps {
    * applies show up here; omit when the build has no worker URL.
    */
   createServerLink?: (loadConfig: (url: string) => Promise<unknown>) => ServerLink;
+  /** One-time import of the Java app's data; awaited before anything is read. Must not reject. */
+  migrate?: () => Promise<unknown>;
 }
 
 function toError(error: unknown): Error {
@@ -105,6 +109,7 @@ export function createBootstrap(deps: BootstrapDeps): Bootstrap {
   return {
     start() {
       started ??= (async () => {
+        await deps.migrate?.();
         try {
           await settings.loadSettings();
           if (deps.createServerLink) {
@@ -153,6 +158,7 @@ export function getBootstrap(): Bootstrap {
     shared = createBootstrap({
       configs,
       settings: appSettings,
+      migrate: () => runMigration(),
       createServerLink: workerUrl
         ? (loadConfig) => {
             const link = createServerLink({

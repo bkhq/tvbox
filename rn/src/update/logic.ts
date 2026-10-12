@@ -2,12 +2,19 @@
  * Pure update logic: manifest URLs, validation, version compare and the
  * check itself. No React Native imports so it unit-tests without mocks.
  *
- * Contract: `<workerUrl>/u/rn/<channel>/<flavor>.json` returns the manifest;
- * its `url` is relative to the manifest URL. iOS/tvOS builds install through
- * the `.plist` sibling via itms-services.
+ * Two channels, both serving a manifest whose `url` is relative to the
+ * manifest URL; a 404 means nothing is released (treated as up to date):
+ * - Android follows the Java app's channel,
+ *   `<workerUrl>/u/<channel>/leanback-<abi>.json` (abi arm64_v8a or
+ *   armeabi_v7a), so releases reach Java and React Native installs alike.
+ *   Universal APKs have no channel there and skip the check.
+ * - iOS/tvOS read `<workerUrl>/u/rn/<channel>/<flavor>.json` and install
+ *   through the `.plist` sibling via itms-services.
  */
 
-export type UpdateFlavor = 'android-universal' | 'ios-universal' | 'tvos-universal';
+import { HttpError } from '../core/http';
+
+export type UpdateFlavor = 'leanback-arm64_v8a' | 'leanback-armeabi_v7a' | 'ios-universal' | 'tvos-universal';
 
 /** Only `stable` exists in v1. */
 export type UpdateChannel = 'stable';
@@ -16,6 +23,8 @@ export const UPDATE_CHANNEL: UpdateChannel = 'stable';
 export interface UpdatePlatform {
   OS: string;
   isTV: boolean;
+  /** Android ABI flavor of this APK (arm64_v8a, armeabi_v7a); "" or absent for universal builds. */
+  abi?: string;
 }
 
 export interface UpdateManifest {
@@ -24,7 +33,8 @@ export interface UpdateManifest {
   notes: string;
   url: string;
   sha256: string;
-  size: number;
+  /** Absent in manifests that only carry what the Java updater requires. */
+  size?: number;
   bundleId?: string;
 }
 
@@ -66,17 +76,19 @@ export function isNewer(manifest: Pick<UpdateManifest, 'versionCode'>, current: 
 }
 
 export function updateFlavor(platform: UpdatePlatform): UpdateFlavor | null {
-  if (platform.OS === 'android') return 'android-universal';
+  if (platform.OS === 'android') {
+    return platform.abi === 'arm64_v8a' || platform.abi === 'armeabi_v7a' ? `leanback-${platform.abi}` : null;
+  }
   if (platform.OS === 'ios') return platform.isTV ? 'tvos-universal' : 'ios-universal';
   return null;
 }
 
 export function isIpaFlavor(flavor: UpdateFlavor): boolean {
-  return flavor !== 'android-universal';
+  return flavor === 'ios-universal' || flavor === 'tvos-universal';
 }
 
 export function manifestUrl(workerUrl: string, channel: UpdateChannel, flavor: UpdateFlavor): string {
-  return `${workerUrl}/u/rn/${channel}/${flavor}.json`;
+  return isIpaFlavor(flavor) ? `${workerUrl}/u/rn/${channel}/${flavor}.json` : `${workerUrl}/u/${channel}/${flavor}.json`;
 }
 
 export function plistUrl(workerUrl: string, channel: UpdateChannel, flavor: UpdateFlavor): string {
@@ -141,9 +153,10 @@ export function parseManifest(json: unknown): UpdateManifest | null {
   if (notes !== undefined && notes !== null && typeof notes !== 'string') return null;
   if (typeof url !== 'string' || !url) return null;
   if (typeof sha256 !== 'string') return null;
-  if (typeof size !== 'number' || !Number.isInteger(size) || size < 0) return null;
+  if (size !== undefined && (typeof size !== 'number' || !Number.isInteger(size) || size < 0)) return null;
   if (bundleId !== undefined && typeof bundleId !== 'string') return null;
-  const manifest: UpdateManifest = { versionCode, versionName, notes: notes ?? '', url, sha256, size };
+  const manifest: UpdateManifest = { versionCode, versionName, notes: notes ?? '', url, sha256 };
+  if (size !== undefined) manifest.size = size;
   if (bundleId !== undefined) manifest.bundleId = bundleId;
   return manifest;
 }
@@ -169,6 +182,8 @@ export async function checkForUpdate(options: CheckOptions): Promise<CheckResult
     if (isIpaFlavor(flavor)) release.plistUrl = plistUrl(workerUrl, UPDATE_CHANNEL, flavor);
     return { status: 'available', release };
   } catch (error) {
+    // Like the Java updater: no manifest means nothing has been released.
+    if (error instanceof HttpError && error.status === 404) return { status: 'up-to-date' };
     log('Update check failed', error);
     // A failed launch check is silent: report nothing to offer.
     return manual ? { status: 'error', error } : { status: 'up-to-date' };

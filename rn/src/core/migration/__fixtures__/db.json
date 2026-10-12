@@ -1,0 +1,21 @@
+{
+  "config": [
+    { "id": 1, "type": 0, "time": 1000, "url": "https://vod.example.com/a.json", "json": null, "name": "A", "logo": null, "home": "siteA", "parse": null },
+    { "id": 2, "type": 0, "time": 3000, "url": "https://vod.example.com/b.json", "json": null, "name": "B", "logo": null, "home": "siteB", "parse": null },
+    { "id": 3, "type": 1, "time": 2000, "url": "https://live.example.com/a.m3u", "json": null, "name": "Live A", "logo": null, "home": null, "parse": null },
+    { "id": 4, "type": 1, "time": 500, "url": "https://live.example.com/b.txt", "json": null, "name": "", "logo": null, "home": null, "parse": null },
+    { "id": 5, "type": 2, "time": 9000, "url": "https://wall.example.com/w.jpg", "json": null, "name": "", "logo": null, "home": null, "parse": null },
+    { "id": 6, "type": 0, "time": 100, "url": "", "json": null, "name": "empty", "logo": null, "home": null, "parse": null }
+  ],
+  "history": [
+    { "key": "siteB@@@vod1@@@2", "vodPic": "https://img/1.jpg", "vodName": "剧集一", "vodFlag": "线路1", "vodRemarks": "第3集", "episodeUrl": "https://ep/3", "revSort": 1, "revPlay": 0, "createTime": 1700000000000, "opening": 90000, "ending": -9223372036854776000, "position": 600000, "duration": 2700000, "speed": 1.25, "scale": 2, "cid": 2 },
+    { "key": "siteA@@@vod2@@@1", "vodPic": "", "vodName": "电影二", "vodFlag": "", "vodRemarks": "", "episodeUrl": "", "revSort": 0, "revPlay": 0, "createTime": 1699000000000, "opening": -9223372036854776000, "ending": -9223372036854776000, "position": 10000, "duration": 5000000, "speed": 1.0, "scale": -1, "cid": 1 },
+    { "key": "broken-key", "vodPic": "", "vodName": "x", "createTime": 1, "cid": 2 },
+    { "key": "siteC@@@vod3@@@99", "vodPic": "", "vodName": "orphan", "createTime": 1, "cid": 99 }
+  ],
+  "keep": [
+    { "key": "siteB@@@vod1@@@2", "siteName": "站点B", "vodName": "剧集一", "vodPic": "https://img/1.jpg", "createTime": 1700000001000, "type": 0, "cid": 2 },
+    { "key": "CCTV-1", "siteName": null, "vodName": null, "vodPic": null, "createTime": 1700000002000, "type": 1, "cid": 0 },
+    { "key": "siteC@@@vod3@@@99", "siteName": "", "vodName": "orphan", "vodPic": "", "createTime": 1, "type": 0, "cid": 99 }
+  ]
+}

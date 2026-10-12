@@ -1,5 +1,5 @@
 import type { InstallPhase } from './controller';
-import { SizeMismatchError } from './install';
+import { ChecksumMismatchError, SizeMismatchError } from './install';
 import type { CheckResult } from './logic';
 import { HttpError } from '../core/http';
 
@@ -32,6 +32,7 @@ export function installPhaseText(install: InstallPhase): string | null {
     case 'manual':
       return MANUAL_INSTALL_NOTICE;
     case 'error':
-      return install.error instanceof SizeMismatchError ? '安装包校验失败，请稍后重试' : '下载失败，请稍后重试';
+      return install.error instanceof SizeMismatchError || install.error instanceof ChecksumMismatchError
+        ? '安装包校验失败，请稍后重试' : '下载失败，请稍后重试';
   }
 }

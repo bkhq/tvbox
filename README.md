@@ -1,6 +1,8 @@
 # tvbox
 
-私有的 Android 电视影音播放器，配套一个 Cloudflare Worker 负责订阅下发、设备关联和 App 更新。
+私有的电视影音播放器，配套一个 Cloudflare Worker 负责订阅下发、设备关联和 App 更新。
+
+主产品是 `rn/` 中的 React Native App（Android TV、iOS、tvOS），见 [rn/README.md](rn/README.md)。`app/` 中的 Java App 是旧版，只保留构建、不再发布；下文的功能、编译说明针对 Java App。
 
 基于 [FongMi/TV](https://github.com/FongMi/TV) 5.6.1（GPL-3.0）改造，保留 CatVod 爬虫体系（JAR、JavaScript、远程 HTTP 站点）、Media3/ExoPlayer 与 mpv 双播放引擎、直播和 DLNA 接收。不保留上游的提交历史。
 
@@ -30,7 +32,8 @@
 ## 目录结构
 
 ```text
-app/        App 本体（只有电视版，src/main）
+rn/         React Native App（主产品），见 rn/README.md
+app/        旧版 Java App（只有电视版，src/main），不再发布
 catvod/     爬虫接口、网络层和与爬虫共用的工具类
 quickjs/    JavaScript 爬虫运行时
 airplay/    AirPlay 协议与服务端，来自 serezhka/java-airplay（MIT）
@@ -75,7 +78,7 @@ docs/       配置、爬虫、直播、本地接口等文档
 
 | 参数 | 作用 |
 | --- | --- |
-| `-PversionCode=… -PversionName=…` | 版本号；CI 从 `vX.Y.Z` 标签推算（`X*10000 + Y*100 + Z`） |
+| `-PversionCode=… -PversionName=…` | 版本号（`X*10000 + Y*100 + Z`），默认值见 `app/build.gradle` |
 | `-PupdateUrl=<worker>/u` | 启用 App 内检查更新 |
 | `-PworkerUrl=<worker>` | 启用服务器关联和设备绑定 |
 
@@ -83,8 +86,13 @@ docs/       配置、爬虫、直播、本地接口等文档
 
 ## 发布
 
-- 推送 `main`：`.github/workflows/android.yml` 自动构建 APK，产物在 Actions 中。
-- 推送 `vX.Y.Z` 标签：额外发布 GitHub Release；标签说明即更新说明。配置了仓库变量 `WORKER_URL` 和密钥 `CLOUDFLARE_API_TOKEN`、`CLOUDFLARE_ACCOUNT_ID`、`SERVICE_TOKEN_RELEASE` 时，还会把 APK 上传到 worker 并登记版本，已安装的 App 随即可以收到更新。
+发布即推送 `vX.Y.Z` 标签，发布的是 RN App（`.github/workflows/rn-release.yml`）：
+
+- GitHub Release 包含 `leanback-arm64_v8a.apk`、`leanback-armeabi_v7a.apk`，以及已签名的 iOS / tvOS ipa；标签说明即更新说明。
+- Android APK 与 Java App 包名、签名相同，登记在 Java App 的更新通道（`/u/stable/leanback-<abi>.json`），已安装的 Java App 会直接升级为 RN App；iOS / tvOS 走 rn 通道（`/u/rn/`）。
+- 上传和登记需要仓库变量 `WORKER_URL` 和密钥 `CLOUDFLARE_API_TOKEN`、`CLOUDFLARE_ACCOUNT_ID`、`SERVICE_TOKEN_RELEASE`；详见 [rn/README.md](rn/README.md) 的 Release 一节。
+
+推送 `main` 只构建：`android.yml` 构建旧版 Java App，`rn-release.yml` 构建 RN App，产物在 Actions 中。
 
 ```bash
 git tag -a v1.2.3 -m "更新说明" && git push origin v1.2.3

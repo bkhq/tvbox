@@ -29,6 +29,8 @@ jobs:
   # outputs empty so app.config.ts keeps its defaults.
   version:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     outputs:
       code: ${{ steps.version.outputs.code }}
       name: ${{ steps.version.outputs.name }}
@@ -41,9 +43,25 @@ jobs:
         if: startsWith(github.ref, 'refs/tags/v')
         run: node rn/plugins/version.js "$GITHUB_REF_NAME" >> "$GITHUB_OUTPUT"
 
+      # Binaries reach publish through a draft release instead of workflow
+      # artifacts, which count against the account's Actions storage quota.
+      - name: Draft the release
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # actions/checkout fetches the tag as a lightweight ref; fetch the
+          # annotated tag object so its message becomes the release notes.
+          git fetch --force --depth=1 origin "+refs/tags/$GITHUB_REF_NAME:refs/tags/$GITHUB_REF_NAME"
+          printf '%s' "$(git tag -l --format='%(contents)' "$GITHUB_REF_NAME")" > "$RUNNER_TEMP/notes.md"
+          gh release view "$GITHUB_REF_NAME" > /dev/null 2>&1 ||
+            gh release create "$GITHUB_REF_NAME" --draft --title "$GITHUB_REF_NAME" --notes-file "$RUNNER_TEMP/notes.md"
+
   android:
     needs: version
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     defaults:
       run:
         working-directory: rn
@@ -179,15 +197,17 @@ jobs:
           done
           ls -l dist
 
-      - uses: actions/upload-artifact@v4
-        with:
-          name: rn-android
-          path: rn/dist/leanback-*.apk
-          if-no-files-found: error
+      - name: Attach to the draft release
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload "$GITHUB_REF_NAME" dist/leanback-*.apk --clobber
 
   apple:
     needs: version
     runs-on: macos-latest
+    permissions:
+      contents: write
     strategy:
       fail-fast: false
       matrix:
@@ -359,12 +379,11 @@ jobs:
           cp "$ipa" "dist/$TARGET-universal.ipa"
           ls -l dist
 
-      - uses: actions/upload-artifact@v4
-        if: steps.signing.outputs.signed == 'true'
-        with:
-          name: rn-${{ matrix.target }}-universal
-          path: rn/dist/${{ matrix.target }}-universal.ipa
-          if-no-files-found: error
+      - name: Attach to the draft release
+        if: steps.signing.outputs.signed == 'true' && startsWith(github.ref, 'refs/tags/v')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload "$GITHUB_REF_NAME" "dist/$TARGET-universal.ipa" --clobber
 
       - name: Remove the signing keychain
         if: always()
@@ -388,11 +407,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: actions/download-artifact@v4
-        with:
-          pattern: rn-*
-          path: dist
-          merge-multiple: true
+      - name: Download from the draft release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release download "$GITHUB_REF_NAME" --dir dist
 
       - name: Collect
         run: |
@@ -417,7 +435,7 @@ jobs:
       - name: Publish release
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release create "$GITHUB_REF_NAME" dist/* --title "$GITHUB_REF_NAME" --notes-file "$RUNNER_TEMP/notes.md"
+        run: gh release edit "$GITHUB_REF_NAME" --draft=false
 
       # Binaries go straight to the bucket; the worker only records them and
       # rewrites the update manifests the apps poll.

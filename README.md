@@ -74,7 +74,7 @@ worker 的开发、部署和上游管理见 [worker/README.md](worker/README.md)
 | [docs/CONFIG.md](docs/CONFIG.md) | 配置格式（站点、解析、直播、规则等） |
 | [docs/SPIDER.md](docs/SPIDER.md) | 编写 JAR / JavaScript 爬虫 |
 | [docs/LIVE.md](docs/LIVE.md) | 直播源格式 |
-| [docs/LOCAL.md](docs/LOCAL.md) | 爬虫和工具使用的本地 HTTP 接口 |
+| [docs/LOCAL.md](docs/LOCAL.md) | 本地 HTTP 服务：爬虫代理、播放状态、文件管理 |
 | [docs/REMOTE.md](docs/REMOTE.md) | 手机控制网页、配对和 `/api` 接口 |
 | [docs/AIRPLAY.md](docs/AIRPLAY.md) | AirPlay 接收 |
 | [docs/SERVER-LINK.md](docs/SERVER-LINK.md) | 服务器关联与设备绑定 |

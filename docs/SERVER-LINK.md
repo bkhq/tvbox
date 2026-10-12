@@ -1,6 +1,6 @@
 # 服务器关联
 
-设备可以关联到 worker（`worker/`），由 worker 下发配置。关联是可选的、需要手动操作；只有构建时带了 worker 地址（`-PworkerUrl`，CI 从 `WORKER_URL` 读取）的版本才有这个功能。
+设备可以关联到 worker（`worker/`），由 worker 下发配置。关联是可选的、需要手动操作；只有构建时设置了环境变量 `WORKER_URL`（CI 从仓库变量 `WORKER_URL` 读取）的版本才有这个功能。所有平台（Android、iOS、tvOS）都支持。
 
 ## 设备端
 
@@ -27,9 +27,9 @@ Content-Type: application/json
   "name": "影视",
   "model": "Xiaomi MiBOX4",
   "mode": "leanback",
-  "abi": "arm64_v8a",
-  "versionCode": 10100,
-  "versionName": "1.1.0"
+  "abi": "",
+  "versionCode": 10006,
+  "versionName": "1.0.6"
 }
 ```
 
@@ -43,7 +43,7 @@ Content-Type: application/json
 
 ## 设备绑定
 
-批准后，worker 在 `approved` 响应里附带 `deviceKey`（每条关联一个，之后每次查询都返回同一个）。App 保存后，发往 worker 域名的每个请求都带上：
+批准后，worker 在 `approved` 响应里附带 `deviceKey`（每条关联一个，之后每次查询都返回同一个）。App 保存后，发往 worker 域名（与 `WORKER_URL` 同一主机）的每个请求都带上：
 
 ```http
 X-Device-Id: <deviceId>
@@ -56,6 +56,6 @@ X-Device-Key: <deviceKey>
 - 后台吊销、设备端取消关联或删除申请记录都会解除绑定；重新批准会发新的 key。
 - 一个设备关联了多个 App 时，任意一个的 ID 和 key 都可以。没有经过关联的设备（后台手动添加的）不绑定，地址照常可用。
 
-`deviceId` 与 AirPlay 共用同一个随机持久 ID（`app/src/main/java/com/fongmi/android/tv/utils/DeviceId.java`）；设备端代码在 `Enroll.java` 和 `ui/dialog/EnrollDialog.java`。
+`deviceId` 是随机生成并持久保存的 ID（形如 MAC 地址），与 AirPlay 共用；从旧版 Java App 升级时沿用原来的 ID、设备编码和关联状态。`model` 只在 Android 上填写，`abi` 目前为空。设备端代码在 `client/src/core/serverLink/`，设置界面在 `client/src/screens/settings/`。
 
 > 状态：两端均已实现。worker 在站点根路径应答该接口，内部再转给后台 API，设备端不会接触到后台路径；申请在后台「设备」页审批，可新建设备或关联到已有设备。

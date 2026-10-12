@@ -1,6 +1,6 @@
-name: RN Release
+name: Client Release
 
-# Builds the React Native app (rn/) for Android, iOS and tvOS. Pushes to main
+# Builds the React Native app (client/) for Android, iOS and tvOS. Pushes to main
 # only build; vX.Y.Z tags also publish to GitHub releases, the worker bucket
 # and the update manifests. Path filters do not apply to tags.
 on:
@@ -8,15 +8,15 @@ on:
     branches: [main]
     tags: ["v*"]
     paths:
-      - "rn/**"
-      - ".github/workflows/rn-release.yml"
+      - "client/**"
+      - ".github/workflows/client-release.yml"
   workflow_dispatch:
 
 permissions:
   contents: read
 
 concurrency:
-  group: rn-release-${{ github.ref }}
+  group: client-release-${{ github.ref }}
   cancel-in-progress: true
 
 env:
@@ -41,7 +41,7 @@ jobs:
       - name: Version from tag
         id: version
         if: startsWith(github.ref, 'refs/tags/v')
-        run: node rn/plugins/version.js "$GITHUB_REF_NAME" >> "$GITHUB_OUTPUT"
+        run: node client/plugins/version.js "$GITHUB_REF_NAME" >> "$GITHUB_OUTPUT"
 
       # Binaries reach publish through a draft release instead of workflow
       # artifacts, which count against the account's Actions storage quota.
@@ -64,7 +64,7 @@ jobs:
       contents: write
     defaults:
       run:
-        working-directory: rn
+        working-directory: client
     env:
       VERSION_CODE: ${{ needs.version.outputs.code }}
       VERSION_NAME: ${{ needs.version.outputs.name }}
@@ -76,7 +76,7 @@ jobs:
         with:
           node-version: 24
           cache: npm
-          cache-dependency-path: rn/package-lock.json
+          cache-dependency-path: client/package-lock.json
 
       - uses: actions/setup-java@v4
         with:
@@ -175,7 +175,7 @@ jobs:
           fi
 
       - name: Build
-        working-directory: rn/android
+        working-directory: client/android
         run: ./gradlew --no-daemon assembleRelease
 
       - name: Collect
@@ -214,7 +214,7 @@ jobs:
         target: [ios, tvos]
     defaults:
       run:
-        working-directory: rn
+        working-directory: client
     env:
       TARGET: ${{ matrix.target }}
       VERSION_CODE: ${{ needs.version.outputs.code }}
@@ -227,7 +227,7 @@ jobs:
         with:
           node-version: 24
           cache: npm
-          cache-dependency-path: rn/package-lock.json
+          cache-dependency-path: client/package-lock.json
 
       - run: npm ci
 
@@ -251,7 +251,7 @@ jobs:
           project="$(find ios -maxdepth 1 -name '*.xcodeproj' ! -name 'Pods.xcodeproj' | head -n1)"
           scheme="$(xcodebuild -list -json -project "$project" | jq -r '.project.schemes[0] // empty')"
           if [ -z "$workspace" ] || [ -z "$scheme" ]; then
-            echo "::error::no workspace or scheme found under rn/ios"
+            echo "::error::no workspace or scheme found under client/ios"
             exit 1
           fi
           {

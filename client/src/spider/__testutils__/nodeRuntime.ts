@@ -16,7 +16,7 @@
  *   and `export { a as b }`. Enough for the fixtures and the bundled
  *   cheerio / crypto-js; not a general module system (no live bindings).
  * - module loader: registered sources, bundled libs from
- *   rn/modules/quickjs/assets/lib, then http(s) through the http handler.
+ *   client/modules/quickjs/assets/lib, then http(s) through the http handler.
  */
 
 import fs from 'node:fs';

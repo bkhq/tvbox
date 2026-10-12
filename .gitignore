@@ -4,10 +4,10 @@
 .settings
 *build
 *.jks
-app/libs/lib-*.aar
+backup/app/libs/lib-*.aar
 !keystore/release.jks
 local.properties
 buildout/
 .kotlin/
-/Release
+/backup/Release
 .tmp/

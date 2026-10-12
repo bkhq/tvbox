@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
-# Builds the Android debug APK (rn/android/app/build/outputs/apk/debug/) in a
+# Builds the Android debug APK (client/android/app/build/outputs/apk/debug/) in a
 # sibling container: npm ci, expo prebuild, gradle assembleDebug.
 #
-# Only rn/ is mounted (same path on both sides) plus the shared Android SDK,
+# Only client/ is mounted (same path on both sides) plus the shared Android SDK,
 # read-only. Packages missing from the shared SDK (e.g. the NDK version React
-# Native pins) are installed into a per-checkout overlay in rn/.tmp/android-sdk.
+# Native pins) are installed into a per-checkout overlay in client/.tmp/android-sdk.
 set -euo pipefail
 
 IMAGE=ai-agent/tvbox-rn-build

@@ -1,5 +1,5 @@
 /**
- * SpiderRuntime backed by the QuickJS native module (rn/modules/quickjs).
+ * SpiderRuntime backed by the QuickJS native module (client/modules/quickjs).
  * Calls pass straight through; native rejections (Expo CodedError with an
  * ERR_QUICKJS_* code) become SpiderError / SpiderTimeoutError.
  */

@@ -1,4 +1,4 @@
-// Writes the TS spider bootstrap sources (rn/src/spider/prelude.ts) as plain
+// Writes the TS spider bootstrap sources (client/src/spider/prelude.ts) as plain
 // files for spider_smoke_test.c. Usage: node gen-spider-sources.mjs <outDir>
 // Relies on Node's built-in TypeScript type stripping (Node >= 22.18).
 import { mkdirSync, writeFileSync } from 'node:fs';

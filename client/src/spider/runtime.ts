@@ -1,6 +1,6 @@
 /**
  * JS engine seam for spiders. The app installs the QuickJS native module
- * (rn/modules/quickjs) with setSpiderRuntime; tests install a node `vm`
+ * (client/modules/quickjs) with setSpiderRuntime; tests install a node `vm`
  * runtime. The shape is identical to the native module's QuickJSNative, so
  * the native module can be passed as is.
  */

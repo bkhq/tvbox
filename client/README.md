@@ -2,7 +2,7 @@
 
 React Native rewrite of the Android TV app in this repository, targeting iOS,
 Android phone, Android TV and tvOS from one codebase. The Java app under
-`app/` is the reference implementation for behaviour; nothing outside `rn/`
+`backup/app/` is the reference implementation for behaviour; nothing outside `client/`
 belongs to this project.
 
 ## Versions
@@ -87,7 +87,7 @@ plugins in `plugins/` instead.
 ## Layout
 
 ```
-rn/
+client/
   App.tsx              NavigationContainer + RootNavigator; starts getBootstrap()
   app.config.ts        Expo config (app id, WORKER_URL -> extra.workerUrl)
   plugins/             local config plugins (withAndroidLeanback, withAndroidLauncherAssets, withAndroidAbiFlavors), version.js
@@ -181,7 +181,7 @@ provider. JAR spiders (type 3 `csp_` sites) run on Android only (see
 | `src/spider/provider.ts`             | `JsSpiderProvider` (bootstrap per `Spider.java`, results per `SiteApi.java`)                                 |
 | `src/spider/nativeRuntime.ts`        | `nativeSpiderRuntime` (pass-through to the native module, error mapping), `installJsSpiders()`               |
 | `modules/quickjs/`                   | Expo module `QuickJS`: quickjs-ng + `cpp/qjs_bridge.c`, Android JNI and iOS/tvOS Swift wrappers              |
-| `modules/quickjs/assets/lib/`        | bundled libs (`cat.js`, `cheerio.min.js`, `crypto-js.js`, `gbk.js`, `similarity.js`), copies of `quickjs/`   |
+| `modules/quickjs/assets/lib/`        | bundled libs (`cat.js`, `cheerio.min.js`, `crypto-js.js`, `gbk.js`, `similarity.js`), copies of `backup/quickjs/`   |
 
 **Native contract** (`modules/quickjs/index.ts`): `createContext()`,
 `registerModule(ctx, name, source)`, `evaluate(ctx, code, filename, asModule, timeoutMs)`,
@@ -288,7 +288,7 @@ cached as `SpiderNull` (the next call retries); release builds keep
 `com.github.catvod.**` and the libraries spiders link against unobfuscated
 (`modules/jarspider/android/proguard-rules.pro`, a consumer ProGuard file).
 The catvod sources under `modules/jarspider/android/src/main/java/com/github/catvod/`
-are copies of `catvod/` (the build container mounts only `rn/`); keep them in
+are copies of `backup/catvod/` (the build container mounts only `client/`); keep them in
 sync and never edit them here.
 
 **Tests.** Jest mocks the native module
@@ -476,8 +476,8 @@ before the first `load` -> `open`, later failures on a network URL ->
 carries the Java app's prebuilt `libmpv.so`, `libplayer.so` (mpv-android JNI
 bridge for `is.xyz.mpv.MPVLib`, ported unchanged in package `is.xyz.mpv`) and
 the FFmpeg libraries libmpv links against (`libav*`, `libsw*`, from
-`media/libraries/decoder_ffmpeg`), copied because the build container mounts
-only `rn/`. They need the bundled `libc++_shared.so` (NDK r29); React
+`backup/media/libraries/decoder_ffmpeg`), copied because the build container mounts
+only `client/`. They need the bundled `libc++_shared.so` (NDK r29); React
 Native's NDK 27 copy lacks `std::__from_chars_floating_point`.
 `app.config.ts` sets `pickFirst` for `**/libc++_shared.so` (that keeps the
 app's NDK 27 copy) and `modules/mpv/android/build.gradle` then overwrites it
@@ -724,33 +724,33 @@ the generated `src/lan/web/assets.generated.ts`. After changing anything in
 The APK is built in a sibling container; the host needs only Docker:
 
 ```sh
-bash rn/scripts/android-debug.sh   # or: cd rn && npm run android:debug:docker
+bash client/scripts/android-debug.sh   # or: cd client && npm run android:debug:docker
 ```
 
 The script builds the image `ai-agent/tvbox-rn-build` from `docker/Dockerfile`
 (the shared `ai-agent/tvbox-build` JDK 21 image plus Node 24) if it is
 missing, then runs one `docker run --rm --label ai-agent=true` container that
-mounts only `rn/` (same path inside and outside) and the shared Android SDK
+mounts only `client/` (same path inside and outside) and the shared Android SDK
 `/srv/zzci/tvbox/.tmp/android-sdk` read-only, and runs:
 
 1. `npm ci`
 2. `npx expo prebuild --platform android --no-install`
 3. `./gradlew assembleDebug` in `android/`, with
-   `GRADLE_USER_HOME=rn/.tmp/gradle-home` and `ANDROID_HOME=rn/.tmp/android-sdk`.
+   `GRADLE_USER_HOME=client/.tmp/gradle-home` and `ANDROID_HOME=client/.tmp/android-sdk`.
 
 The output is `android/app/build/outputs/apk/debug/app-debug.apk`.
 `WORKER_URL` is passed through to the container.
 
-The shared SDK is never written to. `rn/.tmp/android-sdk` is a per-checkout
+The shared SDK is never written to. `client/.tmp/android-sdk` is a per-checkout
 overlay: every package of the shared SDK is symlinked into it, and packages
 React Native needs but the shared SDK lacks (compile platform, build-tools
 and NDK versions from `node_modules/react-native/gradle/libs.versions.toml`;
 currently `ndk;27.1.12297006`) are installed there with `sdkmanager`.
-Everything under `rn/.tmp/` is gitignored and can be deleted to start over.
+Everything under `client/.tmp/` is gitignored and can be deleted to start over.
 
 ## Release
 
-The RN app is the released product; the Java app (`app/`) is no longer
+The RN app is the released product; the Java app (`backup/app/`) is no longer
 released. The Android APKs replace the Java app on its own update channel
 (same package and key, so installs upgrade in place); iOS/tvOS use the rn
 channel.
@@ -758,7 +758,7 @@ channel.
 ### Versioning
 
 Release tags are `vX.Y.Z`. The version job runs
-`node rn/plugins/version.js "$GITHUB_REF_NAME"`, which derives
+`node client/plugins/version.js "$GITHUB_REF_NAME"`, which derives
 `versionName = X.Y.Z` and `versionCode = X*10000 + Y*100 + Z`
 (minor and patch below 100; any other `v*` tag fails the run). CI passes
 them as `VERSION_NAME` / `VERSION_CODE` to `app.config.ts`, which sets
@@ -768,9 +768,9 @@ both platforms). Unset or blank values fall back to `1.0.0` / `1`; a
 
 ### Workflows
 
-- `.github/workflows/rn-ci.yml`: on pull requests and pushes to `main` that
-  touch `rn/`: `npm ci`, lint, typecheck and tests on Node 24.
-- `.github/workflows/rn-release.yml`: on pushes to `main` that touch `rn/`,
+- `.github/workflows/client-ci.yml`: on pull requests and pushes to `main` that
+  touch `client/`: `npm ci`, lint, typecheck and tests on Node 24.
+- `.github/workflows/client-release.yml`: on pushes to `main` that touch `client/`,
   on `v*` tags and on manual dispatch.
   - `android`: prebuild with `ANDROID_ABI_FLAVORS=1` and
     `gradlew assembleRelease` -> `leanback-arm64_v8a.apk` and

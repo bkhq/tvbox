@@ -1,5 +1,5 @@
 /*
- * Smoke test of the TS spider bootstrap (rn/src/spider/prelude.ts) on the
+ * Smoke test of the TS spider bootstrap (client/src/spider/prelude.ts) on the
  * real C bridge + quickjs-ng: prelude script, crypto and parser modules with
  * the bundled libs, then a FongMi-style and a cat-style fixture spider driven
  * through init/home/category/detail/search/play like JsSpiderProvider does.

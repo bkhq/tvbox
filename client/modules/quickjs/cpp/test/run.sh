@@ -2,8 +2,8 @@
 # Host sanity check for the shared C bridge: compiles quickjs-ng + qjs_bridge.c
 # with gcc (ASan/UBSan, assertions on) and runs bridge_test.c, then
 # spider_smoke_test.c on the TS spider bootstrap (sources generated from
-# rn/src/spider/prelude.ts with node into a temp dir). Outputs go to
-# rn/.tmp/quickjs-host-test (gitignored).
+# client/src/spider/prelude.ts with node into a temp dir). Outputs go to
+# client/.tmp/quickjs-host-test (gitignored).
 set -euo pipefail
 
 cpp=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)

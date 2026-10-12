@@ -1,5 +1,5 @@
-# Android build image for rn/: the shared tvbox build image (JDK 21) plus Node and npm.
-# Build: docker build --label ai-agent=true -t ai-agent/tvbox-rn-build rn/docker
+# Android build image for client/: the shared tvbox build image (JDK 21) plus Node and npm.
+# Build: docker build --label ai-agent=true -t ai-agent/tvbox-rn-build client/docker
 FROM ai-agent/tvbox-build:latest
 
 ARG NODE_VERSION=24.19.0

@@ -19,7 +19,7 @@ export interface RouteDefinition<K extends RouteName> {
 }
 
 /**
- * Route name -> screen. Each feature owns rn/src/screens/<feature>/index.tsx
+ * Route name -> screen. Each feature owns client/src/screens/<feature>/index.tsx
  * and replaces its stub there without touching this file.
  */
 export const routes: { [K in RouteName]: RouteDefinition<K> } = {

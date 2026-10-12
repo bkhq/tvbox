@@ -1,7 +1,7 @@
 /**
  * VOD config loader compatible with VodConfig.java + BaseConfig.java.
- * `spider` / `jar` fields are ignored: JAR spiders are not supported, and
- * sites that need one stay in the list flagged `supported: false`.
+ * JAR sites (type 3 "csp_" api) are flagged `supported: false` unless the
+ * JAR spider runtime enabled them with setJarSitesSupported (Android only).
  */
 
 import type { RequestOptions } from '../http';
@@ -41,6 +41,8 @@ export interface VodConfig {
   url: string;
   /** Other configs listed by a depot ("urls"); [] for a regular config. */
   depot: ConfigEntry[];
+  /** Top-level spider JAR; the default `jar` of every site. */
+  spider: string;
   /** Every site in the config, including unsupported ones. */
   sites: Site[];
   /** Selected home site; undefined when no site is supported. */
@@ -87,9 +89,25 @@ export function classifySite(type: number, api: string): { supported: boolean; u
   return { supported: false, unsupportedReason: path.endsWith('.py') ? 'py' : 'jar' };
 }
 
-export function parseSite(json: JsonObject): Site {
-  const site = normalizeSite(json);
-  return { ...site, ...classifySite(site.type, site.api) };
+let jarSitesSupported = false;
+
+/** Enabled by the JAR spider runtime (Android); JAR sites stay unsupported otherwise. */
+export function setJarSitesSupported(enabled: boolean): void {
+  jarSitesSupported = enabled;
+}
+
+/** BaseLoader.isCsp: a JAR spider class with a JAR to load it from. */
+export function isJarSite(site: Pick<Site, 'type' | 'api' | 'jar'>): boolean {
+  return site.type === 3 && site.api.startsWith('csp_') && !!site.jar;
+}
+
+/** Site.objectFrom(element, spider): the site's `jar` defaults to the config's `spider`. */
+export function parseSite(json: JsonObject, spider = ''): Site {
+  const normalized = normalizeSite(json);
+  const site = { ...normalized, jar: normalized.jar || spider };
+  const support = classifySite(site.type, site.api);
+  if (jarSitesSupported && support.unsupportedReason === 'jar' && isJarSite(site)) return { ...site, supported: true };
+  return { ...site, ...support };
 }
 
 export function supportedSites(config: Pick<VodConfig, 'sites'>): Site[] {
@@ -107,12 +125,17 @@ function superParse(): Parse {
 }
 
 function buildVodConfig(object: JsonObject, url: string, depot: ConfigEntry[], prefs: VodConfigPrefs): VodConfig {
-  const sites = distinctBy(elementList(object, 'sites').map(parseSite), (site) => site.key);
+  const spider = str(object.spider).trim();
+  const sites = distinctBy(
+    elementList(object, 'sites').map((json) => parseSite(json, spider)),
+    (site) => site.key,
+  );
   const parses = distinctBy(elementList(object, 'parses').map(normalizeParse), (parse) => parse.name);
   if (parses.length > 0) parses.unshift(superParse());
   return {
     url,
     depot,
+    spider,
     sites,
     home: selectHome(sites, prefs.home),
     parses,

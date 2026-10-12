@@ -58,6 +58,8 @@ export default ({ config }: ConfigContext): ExpoConfig =>
       ['react-native-video', { enableBackgroundAudio: true }],
       // Android-only AirPlay receiver: app-level desugaring and Netty packaging excludes.
       './modules/airplay/app.plugin.js',
+      // Android-only JAR spiders: app-level desugaring and the JitPack repository.
+      './modules/jarspider/app.plugin.js',
       // Local network usage text and Bonjour service for the httpd module (iOS/tvOS).
       './modules/httpd/app.plugin.js',
     ],

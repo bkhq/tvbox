@@ -53,6 +53,16 @@ describe('app.config network policy', () => {
   });
 });
 
+describe('app.config native library packaging', () => {
+  it('extracts native libraries on install', () => {
+    const config = loadConfig({});
+    const buildProperties = config.plugins?.find(
+      (plugin) => Array.isArray(plugin) && plugin[0] === 'expo-build-properties',
+    ) as [string, { android?: { useLegacyPackaging?: boolean } }] | undefined;
+    expect(buildProperties?.[1].android?.useLegacyPackaging).toBe(true);
+  });
+});
+
 describe('app.config Android permissions', () => {
   it('declares what the Java app had and the RN app still uses', () => {
     const { permissions, blockedPermissions } = loadConfig({}).android ?? {};

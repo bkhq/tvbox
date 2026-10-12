@@ -65,6 +65,9 @@ export default ({ config }: ConfigContext): ExpoConfig => {
             packagingOptions: { pickFirst: ['**/libc++_shared.so'] },
             // Same reason as NSAllowsArbitraryLoads: sources are commonly plain http.
             usesCleartextTraffic: true,
+            // Extract .so files on install: SoLoader otherwise looks inside the APK under the first
+            // ABI the device reports, which need not be the installed one, and crashes on launch.
+            useLegacyPackaging: true,
           },
         },
       ],

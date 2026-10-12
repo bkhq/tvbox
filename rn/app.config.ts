@@ -72,6 +72,8 @@ export default ({ config }: ConfigContext): ExpoConfig => {
       '@react-native-tvos/config-tv',
       // Media3 HLS / DASH / SmoothStreaming are on by default; UIBackgroundModes audio for the background setting.
       ['react-native-video', { enableBackgroundAudio: true }],
+      // Java app launcher icon and Android TV banner; no expo `icon`, so nothing overwrites them.
+      './plugins/withAndroidLauncherAssets.js',
       // Android-only AirPlay receiver: app-level desugaring and Netty packaging excludes.
       './modules/airplay/app.plugin.js',
       // Android-only JAR spiders: app-level desugaring and the JitPack repository.

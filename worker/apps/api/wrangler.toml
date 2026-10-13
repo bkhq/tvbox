@@ -30,11 +30,12 @@ binding = "FILES"
 bucket_name = "tvbox-files"
 
 # The media library's read model, written by publishing and read by
-# `/s/<token>/media` (src/workers/media). The deploy workflow creates the
-# database when it is missing, fills in its id and applies the migrations.
+# `/s/<token>/media` (src/workers/media). The deploy workflow applies the
+# migrations before each deploy.
 [[d1_databases]]
 binding = "MEDIA"
-database_name = "tvbox-media"
+database_name = "tv-bk-io"
+database_id = "9e15ba98-1c72-4376-9966-027f6c1025ec"
 migrations_dir = "d1/media"
 
 # Every request reaches the Worker first (src/workers/entry.ts), which

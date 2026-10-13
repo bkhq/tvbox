@@ -14,7 +14,7 @@
 - 缓存键是去掉 token 的 URL 加 `generation`；isolate 内对 `generation` 最多缓存 10 秒。ETag 就是 `generation`。
 - 媒体接口和文件一样不校验设备绑定（`X-Device-Id` / `X-Device-Key`），只认 token。
 - 后台“重建只读模型”是 `POST /api/media/readmodel/rebuild`；没有 D1 绑定的部署（Bun）发布时跳过投影。
-- CI 部署时按名字查找或创建 `tvbox-media`，把 `database_id` 临时写进 `wrangler.toml`，再执行 `wrangler d1 migrations apply MEDIA --remote`；仓库里的 `wrangler.toml` 不带 `database_id`。
+- D1 库实际名为 `tv-bk-io`（不是下文的 `tvbox-media`），已手动创建，`database_id` 直接写在 `wrangler.toml` 里；CI 部署前执行 `wrangler d1 migrations apply MEDIA --remote`。
 - CMS 的 `vod` 列表和详情 JSON 在投影时预先算好，存进 `rm_cms_items.list_json` / `detail_json`；筛选用表里的 `type_id`、`year`、`country`（国家代码）和 `genres` 列。CMS 不能按线路下发请求头。
 - `live.m3u` 由 Worker 根据 D1 里的直播数据现场生成，不写入 R2。
 - 后台“发布”页提供“添加订阅条目”按钮，一键在公共站点和直播源里加上 `@media/cms` / `@media/live.m3u` 条目。

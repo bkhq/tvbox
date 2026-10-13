@@ -29,7 +29,7 @@ function parseVersionCode(raw: string | undefined): number {
 export default ({ config }: ConfigContext): ExpoConfig => {
   const appConfig = withAndroidLeanback({
     ...config,
-    name: '影视',
+    name: '星幕',
     slug: 'tvbox',
     scheme: 'tvbox',
     version: versionName,

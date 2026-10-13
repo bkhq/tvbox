@@ -61,7 +61,8 @@ export interface EngineError {
 }
 
 export type EngineEvent =
-  | { type: 'load'; duration: number; tracks: EngineTracks }
+  /** `width` / `height`: video pixel size, when the engine reports it. */
+  | { type: 'load'; duration: number; tracks: EngineTracks; width?: number; height?: number }
   | { type: 'progress'; position: number; duration: number; buffered: number }
   | { type: 'buffering'; value: boolean }
   | { type: 'playing' }

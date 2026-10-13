@@ -43,9 +43,9 @@ describe('app.config versioning', () => {
 });
 
 describe('app.config identity', () => {
-  it('names the app 星幕 and keeps the Android package', () => {
+  it('names the app 影视 and keeps the Android package', () => {
     const config = loadConfig({});
-    expect(config.name).toBe('星幕');
+    expect(config.name).toBe('影视');
     expect(config.android?.package).toBe('com.fongmi.android.tv');
   });
 

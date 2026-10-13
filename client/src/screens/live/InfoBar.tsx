@@ -1,86 +1,110 @@
 import { Image, StyleSheet, Text, View } from 'react-native';
+import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg';
 
 import type { Channel } from '../../core/types';
-import { type Epg, formatEpgItem } from '../../player/live';
-import { colors, fontSize, imageSource, radius, spacing } from '../../ui';
+import { type EpgItem, type Epg, formatEpgItem } from '../../player/live';
+import {
+  Badge,
+  color,
+  imageSource,
+  safeArea,
+  type Scaler,
+  scaledText,
+  space,
+  tabular,
+  useScaledStyles,
+} from '../../ui';
 import { lineLabel, nowAndNext } from './liveModel';
+
+/** Share of the programme already aired, 0..1. */
+export function programmeProgress(item: EpgItem, now = Date.now()): number {
+  const length = item.endTime - item.startTime;
+  if (length <= 0) return 0;
+  return Math.min(1, Math.max(0, (now - item.startTime) / length));
+}
 
 /** LiveActivity's info widget, shown on channel or source change. */
 export function InfoBar({ channel, line, logo, epg }: { channel: Channel; line: number; logo: string; epg?: Epg }) {
+  const styles = useScaledStyles(makeStyles);
   const { current, next } = nowAndNext(epg);
   const label = lineLabel(channel, line);
   return (
     <View testID="live-info" style={styles.bar} pointerEvents="none">
-      {logo !== '' ? <Image source={imageSource(logo)} style={styles.logo} resizeMode="contain" /> : null}
-      <View style={styles.text}>
-        <View style={styles.title}>
-          {channel.number !== '' ? <Text style={styles.number}>{channel.number}</Text> : null}
-          <Text style={styles.name} numberOfLines={1}>
-            {channel.name}
+      <Svg style={StyleSheet.absoluteFill} width="100%" height="100%">
+        <Defs>
+          <LinearGradient id="live-info-shade" x1="0" y1="0" x2="0" y2="1">
+            <Stop offset="0" stopColor={color.bg} stopOpacity={0} />
+            <Stop offset="1" stopColor={color.bg} stopOpacity={0.94} />
+          </LinearGradient>
+        </Defs>
+        <Rect width="100%" height="100%" fill="url(#live-info-shade)" />
+      </Svg>
+      <View style={styles.content}>
+        {channel.number !== '' ? (
+          <Text style={styles.number} numberOfLines={1}>
+            {channel.number}
           </Text>
-          {label !== '' ? (
-            <Text style={styles.line} testID="live-info-line">
-              {label}
+        ) : logo !== '' ? (
+          <Image testID="live-info-logo" source={imageSource(logo)} style={styles.logo} resizeMode="contain" />
+        ) : null}
+        <View style={styles.text}>
+          <View style={styles.title}>
+            <Text style={styles.name} numberOfLines={1}>
+              {channel.name}
+            </Text>
+            {label !== '' ? <Badge testID="live-info-line" label={label} /> : null}
+          </View>
+          {current ? (
+            <View style={styles.current}>
+              <Text style={styles.programme} numberOfLines={1} testID="live-info-current">
+                {`当前：${formatEpgItem(current)}`}
+              </Text>
+              <View style={styles.track}>
+                <View
+                  testID="live-info-progress"
+                  style={[styles.fill, { width: `${Math.round(programmeProgress(current) * 100)}%` }]}
+                />
+              </View>
+            </View>
+          ) : null}
+          {next ? (
+            <Text style={styles.next} numberOfLines={1} testID="live-info-next">
+              {`下一个：${formatEpgItem(next)}`}
             </Text>
           ) : null}
         </View>
-        {current ? (
-          <Text style={styles.programme} numberOfLines={1} testID="live-info-current">
-            {`当前：${formatEpgItem(current)}`}
-          </Text>
-        ) : null}
-        {next ? (
-          <Text style={styles.programme} numberOfLines={1} testID="live-info-next">
-            {`下一个：${formatEpgItem(next)}`}
-          </Text>
-        ) : null}
       </View>
     </View>
   );
 }
 
-const styles = StyleSheet.create({
-  bar: {
-    position: 'absolute',
-    left: spacing.xl,
-    right: spacing.xl,
-    bottom: spacing.xl,
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: spacing.md,
-    borderRadius: radius.md,
-    backgroundColor: colors.remarkBackground,
-  },
-  logo: {
-    width: 96,
-    height: 54,
-    marginRight: spacing.md,
-  },
-  text: {
-    flex: 1,
-  },
-  title: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  number: {
-    marginRight: spacing.sm,
-    color: colors.primary,
-    fontSize: fontSize.heading,
-  },
-  name: {
-    flexShrink: 1,
-    color: colors.text,
-    fontSize: fontSize.heading,
-  },
-  line: {
-    marginLeft: spacing.md,
-    color: colors.textSecondary,
-    fontSize: fontSize.body,
-  },
-  programme: {
-    marginTop: spacing.xs,
-    color: colors.text,
-    fontSize: fontSize.body,
-  },
-});
+const makeStyles = (s: Scaler) => {
+  const t = scaledText(s);
+  return {
+    bar: {
+      position: 'absolute' as const,
+      left: 0,
+      right: 0,
+      bottom: 0,
+      height: s(520),
+      justifyContent: 'flex-end' as const,
+    },
+    content: {
+      flexDirection: 'row' as const,
+      alignItems: 'flex-end' as const,
+      gap: s(28),
+      paddingHorizontal: s(safeArea.horizontal),
+      paddingBottom: s(64),
+    },
+    number: { ...t.display, ...tabular, fontSize: s(96), lineHeight: s(96), letterSpacing: -s(2), color: color.text },
+    logo: { width: s(160), height: s(90) },
+    text: { flexShrink: 1, gap: s(10), marginBottom: s(4) },
+    title: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: s(14) },
+    name: { ...t.h1, flexShrink: 1, color: color.text },
+    current: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: s(space.sm) },
+    programme: { ...t.body, ...tabular, flexShrink: 1, color: color.text },
+    track: { width: s(320), height: s(6), borderRadius: s(3), backgroundColor: 'rgba(255,255,255,0.25)' },
+    fill: { height: s(6), borderRadius: s(3), backgroundColor: color.accent },
+    next: { ...t.label, ...tabular, color: color.text2 },
+  };
+};

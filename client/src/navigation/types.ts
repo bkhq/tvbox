@@ -1,7 +1,7 @@
 import type { NativeStackNavigationProp, NativeStackScreenProps } from '@react-navigation/native-stack';
 
 export type RootStackParamList = {
-  Home: undefined;
+  Home: { section?: 'series' | 'movie' } | undefined;
   Category: { siteKey: string; typeId: string; typeName: string };
   Search: { keyword?: string } | undefined;
   SearchResult: { keyword: string; quick?: boolean };

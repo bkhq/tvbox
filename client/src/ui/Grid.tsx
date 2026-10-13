@@ -1,0 +1,54 @@
+import type { ReactElement } from 'react';
+import { FlatList, type ListRenderItem } from 'react-native';
+
+import { useScaledStyles, type Scaler } from './scale';
+import { card, focus, safeArea } from './tokens';
+
+export type GridVariant = 'poster' | 'wide';
+
+export interface GridProps<T> {
+  data: readonly T[];
+  renderItem: ListRenderItem<T>;
+  keyExtractor: (item: T, index: number) => string;
+  /** poster: 7 columns of 2:3 cards; wide: 5 columns of 16:9 cards. */
+  variant?: GridVariant;
+  /** Overrides the column count of the variant. */
+  columns?: number;
+  /** Called near the end of the list to load the next page. */
+  onEndReached?: () => void;
+  ListHeaderComponent?: ReactElement | null;
+  ListFooterComponent?: ReactElement | null;
+  ListEmptyComponent?: ReactElement | null;
+  testID?: string;
+}
+
+const variantColumns = { poster: card.posterColumns, wide: card.wideColumns } as const;
+
+export function Grid<T>({ variant = 'poster', columns, ...props }: GridProps<T>) {
+  const styles = useScaledStyles(makeStyles);
+  const numColumns = columns ?? variantColumns[variant];
+  return (
+    <FlatList
+      // FlatList cannot change numColumns in place; remount on change.
+      key={`grid-${numColumns}`}
+      numColumns={numColumns}
+      // Same window as FocusGrid: only the rows the focus can reach next.
+      initialNumToRender={numColumns * 3}
+      maxToRenderPerBatch={numColumns * 2}
+      windowSize={5}
+      onEndReachedThreshold={0.5}
+      style={styles.list}
+      contentContainerStyle={styles.content}
+      // FlatList rejects columnWrapperStyle for a single column.
+      columnWrapperStyle={numColumns > 1 ? styles.columns : undefined}
+      {...props}
+    />
+  );
+}
+
+const makeStyles = (s: Scaler) => ({
+  list: { overflow: 'visible' as const },
+  // Safe-area inset on the sides; the vertical bleed keeps the focus zoom of the edge rows unclipped.
+  content: { paddingHorizontal: s(safeArea.horizontal), paddingVertical: s(focus.bleed), gap: s(card.rowGap) },
+  columns: { gap: s(card.rowGap) },
+});

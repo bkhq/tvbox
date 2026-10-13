@@ -26,6 +26,11 @@ export function FocusGrid<T>({ columns, ...props }: FocusGridProps<T>) {
       // FlatList cannot change numColumns in place; remount on change.
       key={`grid-${numColumns}`}
       numColumns={numColumns}
+      // The default window keeps ten screens mounted on each side; TV grids only need the
+      // rows the focus can reach next.
+      initialNumToRender={numColumns * 3}
+      maxToRenderPerBatch={numColumns * 2}
+      windowSize={5}
       onEndReachedThreshold={0.5}
       contentContainerStyle={styles.content}
       {...props}

@@ -19,6 +19,8 @@ export interface SearchOptions {
   concurrency?: number;
   /** Per-site limit in milliseconds (Constant.TIMEOUT_SEARCH). */
   timeoutMs?: number;
+  /** Answers within this window share one update, so the grid re-renders once; 0 updates per site. */
+  intervalMs?: number;
 }
 
 export interface SearchHandle {
@@ -30,6 +32,7 @@ export interface SearchHandle {
 
 export const SEARCH_CONCURRENCY = 5;
 export const SEARCH_TIMEOUT_MS = 30_000;
+export const SEARCH_UPDATE_MS = 300;
 
 /** Supported, searchable sites; quick mode also requires quickSearch (SiteViewModel.SearchTask). */
 export function searchTargets(sites: readonly Site[], quick: boolean): Site[] {
@@ -47,21 +50,25 @@ function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
 /**
  * Searches `targets` with at most `concurrency` sites in flight. A failing or
  * slow site counts as an empty answer, so it never fails the whole search.
- * `onUpdate` receives the aggregated progress immediately and after every site.
+ * `onUpdate` receives the aggregated progress immediately, then at most once per
+ * `intervalMs` while sites answer, and at once when the last site has answered.
  */
 export function searchSites(
   targets: readonly Site[],
   search: (site: Site) => Promise<Result>,
   onUpdate: (progress: SearchProgress) => void,
-  { concurrency = SEARCH_CONCURRENCY, timeoutMs = SEARCH_TIMEOUT_MS }: SearchOptions = {},
+  { concurrency = SEARCH_CONCURRENCY, timeoutMs = SEARCH_TIMEOUT_MS, intervalMs = SEARCH_UPDATE_MS }: SearchOptions = {},
 ): SearchHandle {
   const total = targets.length;
   const lists: (Vod[] | undefined)[] = new Array(total);
   let cancelled = false;
   let next = 0;
   let completed = 0;
+  let timer: ReturnType<typeof setTimeout> | undefined;
 
   const emit = () => {
+    if (timer !== undefined) clearTimeout(timer);
+    timer = undefined;
     if (cancelled) return;
     const groups: SiteGroup[] = [];
     targets.forEach((site, index) => {
@@ -88,7 +95,8 @@ export function searchSites(
       if (cancelled) return;
       lists[index] = list;
       completed++;
-      emit();
+      if (completed === total || intervalMs <= 0) emit();
+      else if (timer === undefined) timer = setTimeout(emit, intervalMs);
     }
   };
 
@@ -97,6 +105,7 @@ export function searchSites(
   return {
     cancel: () => {
       cancelled = true;
+      if (timer !== undefined) clearTimeout(timer);
     },
     done: Promise.all(workers).then(() => undefined),
   };

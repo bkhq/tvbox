@@ -3,7 +3,7 @@ import { FlatList, Image, Modal, Pressable, StyleSheet, Text, View } from 'react
 
 import type { Channel, Group } from '../../core/types';
 import { currentProgrammeIndex, formatEpgItem } from '../../player/live';
-import { colors, FocusableButton, fontSize, radius, spacing } from '../../ui';
+import { colors, FocusableButton, fontSize, imageSource, radius, spacing } from '../../ui';
 import { type LiveSelection, nowAndNext } from './liveModel';
 import type { LiveEpg } from './useLiveEpg';
 
@@ -57,7 +57,7 @@ function ChannelRow({
       style={[styles.row, playing && styles.rowPlaying, focused && styles.rowFocused]}
     >
       <Text style={styles.number}>{channel.number}</Text>
-      {logo !== '' ? <Image source={{ uri: logo }} style={styles.logo} resizeMode="contain" /> : <View style={styles.logo} />}
+      {logo !== '' ? <Image source={imageSource(logo)} style={styles.logo} resizeMode="contain" /> : <View style={styles.logo} />}
       <View style={styles.rowText}>
         <Text style={styles.name} numberOfLines={1}>
           {channel.name}

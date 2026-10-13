@@ -2,7 +2,7 @@ import { Image, StyleSheet, Text, View } from 'react-native';
 
 import type { Channel } from '../../core/types';
 import { type Epg, formatEpgItem } from '../../player/live';
-import { colors, fontSize, radius, spacing } from '../../ui';
+import { colors, fontSize, imageSource, radius, spacing } from '../../ui';
 import { lineLabel, nowAndNext } from './liveModel';
 
 /** LiveActivity's info widget, shown on channel or source change. */
@@ -11,7 +11,7 @@ export function InfoBar({ channel, line, logo, epg }: { channel: Channel; line: 
   const label = lineLabel(channel, line);
   return (
     <View testID="live-info" style={styles.bar} pointerEvents="none">
-      {logo !== '' ? <Image source={{ uri: logo }} style={styles.logo} resizeMode="contain" /> : null}
+      {logo !== '' ? <Image source={imageSource(logo)} style={styles.logo} resizeMode="contain" /> : null}
       <View style={styles.text}>
         <View style={styles.title}>
           {channel.number !== '' ? <Text style={styles.number}>{channel.number}</Text> : null}

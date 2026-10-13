@@ -9,7 +9,7 @@ import { getHistoryRepository, getKeepRepository } from '../../core/userData';
 // Not the navigation barrel: it imports the route table, which imports this screen.
 import { useAppNavigation } from '../../navigation/useAppNavigation';
 import type { RootStackScreenProps } from '../../navigation/types';
-import { colors, FocusableButton, fontSize, HorizontalRow, radius, spacing, useLayout } from '../../ui';
+import { colors, FocusableButton, fontSize, HorizontalRow, imageSource, radius, spacing, useLayout } from '../../ui';
 import { ErrorView, htmlToText, LoadingView, useActiveCid, useSite } from '../common';
 import { buildHistoryInput, buildPlayerParams, resolveResume, sortEpisodes } from './detailState';
 
@@ -32,7 +32,7 @@ function Poster({ uri }: { uri?: string }) {
   const { isTV } = useLayout();
   return (
     <View style={[styles.poster, isTV && styles.posterTV]}>
-      {uri ? <Image source={{ uri }} style={styles.posterImage} resizeMode="cover" /> : null}
+      {uri ? <Image source={imageSource(uri)} style={styles.posterImage} resizeMode="cover" /> : null}
     </View>
   );
 }

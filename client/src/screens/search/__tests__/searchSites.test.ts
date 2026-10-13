@@ -97,7 +97,7 @@ describe('searchSites', () => {
         return new Promise<Result>(() => undefined);
       });
       const { onUpdate, last } = track();
-      const handle = searchSites(targets, search, onUpdate, { timeoutMs: 1000 });
+      const handle = searchSites(targets, search, onUpdate, { timeoutMs: 1000, intervalMs: 0 });
       await jest.advanceTimersByTimeAsync(0);
       expect(last()).toMatchObject({ completed: 3, done: false });
 
@@ -114,7 +114,7 @@ describe('searchSites', () => {
     const targets = [site('a'), site('empty'), site('b')];
     const { search, pending } = controlled();
     const { onUpdate, updates, last } = track();
-    const handle = searchSites(targets, search, onUpdate);
+    const handle = searchSites(targets, search, onUpdate, { intervalMs: 0 });
     expect(updates[0]).toEqual({ groups: [], completed: 0, total: 3, done: false });
     await flush();
 
@@ -150,5 +150,64 @@ describe('searchSites', () => {
     await handle.done;
     expect(search).toHaveBeenCalledTimes(1);
     expect(updates).toHaveLength(1);
+  });
+  describe('batched updates', () => {
+    beforeEach(() => jest.useFakeTimers());
+    afterEach(() => jest.useRealTimers());
+
+    // Settles the promise chains of resolved searches without advancing the clock.
+    const settle = async () => {
+      for (let i = 0; i < 5; i++) await Promise.resolve();
+    };
+
+    it('merges answers that arrive within one interval into a single update', async () => {
+      const targets = [site('a'), site('b'), site('c')];
+      const { search, pending } = controlled();
+      const { onUpdate, updates, last } = track();
+      searchSites(targets, search, onUpdate, { intervalMs: 300 });
+      await settle();
+      expect(updates).toHaveLength(1);
+
+      pending.get('a')!.resolve(result('a1'));
+      pending.get('b')!.resolve(result('b1'));
+      await settle();
+      expect(updates).toHaveLength(1);
+
+      jest.advanceTimersByTime(300);
+      expect(updates).toHaveLength(2);
+      expect(last()).toMatchObject({ completed: 2, done: false });
+      expect(last().groups.map((group) => group.site.key)).toEqual(['a', 'b']);
+    });
+
+    it('reports the last answer at once', async () => {
+      const targets = [site('a'), site('b')];
+      const { search, pending } = controlled();
+      const { onUpdate, updates, last } = track();
+      const handle = searchSites(targets, search, onUpdate, { intervalMs: 300 });
+      await settle();
+
+      pending.get('a')!.resolve(result('a1'));
+      pending.get('b')!.resolve(result('b1'));
+      await handle.done;
+      expect(last()).toMatchObject({ completed: 2, done: true });
+      expect(updates).toHaveLength(2);
+
+      jest.advanceTimersByTime(1000);
+      expect(updates).toHaveLength(2);
+    });
+
+    it('drops a pending update after cancel', async () => {
+      const targets = [site('a'), site('b')];
+      const { search, pending } = controlled();
+      const { onUpdate, updates } = track();
+      const handle = searchSites(targets, search, onUpdate, { intervalMs: 300 });
+      await settle();
+
+      pending.get('a')!.resolve(result('a1'));
+      await settle();
+      handle.cancel();
+      jest.advanceTimersByTime(1000);
+      expect(updates).toHaveLength(1);
+    });
   });
 });

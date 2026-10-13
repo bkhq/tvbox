@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Image, Pressable, StyleSheet, Text, View, type ViewProps } from 'react-native';
 
+import { imageSource } from './imageSource';
 import { colors, focusScale, fontSize, radius, spacing } from './theme';
 
 type NextFocusProps = Pick<ViewProps, 'nextFocusUp' | 'nextFocusDown' | 'nextFocusLeft' | 'nextFocusRight'>;
@@ -56,7 +57,7 @@ export function FocusableCard({
       {...nextFocus}
     >
       <View style={styles.posterBox}>
-        {poster ? <Image source={{ uri: poster }} style={styles.poster} resizeMode="cover" /> : null}
+        {poster ? <Image source={imageSource(poster)} style={styles.poster} resizeMode="cover" /> : null}
         {remark ? (
           <Text style={styles.remark} numberOfLines={1}>
             {remark}

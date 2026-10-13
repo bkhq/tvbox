@@ -1,5 +1,5 @@
 import { useImperativeHandle, useMemo, useRef } from 'react';
-import { NativeModules, PixelRatio, UIManager } from 'react-native';
+import { NativeModules, UIManager } from 'react-native';
 import Video, { type OnLoadData, type VideoRef } from 'react-native-video';
 
 import { useSetting } from '../../../core/settings';
@@ -43,7 +43,7 @@ export function VideoEngineView({
   const videoSource = useMemo(() => toVideoSource(source), [source]);
   const [subtitleScale] = useSetting('subtitleScale');
   const { s } = useScale();
-  const subtitleStyle = useMemo(() => toSubtitleStyle(s, subtitleScale, PixelRatio.get()), [s, subtitleScale]);
+  const subtitleStyle = useMemo(() => toSubtitleStyle(s, subtitleScale), [s, subtitleScale]);
 
   useImperativeHandle(ref, () => ({ seek: (ms: number) => video.current?.seek(ms / 1000) }), []);
 

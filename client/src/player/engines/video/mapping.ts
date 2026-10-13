@@ -1,5 +1,14 @@
-import { type OnLoadData, type ReactVideoSource, type SelectedTrack, SelectedTrackType, TextTrackType, type TextTracks } from 'react-native-video';
+import {
+  type OnLoadData,
+  type ReactVideoSource,
+  type SelectedTrack,
+  SelectedTrackType,
+  type SubtitleStyle,
+  TextTrackType,
+  type TextTracks,
+} from 'react-native-video';
 
+import type { Scaler } from '../../../ui';
 import type { EngineSource, ExternalSubtitle, ResizeMode, Track, TrackId } from '../../engine/types';
 
 /** EngineViewProps -> react-native-video props. Times on the video side are seconds except startPosition (ms). */
@@ -29,6 +38,15 @@ export function toTextTracks(subtitles: ExternalSubtitle[]): TextTracks {
     tracks.push({ title: subtitle.name, language: (subtitle.lang ?? '') as TextTracks[number]['language'], type, uri: subtitle.url });
   }
   return tracks;
+}
+
+/** Subtitle text of the 1080p player design. ExoPlayer's default cue position already matches its controls-hidden spot. */
+export const SUBTITLE_DESIGN = { fontSize: 36, minFontSize: 20 } as const;
+
+/** react-native-video `subtitleStyle` for the design text; fontSize is in sp (~dp). The library cannot draw a background box. */
+export function toSubtitleStyle(s: Scaler, subtitleScale: number): SubtitleStyle {
+  const fontSize = Math.max(SUBTITLE_DESIGN.minFontSize, SUBTITLE_DESIGN.fontSize * subtitleScale);
+  return { fontSize: Math.round(s(fontSize)), opacity: 1 };
 }
 
 /** react-native-video `type` override from the Result.format MIME hint. */

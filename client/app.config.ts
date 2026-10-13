@@ -4,6 +4,8 @@ import withAndroidAbiFlavors from './plugins/withAndroidAbiFlavors';
 import withAndroidLeanback from './plugins/withAndroidLeanback';
 
 const APP_ID = 'io.bk.tv';
+// Third-party spider jars kill the process when the package is not on their whitelist.
+const ANDROID_PACKAGE = 'com.fongmi.android.tv';
 
 // Release builds set ANDROID_ABI_FLAVORS=1 for per-ABI APKs; the default stays universal.
 const abiFlavors = (process.env.ANDROID_ABI_FLAVORS ?? '').trim() === '1';
@@ -41,7 +43,7 @@ export default ({ config }: ConfigContext): ExpoConfig => {
       infoPlist: { NSAppTransportSecurity: { NSAllowsArbitraryLoads: true } },
     },
     android: {
-      package: APP_ID,
+      package: ANDROID_PACKAGE,
       versionCode,
       // POST_NOTIFICATIONS: the DLNA foreground service shows a notification.
       permissions: ['android.permission.REQUEST_INSTALL_PACKAGES', 'android.permission.POST_NOTIFICATIONS'],

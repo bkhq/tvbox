@@ -43,9 +43,9 @@ describe('app.config versioning', () => {
 });
 
 describe('app.config identity', () => {
-  it('uses io.bk.tv on every platform and the shared icon on iOS', () => {
+  it('uses the whitelisted package on Android, io.bk.tv and the shared icon on iOS', () => {
     const config = loadConfig({});
-    expect(config.android?.package).toBe('io.bk.tv');
+    expect(config.android?.package).toBe('com.fongmi.android.tv');
     expect(config.ios?.bundleIdentifier).toBe('io.bk.tv');
     expect(config.ios?.icon).toBe('./assets/icon.png');
   });

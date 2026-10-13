@@ -51,10 +51,9 @@ runtime via `getAppConfig()` in `src/core/appConfig.ts`.
 
 ## App id
 
-The Android `package` and the iOS/tvOS `bundleIdentifier` are both
-`io.bk.tv`. Since the package differs from the Java app
-(`com.fongmi.android.tv`), the RN app installs next to it rather than over
-it, and the first-launch migration of Java app data finds nothing to import.
+The iOS/tvOS `bundleIdentifier` is `io.bk.tv`. The Android `package` stays
+`com.fongmi.android.tv`: third-party spider jars (e.g. xiaosa) check the
+package against a whitelist and kill the process when it is not listed.
 
 A single Android build serves phones and TV: `plugins/withAndroidLeanback.js`
 adds the `LEANBACK_LAUNCHER` category and declares leanback and touchscreen as

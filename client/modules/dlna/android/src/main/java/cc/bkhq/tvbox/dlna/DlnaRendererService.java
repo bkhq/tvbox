@@ -5,6 +5,7 @@ import android.app.NotificationChannel;
 import android.app.NotificationManager;
 import android.content.Intent;
 import android.os.Build;
+import android.util.Log;
 
 import org.jupnp.UpnpServiceConfiguration;
 import org.jupnp.android.AndroidUpnpServiceImpl;
@@ -31,12 +32,14 @@ public class DlnaRendererService extends AndroidUpnpServiceImpl {
 
     static final String EXTRA_NAME = "name";
 
+    private static final String TAG = "DlnaRendererService";
     private static final String CHANNEL = "dlna";
     private static final int NOTIFICATION_ID = 0x444c4e41;
 
     private UDN udn;
     private String name;
     private AvTransport avTransport;
+    private boolean running;
 
     @Override
     protected UpnpServiceConfiguration createConfiguration() {
@@ -48,11 +51,19 @@ public class DlnaRendererService extends AndroidUpnpServiceImpl {
         super.onCreate();
         startForeground();
         udn = new UDN(UUID.nameUUIDFromBytes((Build.MANUFACTURER + Build.MODEL + getPackageName() + "-MediaRenderer").getBytes(StandardCharsets.UTF_8)));
-        upnpService.startup();
+        try {
+            upnpService.startup();
+            running = true;
+        } catch (RuntimeException e) {
+            // A failed UPnP stack must not take the app down: log it and give up on DLNA.
+            Log.e(TAG, "UPnP startup failed", e);
+            stopSelf();
+        }
     }
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
+        if (!running) return START_NOT_STICKY;
         String requested = intent != null ? intent.getStringExtra(EXTRA_NAME) : null;
         if (requested != null && !requested.equals(name)) registerLocalDevice(requested);
         return START_NOT_STICKY;
@@ -66,7 +77,9 @@ public class DlnaRendererService extends AndroidUpnpServiceImpl {
         }
         avTransport = null;
         stopForeground(true);
-        super.onDestroy();
+        // The parent shuts the UPnP stack down, which throws when startup never completed.
+        if (running) super.onDestroy();
+        running = false;
     }
 
     /** Registers the renderer, replacing the one announced under a previous name. */

@@ -20,7 +20,7 @@
 
 ## 使用
 
-1. 从 [Releases](https://github.com/bkhq/tvbox/releases) 下载对应的 APK：`arm64_v8a` 适用于大多数设备，老旧 32 位盒子用 `armeabi_v7a`。最低 Android 7.0。已安装的旧版 Java App 会直接覆盖升级，并迁移配置。
+1. 从 [Releases](https://github.com/bkhq/tvbox/releases) 下载对应的 APK：`arm64_v8a` 适用于大多数设备，老旧 32 位盒子用 `armeabi_v7a`。最低 Android 7.0。
 2. 配置来源，任选一种：
    - **服务器关联**：设置 → 服务器关联 → 申请关联，记下屏幕上的设备编码，在 worker 后台批准后自动加载。
    - **手机控制**：电视首页 → 手机控制，用手机扫码，输入配对码，在「配置」页签添加地址。

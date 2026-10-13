@@ -20,7 +20,7 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  BUNDLE_ID: cc.bkhq.tvbox
+  BUNDLE_ID: io.bk.tv
 
 jobs:
   # Release tags are vX.Y.Z; versionCode = X*10000 + Y*100 + Z (the Java
@@ -98,7 +98,7 @@ jobs:
           yes | sdkmanager "platforms;android-$(version compileSdk)" "build-tools;$(version buildTools)" "ndk;$(version ndkVersion)" > /dev/null
 
       # Per-ABI flavors: assembleRelease writes leanback-arm64_v8a.apk and
-      # leanback-armeabi_v7a.apk, the flavors the Java app's channel serves.
+      # leanback-armeabi_v7a.apk, the flavors the tvbox channel serves.
       - name: Prebuild
         env:
           ANDROID_ABI_FLAVORS: "1"
@@ -380,8 +380,7 @@ jobs:
 
   # Publishes the APKs plus every ipa that was signed; unsigned Apple targets
   # only ran a compile check and contribute nothing. The APKs go out on the
-  # Java app's channel ("tvbox": same package and key, so existing installs
-  # upgrade in place); the ipas on the rn channel.
+  # "tvbox" channel, the ipas on the rn channel.
   publish:
     needs: [version, android, apple]
     if: startsWith(github.ref, 'refs/tags/v')

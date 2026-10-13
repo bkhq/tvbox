@@ -61,20 +61,23 @@ describe('copyLauncherResources', () => {
     resDir = fs.mkdtempSync(path.join(os.tmpdir(), 'launcher-res-'));
     fs.mkdirSync(path.join(resDir, 'mipmap-hdpi'));
     fs.writeFileSync(path.join(resDir, 'mipmap-hdpi', 'ic_launcher.webp'), 'template');
+    fs.writeFileSync(path.join(resDir, 'mipmap-hdpi', 'ic_launcher_round.webp'), 'template');
   });
 
   afterEach(() => fs.rmSync(resDir, { recursive: true, force: true }));
 
-  it('replaces the template icon with the Java app assets, repeatably', () => {
+  it('replaces the template icons with the app assets, repeatably', () => {
     copyLauncherResources(ASSETS_DIR, resDir);
     copyLauncherResources(ASSETS_DIR, resDir);
     expect(fs.existsSync(path.join(resDir, 'mipmap-hdpi', 'ic_launcher.webp'))).toBe(false);
+    expect(fs.existsSync(path.join(resDir, 'mipmap-hdpi', 'ic_launcher_round.webp'))).toBe(false);
     for (const file of [
       'mipmap-hdpi/ic_launcher.png',
-      'mipmap-xxxhdpi/ic_launcher_round.webp',
-      'mipmap-anydpi-v26/ic_banner.xml',
-      'drawable/ic_banner_foreground.xml',
-      'values/launcher_colors.xml',
+      'mipmap-xxxhdpi/ic_launcher_round.png',
+      'mipmap-xhdpi/ic_banner.png',
+      'mipmap-anydpi-v26/ic_launcher.xml',
+      'drawable/ic_launcher_background.xml',
+      'drawable/ic_launcher_foreground.xml',
     ]) {
       expect(fs.existsSync(path.join(resDir, file))).toBe(true);
     }

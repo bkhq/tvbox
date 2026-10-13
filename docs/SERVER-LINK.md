@@ -56,6 +56,6 @@ X-Device-Key: <deviceKey>
 - 后台吊销、设备端取消关联或删除申请记录都会解除绑定；重新批准会发新的 key。
 - 一个设备关联了多个 App 时，任意一个的 ID 和 key 都可以。没有经过关联的设备（后台手动添加的）不绑定，地址照常可用。
 
-`deviceId` 是随机生成并持久保存的 ID（形如 MAC 地址），与 AirPlay 共用；从旧版 Java App 升级时沿用原来的 ID、设备编码和关联状态。`model` 只在 Android 上填写，`abi` 目前为空。设备端代码在 `client/src/core/serverLink/`，设置界面在 `client/src/screens/settings/`。
+`deviceId` 是随机生成并持久保存的 ID（形如 MAC 地址），与 AirPlay 共用。`model` 只在 Android 上填写，`abi` 目前为空。设备端代码在 `client/src/core/serverLink/`，设置界面在 `client/src/screens/settings/`。
 
 > 状态：两端均已实现。worker 在站点根路径应答该接口，内部再转给后台 API，设备端不会接触到后台路径；申请在后台「设备」页审批，可新建设备或关联到已有设备。

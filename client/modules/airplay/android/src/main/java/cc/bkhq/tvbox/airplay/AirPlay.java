@@ -129,9 +129,15 @@ public class AirPlay implements Playback {
     private void acquireLock() {
         WifiManager wifi = (WifiManager) context.getSystemService(Context.WIFI_SERVICE);
         if (wifi == null) return;
-        lock = wifi.createMulticastLock("airplay");
-        lock.setReferenceCounted(false);
-        lock.acquire();
+        try {
+            lock = wifi.createMulticastLock("airplay");
+            lock.setReferenceCounted(false);
+            lock.acquire();
+        } catch (SecurityException e) {
+            // Best effort: mDNS still works on most devices without the lock.
+            e.printStackTrace();
+            lock = null;
+        }
     }
 
     private void releaseLock() {

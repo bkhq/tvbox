@@ -28,23 +28,26 @@ function setLauncherManifest(manifest) {
 
 /**
  * Copies the launcher assets into an Android res directory. The prebuild
- * template ships mipmap-<density>/ic_launcher.webp, which would clash with the
- * copied ic_launcher.png, so those are removed first.
+ * template ships mipmap-<density>/ic_launcher.webp and ic_launcher_round.webp,
+ * which would clash with the copied .png files, so those are removed first.
  *
  * @param {string} assetsDir
  * @param {string} resDir
  */
 function copyLauncherResources(assetsDir, resDir) {
   for (const density of DENSITIES) {
-    fs.rmSync(path.join(resDir, `mipmap-${density}`, 'ic_launcher.webp'), { force: true });
+    for (const name of ['ic_launcher.webp', 'ic_launcher_round.webp']) {
+      fs.rmSync(path.join(resDir, `mipmap-${density}`, name), { force: true });
+    }
   }
   fs.cpSync(assetsDir, resDir, { recursive: true });
 }
 
 /**
- * Uses the Java app's launcher icon, round icon and Android TV banner
- * (assets/android-res, copied from app/src/main/res). Expo's own icon
- * generation stays off because app.config.ts sets no `icon`/`adaptiveIcon`.
+ * Uses the launcher icon, round icon and Android TV banner in
+ * assets/android-res (rendered from assets/icon.svg). Expo's own Android icon
+ * generation stays off because app.config.ts sets no top-level `icon` or
+ * `android.adaptiveIcon`.
  *
  * @type {import('expo/config-plugins').ConfigPlugin}
  */

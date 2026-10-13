@@ -51,10 +51,10 @@ runtime via `getAppConfig()` in `src/core/appConfig.ts`.
 
 ## App id
 
-The Android `package` is `com.fongmi.android.tv`, the Java app's id: release
-APKs are signed with the same key and install over the Java app as an
-in-place upgrade (data dir differs from old `cc.bkhq.tvbox` debug installs).
-The iOS/tvOS `bundleIdentifier` stays `cc.bkhq.tvbox`.
+The Android `package` and the iOS/tvOS `bundleIdentifier` are both
+`io.bk.tv`. Since the package differs from the Java app
+(`com.fongmi.android.tv`), the RN app installs next to it rather than over
+it, and the first-launch migration of Java app data finds nothing to import.
 
 A single Android build serves phones and TV: `plugins/withAndroidLeanback.js`
 adds the `LEANBACK_LAUNCHER` category and declares leanback and touchscreen as
@@ -751,9 +751,8 @@ Everything under `client/.tmp/` is gitignored and can be deleted to start over.
 ## Release
 
 The RN app is the released product; the Java app (`backup/app/`) is no longer
-released. The Android APKs replace the Java app on its own update channel
-(same package and key, so installs upgrade in place); iOS/tvOS use the rn
-channel.
+released. The Android APKs use the `tvbox` update channel (`/u/stable/`);
+iOS/tvOS use the rn channel.
 
 ### Versioning
 
@@ -778,7 +777,7 @@ both platforms). Unset or blank values fall back to `1.0.0` / `1`; a
     debug keystore.
   - `apple` (matrix `ios`, `tvos`; `EXPO_TV=1` for tvOS): fetch MPVKit
     (see below), prebuild, `pod install`, then `xcodebuild archive` + `-exportArchive` (ad-hoc /
-    `release-testing`, manual signing of `cc.bkhq.tvbox`) ->
+    `release-testing`, manual signing of `io.bk.tv`) ->
     `ios-universal.ipa` / `tvos-universal.ipa`.
   - `publish` (tags only): creates the GitHub release with the binaries and
     the annotated tag message as notes, then uploads and registers them with
@@ -829,8 +828,8 @@ nothing is published to the rn channel for Android anymore. The app checks
 | `APPLE_CERTIFICATE_P12_BASE64`           | secret   | Base64 of the Apple Distribution certificate and key (`.p12`)       |
 | `APPLE_CERTIFICATE_PASSWORD`             | secret   | Password of the `.p12`                                              |
 | `APPLE_TEAM_ID`                          | secret   | Apple Developer team id                                             |
-| `APPLE_PROVISIONING_PROFILE_IOS_BASE64`  | secret   | Base64 of the iOS ad-hoc profile for `cc.bkhq.tvbox`                |
-| `APPLE_PROVISIONING_PROFILE_TVOS_BASE64` | secret   | Base64 of the tvOS ad-hoc profile for `cc.bkhq.tvbox`               |
+| `APPLE_PROVISIONING_PROFILE_IOS_BASE64`  | secret   | Base64 of the iOS ad-hoc profile for `io.bk.tv`                     |
+| `APPLE_PROVISIONING_PROFILE_TVOS_BASE64` | secret   | Base64 of the tvOS ad-hoc profile for `io.bk.tv`                    |
 | `CLOUDFLARE_API_TOKEN`                   | secret   | Wrangler token with R2 write access to the worker bucket            |
 | `CLOUDFLARE_ACCOUNT_ID`                  | secret   | Cloudflare account of the bucket                                    |
 | `SERVICE_TOKEN_RELEASE`                  | secret   | Worker `release` service token for the register call                |
@@ -838,8 +837,7 @@ nothing is published to the rn channel for Android anymore. The app checks
 | `ANDROID_KEY_ALIAS`                      | secret   | Key alias in the keystore                                           |
 | `ANDROID_KEYSTORE_PASSWORD`              | secret   | Store and key password                                              |
 
-The Android APK is signed with the Java app's key (which keeps in-place
-updates possible) from the `ANDROID_KEYSTORE_BASE64` (base64 of the `.jks`),
+The Android APK is signed with the release key from the `ANDROID_KEYSTORE_BASE64` (base64 of the `.jks`),
 `ANDROID_KEY_ALIAS` and `ANDROID_KEYSTORE_PASSWORD` secrets; the store
 password also serves as the key password. A missing secret fails the build;
 there is no debug-keystore fallback. The keystore is not in the repository.
@@ -860,7 +858,7 @@ the end of the job even when it fails.
 Ad-hoc ipas install only on devices listed in the profile:
 
 1. Add the device UDID in the Apple Developer portal (Devices).
-2. Regenerate the iOS and/or tvOS ad-hoc profiles for `cc.bkhq.tvbox` so
+2. Regenerate the iOS and/or tvOS ad-hoc profiles for `io.bk.tv` so
    they include the device, and download them.
 3. Update `APPLE_PROVISIONING_PROFILE_IOS_BASE64` /
    `APPLE_PROVISIONING_PROFILE_TVOS_BASE64` (`base64 -i profile.mobileprovision`).

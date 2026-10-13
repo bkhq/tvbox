@@ -60,9 +60,15 @@ internal class Mdns(private val context: Context) {
 
   private fun acquireLock() {
     val wifi = context.applicationContext.getSystemService(Context.WIFI_SERVICE) as? WifiManager ?: return
-    lock = wifi.createMulticastLock("mdns").apply {
-      setReferenceCounted(false)
-      acquire()
+    // Best effort: mDNS still works on most devices without the lock.
+    lock = try {
+      wifi.createMulticastLock("mdns").apply {
+        setReferenceCounted(false)
+        acquire()
+      }
+    } catch (e: SecurityException) {
+      e.printStackTrace()
+      null
     }
   }
 

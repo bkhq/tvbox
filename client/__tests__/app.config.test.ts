@@ -42,6 +42,15 @@ describe('app.config versioning', () => {
   });
 });
 
+describe('app.config identity', () => {
+  it('uses io.bk.tv on every platform and the shared icon on iOS', () => {
+    const config = loadConfig({});
+    expect(config.android?.package).toBe('io.bk.tv');
+    expect(config.ios?.bundleIdentifier).toBe('io.bk.tv');
+    expect(config.ios?.icon).toBe('./assets/icon.png');
+  });
+});
+
 describe('app.config network policy', () => {
   it('allows plain http on Android and iOS', () => {
     const config = loadConfig({});

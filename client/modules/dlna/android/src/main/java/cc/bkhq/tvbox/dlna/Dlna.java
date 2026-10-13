@@ -1,5 +1,6 @@
 package cc.bkhq.tvbox.dlna;
 
+import android.Manifest;
 import android.app.UiModeManager;
 import android.content.Context;
 import android.content.Intent;
@@ -52,9 +53,23 @@ public class Dlna {
         this.listener = listener;
     }
 
+    /** Permissions the UPnP stack needs; a missing one throws inside the service and kills the process. */
+    private static final String[] PERMISSIONS = {
+            Manifest.permission.INTERNET,
+            Manifest.permission.ACCESS_WIFI_STATE,
+            Manifest.permission.ACCESS_NETWORK_STATE,
+            Manifest.permission.CHANGE_WIFI_MULTICAST_STATE,
+            Manifest.permission.WAKE_LOCK,
+    };
+
     /** Starts the renderer, or renames it when it already runs. An empty name uses the device name. No-op off TV. */
     public void start(Context context, String name) {
         if (!isTv(context)) return;
+        for (String permission : PERMISSIONS) {
+            if (context.checkSelfPermission(permission) != PackageManager.PERMISSION_GRANTED) {
+                throw new IllegalStateException("DLNA needs " + permission);
+            }
+        }
         String friendlyName = name == null || name.trim().isEmpty() ? getDeviceName() : name.trim();
         context.startService(new Intent(context, DlnaRendererService.class).putExtra(DlnaRendererService.EXTRA_NAME, friendlyName));
     }

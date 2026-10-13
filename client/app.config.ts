@@ -3,9 +3,7 @@ import type { ConfigContext, ExpoConfig } from 'expo/config';
 import withAndroidAbiFlavors from './plugins/withAndroidAbiFlavors';
 import withAndroidLeanback from './plugins/withAndroidLeanback';
 
-// Android reuses the Java app's id so releases install as an in-place upgrade.
-const ANDROID_PACKAGE = 'com.fongmi.android.tv';
-const IOS_BUNDLE_ID = 'cc.bkhq.tvbox';
+const APP_ID = 'io.bk.tv';
 
 // Release builds set ANDROID_ABI_FLAVORS=1 for per-ABI APKs; the default stays universal.
 const abiFlavors = (process.env.ANDROID_ABI_FLAVORS ?? '').trim() === '1';
@@ -35,16 +33,17 @@ export default ({ config }: ConfigContext): ExpoConfig => {
     version: versionName,
     orientation: 'default',
     ios: {
-      bundleIdentifier: IOS_BUNDLE_ID,
+      bundleIdentifier: APP_ID,
+      // iOS only: Android uses assets/android-res (plugins/withAndroidLauncherAssets.js).
+      icon: './assets/icon.png',
       buildNumber: String(versionCode),
       // TVBox configs, CMS APIs and streams are commonly plain http.
       infoPlist: { NSAppTransportSecurity: { NSAllowsArbitraryLoads: true } },
     },
     android: {
-      package: ANDROID_PACKAGE,
+      package: APP_ID,
       versionCode,
-      // POST_NOTIFICATIONS: the DLNA foreground service shows a notification; declaring it also
-      // keeps a grant from the Java app across the in-place upgrade.
+      // POST_NOTIFICATIONS: the DLNA foreground service shows a notification.
       permissions: ['android.permission.REQUEST_INSTALL_PACKAGES', 'android.permission.POST_NOTIFICATIONS'],
       // Prebuild template defaults nothing in the app uses. LAN / multicast / foreground
       // service permissions come from the airplay, dlna and httpd module manifests.
@@ -75,7 +74,7 @@ export default ({ config }: ConfigContext): ExpoConfig => {
       '@react-native-tvos/config-tv',
       // Media3 HLS / DASH / SmoothStreaming are on by default; UIBackgroundModes audio for the background setting.
       ['react-native-video', { enableBackgroundAudio: true }],
-      // Java app launcher icon and Android TV banner; no expo `icon`, so nothing overwrites them.
+      // Launcher icon and Android TV banner; no top-level expo `icon`, so nothing overwrites them.
       './plugins/withAndroidLauncherAssets.js',
       // Android-only AirPlay receiver: app-level desugaring and Netty packaging excludes.
       './modules/airplay/app.plugin.js',

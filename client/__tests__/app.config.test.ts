@@ -83,3 +83,18 @@ describe('app.config Android permissions', () => {
     );
   });
 });
+
+describe('app.config fonts', () => {
+  it('embeds the bundled Outfit weights through expo-font', () => {
+    const fontPlugin = loadConfig({}).plugins?.find((plugin) => Array.isArray(plugin) && plugin[0] === 'expo-font') as
+      [string, { fonts: string[] }] | undefined;
+    expect(fontPlugin?.[1].fonts).toEqual([
+      './assets/fonts/Outfit-Medium.ttf',
+      './assets/fonts/Outfit-SemiBold.ttf',
+      './assets/fonts/Outfit-Bold.ttf',
+    ]);
+    const fs = jest.requireActual<typeof import('fs')>('fs');
+    const path = jest.requireActual<typeof import('path')>('path');
+    for (const file of fontPlugin![1].fonts) expect(fs.existsSync(path.join(__dirname, '..', file))).toBe(true);
+  });
+});

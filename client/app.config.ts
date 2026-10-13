@@ -84,6 +84,17 @@ export default ({ config }: ConfigContext): ExpoConfig => {
       './modules/jarspider/app.plugin.js',
       // Local network usage text and Bonjour service for the httpd module (iOS/tvOS).
       './modules/httpd/app.plugin.js',
+      // Outfit for Latin text and digits, embedded at build time; family names are the file names.
+      [
+        'expo-font',
+        {
+          fonts: [
+            './assets/fonts/Outfit-Medium.ttf',
+            './assets/fonts/Outfit-SemiBold.ttf',
+            './assets/fonts/Outfit-Bold.ttf',
+          ],
+        },
+      ],
     ],
     extra: {
       workerUrl,

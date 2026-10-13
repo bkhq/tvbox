@@ -1,38 +1,40 @@
+import { color, focus, radii, space, type } from './tokens';
+
+// Legacy dp values for static StyleSheets: design px at the TV baseline (1920 px -> 960 dp).
+const dp = (designPx: number) => Math.round(designPx / 2);
+
 export const colors = {
-  background: '#0b0b0f',
-  surface: '#1c1c22',
-  surfaceFocused: '#2c2c36',
-  primary: '#3d8bfd',
-  text: '#ffffff',
-  textSecondary: '#a0a0ab',
+  background: color.bg,
+  surface: color.surface,
+  surfaceFocused: color.surface2,
+  primary: color.accent,
+  text: color.text,
+  textSecondary: color.text2,
   border: 'transparent',
-  focusBorder: '#ffffff',
+  focusBorder: color.focusBorder,
   remarkBackground: 'rgba(0, 0, 0, 0.6)',
 } as const;
 
 export const spacing = {
-  xs: 4,
-  sm: 8,
-  md: 12,
-  lg: 16,
-  xl: 24,
+  xs: dp(space.xs),
+  sm: dp(space.sm),
+  md: dp(space.md),
+  lg: dp(space.lg),
+  xl: dp(space.xl),
 } as const;
 
 export const fontSize = {
-  caption: 12,
-  body: 14,
-  title: 16,
-  heading: 20,
-  display: 28,
+  caption: dp(type.caption.fontSize),
+  body: dp(type.body.fontSize),
+  title: dp(type.h2.fontSize),
+  heading: dp(type.h1.fontSize),
+  display: dp(type.displaySm.fontSize),
 } as const;
 
-export const radius = {
-  sm: 4,
-  md: 8,
-} as const;
+export const radius = { sm: dp(radii.tag), md: dp(radii.card) } as const;
 
 /** Scale applied to a focused card or button. */
-export const focusScale = 1.08;
+export const focusScale = focus.scale;
 
 export const theme = { colors, spacing, fontSize, radius, focusScale } as const;
 export type Theme = typeof theme;

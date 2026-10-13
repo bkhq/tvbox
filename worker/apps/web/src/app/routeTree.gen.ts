@@ -19,6 +19,7 @@ import { Route as AppAdminRouteRouteImport } from './routes/_app/admin/route'
 import { Route as AppOverviewRouteRouteImport } from './routes/_app/overview/route'
 import { Route as AppAdminAuditRouteImport } from './routes/_app/admin/audit'
 import { Route as AppAdminDevicesRouteImport } from './routes/_app/admin/devices'
+import { Route as AppAdminMediaRouteImport } from './routes/_app/admin/media'
 import { Route as AppAdminReleasesRouteImport } from './routes/_app/admin/releases'
 import { Route as AppAdminSettingsRouteImport } from './routes/_app/admin/settings'
 import { Route as AppAdminTvboxRouteImport } from './routes/_app/admin/tvbox'
@@ -81,6 +82,13 @@ const AppAdminDevicesRoute = AppAdminDevicesRouteImport.update({
 } as any).lazy(() =>
   import('./routes/_app/admin/devices.lazy').then((d) => d.Route),
 )
+const AppAdminMediaRoute = AppAdminMediaRouteImport.update({
+  id: '/media',
+  path: '/media',
+  getParentRoute: () => AppAdminRouteRoute,
+} as any).lazy(() =>
+  import('./routes/_app/admin/media.lazy').then((d) => d.Route),
+)
 const AppAdminReleasesRoute = AppAdminReleasesRouteImport.update({
   id: '/releases',
   path: '/releases',
@@ -132,6 +140,7 @@ export interface FileRoutesByFullPath {
   '/error': typeof errorErrorRoute
   '/admin/audit': typeof AppAdminAuditRoute
   '/admin/devices': typeof AppAdminDevicesRoute
+  '/admin/media': typeof AppAdminMediaRoute
   '/admin/releases': typeof AppAdminReleasesRoute
   '/admin/settings': typeof AppAdminSettingsRoute
   '/admin/tvbox': typeof AppAdminTvboxRoute
@@ -149,6 +158,7 @@ export interface FileRoutesByTo {
   '/': typeof AppIndexRoute
   '/admin/audit': typeof AppAdminAuditRoute
   '/admin/devices': typeof AppAdminDevicesRoute
+  '/admin/media': typeof AppAdminMediaRoute
   '/admin/releases': typeof AppAdminReleasesRoute
   '/admin/settings': typeof AppAdminSettingsRoute
   '/admin/tvbox': typeof AppAdminTvboxRoute
@@ -167,6 +177,7 @@ export interface FileRoutesById {
   '/_app/': typeof AppIndexRoute
   '/_app/admin/audit': typeof AppAdminAuditRoute
   '/_app/admin/devices': typeof AppAdminDevicesRoute
+  '/_app/admin/media': typeof AppAdminMediaRoute
   '/_app/admin/releases': typeof AppAdminReleasesRoute
   '/_app/admin/settings': typeof AppAdminSettingsRoute
   '/_app/admin/tvbox': typeof AppAdminTvboxRoute
@@ -186,6 +197,7 @@ export interface FileRouteTypes {
     | '/error'
     | '/admin/audit'
     | '/admin/devices'
+    | '/admin/media'
     | '/admin/releases'
     | '/admin/settings'
     | '/admin/tvbox'
@@ -203,6 +215,7 @@ export interface FileRouteTypes {
     | '/'
     | '/admin/audit'
     | '/admin/devices'
+    | '/admin/media'
     | '/admin/releases'
     | '/admin/settings'
     | '/admin/tvbox'
@@ -220,6 +233,7 @@ export interface FileRouteTypes {
     | '/_app/'
     | '/_app/admin/audit'
     | '/_app/admin/devices'
+    | '/_app/admin/media'
     | '/_app/admin/releases'
     | '/_app/admin/settings'
     | '/_app/admin/tvbox'
@@ -308,6 +322,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppAdminDevicesRouteImport
       parentRoute: typeof AppAdminRouteRoute
     }
+    '/_app/admin/media': {
+      id: '/_app/admin/media'
+      path: '/media'
+      fullPath: '/admin/media'
+      preLoaderRoute: typeof AppAdminMediaRouteImport
+      parentRoute: typeof AppAdminRouteRoute
+    }
     '/_app/admin/releases': {
       id: '/_app/admin/releases'
       path: '/releases'
@@ -370,6 +391,7 @@ const AppAdminUsersRouteWithChildren = AppAdminUsersRoute._addFileChildren(
 interface AppAdminRouteRouteChildren {
   AppAdminAuditRoute: typeof AppAdminAuditRoute
   AppAdminDevicesRoute: typeof AppAdminDevicesRoute
+  AppAdminMediaRoute: typeof AppAdminMediaRoute
   AppAdminReleasesRoute: typeof AppAdminReleasesRoute
   AppAdminSettingsRoute: typeof AppAdminSettingsRoute
   AppAdminTvboxRoute: typeof AppAdminTvboxRoute
@@ -379,6 +401,7 @@ interface AppAdminRouteRouteChildren {
 const AppAdminRouteRouteChildren: AppAdminRouteRouteChildren = {
   AppAdminAuditRoute: AppAdminAuditRoute,
   AppAdminDevicesRoute: AppAdminDevicesRoute,
+  AppAdminMediaRoute: AppAdminMediaRoute,
   AppAdminReleasesRoute: AppAdminReleasesRoute,
   AppAdminSettingsRoute: AppAdminSettingsRoute,
   AppAdminTvboxRoute: AppAdminTvboxRoute,

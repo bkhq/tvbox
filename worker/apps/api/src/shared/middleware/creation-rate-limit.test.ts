@@ -94,11 +94,24 @@ describe("discoverCreationRoutes", () => {
 
     const resources = [...new Set(discoverCreationRoutes(app).map(f => f.resource))].sort();
     expect(resources).toEqual([
+      "category",
+      "collection",
+      "credit",
       "device",
       "entry",
+      "episode",
+      "external-id",
+      "genre",
       "group",
+      "image",
       "member",
+      "people",
       "publish",
+      "row",
+      "season",
+      "source",
+      "stream",
+      "title",
       // Minting personal API tokens is throttled like any other create.
       "token",
       "totp",

@@ -1,6 +1,7 @@
 import type { DurableObjectNamespace, DurableObjectState, Fetcher, R2Bucket } from "@cloudflare/workers-types";
-import type { SubscriptionBucket } from "./subscription";
+import type { MediaDatabase, SubscriptionBucket } from "./subscription";
 import { bootstrap } from "@/app";
+import { setReadModelDb } from "@/modules/media/readmodel/store";
 import { setPlatform } from "@/platform";
 import { handleDoh } from "./doh";
 import { handleLanding } from "./landing";
@@ -29,6 +30,8 @@ export interface WorkerEnv {
   APP: DurableObjectNamespace;
   /** Blob storage for the file module. Required when FILE_STORAGE_DRIVER=r2. */
   FILES?: R2Bucket;
+  /** The media library's read model (D1), written by publishing and read by `/s/<token>/media`. */
+  MEDIA?: MediaDatabase;
   /** The console SPA (apps/web/dist). */
   ASSETS: Fetcher;
   /** Prefix of the console and its API, e.g. "/mg". */
@@ -81,6 +84,7 @@ export class AppDurableObject {
       if (env.FILES) {
         registerR2Driver(env.FILES);
       }
+      setReadModelDb(env.MEDIA ?? null);
       this.#configVersion = await envFingerprint(env as Record<string, unknown>);
       const app = await bootstrap();
       this.#fetchApp = app.fetch;
@@ -155,7 +159,7 @@ export default {
       case "landing":
         return handleLanding(request, files);
       case "subscription":
-        return handleSubscription(request, files);
+        return handleSubscription(request, { ...files, MEDIA: env.MEDIA });
       case "updates":
         return handleUpdates(request, files);
       case "doh":

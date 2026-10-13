@@ -13,6 +13,7 @@ import { passwordHashUnsupportedReason } from "./modules/account/auth/password";
 import { startAuditRetentionSweep } from "./modules/audit";
 import { docsCspRelax, mountDocs } from "./modules/docs";
 import { initFileModule, startFileGcSweep } from "./modules/file";
+import { initMedia } from "./modules/media";
 import { initTvbox } from "./modules/tvbox";
 import { protectedRoutes, publicRoutes, rawRoutes } from "./routes";
 import { getAuthConfig, seedSettingsFromEnv } from "./shared/lib/app-config";
@@ -118,6 +119,7 @@ export async function buildFullApp({ config, db, logger }: AppDeps) {
   await initFileModule(config, logger);
   startFileGcSweep(db, config, logger);
   await initTvbox(db, config, logger);
+  await initMedia(db);
   // OpenAPI spec (/openapi.json) + Scalar UI (/docs). Mounted BEFORE the
   // route modules: Hono middleware only applies to routes registered after
   // it, so mounting here keeps docs outside every module's `use("*")` auth /

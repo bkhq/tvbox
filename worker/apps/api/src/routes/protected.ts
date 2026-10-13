@@ -4,6 +4,7 @@ import { accountRoutes } from "@/modules/account";
 import { auditRoutes } from "@/modules/audit";
 import { backupRoutes } from "@/modules/backup";
 import { fileRoutes } from "@/modules/file";
+import { mediaRoutes } from "@/modules/media";
 import { settingsRoutes } from "@/modules/settings";
 import { enrollRoutes, releaseRoutes, tvboxRoutes } from "@/modules/tvbox";
 
@@ -18,6 +19,7 @@ export function protectedRoutes() {
   app.route("/", tvboxRoutes());
   app.route("/", releaseRoutes());
   app.route("/", enrollRoutes());
+  app.route("/", mediaRoutes());
 
   return app;
 }

@@ -34,6 +34,7 @@ export const TAGS = {
   Backup: "Backup",
   File: "File",
   Tvbox: "TVBox",
+  Media: "Media",
   Raw: "Raw",
 } as const;
 

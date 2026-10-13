@@ -12,7 +12,9 @@
  *   3. assets        — the SPA is served by the asset pipeline
  *   4. tvbox         — sync a real upstream into R2, publish, and read it back
  *                      through `/s/<token>/` without the Durable Object
- *   5. rate limiting — the creation cap is enforced from the database
+ *   5. media         — publish the library into D1 and read it back
+ *                      through `/s/<token>/media/v1`
+ *   6. rate limiting — the creation cap is enforced from the database
  *
  * With `--oidc` it checks a deployment configured for OpenID Connect
  * instead. Such a deployment has no local password to log in with — the SPA
@@ -359,6 +361,108 @@ const cases: Case[] = [
     },
   },
   {
+    name: "a media series with more than 100 episodes is generated, renumbered and deleted",
+    async run() {
+      const post = (path: string, body: unknown) => call(`${BASE_PATH}/api${path}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      const created = await post("/media/titles", { kind: "series", categoryId: "tv", title: "smoke series", genreIds: ["g18"] });
+      if (created.status !== 201)
+        throw new SmokeError(`create returned ${created.status}: ${await created.text()}`);
+      const title = (await json<{ data: { id: number } }>(created)).data;
+      const seasons = await json<{ data: { id: number; seasonNumber: number }[] }>(await call(`${BASE_PATH}/api/media/titles/${title.id}/seasons`));
+      const season = seasons.data[0]!;
+      assert(season.seasonNumber === 1, "a series did not start with season 1");
+
+      const generated = await json<{ data: { count: number } }>(await post(`/media/seasons/${season.id}/episodes/generate`, { from: 1, to: 120 }));
+      assert(generated.data.count === 120, `generated ${generated.data.count} episodes`);
+      const shifted = await json<{ data: { count: number } }>(await post(`/media/seasons/${season.id}/episodes/shift`, { from: 1, delta: 1 }));
+      assert(shifted.data.count === 120, `shifted ${shifted.data.count} episodes`);
+      const episodes = await json<{ data: { episodeNumber: number }[] }>(await call(`${BASE_PATH}/api/media/seasons/${season.id}/episodes`));
+      assert(episodes.data[0]!.episodeNumber === 2 && episodes.data.at(-1)!.episodeNumber === 121, "episodes were not renumbered");
+
+      const del = await call(`${BASE_PATH}/api/media/titles/${title.id}`, { method: "DELETE" });
+      assert(del.status === 200, `delete returned ${del.status}`);
+      const gone = await call(`${BASE_PATH}/api/media/seasons/${season.id}`);
+      assert(gone.status === 404, `the season outlived its title (${gone.status})`);
+    },
+  },
+  {
+    // Publishing projects the library into D1; the Worker answers from it.
+    name: "a published movie is served by the media API from D1",
+    async run() {
+      const post = async (path: string, body: unknown) => {
+        const res = await call(`${BASE_PATH}/api${path}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+        if (res.status !== 201)
+          throw new SmokeError(`${path} returned ${res.status}: ${await res.text()}`);
+        return (await json<{ data: { id: string | number } }>(res)).data;
+      };
+      const movie = await post("/media/titles", { kind: "movie", categoryId: "movie", title: "冒烟测试电影", releaseDate: "2020-01-01", genreIds: ["g28"], publishState: "published" });
+      const source = await post(`/media/titles/${movie.id}/sources`, { name: "smoke", quality: "1080p" });
+      await post(`/media/sources/${source.id}/streams`, { url: "https://example.com/smoke.m3u8" });
+      await post("/tvbox/entries", { kind: "sites", data: { key: "own_media", name: "媒体库", type: 1, api: "@media/cms", mediaApi: "@media/v1" } });
+      const imported = await call(`${BASE_PATH}/api/media/live/import`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text: "#EXTM3U\n#EXTINF:-1 group-title=\"冒烟\",Smoke TV\nhttps://example.com/live.m3u8\n" }),
+      });
+      assert(imported.status === 200, `the live import returned ${imported.status}`);
+      await imported.text();
+      const published = await call(`${BASE_PATH}/api/tvbox/publishes`, { method: "POST" });
+      if (published.status !== 201)
+        throw new SmokeError(`publish returned ${published.status}: ${await published.text()}`);
+      await published.text();
+
+      const media = (path: string, init?: RequestInit) => fetch(`${baseUrl}/s/${subscriptionToken}/media/v1${path}`, init);
+      const manifest = await media("/manifest");
+      if (manifest.status !== 200)
+        throw new SmokeError(`manifest returned ${manifest.status}: ${await manifest.text()}`);
+      const m = await json<{ generation: string; categories: { id: string; count: number }[] }>(manifest);
+      assert(m.categories.find(c => c.id === "movie")?.count === 1, "the manifest does not count the movie");
+
+      const page = await json<{ items: { id: string }[] }>(await media("/browse?category=movie&sort=release"));
+      assert(page.items.length === 1 && page.items[0]!.id === `t${movie.id}`, "browse did not list the movie");
+      // Three characters go through the FTS5 trigram index, two through LIKE.
+      for (const q of ["冒烟测试", "电影"]) {
+        const found = await json<{ titles: { id: string }[] }>(await media(`/search?q=${encodeURIComponent(q)}`));
+        assert(found.titles.some(t => t.id === `t${movie.id}`), `searching ${q} did not find the movie`);
+      }
+
+      const title = await media(`/titles/t${movie.id}`);
+      assert(title.status === 200, `the title returned ${title.status}`);
+      const etag = title.headers.get("etag");
+      assert(etag === `"${m.generation}"`, `the title's ETag ${etag} is not the generation`);
+      await title.text();
+      const again = await media(`/titles/t${movie.id}`, { headers: { "If-None-Match": etag } });
+      assert(again.status === 304, `a matching ETag returned ${again.status}`);
+      await again.text();
+
+      // The config names this device's media library; the CMS layer and the playlist answer from D1.
+      // The Worker re-reads the published config at most every 30 seconds.
+      let site: { key: string; api: string; mediaApi?: string } | undefined;
+      for (let i = 0; i < 40 && !site; i++) {
+        const config = await json<{ sites?: { key: string; api: string; mediaApi?: string }[] }>(await fetch(`${baseUrl}/s/${subscriptionToken}/api.json`));
+        site = config.sites?.find(s => s.key === "own_media");
+        if (!site)
+          await sleep(1000);
+      }
+      // Locally `wrangler dev` presents requests under the route's host, so only the path is compared.
+      const api = site ? new URL(site.api).pathname : "";
+      assert(api === `/s/${subscriptionToken}/media/cms`, `the media site's api is ${site?.api}`);
+      const cms = await json<{ list: { vod_id: string; vod_play_url: string }[] }>(await fetch(`${baseUrl}${api}?ac=detail&ids=m${movie.id}`));
+      assert(cms.list[0]?.vod_play_url === "正片$https://example.com/smoke.m3u8", `the CMS detail plays ${cms.list[0]?.vod_play_url}`);
+      const m3u = await (await fetch(`${baseUrl}/s/${subscriptionToken}/media/live.m3u`)).text();
+      assert(m3u.includes("https://example.com/live.m3u8"), "the live playlist lacks the imported channel");
+
+      const playback = await media(`/playback/t${movie.id}`);
+      assert(playback.headers.get("cache-control") === "no-store", "playback is cacheable");
+      const play = await json<{ sources: { streams: { url: string }[] }[] }>(playback);
+      assert(play.sources[0]?.streams[0]?.url === "https://example.com/smoke.m3u8", "playback lost the stream");
+    },
+  },
+  {
     // Runs last: it spends whatever creation budget the cases above left.
     name: "creation rate limit is enforced from the database",
     async run() {
@@ -498,6 +602,12 @@ async function main(): Promise<void> {
       recursive: true,
       force: true,
     });
+    // The media read model is a D1 database; publishing writes into it.
+    const migrated = Bun.spawnSync(
+      ["./node_modules/.bin/wrangler", "d1", "migrations", "apply", "MEDIA", "--local"],
+      { cwd: new URL("../../apps/api", import.meta.url).pathname, env: { ...process.env, CI: "1", WRANGLER_SEND_METRICS: "false" } },
+    );
+    assert(migrated.exitCode === 0, `migrating the local D1 database failed: ${migrated.stderr.toString()}`);
     dev = Bun.spawn(
       ["./node_modules/.bin/wrangler", "dev", "--port", String(PORT), "--ip", "127.0.0.1"],
       {

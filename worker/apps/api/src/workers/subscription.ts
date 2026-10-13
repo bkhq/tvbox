@@ -1,8 +1,10 @@
+import type { ReadModelDb } from "@/modules/media/readmodel/store";
 import type { PublishedSnapshot } from "@/modules/tvbox/compose";
 import type { DevicesFile } from "@/modules/tvbox/storage";
 import { deriveStorageKey } from "@/modules/file/storage/key";
 import { composeForDevice } from "@/modules/tvbox/compose";
 import { DEVICES_KEY, PUBLISHED_KEY } from "@/modules/tvbox/storage";
+import { handleMedia } from "./media";
 
 /**
  * TVBox subscription served at `/s/<token>/`.
@@ -14,14 +16,18 @@ import { DEVICES_KEY, PUBLISHED_KEY } from "@/modules/tvbox/storage";
  *                                        the published snapshot and the
  *                                        device's upstreams
  *   /s/<token>/a/<sha256>/<name>         a mirrored file, by content hash
+ *   /s/<token>/media/…                   the media library, from the D1
+ *                                        read model (./media)
  *
  * A device bound to linked apps serves its config only to a request with
  * one app's X-Device-Id and X-Device-Key, so the URL alone is not enough.
- * Files are not checked: they are addressed by content, and not every
- * client the app uses for them sends the headers.
+ * Files and the media library are not checked: files are addressed by
+ * content, and not every client the app uses for them or for a site's API
+ * sends the headers.
  *
  * The config references its files as `./a/...`, which TVBox resolves under
- * the same prefix.
+ * the same prefix, and the media library as `@media/...`, made absolute here
+ * because a site's `api` is not resolved against the config's url.
  */
 
 /** The slice of an R2 bucket this needs, so tests can pass a fake. */
@@ -29,11 +35,19 @@ export interface SubscriptionBucket {
   get: (key: string) => Promise<{ readonly body: ReadableStream | null; readonly size?: number; text: () => Promise<string> } | null>;
 }
 
+/** The media read model: a D1 binding, whose sessions read from the nearest replica. */
+export interface MediaDatabase extends ReadModelDb {
+  withSession?: (constraint: "first-unconstrained") => ReadModelDb;
+}
+
 export interface SubscriptionEnv {
   readonly FILES?: SubscriptionBucket | undefined;
+  readonly MEDIA?: MediaDatabase | undefined;
 }
 
 export const SUBSCRIPTION_PREFIX = "/s/";
+/** Stands for `<origin>/s/<token>/media/` in a published entry. */
+export const MEDIA_PLACEHOLDER = "@media/";
 
 // Per isolate and per bucket: a device change or a publish shows within this.
 const CACHE_TTL_MS = 30_000;
@@ -116,8 +130,23 @@ export async function handleSubscription(request: Request, env: SubscriptionEnv)
     // A wrong or stale key looks like a wrong token: the app then asks for its current link.
     if (!state.snapshot || !(await isBoundApp(request, device)))
       return notFound();
-    return new Response(JSON.stringify(composeForDevice(state.snapshot, device.upstreams)), {
+    // `@media/…` (a site's `api`, a live source's `url`) names this device's media library.
+    const config = JSON.stringify(composeForDevice(state.snapshot, device.upstreams))
+      .replaceAll(`"${MEDIA_PLACEHOLDER}`, `"${new URL(request.url).origin}${SUBSCRIPTION_PREFIX}${token}/media/`);
+    return new Response(config, {
       headers: { "content-type": CONTENT_TYPES.json!, "cache-control": "private, max-age=60" },
+    });
+  }
+
+  if (path.startsWith("/media/")) {
+    if (!env.MEDIA)
+      return notFound();
+    return handleMedia({
+      request,
+      rm: env.MEDIA.withSession?.("first-unconstrained") ?? env.MEDIA,
+      cacheKey: env.MEDIA,
+      path: path.slice("/media".length),
+      assetBase: `${new URL(request.url).origin}${SUBSCRIPTION_PREFIX}${token}/a/`,
     });
   }
 

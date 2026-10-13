@@ -150,6 +150,26 @@ jobs:
           bunx wrangler r2 bucket create "$bucket" 2>&1 | tee /tmp/bucket.log \
             || grep -qiE "already (exists|owned)" /tmp/bucket.log
 
+      # The media read model's database: created on the first deploy, its id
+      # filled into wrangler.toml for this run, and migrated before the code
+      # that reads the new schema ships.
+      - name: Ensure the D1 database exists and is migrated
+        working-directory: worker/apps/api
+        run: |
+          name="$(grep -oP 'database_name = "\K[^"]+' wrangler.toml)"
+          lookup() { bunx wrangler d1 list --json | jq -r --arg n "$name" '.[] | select(.name == $n) | .uuid'; }
+          id="$(lookup)"
+          if [ -z "$id" ]; then
+            bunx wrangler d1 create "$name"
+            id="$(lookup)"
+          fi
+          if [ -z "$id" ]; then
+            echo "::error::could not resolve the D1 database $name"
+            exit 1
+          fi
+          sed -i "s/^database_name = \"$name\"$/&\ndatabase_id = \"$id\"/" wrangler.toml
+          bunx wrangler d1 migrations apply MEDIA --remote
+
       # Login is OpenID Connect. Secrets ship in the same version as the
       # code (`--secrets-file` is additive: one left out keeps its deployed
       # value); the rest is plain configuration passed as vars.

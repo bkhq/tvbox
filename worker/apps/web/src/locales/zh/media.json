@@ -1,0 +1,281 @@
+{
+  "page": {
+    "title": "媒体库",
+    "description": "自有的点播和直播内容：作品、季和集，播放源，首页编排。发布后由订阅的 /media 接口提供。"
+  },
+  "tabs": {
+    "titles": "作品",
+    "people": "人物",
+    "taxonomy": "分类与题材",
+    "home": "首页编排",
+    "live": "直播",
+    "publish": "发布"
+  },
+  "actions": "操作",
+  "add": "添加",
+  "save": "保存",
+  "prev": "上一页",
+  "next": "下一页",
+  "kind": {
+    "movie": "电影",
+    "series": "剧集"
+  },
+  "state": {
+    "draft": "草稿",
+    "published": "已发布",
+    "hidden": "已隐藏"
+  },
+  "status": {
+    "upcoming": "即将上线",
+    "released": "已上映",
+    "returning": "连载中",
+    "ended": "已完结",
+    "canceled": "已取消"
+  },
+  "seasonStatus": {
+    "upcoming": "未开播",
+    "airing": "播出中",
+    "ended": "已完结"
+  },
+  "episodeType": {
+    "standard": "正片",
+    "premiere": "首集",
+    "finale": "大结局",
+    "special": "特别篇"
+  },
+  "picker": {
+    "empty": "还没有选择作品。",
+    "search": "搜索作品并添加"
+  },
+  "titles": {
+    "search": "搜索标题或别名",
+    "allCategories": "全部分类",
+    "allKinds": "全部类型",
+    "allStates": "全部状态",
+    "add": "添加作品",
+    "empty": "没有符合条件的作品。",
+    "title": "标题",
+    "kind": "类型",
+    "category": "分类",
+    "state": "发布状态",
+    "updated": "更新时间",
+    "seasonCount": "{{count}} 季",
+    "seriesHint": "剧集会自动创建第 1 季。",
+    "deleteTitle": "删除作品",
+    "deleteDescription": "删除「{{name}}」及其所有季、集、播放源和图片？"
+  },
+  "editor": {
+    "info": "基本信息",
+    "seasons": "季与集",
+    "sources": "播放源",
+    "credits": "演职员",
+    "images": "图片",
+    "external": "外部 ID"
+  },
+  "info": {
+    "originalTitle": "原名",
+    "aliases": "别名（逗号分隔）",
+    "status": "状态",
+    "statusLocked": "锁定状态，不按季自动更新",
+    "releaseDate": "上映日期",
+    "runtime": "片长（分钟）",
+    "contentRating": "分级",
+    "countries": "国家或地区（ISO 代码）",
+    "language": "原始语言（ISO 代码）",
+    "collection": "合集",
+    "noCollection": "无",
+    "rating": "评分",
+    "popularity": "热度",
+    "tagline": "标语",
+    "overview": "简介",
+    "genres": "题材"
+  },
+  "seasons": {
+    "add": "添加季",
+    "numbered": "第 {{number}} 季",
+    "number": "季号",
+    "name": "名称",
+    "airDate": "播出日期",
+    "endDate": "完结日期",
+    "episodeTotal": "计划集数",
+    "schedule": "更新时间说明",
+    "schedulePlaceholder": "每周五 20:00",
+    "deleteTitle": "删除这一季",
+    "deleteDescription": "这一季的集、播放源和图片会一并删除。"
+  },
+  "episodes": {
+    "title": "集",
+    "from": "从第",
+    "to": "到第",
+    "delta": "偏移",
+    "start": "首集日期",
+    "interval": "间隔天数",
+    "generate": "批量生成",
+    "shift": "重新编号",
+    "schedule": "排期",
+    "empty": "还没有集。",
+    "name": "集名",
+    "type": "类型",
+    "published": "发布",
+    "hint": "有播放地址、已发布且播出日期已到的集才对用户可见；点集名可修改。"
+  },
+  "sources": {
+    "empty": "还没有播放源。",
+    "name": "播放源名称",
+    "add": "添加播放源",
+    "streamCount": "{{count}} 条地址",
+    "episode": "第 {{number}} 集"
+  },
+  "paste": {
+    "label": "批量粘贴：每行一条「集名$地址」，按集号对齐到集",
+    "createMissing": "为对不上的集号创建新集",
+    "preview": "预览",
+    "apply": "写入",
+    "summary": "对齐 {{matched}} 条，缺集 {{missing}} 条，无法对齐 {{unmatched}} 条；写入 {{written}} 条，新建 {{created}} 集。",
+    "missing": "第 {{number}} 集不存在：{{name}}",
+    "reason": {
+      "no-number": "认不出集号：{{name}}",
+      "duplicate": "集号重复：{{name}}",
+      "no-episode": "没有对应的集：{{name}}"
+    }
+  },
+  "credits": {
+    "empty": "还没有演职员。",
+    "person": "人物",
+    "role": "职责",
+    "as": "角色 / 职位",
+    "season": "季",
+    "allSeasons": "全部季",
+    "change": "更换",
+    "searchPerson": "搜索人物",
+    "newPerson": "新建「{{name}}」",
+    "character": "饰演角色",
+    "job": "职位",
+    "add": "添加演职员",
+    "roles": {
+      "cast": "演员",
+      "crew": "幕后"
+    },
+    "jobs": {
+      "Director": "导演",
+      "Writer": "编剧",
+      "Screenplay": "剧本",
+      "Creator": "主创",
+      "Producer": "制片"
+    }
+  },
+  "images": {
+    "upload": "上传",
+    "primary": "主图",
+    "makePrimary": "设为主图",
+    "kinds": {
+      "poster": "海报",
+      "backdrop": "横幅背景",
+      "logo": "Logo",
+      "still": "剧照",
+      "profile": "头像"
+    },
+    "sizes": {
+      "poster": "竖版 2:3，建议 600×900 以上",
+      "backdrop": "横版 16:9，建议 1920×1080",
+      "logo": "透明底 PNG，建议宽 800",
+      "still": "横版 16:9，建议 1280×720",
+      "profile": "竖版 2:3，建议 300×450"
+    }
+  },
+  "external": {
+    "empty": "还没有外部 ID。"
+  },
+  "people": {
+    "search": "搜索人物",
+    "add": "添加人物",
+    "empty": "没有符合条件的人物。",
+    "name": "姓名",
+    "originalName": "原名",
+    "gender": "性别",
+    "birthday": "生日",
+    "placeOfBirth": "出生地",
+    "biography": "简介",
+    "deleteTitle": "删除人物",
+    "deleteDescription": "删除「{{name}}」及其所有演职员记录？",
+    "genders": {
+      "none": "未填写",
+      "female": "女",
+      "male": "男",
+      "other": "其他"
+    }
+  },
+  "taxonomy": {
+    "categories": "分类",
+    "categoriesHint": "分类决定客户端的频道和筛选；有作品的分类不能删除。",
+    "genres": "题材",
+    "collections": "合集",
+    "collectionsHint": "系列电影等成组的作品；在作品的基本信息里选择合集。",
+    "name": "名称",
+    "kinds": "允许的类型",
+    "titles": "作品数",
+    "titleCount": "{{count}} 部"
+  },
+  "home": {
+    "hero": "主推位",
+    "heroHint": "首页顶部轮播，最多 10 部，建议都有横幅背景和 Logo。",
+    "rows": "推荐行",
+    "addRow": "添加推荐行",
+    "empty": "还没有推荐行。",
+    "name": "名称",
+    "content": "内容",
+    "onHome": "显示在首页",
+    "kind": "类型",
+    "kinds": {
+      "manual": "手动片单",
+      "rule": "按规则"
+    },
+    "any": "不限",
+    "sort": "排序",
+    "limit": "数量",
+    "sorts": {
+      "updated": "最近更新",
+      "popular": "最热门",
+      "release": "最新上映",
+      "rating": "评分最高"
+    },
+    "ruleSummary": "{{sort}} · {{limit}} 部",
+    "manualSummary": "手动 · {{count}} 部"
+  },
+  "live": {
+    "description": "直播频道按分组整理，每个频道可以有多条线路。导入 M3U 或 TVBox txt 是一次性复制，不会自动同步。",
+    "import": "导入",
+    "export": "导出 M3U",
+    "importHint": "粘贴 M3U 或 TVBox txt 列表。同一分组内同名的频道会合并成多条线路，重复导入不会产生重复数据。",
+    "replace": "清空现有频道后再导入",
+    "importResult": "新增分组 {{groups}} 个、频道 {{channels}} 个、线路 {{streams}} 条，跳过已有线路 {{skipped}} 条。",
+    "groupName": "分组名称",
+    "empty": "还没有直播分组。",
+    "channel": "频道",
+    "group": "分组",
+    "number": "频道号",
+    "logo": "Logo 地址",
+    "streams": "线路",
+    "streamCount": "{{count}} 条线路",
+    "streamsHint": "线路：每行一条，可写成「地址|User-Agent|Referer」",
+    "enabled": "启用",
+    "addChannel": "添加频道",
+    "epgHint": "XMLTV 节目单地址，每行一个，原样传给播放器。"
+  },
+  "publish": {
+    "title": "发布",
+    "description": "媒体库和订阅配置一起发布：发布后，客户端经订阅里的 /media 接口读到最新内容（约 1 分钟内生效）。",
+    "publish": "立即发布",
+    "published": "已发布",
+    "rebuild": "重建只读模型",
+    "rebuildHint": "平时发布只写入有变化的内容；只读模型出错或结构升级后，可以从头重建。",
+    "rebuilt": "已重建：{{titles}} 部作品，版本 {{generation}}",
+    "entries": "订阅条目",
+    "entriesHint": "把媒体库加进订阅：添加后，每台设备会拿到带有自己令牌的地址。",
+    "added": "已添加",
+    "entry": {
+      "site": "点播站点（CMS，带原生接口地址）",
+      "live": "直播源（M3U）"
+    }
+  }
+}

@@ -1,0 +1,281 @@
+{
+  "page": {
+    "title": "Media library",
+    "description": "Our own on-demand and live content: titles, seasons and episodes, sources, the home page. Served by the subscription's /media API once published."
+  },
+  "tabs": {
+    "titles": "Titles",
+    "people": "People",
+    "taxonomy": "Categories & genres",
+    "home": "Home page",
+    "live": "Live",
+    "publish": "Publish"
+  },
+  "actions": "Actions",
+  "add": "Add",
+  "save": "Save",
+  "prev": "Previous",
+  "next": "Next",
+  "kind": {
+    "movie": "Movie",
+    "series": "Series"
+  },
+  "state": {
+    "draft": "Draft",
+    "published": "Published",
+    "hidden": "Hidden"
+  },
+  "status": {
+    "upcoming": "Upcoming",
+    "released": "Released",
+    "returning": "Returning",
+    "ended": "Ended",
+    "canceled": "Canceled"
+  },
+  "seasonStatus": {
+    "upcoming": "Upcoming",
+    "airing": "Airing",
+    "ended": "Ended"
+  },
+  "episodeType": {
+    "standard": "Standard",
+    "premiere": "Premiere",
+    "finale": "Finale",
+    "special": "Special"
+  },
+  "picker": {
+    "empty": "No titles picked yet.",
+    "search": "Search titles to add"
+  },
+  "titles": {
+    "search": "Search titles or aliases",
+    "allCategories": "All categories",
+    "allKinds": "All kinds",
+    "allStates": "All states",
+    "add": "Add title",
+    "empty": "No titles match.",
+    "title": "Title",
+    "kind": "Kind",
+    "category": "Category",
+    "state": "State",
+    "updated": "Updated",
+    "seasonCount": "{{count}} season(s)",
+    "seriesHint": "A series starts with season 1.",
+    "deleteTitle": "Delete title",
+    "deleteDescription": "Delete \"{{name}}\" with all its seasons, episodes, sources and images?"
+  },
+  "editor": {
+    "info": "Details",
+    "seasons": "Seasons & episodes",
+    "sources": "Sources",
+    "credits": "Credits",
+    "images": "Images",
+    "external": "External IDs"
+  },
+  "info": {
+    "originalTitle": "Original title",
+    "aliases": "Aliases (comma separated)",
+    "status": "Status",
+    "statusLocked": "Lock the status instead of following the seasons",
+    "releaseDate": "Release date",
+    "runtime": "Runtime (minutes)",
+    "contentRating": "Content rating",
+    "countries": "Countries (ISO codes)",
+    "language": "Original language (ISO code)",
+    "collection": "Collection",
+    "noCollection": "None",
+    "rating": "Rating",
+    "popularity": "Popularity",
+    "tagline": "Tagline",
+    "overview": "Overview",
+    "genres": "Genres"
+  },
+  "seasons": {
+    "add": "Add season",
+    "numbered": "Season {{number}}",
+    "number": "Number",
+    "name": "Name",
+    "airDate": "Air date",
+    "endDate": "End date",
+    "episodeTotal": "Planned episodes",
+    "schedule": "Schedule note",
+    "schedulePlaceholder": "Fridays 20:00",
+    "deleteTitle": "Delete season",
+    "deleteDescription": "Its episodes, sources and images are deleted too."
+  },
+  "episodes": {
+    "title": "Episodes",
+    "from": "From",
+    "to": "To",
+    "delta": "By",
+    "start": "First date",
+    "interval": "Every (days)",
+    "generate": "Generate",
+    "shift": "Renumber",
+    "schedule": "Schedule",
+    "empty": "No episodes yet.",
+    "name": "Name",
+    "type": "Type",
+    "published": "Published",
+    "hint": "Users see an episode once it is published, has a stream and has aired; click a name to edit it."
+  },
+  "sources": {
+    "empty": "No sources yet.",
+    "name": "Source name",
+    "add": "Add source",
+    "streamCount": "{{count}} stream(s)",
+    "episode": "E{{number}}"
+  },
+  "paste": {
+    "label": "Paste \"name$url\" lines, one each; they are lined up with episodes by number",
+    "createMissing": "Create episodes for numbers that do not exist",
+    "preview": "Preview",
+    "apply": "Write",
+    "summary": "{{matched}} matched, {{missing}} missing, {{unmatched}} unmatched; {{written}} written, {{created}} episodes created.",
+    "missing": "No episode {{number}}: {{name}}",
+    "reason": {
+      "no-number": "No episode number in: {{name}}",
+      "duplicate": "Duplicate number: {{name}}",
+      "no-episode": "No such episode: {{name}}"
+    }
+  },
+  "credits": {
+    "empty": "No credits yet.",
+    "person": "Person",
+    "role": "Role",
+    "as": "Character / job",
+    "season": "Season",
+    "allSeasons": "All seasons",
+    "change": "Change",
+    "searchPerson": "Search people",
+    "newPerson": "Create \"{{name}}\"",
+    "character": "Character",
+    "job": "Job",
+    "add": "Add credit",
+    "roles": {
+      "cast": "Cast",
+      "crew": "Crew"
+    },
+    "jobs": {
+      "Director": "Director",
+      "Writer": "Writer",
+      "Screenplay": "Screenplay",
+      "Creator": "Creator",
+      "Producer": "Producer"
+    }
+  },
+  "images": {
+    "upload": "Upload",
+    "primary": "Primary",
+    "makePrimary": "Make primary",
+    "kinds": {
+      "poster": "Poster",
+      "backdrop": "Backdrop",
+      "logo": "Logo",
+      "still": "Still",
+      "profile": "Profile"
+    },
+    "sizes": {
+      "poster": "Portrait 2:3, 600×900 or larger",
+      "backdrop": "Landscape 16:9, 1920×1080",
+      "logo": "Transparent PNG, 800 wide",
+      "still": "Landscape 16:9, 1280×720",
+      "profile": "Portrait 2:3, 300×450"
+    }
+  },
+  "external": {
+    "empty": "No external IDs yet."
+  },
+  "people": {
+    "search": "Search people",
+    "add": "Add person",
+    "empty": "No people match.",
+    "name": "Name",
+    "originalName": "Original name",
+    "gender": "Gender",
+    "birthday": "Birthday",
+    "placeOfBirth": "Place of birth",
+    "biography": "Biography",
+    "deleteTitle": "Delete person",
+    "deleteDescription": "Delete \"{{name}}\" and all their credits?",
+    "genders": {
+      "none": "Not set",
+      "female": "Female",
+      "male": "Male",
+      "other": "Other"
+    }
+  },
+  "taxonomy": {
+    "categories": "Categories",
+    "categoriesHint": "Categories are the client's channels and filters; one with titles cannot be deleted.",
+    "genres": "Genres",
+    "collections": "Collections",
+    "collectionsHint": "Groups of titles such as a film series; pick one in a title's details.",
+    "name": "Name",
+    "kinds": "Allowed kinds",
+    "titles": "Titles",
+    "titleCount": "{{count}} title(s)"
+  },
+  "home": {
+    "hero": "Hero",
+    "heroHint": "The carousel on top of the home page, up to 10 titles; give them a backdrop and a logo.",
+    "rows": "Rows",
+    "addRow": "Add row",
+    "empty": "No rows yet.",
+    "name": "Name",
+    "content": "Content",
+    "onHome": "On home",
+    "kind": "Kind",
+    "kinds": {
+      "manual": "Hand-picked",
+      "rule": "By rule"
+    },
+    "any": "Any",
+    "sort": "Sort",
+    "limit": "Count",
+    "sorts": {
+      "updated": "Recently updated",
+      "popular": "Most popular",
+      "release": "Newest",
+      "rating": "Top rated"
+    },
+    "ruleSummary": "{{sort}} · {{limit}} titles",
+    "manualSummary": "Hand-picked · {{count}} titles"
+  },
+  "live": {
+    "description": "Live channels in groups, each with one or more streams. Importing M3U or TVBox txt copies it once; it is not kept in sync.",
+    "import": "Import",
+    "export": "Export M3U",
+    "importHint": "Paste an M3U or TVBox txt list. Channels with the same name in a group become one channel with several streams; importing again adds nothing twice.",
+    "replace": "Clear the current channels first",
+    "importResult": "{{groups}} groups, {{channels}} channels and {{streams}} streams added; {{skipped}} existing streams skipped.",
+    "groupName": "Group name",
+    "empty": "No live groups yet.",
+    "channel": "Channel",
+    "group": "Group",
+    "number": "Number",
+    "logo": "Logo URL",
+    "streams": "Streams",
+    "streamCount": "{{count}} stream(s)",
+    "streamsHint": "Streams, one a line: \"url|User-Agent|Referer\"",
+    "enabled": "Enabled",
+    "addChannel": "Add channel",
+    "epgHint": "XMLTV guide URLs, one a line, passed on to players as they are."
+  },
+  "publish": {
+    "title": "Publish",
+    "description": "The library is published together with the subscription config; clients then read it through the subscription's /media API (within about a minute).",
+    "publish": "Publish now",
+    "published": "Published",
+    "rebuild": "Rebuild read model",
+    "rebuildHint": "Publishing writes only what changed; rebuild from scratch after a schema upgrade or to repair the read model.",
+    "rebuilt": "Rebuilt: {{titles}} titles, generation {{generation}}",
+    "entries": "Subscription entries",
+    "entriesHint": "Add the library to the subscription; every device gets URLs carrying its own token.",
+    "added": "Added",
+    "entry": {
+      "site": "On-demand site (CMS, with the native API URL)",
+      "live": "Live source (M3U)"
+    }
+  }
+}

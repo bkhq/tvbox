@@ -4,6 +4,7 @@ export * from "@/modules/account/tokens/schema";
 export * from "@/modules/account/users/schema";
 export * from "@/modules/audit/schema";
 export * from "@/modules/file/schema";
+export * from "@/modules/media/schema";
 export * from "@/modules/settings/schema";
 export * from "@/modules/tvbox/schema";
 // Aggregated schema. Module schemas live next to their owners.

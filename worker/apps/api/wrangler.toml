@@ -29,6 +29,14 @@ new_sqlite_classes = ["AppDurableObject"]
 binding = "FILES"
 bucket_name = "tvbox-files"
 
+# The media library's read model, written by publishing and read by
+# `/s/<token>/media` (src/workers/media). The deploy workflow creates the
+# database when it is missing, fills in its id and applies the migrations.
+[[d1_databases]]
+binding = "MEDIA"
+database_name = "tvbox-media"
+migrations_dir = "d1/media"
+
 # Every request reaches the Worker first (src/workers/entry.ts), which
 # routes: `/` is the download page, `/s/*` and `/u/*` are answered from R2,
 # `${BASE_PATH}/api/*` goes to the Durable Object, and the rest of

@@ -1,0 +1,53 @@
+import type { BackupContribution } from "@/modules/backup/registry";
+import {
+  mediaCategories,
+  mediaCollections,
+  mediaCredits,
+  mediaEpisodes,
+  mediaExternalIds,
+  mediaGenres,
+  mediaImages,
+  mediaLiveChannels,
+  mediaLiveGroups,
+  mediaLiveStreams,
+  mediaPeople,
+  mediaRowItems,
+  mediaRows,
+  mediaSeasons,
+  mediaSettings,
+  mediaSources,
+  mediaStreams,
+  mediaTitleAliases,
+  mediaTitleGenres,
+  mediaTitles,
+} from "./schema";
+
+// The source data only: the D1 read model is rebuilt from it by publishing,
+// and uploaded images live in blob storage like the tvbox module's files.
+export const mediaBackupContribution: BackupContribution = {
+  name: "media",
+  // Parents before children so every FK resolves on restore.
+  tables: [
+    mediaCategories,
+    mediaGenres,
+    mediaCollections,
+    mediaTitles,
+    mediaTitleAliases,
+    mediaTitleGenres,
+    mediaSeasons,
+    mediaEpisodes,
+    mediaPeople,
+    mediaCredits,
+    mediaImages,
+    mediaExternalIds,
+    mediaSources,
+    mediaStreams,
+    mediaRows,
+    mediaRowItems,
+    mediaSettings,
+    mediaLiveGroups,
+    mediaLiveChannels,
+    mediaLiveStreams,
+  ],
+  deps: [],
+};

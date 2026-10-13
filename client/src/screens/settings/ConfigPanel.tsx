@@ -1,12 +1,19 @@
 import { useCallback, useEffect, useState } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { Text, View } from 'react-native';
 
 import { useVodConfig } from '../../core/bootstrap';
-import { asyncStorageStore, type ConfigKind, type ConfigRepository, createConfigRepository, type SavedConfig } from '../../core/storage';
-import { colors, FocusableButton, fontSize, radius, spacing } from '../../ui';
+import {
+  asyncStorageStore,
+  type ConfigKind,
+  type ConfigRepository,
+  createConfigRepository,
+  type SavedConfig,
+} from '../../core/storage';
+import { Button, color, useScaledStyles, type Scaler } from '../../ui';
 import { FocusableInput } from '../common';
 import { vodStatusText } from './options';
 import { Panel } from './Panel';
+import { makePanelStyles } from './panels';
 import { SettingRow } from './SettingRow';
 
 /** Saved VOD and live configs; the bootstrap reads the same VOD repository. */
@@ -15,10 +22,7 @@ export const configRepositories: Record<ConfigKind, ConfigRepository> = {
   live: createConfigRepository(asyncStorageStore, 'live'),
 };
 
-export const CONFIG_TITLE: Record<ConfigKind, string> = {
-  vod: '点播配置',
-  live: '直播配置',
-};
+export const CONFIG_TITLE: Record<ConfigKind, string> = { vod: '点播配置', live: '直播配置' };
 
 interface ConfigList {
   items: SavedConfig[];
@@ -48,6 +52,7 @@ export function useSavedConfigs(kind: ConfigKind, refreshKey?: unknown): [Config
 }
 
 export function ConfigPanel({ kind, onClose }: { kind: ConfigKind; onClose: () => void }) {
+  const styles = useScaledStyles(makeStyles);
   const vod = useVodConfig();
   const repository = configRepositories[kind];
   // The bootstrap bumps the VOD entry after every load, so follow its snapshot.
@@ -93,7 +98,12 @@ export function ConfigPanel({ kind, onClose }: { kind: ConfigKind; onClose: () =
               onPress={() => void select(entry)}
             />
           </View>
-          <FocusableButton testID={`settings-config-remove-${entry.url}`} title="删除" onPress={() => void remove(entry)} />
+          <Button
+            testID={`settings-config-remove-${entry.url}`}
+            title="删除"
+            size="md"
+            onPress={() => void remove(entry)}
+          />
         </View>
       ))}
       {items.length === 0 ? <Text style={styles.status}>尚未添加配置</Text> : null}
@@ -105,44 +115,25 @@ export function ConfigPanel({ kind, onClose }: { kind: ConfigKind; onClose: () =
           onChangeText={setUrl}
           onSubmitEditing={() => void add()}
           placeholder="输入配置地址"
-          placeholderTextColor={colors.textSecondary}
+          placeholderTextColor={color.text3}
           autoCapitalize="none"
           autoCorrect={false}
           keyboardType="url"
           hasTVPreferredFocus={!preferred}
         />
-        <FocusableButton testID="settings-config-add" title="添加" disabled={!url.trim()} onPress={() => void add()} />
+        <Button testID="settings-config-add" title="添加" size="md" disabled={!url.trim()} onPress={() => void add()} />
       </View>
     </Panel>
   );
 }
 
-const styles = StyleSheet.create({
-  status: {
-    marginVertical: spacing.sm,
-    color: colors.textSecondary,
-    fontSize: fontSize.body,
-  },
-  item: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  itemRow: {
-    flex: 1,
-  },
-  form: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginVertical: spacing.md,
-  },
-  input: {
-    flex: 1,
-    marginRight: spacing.sm,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-    borderRadius: radius.md,
-    backgroundColor: colors.surface,
-    color: colors.text,
-    fontSize: fontSize.body,
-  },
-});
+const makeStyles = (s: Scaler) => {
+  const panel = makePanelStyles(s);
+  return {
+    status: panel.note,
+    item: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: s(16) },
+    itemRow: { flex: 1 },
+    form: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: s(16), marginTop: s(12) },
+    input: { ...panel.input, flex: 1 },
+  };
+};

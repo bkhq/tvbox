@@ -1,12 +1,13 @@
 import type { AppDatabase } from "@/db";
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
+import { eq } from "drizzle-orm";
 import { createEpisode, deleteEpisode, generateEpisodes, listEpisodes, listSeasons } from "../catalog/seasons.service";
 import { createTitle, deleteTitle } from "../catalog/titles.service";
 import { addCredit, createPerson, deletePerson, listCredits, personCredits, updateCredit } from "../people/people.service";
-import { mediaStreams } from "../schema";
+import { mediaStreams, mediaTitles } from "../schema";
 import { createRow, getHero, listRows, setHero, updateRow } from "../taxonomy/rows.service";
 import { openTestDb } from "../test-db";
-import { addStream, createSource, deleteSource, listSources, listStreams, pasteStreams } from "./playable.service";
+import { addStream, createSource, deleteSource, deleteStream, listSources, listStreams, pasteStreams, updateSource, updateStream } from "./playable.service";
 
 let db: AppDatabase;
 let dispose: () => void;
@@ -109,6 +110,59 @@ describe("pasting streams", () => {
     const m = await movie();
     const src = await createSource(db, { titleId: m.id }, { name: "自建" });
     await expect(pasteStreams(db, src.id, "hello")).rejects.toMatchObject({ code: "NOTHING_PASTED" });
+  });
+});
+
+describe("the title's updatedAt", () => {
+  const OLD = "2000-01-01T00:00:00.000Z";
+  const age = async (id: number) => await db.update(mediaTitles).set({ updatedAt: OLD }).where(eq(mediaTitles.id, id)).run();
+  const bumped = async (id: number) => (await db.select({ at: mediaTitles.updatedAt }).from(mediaTitles).where(eq(mediaTitles.id, id)).get())!.at !== OLD;
+
+  test("moves only when an episode or movie becomes playable", async () => {
+    const { title, season } = await seasonOne();
+    const e1 = await createEpisode(db, season.id, { episodeNumber: 1 });
+    await createEpisode(db, season.id, { episodeNumber: 2 });
+    const main = await createSource(db, { seasonId: season.id }, { name: "自建" });
+    const backup = await createSource(db, { seasonId: season.id }, { name: "备用" });
+
+    await age(title.id);
+    const first = await addStream(db, main.id, { url: "https://v/1.m3u8", episodeId: e1.id });
+    expect(await bumped(title.id)).toBe(true);
+
+    // Another line, a swapped url, a removed stream or line: same episodes playable.
+    await age(title.id);
+    const second = await addStream(db, backup.id, { url: "https://b/1.m3u8", episodeId: e1.id });
+    await updateStream(db, first.id, { url: "https://v/1b.m3u8" });
+    await deleteStream(db, second.id);
+    await pasteStreams(db, main.id, "第1集$https://v/1c.m3u8");
+    await updateSource(db, backup.id, { name: "线路二" });
+    await deleteSource(db, backup.id);
+    expect(await bumped(title.id)).toBe(false);
+
+    await pasteStreams(db, main.id, "第2集$https://v/2.m3u8");
+    expect(await bumped(title.id)).toBe(true);
+  });
+
+  test("enabling a line that carries new episodes counts as an update", async () => {
+    const { title, season } = await seasonOne();
+    const ep = await createEpisode(db, season.id, { episodeNumber: 1 });
+    const off = await createSource(db, { seasonId: season.id }, { name: "自建", enabled: false });
+    await age(title.id);
+    await addStream(db, off.id, { url: "https://v/1.m3u8", episodeId: ep.id });
+    expect(await bumped(title.id)).toBe(false);
+    await updateSource(db, off.id, { enabled: true });
+    expect(await bumped(title.id)).toBe(true);
+  });
+
+  test("a movie's first stream is an update, its second is not", async () => {
+    const m = await movie();
+    const src = await createSource(db, { titleId: m.id }, { name: "自建" });
+    await age(m.id);
+    await addStream(db, src.id, { url: "https://v/a.m3u8" });
+    expect(await bumped(m.id)).toBe(true);
+    await age(m.id);
+    await addStream(db, src.id, { url: "https://v/b.m3u8", resolution: "4K" });
+    expect(await bumped(m.id)).toBe(false);
   });
 });
 

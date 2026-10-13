@@ -37,6 +37,32 @@ async function titleOfSource(db: AppDatabase, source: SourceRow): Promise<number
   return season!.titleId;
 }
 
+/** The episodes (`""` for the movie) a source's owner can play: those with a stream on an enabled line. */
+async function playableKeys(db: AppDatabase, source: SourceRow): Promise<Set<string>> {
+  const owner = source.titleId !== null ? eq(mediaSources.titleId, source.titleId) : eq(mediaSources.seasonId, source.seasonId!);
+  const rows = await db.selectDistinct({ episodeId: mediaStreams.episodeId })
+    .from(mediaStreams)
+    .innerJoin(mediaSources, eq(mediaStreams.sourceId, mediaSources.id))
+    .where(and(owner, eq(mediaSources.enabled, true)))
+    .all();
+  return new Set(rows.map(r => r.episodeId ?? ""));
+}
+
+/**
+ * Runs a write to lines or streams and moves the title's `updatedAt` only
+ * when it made an episode (or the movie) newly playable. Adding a line or
+ * swapping a url leaves the metadata alone: the title is not "updated" and
+ * only its playback is republished.
+ */
+async function touchIfNewlyPlayable<T>(db: AppDatabase, source: SourceRow, write: () => Promise<T>): Promise<T> {
+  const before = await playableKeys(db, source);
+  const result = await write();
+  const after = await playableKeys(db, source);
+  if ([...after].some(key => !before.has(key)))
+    await touchTitle(db, await titleOfSource(db, source));
+  return result;
+}
+
 // ─── Sources ───
 
 async function sourceRow(db: AppDatabase, id: string): Promise<SourceRow> {
@@ -70,20 +96,17 @@ export async function createSource(
   owner: { titleId: number } | { seasonId: number },
   input: { name: string; quality?: string | null | undefined; enabled?: boolean | undefined },
 ): Promise<SourceView> {
-  let titleId: number;
   if ("titleId" in owner) {
     const title = await db.select({ kind: mediaTitles.kind }).from(mediaTitles).where(eq(mediaTitles.id, owner.titleId)).get();
     if (!title)
       throw new NotFoundError("Title", String(owner.titleId));
     if (title.kind !== "movie")
       throw new AppError("A series' sources belong to its seasons", 422, "SOURCE_OWNER_MISMATCH");
-    titleId = owner.titleId;
   }
   else {
-    const season = await db.select({ titleId: mediaSeasons.titleId }).from(mediaSeasons).where(eq(mediaSeasons.id, owner.seasonId)).get();
+    const season = await db.select({ id: mediaSeasons.id }).from(mediaSeasons).where(eq(mediaSeasons.id, owner.seasonId)).get();
     if (!season)
       throw new NotFoundError("Season", String(owner.seasonId));
-    titleId = season.titleId;
   }
   const where = "titleId" in owner ? eq(mediaSources.titleId, owner.titleId) : eq(mediaSources.seasonId, owner.seasonId);
   const last = await db.select({ sort: max(mediaSources.sort) }).from(mediaSources).where(where).get();
@@ -97,21 +120,19 @@ export async function createSource(
     enabled: input.enabled ?? true,
     sort: (last?.sort ?? -1) + 1,
   }).run();
-  await touchTitle(db, titleId);
   return await getSource(db, id);
 }
 
 export async function updateSource(db: AppDatabase, id: string, patch: { name?: string | undefined; quality?: string | null | undefined; enabled?: boolean | undefined }): Promise<SourceView> {
   const row = await sourceRow(db, id);
-  await db.update(mediaSources).set({ ...defined(patch), updatedAt: new Date().toISOString() }).where(eq(mediaSources.id, id)).run();
-  await touchTitle(db, await titleOfSource(db, row));
+  await touchIfNewlyPlayable(db, row, async () =>
+    await db.update(mediaSources).set({ ...defined(patch), updatedAt: new Date().toISOString() }).where(eq(mediaSources.id, id)).run());
   return await getSource(db, id);
 }
 
 export async function deleteSource(db: AppDatabase, id: string): Promise<SourceView> {
   const current = await getSource(db, id);
   await db.delete(mediaSources).where(eq(mediaSources.id, id)).run();
-  await touchTitle(db, await titleOfSource(db, current));
   return current;
 }
 
@@ -154,8 +175,8 @@ export async function addStream(db: AppDatabase, sourceId: string, input: Stream
   const source = await sourceRow(db, sourceId);
   await assertEpisodeFits(db, source, input.episodeId);
   const id = ulid();
-  await db.insert(mediaStreams).values({ ...defined(input), id, sourceId, url: input.url, format: input.format ?? formatOf(input.url) }).run();
-  await touchTitle(db, await titleOfSource(db, source));
+  await touchIfNewlyPlayable(db, source, async () =>
+    await db.insert(mediaStreams).values({ ...defined(input), id, sourceId, url: input.url, format: input.format ?? formatOf(input.url) }).run());
   return await getStream(db, id);
 }
 
@@ -164,16 +185,14 @@ export async function updateStream(db: AppDatabase, id: string, input: StreamInp
   const source = await sourceRow(db, current.sourceId);
   if (input.episodeId !== undefined)
     await assertEpisodeFits(db, source, input.episodeId);
-  await db.update(mediaStreams).set(defined(input)).where(eq(mediaStreams.id, id)).run();
-  await touchTitle(db, await titleOfSource(db, source));
+  await touchIfNewlyPlayable(db, source, async () =>
+    await db.update(mediaStreams).set(defined(input)).where(eq(mediaStreams.id, id)).run());
   return await getStream(db, id);
 }
 
 export async function deleteStream(db: AppDatabase, id: string): Promise<StreamRow> {
   const current = await getStream(db, id);
-  const source = await sourceRow(db, current.sourceId);
   await db.delete(mediaStreams).where(eq(mediaStreams.id, id)).run();
-  await touchTitle(db, await titleOfSource(db, source));
   return current;
 }
 
@@ -206,12 +225,11 @@ export async function pasteStreams(
     const alignment: Alignment = { matched: [], missing: [], unmatched: [] };
     if (options.dryRun)
       return { ...alignment, written: 0, created: 0 };
-    await db.transaction(async (tx) => {
+    await touchIfNewlyPlayable(db, source, async () => await db.transaction(async (tx) => {
       const last = await tx.select({ sort: max(mediaStreams.sort) }).from(mediaStreams).where(and(eq(mediaStreams.sourceId, sourceId), isNull(mediaStreams.episodeId))).get();
       for (const [i, line] of lines.entries())
         await tx.insert(mediaStreams).values({ id: ulid(), sourceId, url: line.url, format: formatOf(line.url), resolution: line.name || null, sort: (last?.sort ?? -1) + 1 + i }).run();
-    });
-    await touchTitle(db, source.titleId);
+    }));
     return { ...alignment, written: lines.length, created: 0 };
   }
 
@@ -223,7 +241,7 @@ export async function pasteStreams(
 
   const targets = alignment.matched.map(m => ({ episodeId: m.episodeId, line: m.line }));
   let created = 0;
-  await db.transaction(async (tx) => {
+  await touchIfNewlyPlayable(db, source, async () => await db.transaction(async (tx) => {
     if (options.createMissing) {
       for (const m of alignment.missing) {
         const episodeId = ulid();
@@ -236,8 +254,6 @@ export async function pasteStreams(
       await tx.delete(mediaStreams).where(and(eq(mediaStreams.sourceId, sourceId), eq(mediaStreams.episodeId, t.episodeId))).run();
       await tx.insert(mediaStreams).values({ id: ulid(), sourceId, episodeId: t.episodeId, url: t.line.url, format: formatOf(t.line.url) }).run();
     }
-  });
-  if (targets.length > 0)
-    await touchTitle(db, await titleOfSource(db, source));
+  }));
   return { ...alignment, written: targets.length, created };
 }

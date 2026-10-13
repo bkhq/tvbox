@@ -4,7 +4,7 @@ import { createEpisode, createSeason, generateEpisodes, listEpisodes, listSeason
 import { createTitle, updateTitle } from "../catalog/titles.service";
 import { homeSchema, manifestSchema, playbackSchema, seasonDetailSchema, titleDetailSchema } from "../contract";
 import { addCredit, createPerson } from "../people/people.service";
-import { addStream, createSource } from "../playable/playable.service";
+import { addStream, createSource, listSources, listStreams, updateStream } from "../playable/playable.service";
 import { createRow, setHero } from "../taxonomy/rows.service";
 import { openTestDb } from "../test-db";
 import { projectLibrary } from "./projector.service";
@@ -144,6 +144,21 @@ describe("writing the read model", () => {
       `rm_titles:${title.id}`,
     ].sort());
     expect(result).toMatchObject({ upserted: 5, deleted: 0 });
+  });
+
+  test("a swapped stream url rewrites only its playback and CMS item", async () => {
+    const { s1 } = await series();
+    await projectLibrary(db, rm, { today: TODAY });
+    const before = await rm.prepare("SELECT vod_id, hash FROM rm_cms_items").all<{ vod_id: string; hash: string }>();
+    const [first] = await listEpisodes(db, s1.id);
+    const [source] = await listSources(db, { seasonId: s1.id });
+    const stream = (await listStreams(db, source!.id)).find(x => x.episodeId === first!.id)!;
+    await updateStream(db, stream.id, { url: "https://v/new.m3u8" });
+    const result = await projectLibrary(db, rm, { today: TODAY });
+    expect(result).toMatchObject({ upserted: 2, deleted: 0 });
+    const after = await rm.prepare("SELECT vod_id, hash FROM rm_cms_items").all<{ vod_id: string; hash: string }>();
+    const changed = after.results.filter(r => before.results.find(b => b.vod_id === r.vod_id)?.hash !== r.hash).map(r => r.vod_id);
+    expect(changed).toEqual([`s${s1.id}`]);
   });
 
   test("unpublishing removes a title and everything hanging off it", async () => {

@@ -98,10 +98,12 @@ jobs:
       - name: Smoke test on workerd
         run: bun run test:workers
 
+  # Deploys only when run by hand (Actions → Worker → Run workflow on main);
+  # pushes and pull requests stop after check and smoke.
   deploy:
     name: deploy to cloudflare
     needs: [check, smoke]
-    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     env:

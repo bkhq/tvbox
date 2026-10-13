@@ -87,8 +87,10 @@ bun run test:workers   # workerd smoke
 
 ## Deploy
 
-`.github/workflows/worker.yml` deploys on every push to `main` once the checks
-and the smoke test pass. Everything it needs lives in the GitHub repository
+`.github/workflows/worker.yml` checks every push and pull request, but deploys
+only when run by hand: Actions → Worker → Run workflow on `main` (or
+`gh workflow run worker.yml --ref main`), once the checks and the smoke test
+pass. Everything it needs lives in the GitHub repository
 settings. Login is OpenID Connect; secrets ship with each deploy
 (`--secrets-file`), the rest is passed as vars.
 

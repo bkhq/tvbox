@@ -22,16 +22,23 @@ export function writeJson(store: KeyValueStore, key: string, value: unknown): Pr
 
 export interface JsonCell<T> {
   read(): Promise<T>;
-  /** Read-modify-write; updates on one cell run strictly in order. */
+  /** Read-modify-write; cells sharing a store and key run strictly in order. */
   update<R>(fn: (value: T) => { value: T; result: R }): Promise<R>;
 }
 
+const queuesByStore = new WeakMap<KeyValueStore, Map<string, Promise<unknown>>>();
+
 /** One JSON document under one key, normalised on read by `parse`. */
 export function jsonCell<T>(store: KeyValueStore, key: string, parse: (raw: unknown) => T): JsonCell<T> {
-  let queue: Promise<unknown> = Promise.resolve();
+  let queues = queuesByStore.get(store);
+  if (!queues) {
+    queues = new Map();
+    queuesByStore.set(store, queues);
+  }
+  const shared = queues;
   const enqueue = <R>(task: () => Promise<R>): Promise<R> => {
-    const next = queue.then(task);
-    queue = next.catch(() => undefined);
+    const next = (shared.get(key) ?? Promise.resolve()).then(task);
+    shared.set(key, next.catch(() => undefined));
     return next;
   };
   return {

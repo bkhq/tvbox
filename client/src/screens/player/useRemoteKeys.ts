@@ -38,16 +38,23 @@ const KEY_UP = 1;
  * and media next / previous keys change episode. Android reports key down (0)
  * and up (1); events without an action (tvOS gestures) count as both.
  */
-export function useRemoteKeys(handlers: RemoteKeyHandlers): void {
+export function useRemoteKeys(handlers: RemoteKeyHandlers, enabled = true): void {
   const handlersRef = useRef(handlers);
   const holdRef = useRef(0);
   const timerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   useEffect(() => {
     handlersRef.current = handlers;
   });
-  useEffect(() => () => clearTimeout(timerRef.current), []);
+  useEffect(() => () => {
+    if (timerRef.current === undefined) return;
+    clearTimeout(timerRef.current);
+    timerRef.current = undefined;
+    holdRef.current = 0;
+    handlersRef.current.onSeekEnd(0);
+  }, [enabled]);
 
   const handle = useCallback((event: HWEvent) => {
+    if (!enabled) return;
     const h = handlersRef.current;
     if (h.panelOpen) return;
     const action = event.eventKeyAction ?? -1;
@@ -59,6 +66,7 @@ export function useRemoteKeys(handlers: RemoteKeyHandlers): void {
       h.onSeeking(holdRef.current);
       clearTimeout(timerRef.current);
       timerRef.current = setTimeout(() => {
+        timerRef.current = undefined;
         const offset = holdRef.current;
         holdRef.current = 0;
         handlersRef.current.onSeekEnd(offset);
@@ -107,7 +115,7 @@ export function useRemoteKeys(handlers: RemoteKeyHandlers): void {
         h.onPrev();
         return;
     }
-  }, []);
+  }, [enabled]);
 
   useTVEventHandler(handle);
 }

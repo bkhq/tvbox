@@ -41,6 +41,7 @@ const bootstrap: Bootstrap = {
 let video: MockEngine;
 let mpv: MockEngine;
 const goBack = jest.fn();
+let navigationListeners: Record<string, () => void>;
 
 async function settle() {
   for (let i = 0; i < 5; i++) await act(async () => new Promise((resolve) => setTimeout(resolve, 0)));
@@ -49,7 +50,15 @@ async function settle() {
 async function render(params: PlayerParams): Promise<ReactTestRenderer> {
   const props = {
     route: { key: 'Player', name: 'Player', params },
-    navigation: { isFocused: () => true, addListener: () => () => undefined, setOptions: jest.fn(), goBack },
+    navigation: {
+      isFocused: () => true,
+      addListener: (event: string, listener: () => void) => {
+        navigationListeners[event] = listener;
+        return () => { delete navigationListeners[event]; };
+      },
+      setOptions: jest.fn(),
+      goBack,
+    },
   } as unknown as RootStackScreenProps<'Player'>;
   let renderer!: ReactTestRenderer;
   await act(async () => {
@@ -92,6 +101,7 @@ const load: EngineEvent = {
 };
 
 beforeEach(async () => {
+  navigationListeners = {};
   setUserDataStore(new MemoryStore());
   await act(async () => {
     await appSettings.set('playerEngine', 'auto');
@@ -111,6 +121,43 @@ afterEach(() => {
 });
 
 describe('PlayerScreen', () => {
+  it.each([false, true])('pauses a covered screen and ignores its remote input (background: %s)', async (background) => {
+    await act(async () => appSettings.set('background', background));
+    const renderer = await render({ url: 'https://m/a.m3u8' });
+    await emit(mpv, load);
+    await act(async () => navigationListeners.blur!());
+    expect(mpv.props?.paused).toBe(true);
+    expect(getPlaybackController().getState().active).toBe(false);
+    await remote('play');
+    expect(mpv.props?.paused).toBe(true);
+    await act(async () => navigationListeners.focus!());
+    expect(getPlaybackController().getState()).toMatchObject({ active: true, playing: false });
+    await remote('play');
+    expect(mpv.props?.paused).toBe(false);
+    await act(async () => renderer.unmount());
+  });
+
+  it('cancels a pending seek and its preview when the screen loses focus', async () => {
+    const renderer = await render({ url: 'https://m/a.m3u8' });
+    await emit(mpv, load);
+    jest.useFakeTimers();
+    try {
+      await remote('right', 0);
+      expect(has(renderer, 'player-seek-target')).toBe(true);
+      await act(async () => navigationListeners.blur!());
+      await act(async () => jest.advanceTimersByTime(SEEK_COMMIT_DELAY));
+      expect(mpv.seeks).toEqual([]);
+      await act(async () => navigationListeners.focus!());
+      expect(has(renderer, 'player-seek-target')).toBe(false);
+      await remote('right', 0);
+      await act(async () => jest.advanceTimersByTime(SEEK_COMMIT_DELAY));
+      expect(mpv.seeks).toEqual([10_000]);
+    } finally {
+      jest.useRealTimers();
+      await act(async () => renderer.unmount());
+    }
+  });
+
   it('plays a direct URL on the default engine and hosts the controller', async () => {
     const renderer = await render({ url: 'https://m/a.m3u8', title: '投屏', position: 5_000, headers: { Referer: 'https://r/' } });
     // jest-expo runs as iOS: mpv is the default.

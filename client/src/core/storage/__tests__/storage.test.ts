@@ -49,9 +49,36 @@ describe('json helpers', () => {
     await Promise.all(Array.from({ length: 10 }, () => cell.update((n) => ({ value: n + 1, result: undefined }))));
     expect(await cell.read()).toBe(10);
   });
+
+  it('allows another cell to keep writing after a failed update to the same key', async () => {
+    const store = new MemoryStore();
+    const parse = (raw: unknown) => typeof raw === 'number' ? raw : 0;
+    const first = jsonCell(store, 'n', parse);
+    const second = jsonCell(store, 'n', parse);
+    const failure = first.update(() => { throw new Error('write failed'); });
+    const next = second.update((n) => ({ value: n + 1, result: undefined }));
+    await expect(failure).rejects.toThrow('write failed');
+    await next;
+    expect(await first.read()).toBe(1);
+  });
 });
 
 describe('config repository', () => {
+  it('preserves concurrent writes and unique ids across repository instances', async () => {
+    const store = new MemoryStore();
+    const first = createConfigRepository(store, 'vod');
+    const second = createConfigRepository(store, 'vod');
+    const [a, b] = await Promise.all([
+      first.add({ url: 'https://a.example/config.json' }),
+      second.add({ url: 'https://b.example/config.json' }),
+    ]);
+    expect((await first.list()).map((item) => item.url).sort()).toEqual([a.url, b.url]);
+    expect(a.id).not.toBe(b.id);
+    await Promise.all([first.setActive(a.url), second.add({ url: b.url, name: 'B' })]);
+    expect(await second.getActive()).toMatchObject({ id: a.id });
+    expect(await first.find(b.url)).toMatchObject({ name: 'B' });
+  });
+
   it('round-trips add / setActive / remove and keeps vod and live apart', async () => {
     const store = new MemoryStore();
     const { now, tick } = clock();

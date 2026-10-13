@@ -245,8 +245,9 @@ as 不支持.
 suffix) is the default `jar` of every site; a site's own `jar` wins. A site is
 a JAR site when `type === 3`, `api` starts with `csp_` and it has a jar
 (`isJarSite`). After each successful config load the bootstrap calls
-`onJarConfigLoaded`: `JarLoader.clear()`, then `loadJar(spider, recent=true)`
-in the background (`VodConfig.initSite`). JARs are cached by URL + md5 like
+`onJarConfigLoaded`: `JarLoader.clear()`, then `loadJar(spider, recent=false)`
+in the background. A loaded JAR becomes recent only if its config is still
+current. JARs are cached by URL + md5 like
 the Java app; `assets://` jars are not supported.
 
 **Native contract** (`modules/jarspider/src/JarSpider.types.ts`):

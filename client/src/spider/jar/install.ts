@@ -26,13 +26,17 @@ export function getInstalledJarSpider(): JarSpiderNative | undefined {
 
 /**
  * After a VOD config load (providers already cleared): JarLoader.clear(), then
- * VodConfig.initSite's parseJar(spider, true) in the background.
+ * warms the config JAR in the background, making it recent only while current.
  */
-export async function onJarConfigLoaded(config: Pick<VodConfig, 'spider'>): Promise<void> {
+export async function onJarConfigLoaded(config: Pick<VodConfig, 'spider'>, isCurrent: () => boolean = () => true): Promise<void> {
   const native = installed;
   if (!native) return;
   await native.clear().catch(() => undefined);
-  if (config.spider !== '') void native.loadJar(config.spider, true).catch(() => undefined);
+  if (config.spider !== '' && isCurrent()) {
+    void native.loadJar(config.spider, false).then((loaded) => {
+      if (loaded && isCurrent()) native.setRecent(config.spider);
+    }).catch(() => undefined);
+  }
 }
 
 /** Test helper: forgets the installed module and disables JAR sites again. */

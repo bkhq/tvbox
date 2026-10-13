@@ -1,9 +1,10 @@
-import { createRef } from 'react';
+import { createRef, useReducer } from 'react';
 import { NativeModules } from 'react-native';
 import { act, create } from 'react-test-renderer';
 
 import { clearEngines, getEngine } from '../../../engine/registry';
 import type { EngineEvent, EngineHandle, EngineSource, EngineViewProps } from '../../../engine/types';
+import { initialPlaybackState, playbackReducer } from '../../../machine';
 import { registerBuiltinEngines } from '../../index';
 import { subtitleMime, toVideoSource } from '../mapping';
 import { isVideoEngineAvailable, VideoEngineView, videoEngineFactory } from '../VideoEngine';
@@ -114,6 +115,36 @@ describe('video engine props', () => {
 });
 
 describe('video engine events', () => {
+  it.each([false, true])('keeps playback intent while waiting for media (seeking: %s)', (isSeeking) => {
+    function Harness() {
+      const [state, dispatch] = useReducer(playbackReducer, playbackReducer(initialPlaybackState, {
+        type: 'open', source, engine: 'video', speed: 1,
+      }));
+      return <VideoEngineView source={source} paused={state.paused} rate={1} resizeMode="contain"
+        onEvent={(event) => dispatch({ type: 'engine', event })} />;
+    }
+    let renderer!: ReturnType<typeof create>;
+    act(() => { renderer = create(<Harness />); });
+    act(() => mockVideo.props.onLoad({ duration: 100, audioTracks: [], textTracks: [], videoTracks: [] }));
+    act(() => {
+      mockVideo.props.onBuffer({ isBuffering: true });
+      mockVideo.props.onPlaybackStateChanged({ isPlaying: false, isSeeking });
+    });
+    expect(mockVideo.props.paused).toBe(false);
+    act(() => mockVideo.props.onBuffer({ isBuffering: false }));
+    expect(mockVideo.props.paused).toBe(false);
+    act(() => renderer.unmount());
+  });
+
+  it('does not undo a user pause when a late playing callback arrives', () => {
+    const { events, renderer } = render({ paused: true });
+    act(() => mockVideo.props.onPlaybackStateChanged({ isPlaying: true, isSeeking: false }));
+    expect(events).not.toContainEqual({ type: 'playing' });
+    act(() => mockVideo.props.onPlaybackStateChanged({ isPlaying: false, isSeeking: false }));
+    expect(events).toContainEqual({ type: 'paused' });
+    act(() => renderer.unmount());
+  });
+
   it('maps load, progress, buffering, state and end', () => {
     const { events } = render();
     act(() => {
@@ -155,7 +186,6 @@ describe('video engine events', () => {
       { type: 'progress', position: 10_250, duration: 120_500, buffered: 30_000 },
       { type: 'buffering', value: true },
       { type: 'playing' },
-      { type: 'paused' },
       { type: 'ended' },
     ]);
   });

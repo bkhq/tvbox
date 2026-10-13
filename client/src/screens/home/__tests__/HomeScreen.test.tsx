@@ -190,6 +190,17 @@ describe("HomeScreen", () => {
   });
   afterEach(() => resetProviderRegistry());
 
+  it.each(["ready", "empty", "error"])("opens Live from the %s home screen", async (status) => {
+    mockProviders();
+    const { renderer } = await setup({
+      saved: status !== "empty",
+      ...(status === "error" ? { load: async () => { throw new Error("config unavailable"); } } : {}),
+    });
+    await act(async () => byTestID(renderer, "home-nav-Live").props.onPress());
+    expect(mockNavigate).toHaveBeenLastCalledWith("Live");
+    await act(async () => renderer.unmount());
+  });
+
   it("shows the home site classes and videos", async () => {
     const { home, homeVideo } = mockProviders();
     const { renderer, loadConfig } = await setup({ saved: true });

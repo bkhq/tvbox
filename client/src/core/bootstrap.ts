@@ -66,6 +66,7 @@ export function createBootstrap(deps: BootstrapDeps): Bootstrap {
   let link: ServerLink | undefined;
   /** Bumped per load so a slower, older load cannot overwrite a newer one. */
   let generation = 0;
+  let activation: Promise<unknown> = Promise.resolve();
 
   function publish(next: VodConfigSnapshot) {
     snapshot = next;
@@ -73,34 +74,44 @@ export function createBootstrap(deps: BootstrapDeps): Bootstrap {
   }
 
   /** Loads `url` (already saved and active); rejects on failure after publishing the error. */
-  async function load(url: string): Promise<VodConfig | undefined> {
-    const current = ++generation;
+  async function load(url: string, current = ++generation): Promise<VodConfig | undefined> {
     const entry = await configs.find(url);
+    if (current !== generation) return undefined;
     publish({ status: 'loading', entry });
     try {
       const config = await loadConfig(url, { home: settings.get('homeSiteKey') || undefined });
       if (current !== generation) return undefined;
-      clearProviders();
-      await onJarConfigLoaded(config);
-      // Config.update: a successful load bumps the entry to the top of the list.
-      const saved = await configs.add({ url });
-      publish({ status: 'ready', config, entry: saved });
-      return config;
+      // Cleanup and activation share native state; downloads can still run concurrently.
+      const next = activation.then(async () => {
+        if (current !== generation) return undefined;
+        clearProviders();
+        await onJarConfigLoaded(config, () => current === generation);
+        if (current !== generation) return undefined;
+        // Config.update: a successful load bumps the entry to the top of the list.
+        const saved = await configs.add({ url });
+        if (current !== generation) return undefined;
+        publish({ status: 'ready', config, entry: saved });
+        return config;
+      });
+      activation = next.catch(() => undefined);
+      return await next;
     } catch (error) {
-      if (current === generation) publish({ status: 'error', entry, error: toError(error) });
+      if (current !== generation) return undefined;
+      publish({ status: 'error', entry, error: toError(error) });
       throw error;
     }
   }
 
   async function reload() {
+    const current = ++generation;
     const active = await configs.getActive();
+    if (current !== generation) return;
     if (!active) {
-      generation++;
       publish({ status: 'empty' });
       return;
     }
     try {
-      await load(active.url);
+      await load(active.url, current);
     } catch (error) {
       link?.onConfigError(active.url, error);
     }

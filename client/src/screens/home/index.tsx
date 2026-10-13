@@ -37,10 +37,11 @@ import {
 const NAV_LINKS: {
   route: Extract<
     RouteName,
-    "Settings" | "History" | "Collect" | "Search" | "Control"
+    "Settings" | "History" | "Collect" | "Search" | "Control" | "Live"
   >;
   title: string;
 }[] = [
+  { route: "Live", title: "直播" },
   { route: "Search", title: "搜索" },
   { route: "History", title: "历史记录" },
   { route: "Collect", title: "收藏" },

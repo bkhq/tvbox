@@ -79,7 +79,11 @@ export function VideoEngineView({
         })
       }
       onBuffer={(data) => onEvent({ type: 'buffering', value: data.isBuffering })}
-      onPlaybackStateChanged={(data) => onEvent({ type: data.isPlaying ? 'playing' : 'paused' })}
+      onPlaybackStateChanged={(data) => {
+        // isPlaying also becomes false during buffering and seeks.
+        if (data.isPlaying && !paused) onEvent({ type: 'playing' });
+        else if (!data.isPlaying && paused) onEvent({ type: 'paused' });
+      }}
       onEnd={() => onEvent({ type: 'ended' })}
       onError={(data) => onEvent({ type: 'error', ...toEngineError(data.error, loaded.current) })}
       onAudioTracks={(data) => updateTracks({ audio: toAudioTracks(data.audioTracks) })}

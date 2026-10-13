@@ -109,6 +109,10 @@ function PlayerView({ params, focused, onExit, onReload }: PlayerViewProps) {
 
   useBackgroundPause(background, pause);
 
+  useEffect(() => {
+    if (!focused) pause();
+  }, [focused, pause]);
+
   // Back closes the controls first; panels close through their modal.
   useEffect(() => {
     if (!focused) return;
@@ -169,7 +173,7 @@ function PlayerView({ params, focused, onExit, onReload }: PlayerViewProps) {
     onPrev: prev,
     onSeeking: seekPreview,
     onSeekEnd: seekCommit,
-  });
+  }, focused);
 
   const touch = useTouchGestures({
     width,
@@ -261,7 +265,7 @@ function PlayerView({ params, focused, onExit, onReload }: PlayerViewProps) {
           key={sourceKey}
           ref={setEngineHandle}
           source={source}
-          paused={state.paused}
+          paused={!focused || state.paused}
           rate={state.speed}
           resizeMode={resizeMode}
           selectedAudioTrack={state.audioTrack}

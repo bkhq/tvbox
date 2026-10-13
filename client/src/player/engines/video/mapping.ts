@@ -1,5 +1,14 @@
-import { type OnLoadData, type ReactVideoSource, type SelectedTrack, SelectedTrackType, TextTrackType, type TextTracks } from 'react-native-video';
+import {
+  type OnLoadData,
+  type ReactVideoSource,
+  type SelectedTrack,
+  SelectedTrackType,
+  type SubtitleStyle,
+  TextTrackType,
+  type TextTracks,
+} from 'react-native-video';
 
+import type { Scaler } from '../../../ui';
 import type { EngineSource, ExternalSubtitle, ResizeMode, Track, TrackId } from '../../engine/types';
 
 /** EngineViewProps -> react-native-video props. Times on the video side are seconds except startPosition (ms). */
@@ -29,6 +38,21 @@ export function toTextTracks(subtitles: ExternalSubtitle[]): TextTracks {
     tracks.push({ title: subtitle.name, language: (subtitle.lang ?? '') as TextTracks[number]['language'], type, uri: subtitle.url });
   }
   return tracks;
+}
+
+/** Subtitle box of the 1080p player design: 36px text sitting 300px above the bottom edge, clear of the OSD. */
+export const SUBTITLE_DESIGN = { fontSize: 36, minFontSize: 20, bottom: 300 } as const;
+// ExoPlayer's SubtitleView already lifts cues by 8% of its height, so the padding only adds the rest.
+const EXO_BOTTOM_FRACTION = 0.08;
+
+/**
+ * react-native-video `subtitleStyle` for the design box. fontSize is in sp (~dp); the paddings are raw
+ * pixels on Android, hence `pixelRatio`. The library cannot draw a background box.
+ */
+export function toSubtitleStyle(s: Scaler, subtitleScale: number, pixelRatio: number): SubtitleStyle {
+  const fontSize = Math.max(SUBTITLE_DESIGN.minFontSize, SUBTITLE_DESIGN.fontSize * subtitleScale);
+  const bottom = Math.round(SUBTITLE_DESIGN.bottom - 1080 * EXO_BOTTOM_FRACTION);
+  return { fontSize: Math.round(s(fontSize)), paddingBottom: Math.round(s(bottom) * pixelRatio), opacity: 1 };
 }
 
 /** react-native-video `type` override from the Result.format MIME hint. */

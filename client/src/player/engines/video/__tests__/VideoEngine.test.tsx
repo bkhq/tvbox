@@ -1,12 +1,14 @@
 import { createRef, useReducer } from 'react';
-import { NativeModules } from 'react-native';
+import { Dimensions, NativeModules, PixelRatio } from 'react-native';
 import { act, create } from 'react-test-renderer';
 
+import { appSettings } from '../../../../core/settings';
+import { makeScaler, scaleFor } from '../../../../ui';
 import { clearEngines, getEngine } from '../../../engine/registry';
 import type { EngineEvent, EngineHandle, EngineSource, EngineViewProps } from '../../../engine/types';
 import { initialPlaybackState, playbackReducer } from '../../../machine';
 import { registerBuiltinEngines } from '../../index';
-import { subtitleMime, toVideoSize, toVideoSource } from '../mapping';
+import { subtitleMime, toSubtitleStyle, toVideoSize, toVideoSource } from '../mapping';
 import { isVideoEngineAvailable, VideoEngineView, videoEngineFactory } from '../VideoEngine';
 
 // Records the props of the last <Video> render and the seeks made through its ref.
@@ -111,6 +113,27 @@ describe('video engine props', () => {
     expect(subtitleMime({ url: 'https://x/a.ttml', name: '' })).toBe('application/ttml+xml');
     expect(subtitleMime({ url: 'https://x/a.ass', name: '' })).toBeUndefined();
     expect(subtitleMime({ url: 'https://x/a.srt', name: '', format: 'text/x-ssa' })).toBe('application/x-subrip');
+  });
+});
+
+describe('video engine subtitle style', () => {
+  afterEach(() => act(() => appSettings.set('subtitleScale', 1)));
+
+  it('sizes the design subtitle box at 1080p and applies subtitleScale', () => {
+    const identity = (px: number) => px;
+    expect(toSubtitleStyle(identity, 1, 1)).toEqual({ fontSize: 36, paddingBottom: 214, opacity: 1 });
+    expect(toSubtitleStyle(identity, 1.5, 2)).toEqual({ fontSize: 54, paddingBottom: 428, opacity: 1 });
+    // Never below the 20px design minimum.
+    expect(toSubtitleStyle(identity, 0.5, 1)).toMatchObject({ fontSize: 20 });
+  });
+
+  it('passes the scaled subtitle style to Video and follows the setting', async () => {
+    const s = makeScaler(scaleFor(Dimensions.get('window').width));
+    render();
+    expect(mockVideo.props.subtitleStyle).toEqual(toSubtitleStyle(s, 1, PixelRatio.get()));
+    await act(() => appSettings.set('subtitleScale', 2));
+    expect(mockVideo.props.subtitleStyle).toEqual(toSubtitleStyle(s, 2, PixelRatio.get()));
+    expect(mockVideo.props.subtitleStyle.fontSize).toBeGreaterThan(toSubtitleStyle(s, 1, PixelRatio.get()).fontSize!);
   });
 });
 

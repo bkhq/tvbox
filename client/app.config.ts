@@ -29,7 +29,8 @@ function parseVersionCode(raw: string | undefined): number {
 export default ({ config }: ConfigContext): ExpoConfig => {
   const appConfig = withAndroidLeanback({
     ...config,
-    name: '星幕',
+    // Third-party spider jars (xiaosa) kill the process when the launcher label is not 影视; the in-app brand is 星幕.
+    name: '影视',
     slug: 'tvbox',
     scheme: 'tvbox',
     version: versionName,

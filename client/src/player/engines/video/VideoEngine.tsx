@@ -10,6 +10,7 @@ import {
   toTextTrackList,
   toVideoResizeMode,
   toVideoSource,
+  toVideoSize,
   toVideoTracks,
 } from './mapping';
 
@@ -53,7 +54,7 @@ export function VideoEngineView({
       text: toTextTrackList(data.textTracks),
       video: toVideoTracks(data.videoTracks),
     };
-    onEvent({ type: 'load', duration: duration.current, tracks: tracks.current });
+    onEvent({ type: 'load', duration: duration.current, tracks: tracks.current, ...toVideoSize(data.naturalSize) });
   };
 
   return (

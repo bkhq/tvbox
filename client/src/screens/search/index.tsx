@@ -1,150 +1,120 @@
-import { useEffect, useMemo, useState } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 
-import { useVodConfig } from '../../core/bootstrap';
-import { getProvider, UnsupportedSiteError } from '../../core/provider';
-import type { Site, Vod } from '../../core/types';
+import { useSetting } from '../../core/settings';
 // Not the navigation barrel: it imports the route table, which imports this screen.
 import { useAppNavigation } from '../../navigation/useAppNavigation';
 import type { RootStackScreenProps } from '../../navigation/types';
-import { colors, FocusableButton, fontSize, HorizontalRow, radius, spacing } from '../../ui';
-import { FocusableInput, LoadingView, openVod, VodGrid } from '../common';
-import { addHistory, getHistory } from './history';
-import { searchSites, searchTargets, type SearchProgress, type SiteGroup } from './searchSites';
+import { colors, FocusableButton, fontSize, radius, spacing } from '../../ui';
+import { FocusableInput } from '../common';
+import { parseWords, useSearchHistory } from './history';
+import { Keyboard, keyboardWidth } from './Keyboard';
+import { fetchHotWords, fetchSuggestWords } from './words';
 
-/** Filter key of the aggregated view. */
-const ALL = '';
+/** CustomKeyboard stops adding characters at 20. */
+const MAX_LENGTH = 20;
+/** Typing pause before the suggestions are requested. */
+export const SUGGEST_DELAY_MS = 300;
+const KEY_ROWS = 7;
 
-interface Query {
-  keyword: string;
-  /** Bumped on every submit so the same keyword searches again. */
-  id: number;
-}
-
-interface FilterItem {
-  key: string;
-  title: string;
-}
-
-function searchSite(site: Site, keyword: string, quick: boolean) {
-  try {
-    return getProvider(site).search(keyword, quick);
-  } catch (error) {
-    if (error instanceof UnsupportedSiteError) return Promise.reject(new Error('站点不支持搜索'));
-    throw error;
-  }
-}
-
-/** Items of the selected filter; the aggregated view shows the site name as subtitle. */
-function gridItems(groups: readonly SiteGroup[], filter: string): { items: Vod[]; siteKeys: Map<Vod, string> } {
-  const siteKeys = new Map<Vod, string>();
-  const items: Vod[] = [];
-  for (const { site, list } of groups) {
-    if (filter !== ALL && site.key !== filter) continue;
-    for (const vod of list) {
-      const item = filter === ALL ? { ...vod, vod_remarks: site.name || site.key } : vod;
-      siteKeys.set(item, site.key);
-      items.push(item);
-    }
-  }
-  return { items, siteKeys };
-}
-
-function Results({
-  progress,
-  filter,
-  onFilter,
-  preferFocus,
+function WordList({
+  title,
+  words,
+  prefix,
+  onPress,
+  onLongPress,
 }: {
-  progress: SearchProgress;
-  filter: string;
-  onFilter: (key: string) => void;
-  preferFocus: boolean;
+  title: string;
+  words: readonly string[];
+  prefix: string;
+  onPress: (word: string) => void;
+  onLongPress?: (word: string) => void;
 }) {
-  const navigation = useAppNavigation();
-  const { groups, completed, total, done } = progress;
-  const selected = groups.some((group) => group.site.key === filter) ? filter : ALL;
-  const { items, siteKeys } = useMemo(() => gridItems(groups, selected), [groups, selected]);
-  const filters: FilterItem[] = [
-    { key: ALL, title: `全部 (${groups.reduce((sum, group) => sum + group.list.length, 0)})` },
-    ...groups.map((group) => ({ key: group.site.key, title: `${group.site.name || group.site.key} (${group.list.length})` })),
-  ];
-
   return (
-    <View style={styles.results}>
-      {done ? null : <Text style={styles.note}>{`正在搜索 ${completed}/${total} 个站点`}</Text>}
-      {groups.length > 0 ? (
-        <HorizontalRow
-          testID="search-filters"
-          data={filters}
-          keyExtractor={(item) => item.key || 'all'}
-          renderItem={({ item }) => (
-            <FocusableButton
-              testID={`search-filter-${item.key || 'all'}`}
-              title={item.title}
-              selected={item.key === selected}
-              onPress={() => onFilter(item.key)}
-            />
-          )}
-        />
-      ) : null}
-      {done && groups.length === 0 ? (
-        <Text style={styles.empty}>未找到结果</Text>
-      ) : (
-        <VodGrid
-          items={items}
-          loading={!done}
-          preferFirstFocus={preferFocus}
-          onPressVod={(vod) => openVod(navigation, siteKeys.get(vod) ?? selected, vod)}
-        />
-      )}
+    <View style={styles.section} testID={prefix}>
+      <Text style={styles.sectionTitle}>{title}</Text>
+      <View style={styles.words}>
+        {words.map((word) => (
+          <FocusableButton
+            key={word}
+            testID={`${prefix}-${word}`}
+            title={word}
+            style={styles.word}
+            onPress={() => onPress(word)}
+            onLongPress={onLongPress ? () => onLongPress(word) : undefined}
+          />
+        ))}
+      </View>
     </View>
   );
 }
 
-export default function SearchScreen({ route }: RootStackScreenProps<'Search'>) {
-  const routeKeyword = route.params?.keyword?.trim() ?? '';
-  const { status, config } = useVodConfig();
-  const sites = config?.sites;
-  const [input, setInput] = useState(routeKeyword);
-  const [quick, setQuick] = useState(false);
-  const [query, setQuery] = useState<Query | undefined>(routeKeyword ? { keyword: routeKeyword, id: 0 } : undefined);
-  const [history, setHistory] = useState(() => (routeKeyword ? addHistory(routeKeyword) : getHistory()));
-  const [progress, setProgress] = useState<SearchProgress>();
-  const [filter, setFilter] = useState(ALL);
-  // A history keyword unmounts the pressed button, so its results take the focus.
-  const [fromHistory, setFromHistory] = useState(false);
+/** Hot words while the input is empty, iQiyi suggestions for the typed text otherwise. */
+function useWords(text: string): string[] {
+  const [hotStored, setHotStored] = useSetting('hot');
+  const hot = useMemo(() => parseWords(hotStored), [hotStored]);
+  const [suggest, setSuggest] = useState<string[]>([]);
 
-  // A new query, mode or config cancels the running search; its late answers are dropped.
+  // The last hot list shows at once and is refreshed in the background.
   useEffect(() => {
-    if (!query || !sites) return;
-    const handle = searchSites(
-      searchTargets(sites, quick),
-      (site) => searchSite(site, query.keyword, quick),
-      setProgress,
+    const controller = new AbortController();
+    fetchHotWords({ signal: controller.signal }).then(
+      (words) => {
+        if (words.length > 0) void setHotStored(JSON.stringify(words));
+      },
+      () => undefined,
     );
-    return handle.cancel;
-  }, [query, quick, sites]);
+    return () => controller.abort();
+  }, [setHotStored]);
 
-  const search = (text: string, history = false) => {
-    const keyword = text.trim();
+  useEffect(() => {
+    if (!text) return;
+    const controller = new AbortController();
+    const timer = setTimeout(() => {
+      fetchSuggestWords(text, { signal: controller.signal }).then(setSuggest, () => undefined);
+    }, SUGGEST_DELAY_MS);
+    return () => {
+      clearTimeout(timer);
+      controller.abort();
+    };
+  }, [text]);
+
+  return text ? suggest : hot;
+}
+
+/** SearchActivity: on-screen keyboard, search history and hot words; results open on their own screen. */
+export default function SearchScreen({ route }: RootStackScreenProps<'Search'>) {
+  const navigation = useAppNavigation();
+  const { height } = useWindowDimensions();
+  const [input, setInput] = useState('');
+  const [quick, setQuick] = useState(false);
+  const { history, add, remove } = useSearchHistory();
+  const text = input.trim();
+  const words = useWords(text);
+  const keySize = Math.max(28, Math.min(56, Math.floor((height - 120) / KEY_ROWS) - spacing.xs));
+
+  const search = (value: string) => {
+    const keyword = value.trim();
     if (!keyword) return;
-    setFromHistory(history);
     setInput(keyword);
-    setFilter(ALL);
-    setHistory(addHistory(keyword));
-    setQuery((current) => ({ keyword, id: (current?.id ?? 0) + 1 }));
+    add(keyword);
+    navigation.navigate('SearchResult', { keyword, quick });
   };
 
-  const focusResults = routeKeyword !== '' || fromHistory;
-  const nothingFound = progress?.done === true && progress.groups.length === 0;
+  // A keyword in the route (home, detail, LAN push) searches at once, as SearchActivity does.
+  const handled = useRef<object | undefined>(undefined);
+  useEffect(() => {
+    const params = route.params;
+    if (!params?.keyword?.trim() || handled.current === params) return;
+    handled.current = params;
+    search(params.keyword);
+    // Runs for new route params only; `search` reads the state of this render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [route.params]);
 
   return (
     <View style={styles.container}>
-      <View style={styles.header}>
-        <Text style={styles.title}>搜索</Text>
-      </View>
-      <View style={styles.form}>
+      <View style={[styles.left, { width: keyboardWidth(keySize) + spacing.xl * 2 }]}>
         <FocusableInput
           testID="search-input"
           style={styles.input}
@@ -155,92 +125,57 @@ export default function SearchScreen({ route }: RootStackScreenProps<'Search'>) 
           placeholderTextColor={colors.textSecondary}
           autoCorrect={false}
           returnKeyType="search"
-          hasTVPreferredFocus={!focusResults || nothingFound}
         />
-        <FocusableButton testID="search-submit" title="搜索" disabled={!input.trim()} onPress={() => search(input)} />
-        <FocusableButton
-          testID="search-quick"
-          title="快速搜索"
-          selected={quick}
-          onPress={() => {
-            setFilter(ALL);
-            setQuick((value) => !value);
-          }}
+        <Keyboard
+          keySize={keySize}
+          quick={quick}
+          hasTVPreferredFocus
+          onChar={(char) => setInput((value) => (value.length < MAX_LENGTH ? value + char : value))}
+          onBackspace={() => setInput((value) => value.slice(0, -1))}
+          onClear={() => setInput('')}
+          onToggleQuick={() => setQuick((value) => !value)}
+          onSearch={() => search(input)}
         />
       </View>
-      {input.trim() === '' && history.length > 0 ? (
-        <View style={styles.history} testID="search-history">
-          {history.map((keyword) => (
-            <FocusableButton
-              key={keyword}
-              testID={`search-history-${keyword}`}
-              title={keyword}
-              onPress={() => search(keyword, true)}
-            />
-          ))}
-        </View>
-      ) : null}
-      {query && !sites ? (
-        status === 'loading' ? (
-          <LoadingView />
-        ) : (
-          <Text style={styles.empty}>尚未加载配置</Text>
-        )
-      ) : null}
-      {query && sites && progress ? (
-        <Results progress={progress} filter={filter} onFilter={setFilter} preferFocus={focusResults} />
-      ) : null}
+      <ScrollView style={styles.right} contentContainerStyle={styles.rightContent}>
+        {history.length > 0 ? (
+          <WordList
+            title="搜索历史（长按删除）"
+            words={history}
+            prefix="search-history"
+            onPress={search}
+            onLongPress={remove}
+          />
+        ) : null}
+        {words.length > 0 ? (
+          <WordList title={text ? '猜你想搜' : '热门搜索'} words={words} prefix="search-word" onPress={search} />
+        ) : null}
+      </ScrollView>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: colors.background,
-  },
-  header: {
-    paddingHorizontal: spacing.xl,
-    paddingTop: spacing.lg,
-  },
-  title: {
-    color: colors.text,
-    fontSize: fontSize.heading,
-  },
-  form: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: spacing.xl,
-    marginVertical: spacing.sm,
-  },
+  container: { flex: 1, flexDirection: 'row', backgroundColor: colors.background },
+  left: { paddingHorizontal: spacing.xl, paddingTop: spacing.lg },
   input: {
-    flex: 1,
-    marginRight: spacing.sm,
+    marginBottom: spacing.sm,
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.sm,
     borderRadius: radius.md,
     backgroundColor: colors.surface,
     color: colors.text,
-    fontSize: fontSize.body,
+    fontSize: fontSize.title,
   },
-  history: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    paddingHorizontal: spacing.xl,
-  },
-  results: {
-    flex: 1,
-  },
-  note: {
-    marginHorizontal: spacing.xl,
-    marginVertical: spacing.xs,
+  right: { flex: 1 },
+  rightContent: { paddingTop: spacing.lg, paddingRight: spacing.xl },
+  section: { marginBottom: spacing.lg },
+  sectionTitle: {
+    marginHorizontal: spacing.xs,
+    marginBottom: spacing.xs,
     color: colors.textSecondary,
-    fontSize: fontSize.body,
+    fontSize: fontSize.title,
   },
-  empty: {
-    marginVertical: spacing.xl,
-    color: colors.textSecondary,
-    fontSize: fontSize.body,
-    textAlign: 'center',
-  },
+  words: { flexDirection: 'row', flexWrap: 'wrap' },
+  word: { paddingHorizontal: spacing.md, paddingVertical: spacing.xs },
 });

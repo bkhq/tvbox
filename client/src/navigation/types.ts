@@ -4,6 +4,7 @@ export type RootStackParamList = {
   Home: undefined;
   Category: { siteKey: string; typeId: string; typeName: string };
   Search: { keyword?: string } | undefined;
+  SearchResult: { keyword: string; quick?: boolean };
   Detail: { siteKey: string; vodId: string; vodName?: string; vodPic?: string };
   Player:
     | { siteKey: string; vodId: string; flag?: string; episodeUrl?: string; position?: number }

@@ -1,200 +1,135 @@
-import {
-  ActivityIndicator,
-  FlatList,
-  Image,
-  Modal,
-  Pressable,
-  ScrollView,
-  Text,
-  TextInput,
-  TVFocusGuideView,
-} from 'react-native';
+import { Pressable, ScrollView, Text, TextInput } from 'react-native';
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 
-import { BootstrapProvider, createBootstrap } from '../../../core/bootstrap';
-import { parseVodConfig } from '../../../core/config';
-import { registerProvider, resetProviderRegistry, type SiteProvider } from '../../../core/provider';
-import { createSettingsStore } from '../../../core/settings';
-import { createConfigRepository, MemoryStore } from '../../../core/storage';
-import { normalizeResult, type Result } from '../../../core/types';
+import { appSettings } from '../../../core/settings';
 import type { RootStackScreenProps } from '../../../navigation/types';
-import SearchScreen from '..';
-import { addHistory, clearHistory } from '../history';
+import SearchScreen, { SUGGEST_DELAY_MS } from '..';
+import { fetchHotWords, fetchSuggestWords } from '../words';
 
-// react-native resolves components lazily on first access; resolve the ones the
-// screen renders while the file loads so no test pays that cost inside its timeout.
-void [ActivityIndicator, FlatList, Image, Modal, Pressable, ScrollView, TextInput, TVFocusGuideView];
+void [Pressable, ScrollView, TextInput];
 
 const mockNavigate = jest.fn();
-jest.mock('../../../navigation/useAppNavigation', () => ({
-  useAppNavigation: () => ({ navigate: mockNavigate }),
-}));
+jest.mock('../../../navigation/useAppNavigation', () => ({ useAppNavigation: () => ({ navigate: mockNavigate }) }));
 
-const URL = 'https://example.com/config.json';
-const CONFIG_TEXT = JSON.stringify({
-  sites: [
-    { key: 'a', name: '甲站', type: 1, api: 'https://a.example.com/api.php/provide/vod' },
-    { key: 'none', name: '空站', type: 1, api: 'https://none.example.com/api.php/provide/vod' },
-    { key: 'b', name: '乙站', type: 1, api: 'https://b.example.com/api.php/provide/vod', quickSearch: 0 },
-    { key: 'off', name: '关站', type: 1, api: 'https://off.example.com/api.php/provide/vod', searchable: 0 },
-  ],
-});
+jest.mock('../words', () => ({ fetchHotWords: jest.fn(), fetchSuggestWords: jest.fn() }));
 
-const RESULTS: Record<string, string[]> = { a: ['a1', 'a2'], none: [], b: ['b1'] };
+const hotWords = jest.mocked(fetchHotWords);
+const suggestWords = jest.mocked(fetchSuggestWords);
 
-function mockProviders() {
-  const search = jest.fn(
-    async (siteKey: string, keyword: string, _quick: boolean): Promise<Result> =>
-      normalizeResult({
-        list: (RESULTS[siteKey] ?? []).map((id) => ({ vod_id: id, vod_name: `${keyword} ${id}`, vod_remarks: '更新至1集' })),
-      }),
-  );
-  registerProvider({
-    id: 'test',
-    match: () => true,
-    create: (site) =>
-      ({ site, search: (key: string, quick: boolean) => search(site.key, key, quick) }) as unknown as SiteProvider,
-  });
-  return search;
-}
-
-async function render(params: RootStackScreenProps<'Search'>['route']['params']) {
-  const store = new MemoryStore();
-  const configs = createConfigRepository(store, 'vod');
-  await configs.add({ url: URL });
-  await configs.setActive(URL);
-  const bootstrap = createBootstrap({
-    configs,
-    settings: createSettingsStore(store),
-    loadConfig: (url) => Promise.resolve(parseVodConfig(CONFIG_TEXT, url)),
-  });
-  await bootstrap.start();
+async function render(params?: RootStackScreenProps<'Search'>['route']['params']) {
   const props = { route: { key: 'Search', name: 'Search', params } } as unknown as RootStackScreenProps<'Search'>;
   let renderer!: ReactTestRenderer;
   await act(async () => {
-    renderer = create(
-      <BootstrapProvider value={bootstrap}>
-        <SearchScreen {...props} />
-      </BootstrapProvider>,
-    );
+    renderer = create(<SearchScreen {...props} />);
   });
   return renderer;
 }
 
-function texts(renderer: ReactTestRenderer): string[] {
-  return renderer.root.findAllByType(Text).map((node) => [node.props.children].flat().join(''));
-}
-
 function byTestId(renderer: ReactTestRenderer, testID: string) {
-  // The outermost match carries the props given by the screen.
   return renderer.root.findAll((node) => node.props.testID === testID)[0]!;
 }
 
 const hasTestId = (renderer: ReactTestRenderer, testID: string) =>
   renderer.root.findAll((node) => node.props.testID === testID).length > 0;
 
-const cardIds = (renderer: ReactTestRenderer) =>
-  renderer.root
-    .findAll((node) => typeof node.type === 'string' && String(node.props.testID ?? '').startsWith('vod-card-'))
-    .map((node) => node.props.testID as string);
+const press = (renderer: ReactTestRenderer, testID: string) =>
+  act(async () => byTestId(renderer, testID).props.onPress());
+
+const inputValue = (renderer: ReactTestRenderer) => byTestId(renderer, 'search-input').props.value as string;
+
+const texts = (renderer: ReactTestRenderer) =>
+  renderer.root.findAllByType(Text).map((node) => [node.props.children].flat().join(''));
 
 describe('SearchScreen', () => {
-  // VirtualizedList batches cell updates on a 50 ms timer; fake timers keep it from
-  // firing outside act() on a slow host, and unmounting clears it.
-  beforeEach(() => jest.useFakeTimers());
-  afterEach(() => jest.useRealTimers());
-  beforeEach(() => {
+  beforeEach(async () => {
+    jest.useFakeTimers();
     mockNavigate.mockClear();
-    clearHistory();
+    hotWords.mockReset().mockResolvedValue([]);
+    suggestWords.mockReset().mockResolvedValue([]);
+    await appSettings.set('keyword', '');
+    await appSettings.set('hot', '');
   });
-  afterEach(() => resetProviderRegistry());
+  afterEach(() => jest.useRealTimers());
 
-  it('searches the route keyword and groups the results by site', async () => {
-    const search = mockProviders();
-    const renderer = await render({ keyword: '流浪' });
+  it('types with the on-screen keyboard and opens the results', async () => {
+    const renderer = await render();
+    expect(byTestId(renderer, 'search-key-A').props.hasTVPreferredFocus).toBe(true);
 
-    expect(search.mock.calls.map(([siteKey]) => siteKey).sort()).toEqual(['a', 'b', 'none']);
-    expect(search).toHaveBeenCalledWith('a', '流浪', false);
-    expect(texts(renderer)).toEqual(expect.arrayContaining(['搜索', '全部 (3)', '甲站 (2)', '乙站 (1)']));
-    expect(hasTestId(renderer, 'search-filter-none')).toBe(false);
-    expect(cardIds(renderer)).toEqual(['vod-card-a1', 'vod-card-a2', 'vod-card-b1']);
-    // The aggregated view shows the site name instead of the remarks.
-    expect(texts(renderer)).toEqual(expect.arrayContaining(['甲站', '乙站']));
-    expect(byTestId(renderer, 'vod-card-a1').props.hasTVPreferredFocus).toBe(true);
-    expect(byTestId(renderer, 'search-input').props.hasTVPreferredFocus).toBe(false);
+    for (const key of ['L', 'O', 'V', 'E', 'X']) await press(renderer, `search-key-${key}`);
+    expect(inputValue(renderer)).toBe('LOVEX');
+    await press(renderer, 'search-key-backspace');
+    expect(inputValue(renderer)).toBe('LOVE');
+
+    await press(renderer, 'search-quick');
+    await press(renderer, 'search-submit');
+    expect(mockNavigate).toHaveBeenCalledWith('SearchResult', { keyword: 'LOVE', quick: true });
+    expect(appSettings.get('keyword')).toBe(JSON.stringify(['LOVE']));
+
+    await press(renderer, 'search-key-clear');
+    expect(inputValue(renderer)).toBe('');
     await act(async () => renderer.unmount());
   });
 
-  it('narrows the grid to the selected site and opens Detail with its key', async () => {
-    mockProviders();
-    const renderer = await render({ keyword: '流浪' });
-
-    await act(async () => byTestId(renderer, 'search-filter-b').props.onPress());
-    expect(cardIds(renderer)).toEqual(['vod-card-b1']);
-    expect(texts(renderer)).toContain('更新至1集');
-
-    await act(async () => byTestId(renderer, 'vod-card-b1').props.onPress());
-    expect(mockNavigate).toHaveBeenCalledWith('Detail', { siteKey: 'b', vodId: 'b1', vodName: '流浪 b1', vodPic: '' });
-
-    await act(async () => byTestId(renderer, 'search-filter-all').props.onPress());
-    await act(async () => byTestId(renderer, 'vod-card-a2').props.onPress());
-    expect(mockNavigate).toHaveBeenLastCalledWith('Detail', expect.objectContaining({ siteKey: 'a', vodId: 'a2' }));
+  it('does not search an empty keyword', async () => {
+    const renderer = await render();
+    await press(renderer, 'search-submit');
+    expect(mockNavigate).not.toHaveBeenCalled();
     await act(async () => renderer.unmount());
   });
 
-  it('focuses the input without a keyword and searches on submit, keeping history', async () => {
-    const search = mockProviders();
-    const renderer = await render(undefined);
-
-    expect(search).not.toHaveBeenCalled();
-    expect(byTestId(renderer, 'search-input').props.hasTVPreferredFocus).toBe(true);
-    expect(hasTestId(renderer, 'vod-grid')).toBe(false);
-
-    await act(async () => byTestId(renderer, 'search-input').props.onChangeText('星际'));
-    await act(async () => byTestId(renderer, 'search-submit').props.onPress());
-    expect(search).toHaveBeenCalledWith('a', '星际', false);
-    expect(cardIds(renderer)).toEqual(['vod-card-a1', 'vod-card-a2', 'vod-card-b1']);
-
-    await act(async () => byTestId(renderer, 'search-input').props.onChangeText(''));
-    expect(hasTestId(renderer, 'search-history-星际')).toBe(true);
+  it('searches a route keyword at once', async () => {
+    const renderer = await render({ keyword: ' 繁花 ' });
+    expect(mockNavigate).toHaveBeenCalledWith('SearchResult', { keyword: '繁花', quick: false });
+    expect(inputValue(renderer)).toBe('繁花');
     await act(async () => renderer.unmount());
   });
 
-  it('moves the focus to the results of a history keyword', async () => {
-    const search = mockProviders();
-    addHistory('星际');
-    const renderer = await render(undefined);
+  it('keeps the latest ten keywords, newest first, and removes one on long press', async () => {
+    await appSettings.set('keyword', JSON.stringify(['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j']));
+    const renderer = await render();
 
-    await act(async () => byTestId(renderer, 'search-history-星际').props.onPress());
-    expect(search).toHaveBeenCalledWith('a', '星际', false);
-    expect(byTestId(renderer, 'vod-card-a1').props.hasTVPreferredFocus).toBe(true);
-    expect(byTestId(renderer, 'search-input').props.hasTVPreferredFocus).toBe(false);
+    await press(renderer, 'search-history-c');
+    expect(mockNavigate).toHaveBeenCalledWith('SearchResult', { keyword: 'c', quick: false });
+    expect(JSON.parse(appSettings.get('keyword'))).toEqual(['c', 'a', 'b', 'd', 'e', 'f', 'g', 'h', 'i', 'j']);
 
-    search.mockImplementation(async () => normalizeResult({ list: [] }));
-    await act(async () => byTestId(renderer, 'search-submit').props.onPress());
-    expect(byTestId(renderer, 'search-input').props.hasTVPreferredFocus).toBe(true);
+    await act(async () => byTestId(renderer, 'search-input').props.onChangeText('k'));
+    await act(async () => byTestId(renderer, 'search-input').props.onSubmitEditing());
+    expect(JSON.parse(appSettings.get('keyword'))).toEqual(['k', 'c', 'a', 'b', 'd', 'e', 'f', 'g', 'h', 'i']);
+
+    await act(async () => byTestId(renderer, 'search-history-a').props.onLongPress());
+    expect(hasTestId(renderer, 'search-history-a')).toBe(false);
+    expect(JSON.parse(appSettings.get('keyword'))).not.toContain('a');
     await act(async () => renderer.unmount());
   });
 
-  it('skips sites without quick search in quick mode', async () => {
-    const search = mockProviders();
-    const renderer = await render({ keyword: '流浪' });
-    search.mockClear();
+  it('shows the cached hot words, then the fresh ones', async () => {
+    await appSettings.set('hot', JSON.stringify(['旧词']));
+    let resolve!: (words: string[]) => void;
+    hotWords.mockReturnValue(new Promise((done) => (resolve = done)));
+    const renderer = await render();
+    expect(texts(renderer)).toEqual(expect.arrayContaining(['热门搜索', '旧词']));
 
-    await act(async () => byTestId(renderer, 'search-quick').props.onPress());
-    expect(search.mock.calls.map(([siteKey]) => siteKey).sort()).toEqual(['a', 'none']);
-    expect(search).toHaveBeenCalledWith('a', '流浪', true);
-    expect(cardIds(renderer)).toEqual(['vod-card-a1', 'vod-card-a2']);
+    await act(async () => resolve(['新词']));
+    expect(hasTestId(renderer, 'search-word-新词')).toBe(true);
+    expect(appSettings.get('hot')).toBe(JSON.stringify(['新词']));
+
+    await press(renderer, 'search-word-新词');
+    expect(mockNavigate).toHaveBeenCalledWith('SearchResult', { keyword: '新词', quick: false });
     await act(async () => renderer.unmount());
   });
 
-  it('shows 未找到结果 when no site returns anything', async () => {
-    const search = mockProviders();
-    search.mockImplementation(async () => normalizeResult({ list: [] }));
-    const renderer = await render({ keyword: '无' });
+  it('asks for suggestions after a typing pause', async () => {
+    suggestWords.mockResolvedValue(['功夫女足']);
+    const renderer = await render();
 
-    expect(texts(renderer)).toEqual(expect.arrayContaining(['搜索', '未找到结果']));
-    expect(byTestId(renderer, 'search-input').props.hasTVPreferredFocus).toBe(true);
+    await act(async () => byTestId(renderer, 'search-input').props.onChangeText('功'));
+    await act(async () => byTestId(renderer, 'search-input').props.onChangeText('功夫'));
+    expect(suggestWords).not.toHaveBeenCalled();
+
+    await act(async () => jest.advanceTimersByTime(SUGGEST_DELAY_MS));
+    expect(suggestWords).toHaveBeenCalledTimes(1);
+    expect(suggestWords).toHaveBeenCalledWith('功夫', expect.anything());
+    expect(texts(renderer)).toEqual(expect.arrayContaining(['猜你想搜', '功夫女足']));
     await act(async () => renderer.unmount());
   });
 });

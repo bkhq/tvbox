@@ -9,6 +9,7 @@ import HomeScreen from '../screens/home';
 import LiveScreen from '../screens/live';
 import PlayerScreen from '../screens/player';
 import SearchScreen from '../screens/search';
+import SearchResultScreen from '../screens/search/ResultScreen';
 import SettingsScreen from '../screens/settings';
 import type { RootStackScreenProps, RouteName } from './types';
 
@@ -26,6 +27,7 @@ export const routes: { [K in RouteName]: RouteDefinition<K> } = {
   Home: { component: HomeScreen, title: '首页' },
   Category: { component: CategoryScreen, title: '分类' },
   Search: { component: SearchScreen, title: '搜索' },
+  SearchResult: { component: SearchResultScreen, title: '搜索结果' },
   Detail: { component: DetailScreen, title: '详情' },
   Player: { component: PlayerScreen, title: '播放' },
   Live: { component: LiveScreen, title: '直播' },

@@ -16,6 +16,7 @@ describe('RootNavigator', () => {
       'Home',
       'Category',
       'Search',
+      'SearchResult',
       'Detail',
       'Player',
       'Live',
@@ -42,7 +43,9 @@ describe('RootNavigator', () => {
     const params: { [K in keyof RootStackParamList]: RootStackParamList[K] } = {
       Home: undefined,
       Category: { siteKey: 's', typeId: '1', typeName: '电影' },
-      Search: { keyword: 'abc' },
+      // A keyword would open the results at once.
+      Search: undefined,
+      SearchResult: { keyword: 'abc' },
       Detail: { siteKey: 's', vodId: 'v' },
       Player: { siteKey: 's', vodId: 'v', position: 0 },
       Live: { groupIndex: 0 },

@@ -76,6 +76,8 @@ export const settingsSchema = {
   incognito: boolean(false), // "incognito"
   adblock: boolean(true), // "adblock"
   homeSiteKey: text(), // Config.home (home site key of the active VOD config)
+  keyword: text(), // "keyword" (search history, JSON string array)
+  hot: text(), // "hot" (last hot search words, JSON string array)
 
   // --- PlayerSetting.java
   playerEngine: choice(['auto', 'video', 'mpv'], 'auto'), // "player_engine" (0 = ExoPlayer, 1 = mpv); 'auto' = platform default (iOS mpv, Android video), 'video' / 'mpv' = explicit choice

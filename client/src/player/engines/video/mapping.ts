@@ -93,3 +93,10 @@ export function toVideoTracks(tracks: OnLoadData['videoTracks'] = []): Track[] {
     toTrack({ index: t.index, selected: t.selected }, t.width && t.height ? `${t.width}x${t.height}` : `视频 ${i + 1}`),
   );
 }
+
+/** Video pixel size from onLoad `naturalSize`, upright for portrait videos; undefined unless both sides are > 0. */
+export function toVideoSize(size: OnLoadData['naturalSize'] | undefined): { width: number; height: number } | undefined {
+  if (!size || !(size.width > 0) || !(size.height > 0)) return undefined;
+  const swap = size.orientation === 'portrait' && size.width > size.height;
+  return swap ? { width: size.height, height: size.width } : { width: size.width, height: size.height };
+}

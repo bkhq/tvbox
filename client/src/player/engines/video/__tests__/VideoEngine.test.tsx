@@ -6,7 +6,7 @@ import { clearEngines, getEngine } from '../../../engine/registry';
 import type { EngineEvent, EngineHandle, EngineSource, EngineViewProps } from '../../../engine/types';
 import { initialPlaybackState, playbackReducer } from '../../../machine';
 import { registerBuiltinEngines } from '../../index';
-import { subtitleMime, toVideoSource } from '../mapping';
+import { subtitleMime, toVideoSize, toVideoSource } from '../mapping';
 import { isVideoEngineAvailable, VideoEngineView, videoEngineFactory } from '../VideoEngine';
 
 // Records the props of the last <Video> render and the seeks made through its ref.
@@ -182,12 +182,22 @@ describe('video engine events', () => {
             { id: 1, label: '视频 2' },
           ],
         },
+        width: 1920,
+        height: 1080,
       },
       { type: 'progress', position: 10_250, duration: 120_500, buffered: 30_000 },
       { type: 'buffering', value: true },
       { type: 'playing' },
       { type: 'ended' },
     ]);
+  });
+
+  it('maps naturalSize to an upright video size', () => {
+    expect(toVideoSize({ width: 1280, height: 720, orientation: 'landscape' })).toEqual({ width: 1280, height: 720 });
+    expect(toVideoSize({ width: 1920, height: 1080, orientation: 'portrait' })).toEqual({ width: 1080, height: 1920 });
+    expect(toVideoSize({ width: 1080, height: 1920, orientation: 'portrait' })).toEqual({ width: 1080, height: 1920 });
+    expect(toVideoSize({ width: 0, height: 0, orientation: 'landscape' })).toBeUndefined();
+    expect(toVideoSize(undefined)).toBeUndefined();
   });
 
   it('reports track list updates', () => {

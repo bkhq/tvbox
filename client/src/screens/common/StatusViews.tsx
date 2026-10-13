@@ -1,6 +1,6 @@
-import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Text, View } from 'react-native';
 
-import { colors, FocusableButton, fontSize, spacing } from '../../ui';
+import { Button, color, scaledText, space, useScaledStyles, type Scaler } from '../../ui';
 
 export interface ErrorViewProps {
   message: string;
@@ -10,13 +10,16 @@ export interface ErrorViewProps {
 }
 
 export function ErrorView({ message, onRetry, hasTVPreferredFocus, testID }: ErrorViewProps) {
+  const styles = useScaledStyles(makeStyles);
   return (
     <View style={styles.container} testID={testID}>
       <Text style={styles.text}>{message}</Text>
       {onRetry ? (
-        <FocusableButton
+        <Button
           testID={testID ? `${testID}-retry` : undefined}
           title="重试"
+          variant="primary"
+          size="md"
           hasTVPreferredFocus={hasTVPreferredFocus}
           onPress={onRetry}
         />
@@ -26,24 +29,22 @@ export function ErrorView({ message, onRetry, hasTVPreferredFocus, testID }: Err
 }
 
 export function LoadingView({ text = '正在加载…' }: { text?: string }) {
+  const styles = useScaledStyles(makeStyles);
   return (
     <View style={styles.container}>
-      <ActivityIndicator color={colors.primary} />
+      <ActivityIndicator color={color.accent} />
       <Text style={styles.text}>{text}</Text>
     </View>
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (s: Scaler) => ({
   container: {
     flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: spacing.xl,
+    alignItems: 'center' as const,
+    justifyContent: 'center' as const,
+    gap: s(space.md),
+    padding: s(space.xl),
   },
-  text: {
-    marginVertical: spacing.sm,
-    color: colors.textSecondary,
-    fontSize: fontSize.body,
-  },
+  text: { ...scaledText(s).body, color: color.text2, textAlign: 'center' as const },
 });

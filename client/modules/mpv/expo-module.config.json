@@ -4,6 +4,6 @@
     "modules": ["MpvModule"]
   },
   "android": {
-    "modules": ["cc.bkhq.tvbox.mpv.MpvModule"]
+    "modules": ["io.bk.tv.mpv.MpvModule"]
   }
 }

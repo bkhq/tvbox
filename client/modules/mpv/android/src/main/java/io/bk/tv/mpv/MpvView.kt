@@ -1,4 +1,4 @@
-package cc.bkhq.tvbox.mpv
+package io.bk.tv.mpv
 
 import android.content.Context
 import android.os.Handler

@@ -1,4 +1,4 @@
-package cc.bkhq.tvbox.dlna;
+package io.bk.tv.dlna;
 
 import org.jupnp.model.message.StreamRequestMessage;
 import org.jupnp.model.message.StreamResponseMessage;

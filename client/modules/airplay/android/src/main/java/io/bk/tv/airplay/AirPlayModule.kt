@@ -1,4 +1,4 @@
-package cc.bkhq.tvbox.airplay
+package io.bk.tv.airplay
 
 import android.content.Context
 import expo.modules.kotlin.exception.Exceptions

@@ -191,7 +191,7 @@ private final class MpvPlayer {
   let handle: OpaquePointer
   var onEvent: (([String: Any]) -> Void)?
 
-  private let queue = DispatchQueue(label: "cc.bkhq.tvbox.mpv", qos: .userInitiated)
+  private let queue = DispatchQueue(label: "io.bk.tv.mpv", qos: .userInitiated)
   // Touched on `queue` only.
   private var destroyed = false
   private var duration = 0.0

@@ -4,5 +4,5 @@ src/main/resources are vendored from serezhka/java-airplay at commit 00e6e3c
 the protocol and server modules and adapts them to Android (NIO-only Netty,
 Android 7 API replacements, no debug file watcher, mDNS skips loopback).
 
-The receiver glue in src/main/java/cc/bkhq/tvbox/airplay is ported from
+The receiver glue in src/main/java/io/bk/tv/airplay is ported from
 app/src/main/java/com/fongmi/android/tv/airplay.

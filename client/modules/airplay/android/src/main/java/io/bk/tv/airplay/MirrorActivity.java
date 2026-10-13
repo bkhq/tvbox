@@ -1,4 +1,4 @@
-package cc.bkhq.tvbox.airplay;
+package io.bk.tv.airplay;
 
 import android.app.Activity;
 import android.graphics.Color;

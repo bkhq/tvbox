@@ -122,7 +122,7 @@ describe('parseManifest', () => {
 
   it('keeps bundleId and defaults missing notes', () => {
     const { notes: _notes, ...rest } = manifestJson;
-    expect(parseManifest({ ...rest, bundleId: 'cc.bkhq.tvbox' })).toMatchObject({ notes: '', bundleId: 'cc.bkhq.tvbox' });
+    expect(parseManifest({ ...rest, bundleId: 'io.bk.tv' })).toMatchObject({ notes: '', bundleId: 'io.bk.tv' });
   });
 
   it.each([
@@ -191,12 +191,12 @@ describe('checkForUpdate', () => {
   });
 
   it('adds the plist url for ipa flavors', async () => {
-    const fetchJson = jest.fn(async () => ({ ...manifestJson, url: '../ipa/10203/tvos-universal.ipa', bundleId: 'cc.bkhq.tvbox' }));
+    const fetchJson = jest.fn(async () => ({ ...manifestJson, url: '../ipa/10203/tvos-universal.ipa', bundleId: 'io.bk.tv' }));
     const result = await checkForUpdate(options({ platform: { OS: 'ios', isTV: true }, fetchJson }));
     expect(fetchJson).toHaveBeenCalledWith(`${WORKER}/u/rn/stable/tvos-universal.json`);
     expect(result).toMatchObject({
       status: 'available',
-      release: { flavor: 'tvos-universal', plistUrl: `${WORKER}/u/rn/stable/tvos-universal.plist`, bundleId: 'cc.bkhq.tvbox' },
+      release: { flavor: 'tvos-universal', plistUrl: `${WORKER}/u/rn/stable/tvos-universal.plist`, bundleId: 'io.bk.tv' },
     });
   });
 

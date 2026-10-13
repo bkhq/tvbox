@@ -1,4 +1,4 @@
-package cc.bkhq.tvbox.dlna;
+package io.bk.tv.dlna;
 
 import android.content.Context;
 import android.media.AudioManager;

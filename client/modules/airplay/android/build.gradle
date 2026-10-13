@@ -3,11 +3,11 @@ plugins {
   id 'expo-module-gradle-plugin'
 }
 
-group = 'cc.bkhq.tvbox'
+group = 'io.bk.tv'
 version = '1.0.0'
 
 android {
-  namespace 'cc.bkhq.tvbox.airplay'
+  namespace 'io.bk.tv.airplay'
   defaultConfig {
     versionCode 1
     versionName '1.0.0'

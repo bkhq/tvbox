@@ -1,6 +1,6 @@
 {
   "platforms": ["android"],
   "android": {
-    "modules": ["cc.bkhq.tvbox.airplay.AirPlayModule"]
+    "modules": ["io.bk.tv.airplay.AirPlayModule"]
   }
 }

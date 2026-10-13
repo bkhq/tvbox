@@ -7,7 +7,7 @@
 
   <application>
     <activity
-      android:name="cc.bkhq.tvbox.airplay.MirrorActivity"
+      android:name="io.bk.tv.airplay.MirrorActivity"
       android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboard|keyboardHidden|navigation"
       android:excludeFromRecents="true"
       android:exported="false"

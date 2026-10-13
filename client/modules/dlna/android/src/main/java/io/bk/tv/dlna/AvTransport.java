@@ -1,4 +1,4 @@
-package cc.bkhq.tvbox.dlna;
+package io.bk.tv.dlna;
 
 import org.json.JSONObject;
 import org.jupnp.model.types.UnsignedIntegerFourBytes;

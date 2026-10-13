@@ -1,6 +1,6 @@
 {
   "platforms": ["android"],
   "android": {
-    "modules": ["cc.bkhq.tvbox.dlna.DlnaModule"]
+    "modules": ["io.bk.tv.dlna.DlnaModule"]
   }
 }

@@ -1,6 +1,7 @@
 import { parseEpisodes } from '../../core/types';
 import type { EngineSource } from '../engine/types';
 import {
+  episodeIndexForFlag,
   initialPlaybackState,
   isPlaying,
   MSG_NO_ENGINE,
@@ -14,6 +15,7 @@ import {
   selectEpisode,
   selectHasNext,
   selectHasPrev,
+  selectQualityLabel,
 } from '../machine';
 
 const source = (url = 'http://a/1.m3u8', startPosition?: number): EngineSource => ({ url, headers: {}, subtitles: [], startPosition });
@@ -238,6 +240,59 @@ describe('playback machine', () => {
       expect(state.triedFlags).toEqual([0]);
       state = playbackReducer(state, { type: 'failed', token: state.token, message: 'b' });
       expect(state).toMatchObject({ status: 'resolving', flagIndex: 2, episodeIndex: 0 });
+    });
+  });
+
+  describe('video size', () => {
+    const sized = (width: number, height: number): PlaybackAction => ({ type: 'engine', event: { type: 'load', duration: 1000, tracks, width, height } });
+
+    it('stores the size from load and resets it for a new item or engine', () => {
+      const state = playbackReducer(playing(openVod()), sized(1920, 1080));
+      expect(state.videoSize).toEqual({ width: 1920, height: 1080 });
+      expect(playbackReducer(state, { type: 'next' }).videoSize).toBeUndefined();
+      expect(playbackReducer(state, { type: 'setEngine', engine: 'mpv' }).videoSize).toBeUndefined();
+      expect(run({ type: 'open', engine: 'video', speed: 1, source: source() }).videoSize).toBeUndefined();
+      expect(playing(openVod()).videoSize).toBeUndefined();
+    });
+
+    it.each([
+      [3840, 2160, '4K'],
+      [3840, 1600, '4K'],
+      [2560, 1440, '2K'],
+      [1920, 1080, '1080P'],
+      [1280, 720, '720P'],
+      [640, 360, undefined],
+    ])('labels %ix%i as %s', (width, height, label) => {
+      expect(selectQualityLabel(playbackReducer(playing(openVod()), sized(width, height)))).toBe(label);
+    });
+
+    it('has no label while the size is unknown', () => {
+      expect(selectQualityLabel(playing(openVod()))).toBeUndefined();
+      expect(selectQualityLabel(initialPlaybackState)).toBeUndefined();
+    });
+  });
+
+  describe('episodeIndexForFlag', () => {
+    const lines = [
+      { flag: 'a', episodes: parseEpisodes('E1$a1#E2$a2#E3$a3') },
+      { flag: 'b', episodes: parseEpisodes('E0$b0#E3$b3') },
+      { flag: 'c', episodes: parseEpisodes('X1$c1') },
+      { flag: 'd', episodes: [] },
+    ];
+    const at = (episodeIndex: number): PlaybackState => ({ ...initialPlaybackState, flags: lines, flagIndex: 0, episodeIndex });
+
+    it('picks the episode with the same name', () => {
+      expect(episodeIndexForFlag(at(2), 1)).toBe(1);
+    });
+
+    it('falls back to the same index clamped to the line', () => {
+      expect(episodeIndexForFlag(at(1), 1)).toBe(1);
+      expect(episodeIndexForFlag(at(2), 2)).toBe(0);
+    });
+
+    it('returns 0 for an empty or unknown line', () => {
+      expect(episodeIndexForFlag(at(2), 3)).toBe(0);
+      expect(episodeIndexForFlag(at(2), 9)).toBe(0);
     });
   });
 

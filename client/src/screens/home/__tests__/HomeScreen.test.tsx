@@ -23,7 +23,9 @@ import { getHistoryRepository, getKeepRepository, setUserDataStore } from '../..
 import { getMainNavAvailability, setMainNavAvailability } from '../../../navigation/mainNav';
 import type { RootStackScreenProps } from '../../../navigation/types';
 import { makeScaler, scaleFor } from '../../../ui/scale';
+import { focus } from '../../../ui/tokens';
 import HomeScreen, { HERO_FOCUS_DELAY } from '..';
+import { HERO_ACTION_GAP } from '../Hero';
 import { SITE_LIST_MAX_HEIGHT } from '../SitePicker';
 
 // react-native resolves components lazily on first access; resolve the ones the
@@ -218,6 +220,18 @@ describe('HomeScreen', () => {
     expect(has(renderer, 'home-hero-bg')).toBe(true);
     expect(renderer.root.findByProps({ testID: 'home-hero-bg' }).props.blurRadius).toBe(30);
     expect(preferred(renderer)).toEqual(['home-hero-play']);
+    const s = makeScaler(scaleFor(Dimensions.get('window').width));
+    // The blurred image overshoots the clipped hero on its outer edges so its faded blur border stays hidden.
+    const bg = renderer.root.findByProps({ testID: 'home-hero-bg' });
+    expect(bg.props.style).toMatchObject({ top: -s(60), right: -s(60), bottom: -s(60) });
+    expect(byTestID(renderer, 'home-hero-background').props.style.overflow).toBe('hidden');
+    // Descender room: about 1.15x the font size.
+    const titleStyle = byTestID(renderer, 'home-hero-title').props.style;
+    expect(titleStyle.lineHeight).toBeGreaterThanOrEqual(titleStyle.fontSize * 1.14);
+    // A focused 立即播放 (~250 wide) grows 4% per side plus its scaled ring and must not touch 加入片单.
+    const ring = (focus.ringGap + focus.ringWidth) * focus.scale;
+    expect(HERO_ACTION_GAP).toBeGreaterThan(((focus.scale - 1) / 2) * 300 + ring);
+    expect(byTestID(renderer, 'home-hero-actions').props.style.gap).toBe(s(HERO_ACTION_GAP));
 
     // A focused card becomes the hero after the debounce; it has no remarks, type, score, year or content.
     await act(async () => byTestID(renderer, 'home-card-recommend-cms-2').props.onFocus());
@@ -413,6 +427,8 @@ describe('HomeScreen', () => {
       ]),
     );
     expect(texts(byTestID(renderer, 'home-site-cms'))).toContain('首页');
+    // Badge pins itself to the top; the row centres it.
+    expect(byTestID(renderer, 'home-site-badge').props.style).toMatchObject({ alignSelf: 'center' });
     expect(byTestID(renderer, 'home-site-jar').props.disabled).toBe(true);
     expect(preferred(renderer)).toEqual(['home-site-cms']);
     // The list is capped so a long site list scrolls instead of pushing 关闭 off screen.

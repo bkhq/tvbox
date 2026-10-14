@@ -126,9 +126,28 @@ describe('tagLine', () => {
 });
 
 describe('splitPeople', () => {
-  it('splits on the common separators', () => {
-    expect(splitPeople('甲,乙，丙/丁、戊 己  庚')).toEqual(['甲', '乙', '丙', '丁', '戊', '己', '庚']);
+  it('keeps a Latin full name whole', () => {
+    expect(splitPeople('Meret Manon Bannerman')).toEqual(['Meret Manon Bannerman']);
+    expect(splitPeople('  Tom Hanks  ')).toEqual(['Tom Hanks']);
+  });
+
+  it('splits space-separated CJK names', () => {
+    expect(splitPeople('张三 李四  王五')).toEqual(['张三', '李四', '王五']);
+  });
+
+  it('splits only on punctuation when present, keeping spaces inside names', () => {
+    expect(splitPeople('Meret Manon Bannerman, Tom Hanks')).toEqual(['Meret Manon Bannerman', 'Tom Hanks']);
+    expect(splitPeople('甲,乙，丙/丁、戊|己；庚;辛 壬')).toEqual(['甲', '乙', '丙', '丁', '戊', '己', '庚', '辛 壬']);
+    expect(splitPeople(' 张三 / ,李四 ')).toEqual(['张三', '李四']);
+  });
+
+  it('keeps mixed CJK and Latin space-separated text whole', () => {
+    expect(splitPeople('张三 John Smith')).toEqual(['张三 John Smith']);
+  });
+
+  it('returns nothing for an empty value', () => {
     expect(splitPeople('')).toEqual([]);
+    expect(splitPeople('   ')).toEqual([]);
     expect(splitPeople(undefined)).toEqual([]);
   });
 });

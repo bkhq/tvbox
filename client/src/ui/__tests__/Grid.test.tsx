@@ -68,6 +68,18 @@ describe('Grid', () => {
     expect(list(single).props.columnWrapperStyle).toBeUndefined();
   });
 
+  it('takes a custom inset and gap in design px', async () => {
+    const renderer = await render(
+      <Grid inset={40} gap={16} data={data} keyExtractor={(item) => item} renderItem={renderItem} />,
+    );
+    expect(StyleSheet.flatten(list(renderer).props.contentContainerStyle)).toEqual({
+      paddingHorizontal: 40,
+      paddingVertical: 16,
+      gap: 16,
+    });
+    expect(StyleSheet.flatten(list(renderer).props.columnWrapperStyle)).toEqual({ gap: 16 });
+  });
+
   it('passes the list props through', async () => {
     const onEndReached = jest.fn();
     const header = <Text>header</Text>;

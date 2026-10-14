@@ -44,8 +44,16 @@ export function Row<T>({ title, caption, data, renderItem, keyExtractor, style, 
   );
 }
 
+/**
+ * Header-to-list space on top of the list's bleed: a focused poster (the tallest card) grows by
+ * (1.08 - 1) / 2 * 336 = 13.44 above its slot and its 4 ring scales to 4.32; with 8 clearance from the
+ * title that needs 26, of which the bleed gives 16.
+ */
+const HEADER_GAP =
+  Math.ceil(((focus.scale - 1) / 2) * card.poster.height + focus.borderWidth * focus.scale + 8) - focus.bleed;
+
 const makeStyles = (s: Scaler) => ({
-  header: { marginHorizontal: s(safeArea.horizontal) },
+  header: { marginHorizontal: s(safeArea.horizontal), marginBottom: s(HEADER_GAP) },
   list: { overflow: 'visible' as const },
   content: { paddingHorizontal: s(safeArea.horizontal), paddingVertical: s(focus.bleed), gap: s(card.rowGap) },
 });

@@ -1,4 +1,4 @@
-import { Text } from 'react-native';
+import { Text, View } from 'react-native';
 
 import { AnimatedPressable, type FocusableProps } from './Button';
 import { useScaledStyles, type Scaler } from './scale';
@@ -39,34 +39,43 @@ export function Tab({
       onPress={onPress}
       onLongPress={onLongPress}
       {...handlers}
-      style={[
-        styles.tab,
-        active && styles.active,
-        focused && styles.focused,
-        disabled && styles.disabled,
-        style,
-        animatedStyle,
-      ]}
+      style={[styles.tab, focused && styles.focused, disabled && styles.disabled, style, animatedStyle]}
       {...nextFocus}
     >
       <Text numberOfLines={1} style={[styles.label, active && styles.labelActive, focused && styles.labelFocused]}>
         {label}
       </Text>
+      {active ? <View testID={testID ? `${testID}-underline` : undefined} style={styles.underline} /> : null}
     </AnimatedPressable>
   );
 }
 
+/** Mockup tab: 10/4 padding over a 4 underline. */
+const MOCK_PAD_X = 4;
+const UNDERLINE = 4;
+/** Room around the label for the focus fill. */
+const PAD_X = 20;
+
 const makeStyles = (s: Scaler) => {
   const text = scaledText(s);
   return {
+    // The negative margin keeps the mockup's 4 padding in layout, so labels do not move against the gaps.
     tab: {
-      paddingVertical: s(10),
-      paddingHorizontal: s(4),
-      borderBottomWidth: s(4),
-      borderBottomColor: 'transparent',
-      borderRadius: s(radii.tag),
+      paddingTop: s(10),
+      paddingBottom: s(10 + UNDERLINE),
+      paddingHorizontal: s(PAD_X),
+      marginHorizontal: -s(PAD_X - MOCK_PAD_X),
+      borderRadius: s(radii.button),
     },
-    active: { borderBottomColor: color.accent },
+    // As in the mockup the underline spans the label plus 4 per side, not the focus padding.
+    underline: {
+      position: 'absolute' as const,
+      left: s(PAD_X - MOCK_PAD_X),
+      right: s(PAD_X - MOCK_PAD_X),
+      bottom: 0,
+      height: s(UNDERLINE),
+      backgroundColor: color.accent,
+    },
     // Like the top-bar buttons: focus inverts to a white fill with dark text.
     focused: { backgroundColor: focus.borderColor },
     disabled: { opacity: 0.4 },

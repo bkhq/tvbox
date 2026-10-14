@@ -36,6 +36,7 @@ import {
 } from './engine/types';
 import { createHistoryTracker, type HistoryTracker, pickEpisode, shouldSkipEnding, startPosition } from './history';
 import {
+  episodeIndexForFlag,
   initialPlaybackState,
   isActive,
   isPlaying,
@@ -73,6 +74,8 @@ export interface UsePlayback {
   next(): void;
   prev(): void;
   selectEpisode(episodeIndex: number, flagIndex?: number): void;
+  /** Switches the play line keeping the episode (episodeIndexForFlag); no-op for the current or an unknown line. */
+  switchFlag(flagIndex: number): void;
   setSpeed(speed: number): void;
   selectTrack(kind: 'audio' | 'text', id: TrackId | null): void;
   addSubtitle(subtitle: ExternalSubtitle): void;
@@ -341,6 +344,12 @@ export function usePlayback(params: PlayerParams, options: UsePlaybackOptions = 
     [settings],
   );
 
+  const switchFlag = useCallback((flagIndex: number) => {
+    const current = stateRef.current;
+    if (flagIndex === current.flagIndex || flagIndex < 0 || flagIndex >= current.flags.length) return;
+    dispatch({ type: 'selectEpisode', episodeIndex: episodeIndexForFlag(current, flagIndex), flagIndex });
+  }, []);
+
   const engine = state.engine ? getEngine(state.engine) : undefined;
   const resizeMode = useMemo(() => resizeModeFromScale(scale), [scale]);
 
@@ -358,6 +367,7 @@ export function usePlayback(params: PlayerParams, options: UsePlaybackOptions = 
     next,
     prev,
     selectEpisode: useCallback((episodeIndex: number, flagIndex?: number) => dispatch({ type: 'selectEpisode', episodeIndex, flagIndex }), []),
+    switchFlag,
     setSpeed,
     selectTrack: useCallback((kind: 'audio' | 'text', id: TrackId | null) => dispatch({ type: 'selectTrack', kind, id }), []),
     addSubtitle: useCallback((subtitle: ExternalSubtitle) => dispatch({ type: 'addSubtitle', subtitle }), []),

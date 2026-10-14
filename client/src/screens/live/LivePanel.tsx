@@ -1,19 +1,34 @@
 import { type ReactNode, useState } from 'react';
-import { Modal, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Modal, ScrollView, Text, TextInput, View } from 'react-native';
 
 import { useSetting } from '../../core/settings/useSetting';
 import type { Live } from '../../core/types';
-import { colors, FocusableButton, fontSize, radius, spacing, useLayout } from '../../ui';
+import { Button, Chip, color, focus, radii, type Scaler, scaledText, space, useScaledStyles } from '../../ui';
 
-function Sheet({ title, testID, onClose, children }: { title: string; testID: string; onClose(): void; children: ReactNode }) {
-  const { isTV } = useLayout();
+type Styles = ReturnType<typeof makeStyles>;
+
+function Sheet({
+  title,
+  testID,
+  styles,
+  onClose,
+  children,
+}: {
+  title: string;
+  testID: string;
+  styles: Styles;
+  onClose(): void;
+  children: ReactNode;
+}) {
   return (
     <Modal visible transparent animationType="fade" onRequestClose={onClose}>
       <View style={styles.backdrop}>
-        <View testID={testID} style={[styles.panel, isTV ? styles.panelTV : styles.panelPhone]}>
+        <View testID={testID} style={styles.panel}>
           <Text style={styles.title}>{title}</Text>
           {children}
-          <FocusableButton testID="live-panel-close" title="关闭" onPress={onClose} />
+          <View style={styles.footer}>
+            <Button testID="live-panel-close" title="关闭" size="md" onPress={onClose} />
+          </View>
         </View>
       </View>
     </Modal>
@@ -23,9 +38,9 @@ function Sheet({ title, testID, onClose, children }: { title: string; testID: st
 function Toggle({ setting, title }: { setting: 'invert' | 'across' | 'change'; title: string }) {
   const [value, setValue] = useSetting(setting);
   return (
-    <FocusableButton
+    <Chip
       testID={`live-setting-${setting}`}
-      title={`${title}：${value ? '开' : '关'}`}
+      label={`${title}：${value ? '开' : '关'}`}
       selected={value}
       onPress={() => void setValue(!value)}
     />
@@ -44,15 +59,16 @@ export function LivePanel({
   onSelect(live: Live): void;
   onClose(): void;
 }) {
+  const styles = useScaledStyles(makeStyles);
   return (
-    <Sheet title="直播" testID="live-panel" onClose={onClose}>
+    <Sheet title="直播" testID="live-panel" styles={styles} onClose={onClose}>
       <Text style={styles.section}>直播源</Text>
-      <ScrollView style={styles.list}>
+      <ScrollView style={styles.list} contentContainerStyle={styles.chips}>
         {lives.map((live, index) => (
-          <FocusableButton
+          <Chip
             key={`${index}-${live.name}`}
             testID={`live-source-${index}`}
-            title={live.name}
+            label={live.name}
             selected={live.name === home}
             hasTVPreferredFocus={live.name === home}
             onPress={() => onSelect(live)}
@@ -60,7 +76,7 @@ export function LivePanel({
         ))}
       </ScrollView>
       <Text style={styles.section}>设置</Text>
-      <View style={styles.toggles}>
+      <View style={styles.chips}>
         <Toggle setting="invert" title="换台反转" />
         <Toggle setting="across" title="跨分类换台" />
         <Toggle setting="change" title="失败自动换源" />
@@ -71,9 +87,10 @@ export function LivePanel({
 
 /** PassDialog: unlocks the password-protected groups. */
 export function PassPrompt({ onSubmit, onClose }: { onSubmit(pass: string): void; onClose(): void }) {
+  const styles = useScaledStyles(makeStyles);
   const [pass, setPass] = useState('');
   return (
-    <Sheet title="请输入密码" testID="live-pass" onClose={onClose}>
+    <Sheet title="请输入密码" testID="live-pass" styles={styles} onClose={onClose}>
       <TextInput
         testID="live-pass-input"
         style={styles.input}
@@ -83,53 +100,46 @@ export function PassPrompt({ onSubmit, onClose }: { onSubmit(pass: string): void
         autoFocus
         onSubmitEditing={() => onSubmit(pass)}
       />
-      <FocusableButton testID="live-pass-ok" title="确定" onPress={() => onSubmit(pass)} />
+      <View style={styles.actions}>
+        <Button testID="live-pass-ok" variant="primary" title="确定" size="md" onPress={() => onSubmit(pass)} />
+      </View>
     </Sheet>
   );
 }
 
-const styles = StyleSheet.create({
-  backdrop: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-  },
-  panel: {
-    maxHeight: '90%',
-    padding: spacing.lg,
-    borderRadius: radius.md,
-    backgroundColor: colors.background,
-  },
-  panelTV: {
-    width: '50%',
-  },
-  panelPhone: {
-    width: '90%',
-  },
-  title: {
-    marginBottom: spacing.md,
-    color: colors.text,
-    fontSize: fontSize.heading,
-  },
-  section: {
-    marginTop: spacing.sm,
-    color: colors.textSecondary,
-    fontSize: fontSize.body,
-  },
-  list: {
-    maxHeight: 240,
-  },
-  toggles: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-  },
-  input: {
-    marginVertical: spacing.md,
-    padding: spacing.sm,
-    borderRadius: radius.md,
-    backgroundColor: colors.surface,
-    color: colors.text,
-    fontSize: fontSize.title,
-  },
-});
+const makeStyles = (s: Scaler) => {
+  const t = scaledText(s);
+  return {
+    backdrop: {
+      flex: 1,
+      alignItems: 'center' as const,
+      justifyContent: 'center' as const,
+      backgroundColor: 'rgba(11,14,20,0.6)',
+    },
+    panel: {
+      width: s(960),
+      maxWidth: '90%' as const,
+      maxHeight: '90%' as const,
+      padding: s(48),
+      borderRadius: s(20),
+      borderWidth: s(1),
+      borderColor: color.divider,
+      backgroundColor: color.surface,
+    },
+    title: { ...t.h1, marginBottom: s(space.sm), color: color.text },
+    section: { ...t.label, marginTop: s(space.md), marginBottom: s(space.xs), color: color.text3 },
+    list: { maxHeight: s(400), flexGrow: 0 },
+    chips: { flexDirection: 'row' as const, flexWrap: 'wrap' as const, gap: s(space.sm), padding: s(focus.bleed) },
+    actions: { flexDirection: 'row' as const, marginBottom: s(space.sm) },
+    footer: { flexDirection: 'row' as const, justifyContent: 'flex-end' as const, marginTop: s(space.md) },
+    input: {
+      ...t.h2,
+      marginVertical: s(space.md),
+      paddingHorizontal: s(space.md),
+      height: s(76),
+      borderRadius: s(radii.button),
+      backgroundColor: color.surface2,
+      color: color.text,
+    },
+  };
+};

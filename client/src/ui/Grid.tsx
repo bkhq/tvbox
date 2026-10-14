@@ -1,5 +1,5 @@
-import { type ReactElement, useMemo } from 'react';
-import { FlatList, type ListRenderItem } from 'react-native';
+import { type ReactElement, useMemo, useState } from 'react';
+import { FlatList, type LayoutChangeEvent, type ListRenderItem, View } from 'react-native';
 
 import { useScale } from './scale';
 import { card, focus, safeArea } from './tokens';
@@ -37,31 +37,37 @@ export function Grid<T>({
 }: GridProps<T>) {
   const { s } = useScale();
   const numColumns = columns ?? variantColumns[variant];
+  // On TV the list wraps its scroll view in an unstyled, content-sized focus guide, so flex cannot bound it:
+  // measure the space the parent gives the grid and pin the list to that height so it scrolls to the focus.
+  const [height, setHeight] = useState<number>();
+  const onLayout = (event: LayoutChangeEvent) => setHeight(event.nativeEvent.layout.height);
   const styles = useMemo(
     () => ({
-      // Inset on the sides; the vertical bleed keeps the focus zoom of the edge rows unclipped.
-      content: { paddingHorizontal: s(inset), paddingVertical: s(focus.bleed), gap: s(gap) },
+      // Inset on the sides; the list clips, so the vertical bleed fits the zoomed poster plus its ring.
+      content: { paddingHorizontal: s(inset), paddingVertical: s(focus.bleed + focus.borderWidth), gap: s(gap) },
       columns: { gap: s(gap) },
     }),
     [s, inset, gap],
   );
   return (
-    <FlatList
-      // FlatList cannot change numColumns in place; remount on change.
-      key={`grid-${numColumns}`}
-      numColumns={numColumns}
-      // Same window as FocusGrid: only the rows the focus can reach next.
-      initialNumToRender={numColumns * 3}
-      maxToRenderPerBatch={numColumns * 2}
-      windowSize={5}
-      onEndReachedThreshold={0.5}
-      style={listStyle}
-      contentContainerStyle={styles.content}
-      // FlatList rejects columnWrapperStyle for a single column.
-      columnWrapperStyle={numColumns > 1 ? styles.columns : undefined}
-      {...props}
-    />
+    <View style={frameStyle} onLayout={onLayout}>
+      <FlatList
+        // FlatList cannot change numColumns in place; remount on change.
+        key={`grid-${numColumns}`}
+        numColumns={numColumns}
+        // Same window as FocusGrid: only the rows the focus can reach next.
+        initialNumToRender={numColumns * 3}
+        maxToRenderPerBatch={numColumns * 2}
+        windowSize={5}
+        onEndReachedThreshold={0.5}
+        style={height === undefined ? undefined : { height }}
+        contentContainerStyle={styles.content}
+        // FlatList rejects columnWrapperStyle for a single column.
+        columnWrapperStyle={numColumns > 1 ? styles.columns : undefined}
+        {...props}
+      />
+    </View>
   );
 }
 
-const listStyle = { overflow: 'visible' as const };
+const frameStyle = { flex: 1 };

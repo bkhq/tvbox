@@ -393,6 +393,36 @@ describe('LiveScreen', () => {
     const renderer = await render();
     expect(has(renderer, 'live-empty')).toBe(true);
     expect(texts(renderer)).toContain('暂无直播源');
+    expect(has(renderer, 'live-empty-retry')).toBe(true);
+    expect(has(renderer, 'live-empty-switch')).toBe(false);
+    await press(renderer, 'live-empty-settings');
+    expect(mockNavigate).toHaveBeenCalledWith('Settings');
     await act(async () => renderer.unmount());
+  });
+
+  it('shows a short load error, reloads on 重试 and switches the live source', async () => {
+    jest.mocked(loadLiveGroups).mockRejectedValueOnce(
+      new Error('fetch failed\njava.net.MalformedURLException: no protocol:\n\tat java.net.URL.<init>(URL.java:611)'),
+    );
+    const renderer = await render();
+    expect(has(renderer, 'live-load-error')).toBe(true);
+    expect(texts(renderer)).toContain('频道加载失败');
+    expect(byTestId(renderer, 'live-load-error-detail').props.children).toBe('fetch failed');
+    expect(texts(renderer).join('\n')).not.toContain('MalformedURLException');
+    expect(byTestId(renderer, 'top-nav-live').props.active).toBe(true);
+
+    await press(renderer, 'live-load-error-retry');
+    expect(has(renderer, 'live-browse')).toBe(true);
+    expect(loadLiveGroups).toHaveBeenLastCalledWith(live, expect.anything());
+
+    jest.mocked(loadLiveGroups).mockRejectedValueOnce(new Error('boom'));
+    await act(async () => renderer.unmount());
+    const second = await render();
+    await press(second, 'live-load-error-switch');
+    await press(second, 'live-source-1');
+    expect(saveLiveHome).toHaveBeenCalledWith('直播B');
+    expect(loadLiveGroups).toHaveBeenLastCalledWith(other, expect.anything());
+    expect(has(second, 'live-browse')).toBe(true);
+    await act(async () => second.unmount());
   });
 });

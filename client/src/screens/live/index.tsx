@@ -39,6 +39,7 @@ import { LiveBrowse } from './LiveBrowse';
 import { toggleFavourite } from './liveFavourites';
 import { initialSelection, type LiveSelection } from './liveModel';
 import { LivePanel, PassPrompt } from './LivePanel';
+import { LiveStatus } from './LiveStatus';
 import { useLiveEpg } from './useLiveEpg';
 import { useLiveGestures } from './useLiveGestures';
 import { type LiveRemoteAction, useLiveRemote } from './useLiveRemote';
@@ -434,15 +435,16 @@ function LivePlayer({ live, lives, visible, hidden: initialHidden, start, params
   );
 }
 
+const errorText = (error: unknown) => (error instanceof Error ? error.message : String(error));
+
 type LoadState =
   | { status: 'loading' }
-  | { status: 'error'; message: string }
-  | { status: 'empty'; message: string }
+  | { status: 'error'; title: string; detail: string }
+  | { status: 'empty'; title: string }
   | { status: 'ready'; id: number; live: Live; visible: Group[]; hidden: Group[]; start: LiveSelection };
 
 /** Loads the live sources and the selected source's channels, then plays. */
 function LiveView({ params, focused, onReload }: { params: LiveParams; focused: boolean; onReload(): void }) {
-  const ui = useScaledStyles(makeStyles);
   const vodConfig = useVodConfig();
   const vodLives = vodConfig.status === 'ready' ? vodConfig.config?.lives : undefined;
   const [lives, setLives] = useState<Live[]>([]);
@@ -460,10 +462,10 @@ function LiveView({ params, focused, onReload }: { params: LiveParams; focused: 
         if (cancelled) return;
         setLives(sources.lives);
         setHome(sources.home);
-        if (!sources.home) setLoad({ status: 'empty', message: '暂无直播源' });
+        if (!sources.home) setLoad({ status: 'empty', title: '暂无直播源' });
       },
       (error: unknown) => {
-        if (!cancelled) setLoad({ status: 'error', message: `直播配置加载失败：${error instanceof Error ? error.message : String(error)}` });
+        if (!cancelled) setLoad({ status: 'error', title: '直播配置加载失败', detail: errorText(error) });
       },
     );
     return () => {
@@ -483,10 +485,10 @@ function LiveView({ params, focused, onReload }: { params: LiveParams; focused: 
       const start = initialSelection(visible, routeRef.current, state.keep[home.name] ?? '');
       routeRef.current = undefined;
       const id = ++loads.current;
-      setLoad(start ? { status: 'ready', id, live, visible, hidden, start } : { status: 'empty', message: '暂无频道' });
+      setLoad(start ? { status: 'ready', id, live, visible, hidden, start } : { status: 'empty', title: '暂无频道' });
     })().catch((error: unknown) => {
       if (!controller.signal.aborted) {
-        setLoad({ status: 'error', message: `频道加载失败：${error instanceof Error ? error.message : String(error)}` });
+        setLoad({ status: 'error', title: '频道加载失败', detail: errorText(error) });
       }
     });
     return () => controller.abort();
@@ -498,25 +500,17 @@ function LiveView({ params, focused, onReload }: { params: LiveParams; focused: 
     setHome(live);
   }, []);
 
-  if (load.status === 'loading') {
+  if (load.status !== 'ready') {
     return (
-      <View style={[styles.center, ui.page]} testID="live-loading">
-        <Text style={ui.title}>直播</Text>
-        <ActivityIndicator color={color.accent} />
-        <Text style={ui.statusText}>正在加载…</Text>
-      </View>
-    );
-  }
-  if (load.status === 'error' || load.status === 'empty') {
-    return (
-      <View style={[styles.center, ui.page]}>
-        <ErrorView
-          testID={load.status === 'error' ? 'live-load-error' : 'live-empty'}
-          message={load.message}
-          onRetry={onReload}
-          hasTVPreferredFocus
-        />
-      </View>
+      <LiveStatus
+        kind={load.status}
+        title={load.status === 'loading' ? undefined : load.title}
+        detail={load.status === 'error' ? load.detail : undefined}
+        lives={lives}
+        home={home?.name}
+        onRetry={load.status === 'loading' ? undefined : onReload}
+        onSelectLive={selectLive}
+      />
     );
   }
   return (
@@ -579,10 +573,9 @@ const styles = StyleSheet.create({
 });
 
 const makeStyles = (s: Scaler) => {
-  const { h1, body } = scaledText(s);
+  const { body } = scaledText(s);
   return {
     page: { backgroundColor: color.bg },
-    title: { ...h1, marginBottom: s(space.sm), color: color.text },
     statusText: { ...body, marginTop: s(space.sm), color: color.text },
     notice: {
       position: 'absolute' as const,

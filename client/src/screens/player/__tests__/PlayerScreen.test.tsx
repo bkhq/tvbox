@@ -218,7 +218,7 @@ describe('PlayerScreen', () => {
     await remote('right', 0);
     await remote('right', 0);
     await remote('right', 0);
-    expect(byTestId(renderer, 'player-seek-target').props.children).toBe('01:30 / 10:00');
+    expect(byTestId(renderer, 'player-seek-target').props.children).toBe('01:30');
     await act(async () => new Promise((resolve) => setTimeout(resolve, SEEK_COMMIT_DELAY + 50)));
     expect(mpv.seeks).toEqual([90_000]);
     expect(has(renderer, 'player-seek-target')).toBe(false);
@@ -245,6 +245,21 @@ describe('PlayerScreen', () => {
     await press(renderer, 'player-error-retry');
     expect(has(renderer, 'player-error')).toBe(false);
     expect(mpv.props?.source).toMatchObject({ url: 'https://m/a.m3u8' });
+    await act(async () => renderer.unmount());
+  });
+
+  it('opens the controls with up while the source is still loading', async () => {
+    const renderer = await render({ url: 'https://m/a.m3u8', title: '标题' });
+    expect(has(renderer, 'player-status')).toBe(true);
+    expect(has(renderer, 'player-controls')).toBe(false);
+    await remote('up');
+    expect(has(renderer, 'player-controls')).toBe(true);
+    expect(has(renderer, 'player-status')).toBe(true);
+    await press(renderer, 'player-engine');
+    expect(has(renderer, 'player-panel-settings')).toBe(true);
+    await press(renderer, 'player-panel-close');
+    await press(renderer, 'player-back');
+    expect(goBack).toHaveBeenCalled();
     await act(async () => renderer.unmount());
   });
 
@@ -281,9 +296,9 @@ describe('PlayerScreen', () => {
     expect(mpv.props?.source.subtitles).toEqual([{ url: 'https://s/zh.srt', name: 'zh.srt' }]);
 
     await press(renderer, 'player-engine');
-    expect(has(renderer, 'player-panel-engine')).toBe(true);
+    expect(has(renderer, 'player-panel-settings')).toBe(true);
     await press(renderer, 'player-panel-close');
-    expect(has(renderer, 'player-panel-engine')).toBe(false);
+    expect(has(renderer, 'player-panel-settings')).toBe(false);
 
     // Panel closed, controls still shown: back hides them; with nothing shown it leaves the screen.
     expect(has(renderer, 'player-controls')).toBe(true);
@@ -305,9 +320,46 @@ describe('PlayerScreen', () => {
     await emit(mpv, { type: 'progress', position: 42_000, duration: 600_000, buffered: 0 });
     await remote('up');
     await press(renderer, 'player-engine');
-    await press(renderer, 'player-engine-video');
+    await press(renderer, 'player-settings-engine-video');
     expect(appSettings.get('playerEngine')).toBe('video');
     expect(video.props?.source).toMatchObject({ url: 'https://m/a.m3u8', startPosition: 42_000 });
+    await act(async () => renderer.unmount());
+  });
+
+  it('sets the picture scale from the settings panel', async () => {
+    await act(async () => appSettings.set('scale', 0));
+    const renderer = await render({ url: 'https://m/a.m3u8' });
+    await emit(mpv, load);
+    await remote('up');
+    await press(renderer, 'player-engine');
+    await press(renderer, 'player-settings-scale-3');
+    expect(appSettings.get('scale')).toBe(3);
+    expect(mpv.props?.resizeMode).toBe('stretch');
+    expect(has(renderer, 'player-panel-settings')).toBe(false);
+    await act(async () => renderer.unmount());
+  });
+
+  it('switches the line from the 画质 panel', async () => {
+    registerProvider({
+      id: 'test',
+      match: (site) => site.key === 'cms',
+      create: () =>
+        ({
+          detail: async () =>
+            normalizeResult({
+              list: [{ vod_id: '1', vod_name: '剧集', vod_play_from: 'a$$$b', vod_play_url: '第1集$https://m/1.m3u8$$$第1集$https://n/1.m3u8' }],
+            }),
+          player: async (flag: string, id: string) => normalizeResult({ url: id, parse: 0, flag }),
+        }) as unknown as SiteProvider,
+    });
+    const renderer = await render({ siteKey: 'cms', vodId: '1' });
+    await emit(mpv, load);
+    await remote('up');
+    expect(texts(renderer)).toContain('画质·a');
+    await press(renderer, 'player-line');
+    expect(has(renderer, 'player-panel-line')).toBe(true);
+    await press(renderer, 'player-line-1');
+    expect(mpv.props?.source).toMatchObject({ url: 'https://n/1.m3u8' });
     await act(async () => renderer.unmount());
   });
 

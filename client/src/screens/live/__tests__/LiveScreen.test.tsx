@@ -1,5 +1,5 @@
 import type { HWEvent } from 'react-native';
-import { ActivityIndicator, FlatList, Image, Modal, Pressable, ScrollView, Text, TextInput } from 'react-native';
+import { ActivityIndicator, BackHandler, FlatList, Image, Modal, Pressable, ScrollView, Text, TextInput } from 'react-native';
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 
 import { type Bootstrap, BootstrapProvider } from '../../../core/bootstrap';
@@ -17,11 +17,16 @@ import { emptyChannel } from '../../../player/live/channel';
 import { fetchChannelEpg } from '../../../player/live/epg';
 import { loadLiveGroups, loadLiveSources, readLiveState, saveLiveHome, saveLiveKeep } from '../../../player/live/source';
 import { createMockEngine, type MockEngine } from '../../../player/testing/mockEngine';
+import { LOAD_TIMEOUT } from '../../../player/usePlayback';
 import LiveScreen, { PASS_PRESSES } from '..';
 
 void [ActivityIndicator, FlatList, Image, Modal, Pressable, ScrollView, TextInput];
 
 let mockRemote: ((event: HWEvent) => void) | undefined;
+const mockNavigate = jest.fn();
+jest.mock('../../../navigation/useAppNavigation', () => ({
+  useAppNavigation: () => ({ navigate: mockNavigate }),
+}));
 jest.mock('react-native/Libraries/Components/TV/useTVEventHandler', () => ({
   __esModule: true,
   default: (handler: (event: HWEvent) => void) => {
@@ -74,9 +79,19 @@ const vip = (): Group => ({ name: 'VIP', pass: '8888', channel: [channel('V1', '
 
 let video: MockEngine;
 let mpv: MockEngine;
+let fakeTimers = false;
 
 async function settle() {
-  for (let i = 0; i < 5; i++) await act(async () => new Promise((resolve) => setTimeout(resolve, 0)));
+  for (let i = 0; i < 5; i++) {
+    await act(async () =>
+      fakeTimers ? jest.advanceTimersByTimeAsync(0) : new Promise((resolve) => setTimeout(resolve, 0)),
+    );
+  }
+}
+
+async function advance(ms: number) {
+  await act(async () => jest.advanceTimersByTimeAsync(ms));
+  await settle();
 }
 
 async function render(params?: RootStackParamList['Live']): Promise<ReactTestRenderer> {
@@ -94,6 +109,12 @@ async function render(params?: RootStackParamList['Live']): Promise<ReactTestRen
   });
   await settle();
   return renderer;
+}
+
+/** Enters the full-screen player from browse. */
+async function full(renderer: ReactTestRenderer) {
+  await press(renderer, 'live-browse-full');
+  expect(has(renderer, 'live-browse')).toBe(false);
 }
 
 async function remote(eventType: string) {
@@ -164,6 +185,7 @@ afterEach(() => {
 describe('LiveScreen', () => {
   it('plays the first channel after 收藏 with its headers, info bar and EPG', async () => {
     const renderer = await render();
+    await full(renderer);
     expect(playing()).toBe('http://m/1a');
     expect(mpv.props?.source.headers).toMatchObject({ 'User-Agent': 'UA1', Referer: 'http://r/' });
     expect(fetchChannelEpg).toHaveBeenCalledWith(expect.objectContaining({ name: 'CCTV1' }), '');
@@ -193,6 +215,7 @@ describe('LiveScreen', () => {
 
   it('changes channel with up / down, across groups and inverted', async () => {
     const renderer = await render();
+    await full(renderer);
     await remote('down');
     expect(playing()).toBe('http://m/2');
     await remote('channelDown');
@@ -213,6 +236,7 @@ describe('LiveScreen', () => {
 
   it('switches source with left / right', async () => {
     const renderer = await render();
+    await full(renderer);
     await remote('right');
     expect(playing()).toBe('http://m/1b');
     expect(texts(renderer)).toContain('线路 2/2');
@@ -225,6 +249,7 @@ describe('LiveScreen', () => {
 
   it('tries the next source on a fatal error, then the engine fallback', async () => {
     const renderer = await render();
+    await full(renderer);
     await emit(mpv, fatal('open'));
     expect(playing()).toBe('http://m/1b');
     expect(texts(renderer)).toContain('播放失败，切换到线路 2');
@@ -238,9 +263,46 @@ describe('LiveScreen', () => {
     await act(async () => renderer.unmount());
   });
 
+  describe('load watchdog', () => {
+    beforeEach(() => {
+      jest.useFakeTimers();
+      fakeTimers = true;
+    });
+
+    afterEach(() => {
+      jest.useRealTimers();
+      fakeTimers = false;
+    });
+
+    it('switches to the next line when the engine never loads', async () => {
+      const renderer = await render();
+      await full(renderer);
+      expect(playing()).toBe('http://m/1a');
+      await advance(LOAD_TIMEOUT - 1);
+      expect(playing()).toBe('http://m/1a');
+      await advance(1);
+      expect(playing()).toBe('http://m/1b');
+      expect(texts(renderer)).toContain('播放失败，切换到线路 2');
+      await act(async () => renderer.unmount());
+    });
+
+    it('falls through to the engine fallback, then the error view, with a single line', async () => {
+      const renderer = await render({ groupIndex: 2, channelIndex: 0 });
+      await full(renderer);
+      expect(playing()).toBe('http://m/zj');
+      await advance(LOAD_TIMEOUT);
+      expect(video.props?.source.url).toBe('http://m/zj');
+      expect(texts(renderer)).toContain('已切换到 系统播放器 播放');
+      await advance(LOAD_TIMEOUT);
+      expect(has(renderer, 'live-error')).toBe(true);
+      await act(async () => renderer.unmount());
+    });
+  });
+
   it('does not change source on error when `change` is off', async () => {
     await act(async () => appSettings.set('change', false));
     const renderer = await render();
+    await full(renderer);
     await emit(mpv, fatal('network'));
     expect(has(renderer, 'live-error')).toBe(true);
     await act(async () => renderer.unmount());
@@ -248,6 +310,7 @@ describe('LiveScreen', () => {
 
   it('opens the channel list on OK and plays the pressed channel', async () => {
     const renderer = await render();
+    await full(renderer);
     await remote('select');
     expect(has(renderer, 'live-list')).toBe(true);
     // Keys belong to the list while it is open.
@@ -263,6 +326,7 @@ describe('LiveScreen', () => {
 
   it('switches the live source from the menu panel', async () => {
     const renderer = await render();
+    await full(renderer);
     await remote('info');
     expect(has(renderer, 'live-panel')).toBe(true);
     await press(renderer, 'live-source-1');
@@ -275,6 +339,7 @@ describe('LiveScreen', () => {
 
   it('unlocks password groups after repeated presses on 收藏', async () => {
     const renderer = await render();
+    await full(renderer);
     await remote('select');
     for (let i = 0; i < PASS_PRESSES; i++) await press(renderer, 'live-group-0');
     expect(has(renderer, 'live-pass')).toBe(true);
@@ -301,11 +366,110 @@ describe('LiveScreen', () => {
     await act(async () => renderer.unmount());
   });
 
+  it('starts in browse: cards play channels, the playing card and 全屏观看 enter full mode, back returns', async () => {
+    const handlers: (() => boolean | null | undefined)[] = [];
+    const spy = jest.spyOn(BackHandler, 'addEventListener').mockImplementation((_event, handler) => {
+      handlers.push(handler as () => boolean);
+      return { remove: () => handlers.splice(handlers.indexOf(handler as () => boolean), 1) && undefined };
+    });
+    const renderer = await render();
+    expect(has(renderer, 'live-browse')).toBe(true);
+    expect(has(renderer, 'live-info')).toBe(false);
+    expect(handlers).toHaveLength(0);
+    // Remote keys belong to the browse controls.
+    await remote('down');
+    expect(playing()).toBe('http://m/1a');
+
+    await press(renderer, 'live-browse-card-1');
+    expect(playing()).toBe('http://m/2');
+    expect(has(renderer, 'live-browse')).toBe(true);
+    expect(byTestId(renderer, 'live-browse-name').props.children).toBe('CCTV2');
+
+    await press(renderer, 'live-browse-card-1');
+    expect(has(renderer, 'live-browse')).toBe(false);
+    expect(has(renderer, 'live-info')).toBe(true);
+    await remote('down');
+    expect(playing()).toBe('http://m/zj');
+
+    expect(handlers).toHaveLength(1);
+    let consumed: boolean | null | undefined;
+    await act(async () => {
+      consumed = handlers[0]!();
+    });
+    await settle();
+    expect(consumed).toBe(true);
+    expect(has(renderer, 'live-browse')).toBe(true);
+    expect(handlers).toHaveLength(0);
+    expect(playing()).toBe('http://m/zj');
+
+    await full(renderer);
+    expect(has(renderer, 'live-info')).toBe(true);
+    spy.mockRestore();
+    await act(async () => renderer.unmount());
+  });
+
+  it('shows a LAN-selected channel in browse', async () => {
+    const renderer = await render();
+    await act(async () => getLiveController().selectChannel(2, 0));
+    await settle();
+    expect(playing()).toBe('http://m/zj');
+    expect(byTestId(renderer, 'live-browse-name').props.children).toBe('浙江卫视');
+    expect(has(renderer, 'live-browse')).toBe(true);
+    await act(async () => renderer.unmount());
+  });
+
+  it('keeps playing when the playing 收藏 channel loses its favourite', async () => {
+    const renderer = await render();
+    await press(renderer, 'live-browse-favourite');
+    expect(has(renderer, 'live-browse-group-keep')).toBe(true);
+    // The keep copy of CCTV1 (LAN select into 收藏).
+    await act(async () => getLiveController().selectChannel(0, 0));
+    await settle();
+    expect(playing()).toBe('http://m/1a');
+
+    await press(renderer, 'live-browse-favourite');
+    expect(has(renderer, 'live-browse-group-keep')).toBe(false);
+    expect(byTestId(renderer, 'live-browse-name').props.children).toBe('CCTV1');
+    expect(playing()).toBe('http://m/1a');
+    expect(saveLiveKeep).toHaveBeenLastCalledWith('直播A', '央视@@@CCTV1@@@http://m/1a');
+    await act(async () => renderer.unmount());
+  });
+
   it('shows an empty message without live sources', async () => {
     jest.mocked(loadLiveSources).mockResolvedValue({ lives: [] });
     const renderer = await render();
     expect(has(renderer, 'live-empty')).toBe(true);
     expect(texts(renderer)).toContain('暂无直播源');
+    expect(has(renderer, 'live-empty-retry')).toBe(true);
+    expect(has(renderer, 'live-empty-switch')).toBe(false);
+    await press(renderer, 'live-empty-settings');
+    expect(mockNavigate).toHaveBeenCalledWith('Settings');
     await act(async () => renderer.unmount());
+  });
+
+  it('shows a short load error, reloads on 重试 and switches the live source', async () => {
+    jest.mocked(loadLiveGroups).mockRejectedValueOnce(
+      new Error('fetch failed\njava.net.MalformedURLException: no protocol:\n\tat java.net.URL.<init>(URL.java:611)'),
+    );
+    const renderer = await render();
+    expect(has(renderer, 'live-load-error')).toBe(true);
+    expect(texts(renderer)).toContain('频道加载失败');
+    expect(byTestId(renderer, 'live-load-error-detail').props.children).toBe('fetch failed');
+    expect(texts(renderer).join('\n')).not.toContain('MalformedURLException');
+    expect(byTestId(renderer, 'top-nav-live').props.active).toBe(true);
+
+    await press(renderer, 'live-load-error-retry');
+    expect(has(renderer, 'live-browse')).toBe(true);
+    expect(loadLiveGroups).toHaveBeenLastCalledWith(live, expect.anything());
+
+    jest.mocked(loadLiveGroups).mockRejectedValueOnce(new Error('boom'));
+    await act(async () => renderer.unmount());
+    const second = await render();
+    await press(second, 'live-load-error-switch');
+    await press(second, 'live-source-1');
+    expect(saveLiveHome).toHaveBeenCalledWith('直播B');
+    expect(loadLiveGroups).toHaveBeenLastCalledWith(other, expect.anything());
+    expect(has(second, 'live-browse')).toBe(true);
+    await act(async () => second.unmount());
   });
 });

@@ -59,6 +59,18 @@ describe('toEngineError', () => {
     expect(toEngineError(error, true)).toMatchObject({ phase: 'playback', reason: 'decoder' });
   });
 
+  it('maps pre-load source and format errors to fatal init errors', () => {
+    // Media3 reports an UnrecognizedInputFormatException as a source error with a parsing code.
+    const unrecognized = {
+      errorString: 'ExoPlaybackException: ERROR_CODE_PARSING_CONTAINER_UNSUPPORTED',
+      errorException: 'androidx.media3.exoplayer.ExoPlaybackException: Source error',
+      errorCode: '23003',
+    };
+    expect(toEngineError(unrecognized, false)).toMatchObject({ fatal: true, phase: 'init', reason: 'format' });
+    const io = { errorString: 'ExoPlaybackException: ERROR_CODE_IO_NETWORK_CONNECTION_FAILED', errorCode: '22001' };
+    expect(toEngineError(io, false)).toMatchObject({ fatal: true, phase: 'init', reason: 'network' });
+  });
+
   it('maps the library player-init and DRM-setup codes', () => {
     expect(toEngineError({ errorString: 'Failed to initialize Player!', errorCode: '1001' }, false)).toMatchObject({ reason: 'init' });
     expect(toEngineError({ errorString: 'onDrmSessionManagerError', errorCode: '3002' }, false)).toMatchObject({ reason: 'drm' });

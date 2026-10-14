@@ -29,6 +29,19 @@ import SettingsScreen from '..';
 // screen renders while the file loads so no test pays that cost inside its timeout.
 void [ActivityIndicator, FlatList, Image, Modal, Pressable, ScrollView, TextInput, TVFocusGuideView];
 
+// On TV the panel's focus guide sends its destinations through a native command, which the preset's
+// view mock lacks; the destinations are recorded as the (mock) component instances.
+const mockSetDestinations = jest.fn();
+jest.mock('react-native/Libraries/Components/View/ViewNativeComponent', () => ({
+  __esModule: true,
+  ...jest.requireActual('@react-native/jest-preset/jest/mocks/ViewNativeComponent'),
+  Commands: { setDestinations: (...args: unknown[]) => mockSetDestinations(...args) },
+}));
+jest.mock('react-native/Libraries/Components/TV/tagForComponentOrHandle', () => ({
+  __esModule: true,
+  default: (component: unknown) => component,
+}));
+
 const mockNavigate = jest.fn();
 jest.mock('../../../navigation/useAppNavigation', () => ({
   useAppNavigation: () => ({ navigate: mockNavigate, goBack: jest.fn(), addListener: () => () => undefined }),
@@ -134,6 +147,14 @@ async function focus(renderer: ReactTestRenderer, testID: string) {
   await act(async () => byID(renderer, testID).props.onFocus());
 }
 
+/** testID of the element focus lands on when entering the panel from the menu (Platform.isTV). */
+function panelEntry(): string | undefined {
+  const [, destinations] = mockSetDestinations.mock.calls.at(-1) ?? [];
+  // A component instance of the View mock; a FocusEntry wrapper holds the control as its child.
+  const node = destinations?.[0];
+  return node?.props.testID ?? node?.props.children?.props.testID;
+}
+
 async function setup() {
   setUserDataStore(new MemoryStore());
   const configs = configRepositories.vod;
@@ -198,10 +219,19 @@ describe('SettingsScreen', () => {
 
   it('lists the eight sections with their hints and focuses the selected one', async () => {
     const renderer = await setup();
-    const labels = settingsSections.map(({ id }) =>
-      byID(renderer, `settings-menu-${id}`).findAllByType(Text)[0]!.props.children,
+    const labels = settingsSections.map(
+      ({ id }) => byID(renderer, `settings-menu-${id}`).findAllByType(Text)[0]!.props.children,
     );
-    expect(labels).toEqual(['我的片单', '观看历史', '播放设置', '字幕与音频', '直播设置', '网络与缓存', '配置与源', '关于']);
+    expect(labels).toEqual([
+      '我的片单',
+      '观看历史',
+      '播放设置',
+      '字幕与音频',
+      '直播设置',
+      '网络与缓存',
+      '配置与源',
+      '关于',
+    ]);
     expect(textOf(renderer, 'settings-menu-collect-hint')).toBe('1');
     expect(textOf(renderer, 'settings-menu-history-hint')).toBe('2');
     expect(textOf(renderer, 'settings-menu-play-hint')).toBe('自动');
@@ -247,6 +277,40 @@ describe('SettingsScreen', () => {
       for (const testID of [...ROW_IDS, 'update-check']) if (has(renderer, testID)) reached.add(testID);
     }
     expect([...reached].sort()).toEqual([...ROW_IDS, 'update-check'].sort());
+    await act(async () => renderer.unmount());
+  });
+
+  it('enters every section on its first element', async () => {
+    Object.defineProperty(Platform, 'isTV', { value: true, configurable: true });
+    const renderer = await setup();
+    // Play is shown first.
+    expect(panelEntry()).toBe('settings-playerEngine');
+    const firstCard = (channel: string) =>
+      renderer.root.findAll(
+        (node) => typeof node.type === 'string' && node.props.testID?.startsWith(`${channel}-card-`),
+      )[0]!.props.testID;
+    const entries: [string, () => string][] = [
+      ['collect', () => firstCard('collect')],
+      ['history', () => firstCard('history')],
+      ['play', () => 'settings-playerEngine'],
+      // The selected segment of 样式来源, not the row below it.
+      ['subaudio', () => `settings-subtitleStyleSource-${appSettings.get('subtitleStyleSource')}`],
+      ['live', () => 'settings-live'],
+      ['net', () => 'settings-doh'],
+      ['sources', () => 'settings-vod'],
+      // The row view; its only focusable is 检查更新.
+      ['about', () => 'settings-version'],
+    ];
+    for (const [id, entry] of entries) {
+      await press(renderer, `settings-menu-${id}`);
+      expect([id, panelEntry()]).toEqual([id, entry()]);
+    }
+
+    // An empty list lands on 删除.
+    await press(renderer, 'settings-menu-history');
+    await press(renderer, 'history-clear');
+    await press(renderer, 'history-confirm-ok');
+    expect(panelEntry()).toBe('history-edit');
     await act(async () => renderer.unmount());
   });
 

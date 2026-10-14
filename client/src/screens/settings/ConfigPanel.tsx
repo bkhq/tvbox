@@ -94,6 +94,7 @@ export function ConfigPanel({ kind, onClose }: { kind: ConfigKind; onClose: () =
               title={entry.name || entry.url}
               note={entry.name ? entry.url : undefined}
               selected={entry.url === active?.url}
+              raised
               hasTVPreferredFocus={entry.url === preferred?.url}
               onPress={() => void select(entry)}
             />

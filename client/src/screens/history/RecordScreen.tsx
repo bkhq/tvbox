@@ -1,5 +1,5 @@
 import { type ReactNode, useCallback, useEffect, useRef, useState } from 'react';
-import { BackHandler, FlatList, Text, View } from 'react-native';
+import { BackHandler, FlatList, Text, TVFocusGuideView, View } from 'react-native';
 
 import { useVodConfig } from '../../core/bootstrap';
 import { splitHistoryKey } from '../../core/storage';
@@ -20,6 +20,8 @@ import {
   WideCard,
 } from '../../ui';
 import { ErrorView, LoadingView, useActiveCid } from '../common';
+// A leaf module: the settings screen embeds this view, so its barrel would be a cycle.
+import { FocusEntry } from '../settings/entryFocus';
 
 /** One History or Keep record as a card; `key` is `${siteKey}@@@${vodId}`. */
 export interface RecordItem {
@@ -118,10 +120,22 @@ export function useRecordCount(channel: string, load: RecordViewProps['load']): 
   return cid === undefined || loading || error ? undefined : items.length;
 }
 
-function Header({ title, subtitle, children }: { title: string; subtitle: string; children?: ReactNode }) {
+function Header({
+  title,
+  subtitle,
+  guide,
+  children,
+}: {
+  title: string;
+  subtitle: string;
+  /** Spans the actions across the header so D-pad up from any card reaches them. */
+  guide?: boolean;
+  children?: ReactNode;
+}) {
   const styles = useScaledStyles(makeStyles);
+  const Container = guide ? TVFocusGuideView : View;
   return (
-    <View style={styles.header}>
+    <Container testID="record-header" autoFocus={guide || undefined} style={styles.header}>
       <View style={styles.heading}>
         <Text style={styles.title} numberOfLines={1}>
           {title}
@@ -131,7 +145,7 @@ function Header({ title, subtitle, children }: { title: string; subtitle: string
         </Text>
       </View>
       <View style={styles.actions}>{children}</View>
-    </View>
+    </Container>
   );
 }
 
@@ -217,10 +231,15 @@ function RecordList({
       hasTVPreferredFocus: prefer && index === 0,
       onPress: () => onPressItem(item),
     };
-    return card === 'wide' ? (
-      <WideCard {...common} subtitle={item.subtitle} image={item.vodPic} progress={item.progress} />
-    ) : (
-      <PosterCard {...common} meta={item.subtitle} poster={item.vodPic} />
+    return (
+      // Entering the 我的 panel lands on the first card.
+      <FocusEntry enabled={index === 0}>
+        {card === 'wide' ? (
+          <WideCard {...common} subtitle={item.subtitle} image={item.vodPic} progress={item.progress} />
+        ) : (
+          <PosterCard {...common} meta={item.subtitle} poster={item.vodPic} />
+        )}
+      </FocusEntry>
     );
   };
 
@@ -265,16 +284,19 @@ function RecordList({
   return (
     <View style={[styles.view, !embedded && styles.standalone]}>
       <View style={[styles.top, !embedded && styles.inset]}>
-        <Header title={title} subtitle={subtitle}>
+        {/* Embedded, up from the first cards would skip the actions on the right for the top bar. */}
+        <Header title={title} subtitle={subtitle} guide={embedded}>
           {editing ? <Text style={styles.hint}>按卡片删除</Text> : null}
-          <Button
-            testID={`${testID}-edit`}
-            title="删除"
-            size="md"
-            variant={editing ? 'primary' : 'secondary'}
-            hasTVPreferredFocus={prefer && empty}
-            onPress={() => setEditing(!editing)}
-          />
+          <FocusEntry enabled={empty}>
+            <Button
+              testID={`${testID}-edit`}
+              title="删除"
+              size="md"
+              variant={editing ? 'primary' : 'secondary'}
+              hasTVPreferredFocus={prefer && empty}
+              onPress={() => setEditing(!editing)}
+            />
+          </FocusEntry>
           {clear ? (
             <Button testID={`${testID}-clear`} title="清除记录" size="md" onPress={() => setConfirming(true)} />
           ) : null}

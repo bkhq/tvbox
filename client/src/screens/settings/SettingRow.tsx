@@ -1,4 +1,4 @@
-import { type ReactNode, useState } from 'react';
+import { type ReactNode, type Ref, useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
 
 import { Badge, color, fontFamily, Icon, radii, scaledText, useScaledStyles, type Scaler } from '../../ui';
@@ -18,8 +18,11 @@ export interface SettingRowProps {
   /** Control at the right end (toggle, segmented, button). */
   accessory?: ReactNode;
   hasTVPreferredFocus?: boolean;
+  /** surface-2 fill, for rows listed on a surface panel. */
+  raised?: boolean;
   testID?: string;
   noteTestID?: string;
+  ref?: Ref<View>;
 }
 
 /**
@@ -36,8 +39,10 @@ export function SettingRow({
   chevron,
   accessory,
   hasTVPreferredFocus,
+  raised,
   testID,
   noteTestID,
+  ref,
 }: SettingRowProps) {
   const styles = useScaledStyles(makeStyles);
   const [focused, setFocused] = useState(false);
@@ -65,13 +70,14 @@ export function SettingRow({
   );
   if (!onPress) {
     return (
-      <View testID={testID} style={[styles.row, disabled && styles.rowDisabled]}>
+      <View ref={ref} collapsable={false} testID={testID} style={[styles.row, disabled && styles.rowDisabled]}>
         {content}
       </View>
     );
   }
   return (
     <Pressable
+      ref={ref}
       testID={testID}
       accessibilityRole="button"
       accessibilityState={{ disabled, selected }}
@@ -80,7 +86,7 @@ export function SettingRow({
       onPress={onPress}
       onFocus={() => setFocused(true)}
       onBlur={() => setFocused(false)}
-      style={[styles.row, focused && styles.rowFocused, disabled && styles.rowDisabled]}
+      style={[styles.row, raised && styles.rowRaised, focused && styles.rowFocused, disabled && styles.rowDisabled]}
     >
       {content}
     </Pressable>
@@ -111,6 +117,7 @@ export function SegmentedSettingRow<T>({
   onChange,
   hasTVPreferredFocus,
   testID,
+  ref,
 }: {
   title: string;
   note?: string;
@@ -119,6 +126,8 @@ export function SegmentedSettingRow<T>({
   onChange: (value: T) => void;
   hasTVPreferredFocus?: boolean;
   testID?: string;
+  /** Ref of the segment that takes the focus first (see Segmented). */
+  ref?: Ref<View>;
 }) {
   return (
     <SettingRow
@@ -132,6 +141,7 @@ export function SegmentedSettingRow<T>({
           onChange={onChange}
           hasTVPreferredFocus={hasTVPreferredFocus}
           testIDPrefix={testID}
+          preferredRef={ref}
         />
       }
     />
@@ -153,6 +163,7 @@ const makeStyles = (s: Scaler) => {
       borderColor: 'transparent',
       backgroundColor: color.surface,
     },
+    rowRaised: { backgroundColor: color.surface2 },
     rowFocused: {
       borderColor: color.focusBorder,
       backgroundColor: color.surface2,

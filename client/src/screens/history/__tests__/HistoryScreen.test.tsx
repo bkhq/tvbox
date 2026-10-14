@@ -254,6 +254,11 @@ describe('HistoryScreen', () => {
     expect(byTestId(renderer, 'history-card-cms@@@new').props.hasTVPreferredFocus).toBe(false);
     expect(byTestId(renderer, 'history-card-cms@@@new').props.width).toBe(286);
     expect(countOf(renderer)).toBe('2');
+    // D-pad up from the cards lands on the header actions.
+    expect(renderer.root.findByType(TVFocusGuideView).props).toMatchObject({
+      testID: 'record-header',
+      autoFocus: true,
+    });
 
     await act(async () => byTestId(renderer, 'history-edit').props.onPress());
     await act(async () => byTestId(renderer, 'history-card-cms@@@new').props.onPress());

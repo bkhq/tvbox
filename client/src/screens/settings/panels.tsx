@@ -45,6 +45,7 @@ export function OptionPanel<T>({
           note={option.note}
           disabled={option.disabled}
           selected={option.value === value}
+          raised
           hasTVPreferredFocus={option === preferred}
           onPress={() => onSelect(option.value)}
         />

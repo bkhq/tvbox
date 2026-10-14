@@ -1,3 +1,4 @@
+import type { Ref } from 'react';
 import { Pressable, Text, View } from 'react-native';
 
 import { color, FocusRing, fontFamily, useFocusAnimation, useScaledStyles, type Scaler } from '../../ui';
@@ -19,17 +20,20 @@ function Segment({
   hasTVPreferredFocus,
   onPress,
   testID,
+  ref,
 }: {
   label: string;
   selected: boolean;
   hasTVPreferredFocus?: boolean;
   onPress: () => void;
   testID?: string;
+  ref?: Ref<View>;
 }) {
   const styles = useScaledStyles(makeStyles);
   const { focused, handlers } = useFocusAnimation();
   return (
     <Pressable
+      ref={ref}
       testID={testID}
       accessibilityRole="button"
       accessibilityState={{ selected }}
@@ -53,6 +57,7 @@ export function Segmented<T>({
   onChange,
   hasTVPreferredFocus,
   testIDPrefix,
+  preferredRef,
 }: {
   options: readonly Option<T>[];
   value: T;
@@ -60,6 +65,8 @@ export function Segmented<T>({
   /** Focus goes to the selected segment, or the first one when none is selected. */
   hasTVPreferredFocus?: boolean;
   testIDPrefix?: string;
+  /** Ref of the segment hasTVPreferredFocus would focus. */
+  preferredRef?: Ref<View>;
 }) {
   const styles = useScaledStyles(makeStyles);
   const preferred = options.find((option) => option.value === value) ?? options[0];
@@ -72,6 +79,7 @@ export function Segmented<T>({
           label={option.label}
           selected={option.value === value}
           hasTVPreferredFocus={hasTVPreferredFocus && option === preferred}
+          ref={option === preferred ? preferredRef : undefined}
           onPress={() => onChange(option.value)}
         />
       ))}

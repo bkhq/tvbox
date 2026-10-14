@@ -1,11 +1,12 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { ComponentType } from 'react';
-import { Modal, Platform, Pressable, ScrollView, Text, TextInput } from 'react-native';
+import { Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput } from 'react-native';
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 
 import { type Bootstrap, BootstrapProvider, createBootstrap } from '../../../core/bootstrap';
 import { parseVodConfig } from '../../../core/config';
 import { appSettings } from '../../../core/settings';
+import { color } from '../../../ui';
 import type { CheckResult, Release, UpdateState } from '../../../update';
 import { configRepositories } from '../ConfigPanel';
 import {
@@ -242,6 +243,13 @@ describe('settings sections', () => {
     expect(has(renderer, 'settings-panel')).toBe(true);
     expect(byID(renderer, 'settings-playerEngine').props.hasTVPreferredFocus).toBe(false);
     expect(byID(renderer, 'settings-playerEngine-auto').props.hasTVPreferredFocus).toBe(true);
+    // Option rows read as rows on the surface panel; the section rows keep the surface fill.
+    const fill = (testID: string) =>
+      StyleSheet.flatten(
+        renderer.root.findAll((node) => typeof node.type === 'string' && node.props.testID === testID)[0]!.props.style,
+      );
+    expect(fill('settings-playerEngine-mpv').backgroundColor).toBe(color.surface2);
+    expect(fill('settings-speedPlayback').backgroundColor).toBe(color.surface);
     await press(renderer, 'settings-playerEngine-mpv');
     expect(appSettings.get('playerEngine')).toBe('mpv');
     expect(has(renderer, 'settings-panel')).toBe(false);

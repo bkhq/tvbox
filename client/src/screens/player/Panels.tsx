@@ -7,7 +7,7 @@ import type { EnginePreference } from '../../player/engine/policy';
 import type { EngineFactory, ExternalSubtitle, Track, TrackId } from '../../player/engine/types';
 import { Button, Chip, color, focus, radii, safeArea, type Scaler, scaledText, space, useScaledStyles } from '../../ui';
 import { choiceOptions } from '../settings/options';
-import { formatSpeed, subtitleName } from './format';
+import { formatSpeed, subtitleName, trackLabel } from './format';
 
 export type PanelKind = 'episodes' | 'speed' | 'audio' | 'subtitle' | 'engine' | 'line' | 'settings';
 
@@ -154,10 +154,6 @@ function isSelected(track: Track, selected: TrackId | null | undefined): boolean
   return selected === undefined ? !!track.selected : track.id === selected;
 }
 
-function trackLabel(track: Track, index: number): string {
-  return track.label || track.language || `轨道 ${index + 1}`;
-}
-
 export function AudioPanel({
   tracks,
   selected,
@@ -175,7 +171,7 @@ export function AudioPanel({
         <Option
           key={String(track.id)}
           testID={`player-audio-${track.id}`}
-          title={trackLabel(track, index)}
+          title={trackLabel(track) ?? `音轨 ${index + 1}`}
           selected={isSelected(track, selected)}
           hasTVPreferredFocus={index === 0}
           onPress={() => onSelect(track.id)}
@@ -202,6 +198,7 @@ export function SubtitlePanel({
 }) {
   const styles = useScaledStyles(makeStyles);
   const [url, setUrl] = useState('');
+  const [inputFocused, setInputFocused] = useState(false);
   const add = () => {
     const value = url.trim();
     if (!value) return;
@@ -228,7 +225,7 @@ export function SubtitlePanel({
         <Option
           key={String(track.id)}
           testID={`player-subtitle-${track.id}`}
-          title={trackLabel(track, index)}
+          title={trackLabel(track) ?? `字幕 ${index + 1}`}
           selected={selected !== null && isSelected(track, selected)}
           onPress={() => onSelect(track.id)}
         />
@@ -244,8 +241,10 @@ export function SubtitlePanel({
       <View style={styles.form}>
         <TextInput
           testID="player-subtitle-url"
-          style={styles.input}
+          style={[styles.input, inputFocused && styles.inputFocused]}
           value={url}
+          onFocus={() => setInputFocused(true)}
+          onBlur={() => setInputFocused(false)}
           onChangeText={setUrl}
           onSubmitEditing={add}
           placeholder="输入字幕地址"
@@ -388,8 +387,12 @@ const makeStyles = (s: Scaler) => {
       paddingHorizontal: s(space.md),
       paddingVertical: 0,
       borderRadius: s(radii.button),
+      // A transparent border of the focus width keeps the text from shifting when focused.
+      borderWidth: s(focus.borderWidth),
+      borderColor: 'transparent',
       backgroundColor: color.surface2,
       color: color.text,
     },
+    inputFocused: { borderColor: focus.borderColor },
   };
 };

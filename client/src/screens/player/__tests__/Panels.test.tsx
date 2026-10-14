@@ -15,7 +15,7 @@ import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 
 import type { Flag } from '../../../core/types';
 import type { EngineFactory, Track } from '../../../player/engine/types';
-import { Button, Chip, focus } from '../../../ui';
+import { Button, Chip, focus, OptionRow } from '../../../ui';
 import {
   AudioPanel,
   EnginePanel,
@@ -40,13 +40,15 @@ async function render(element: React.ReactElement) {
 const byTestId = (renderer: ReactTestRenderer, testID: string) =>
   renderer.root.findAll((node) => node.props.testID === testID)[0]!;
 
-/** The ui Button/Chip rendered for a testID (not the local wrapper around it). */
+/** The ui Button/Chip/OptionRow rendered for a testID. */
+const isControl = (node: { type: unknown }) => node.type === Button || node.type === Chip || node.type === OptionRow;
+
 const control = (renderer: ReactTestRenderer, testID: string) =>
-  renderer.root.findAll((node) => (node.type === Button || node.type === Chip) && node.props.testID === testID)[0]!;
+  renderer.root.findAll((node) => isControl(node) && node.props.testID === testID)[0]!;
 
 const ids = (renderer: ReactTestRenderer, prefix: string) =>
   renderer.root
-    .findAll((node) => (node.type === Button || node.type === Chip) && String(node.props.testID).startsWith(prefix))
+    .findAll((node) => isControl(node) && String(node.props.testID).startsWith(prefix))
     .map((node) => node.props.testID as string);
 
 const flags = ['线路一', '线路二', '线路三'].map((flag) => ({ flag, episodes: [] })) as unknown as Flag[];
@@ -92,13 +94,13 @@ describe('Panel', () => {
 });
 
 describe('chip rows', () => {
-  it('mark the current speed with the accent fill, not the focus look', async () => {
+  it('mark the current speed with an accent chip, not the focus look', async () => {
     const onSelect = jest.fn();
     const renderer = await render(<SpeedPanel speed={1.5} onSelect={onSelect} />);
     const current = control(renderer, 'player-speed-1.5');
-    expect(current.props).toMatchObject({ variant: 'primary', hasTVPreferredFocus: true });
-    expect(control(renderer, 'player-speed-1').props.variant).toBe('secondary');
-    expect(renderer.root.findAllByType(Chip)).toHaveLength(0);
+    expect(current.type).toBe(Chip);
+    expect(current.props).toMatchObject({ variant: 'accent', selected: true, hasTVPreferredFocus: true });
+    expect(control(renderer, 'player-speed-1').props.selected).toBe(false);
     await act(async () => control(renderer, 'player-speed-2').props.onPress());
     expect(onSelect).toHaveBeenCalledWith(2);
   });
@@ -109,10 +111,10 @@ describe('chip rows', () => {
       { flag: '线路二', episodes: [{ name: '第1集', url: 'b' }, { name: '第2集', url: 'c' }] },
     ] as unknown as Flag[];
     const renderer = await render(<EpisodePanel flags={lines} flagIndex={0} episodeIndex={0} onSelect={jest.fn()} />);
-    expect(control(renderer, 'player-flag-0').props.variant).toBe('primary');
-    expect(control(renderer, 'player-flag-1').props.variant).toBe('secondary');
+    expect(control(renderer, 'player-flag-0').props).toMatchObject({ variant: 'accent', selected: true });
+    expect(control(renderer, 'player-flag-1').props.selected).toBe(false);
     await act(async () => control(renderer, 'player-flag-1').props.onPress());
-    expect(control(renderer, 'player-flag-1').props.variant).toBe('primary');
+    expect(control(renderer, 'player-flag-1').props.selected).toBe(true);
     expect(ids(renderer, 'player-episode-')).toEqual(['player-episode-0', 'player-episode-1']);
   });
 });
@@ -159,9 +161,10 @@ describe('LinePanel', () => {
     const onSelect = jest.fn();
     const renderer = await render(<LinePanel flags={flags} flagIndex={1} onSelect={onSelect} />);
     expect(ids(renderer, 'player-line-')).toEqual(['player-line-0', 'player-line-1', 'player-line-2']);
-    expect(control(renderer, 'player-line-0').props.title).toBe('线路一');
-    expect(control(renderer, 'player-line-1').props).toMatchObject({ variant: 'primary', hasTVPreferredFocus: true });
-    expect(control(renderer, 'player-line-2').props.variant).toBe('secondary');
+    expect(control(renderer, 'player-line-0').type).toBe(OptionRow);
+    expect(control(renderer, 'player-line-0').props.label).toBe('线路一');
+    expect(control(renderer, 'player-line-1').props).toMatchObject({ selected: true, hasTVPreferredFocus: true });
+    expect(control(renderer, 'player-line-2').props.selected).toBe(false);
 
     await act(async () => control(renderer, 'player-line-2').props.onPress());
     expect(onSelect).toHaveBeenCalledWith(2);
@@ -178,7 +181,7 @@ const tracks: Track[] = [
 describe('track panels', () => {
   it('labels audio options by name or language, else 音轨 N', async () => {
     const renderer = await render(<AudioPanel tracks={tracks} onSelect={jest.fn()} />);
-    expect(['a', 'b', 'c', 'd'].map((id) => control(renderer, `player-audio-${id}`).props.title)).toEqual([
+    expect(['a', 'b', 'c', 'd'].map((id) => control(renderer, `player-audio-${id}`).props.label)).toEqual([
       '国语',
       '音轨 2',
       '英语',
@@ -190,7 +193,7 @@ describe('track panels', () => {
     const renderer = await render(
       <SubtitlePanel tracks={tracks} selected={null} external={[]} onSelect={jest.fn()} onAdd={jest.fn()} />,
     );
-    expect(['a', 'b', 'c', 'd'].map((id) => control(renderer, `player-subtitle-${id}`).props.title)).toEqual([
+    expect(['a', 'b', 'c', 'd'].map((id) => control(renderer, `player-subtitle-${id}`).props.label)).toEqual([
       '国语',
       '字幕 2',
       '英语',
@@ -198,23 +201,23 @@ describe('track panels', () => {
     ]);
   });
 
-  it('marks the current subtitle choice with the accent fill like the 音轨 panel', async () => {
+  it('marks the current subtitle choice as selected like the 音轨 panel', async () => {
     const props = { tracks, external: [], onSelect: jest.fn(), onAdd: jest.fn() };
     const variants = (renderer: ReactTestRenderer) =>
-      ['off', 'a', 'b'].map((id) => control(renderer, `player-subtitle-${id}`).props.variant as string);
+      ['off', 'a', 'b'].map((id) => control(renderer, `player-subtitle-${id}`).props.selected as boolean);
     const off = await render(<SubtitlePanel {...props} selected={null} />);
-    expect(variants(off)).toEqual(['primary', 'secondary', 'secondary']);
+    expect(variants(off)).toEqual([true, false, false]);
     expect(control(off, 'player-subtitle-off').props.hasTVPreferredFocus).toBe(true);
 
     const picked = await render(<SubtitlePanel {...props} selected="b" />);
-    expect(variants(picked)).toEqual(['secondary', 'secondary', 'primary']);
+    expect(variants(picked)).toEqual([false, false, true]);
     expect(control(picked, 'player-subtitle-b').props.hasTVPreferredFocus).toBe(true);
 
     const engine = await render(<SubtitlePanel {...props} tracks={[tracks[0]!, { ...tracks[1]!, selected: true }]} />);
-    expect(variants(engine)).toEqual(['secondary', 'secondary', 'primary']);
+    expect(variants(engine)).toEqual([false, false, true]);
 
     // No track selected reads as off.
-    expect(variants(await render(<SubtitlePanel {...props} />))).toEqual(['primary', 'secondary', 'secondary']);
+    expect(variants(await render(<SubtitlePanel {...props} />))).toEqual([true, false, false]);
   });
 
   it('leaves room for the focus zoom and ring of a full-width option inside the scrolled list', async () => {
@@ -267,27 +270,27 @@ describe('SettingsPanel', () => {
       'player-settings-engine-video',
       'player-settings-engine-mpv',
     ]);
-    expect(control(renderer, 'player-settings-engine-video').props.variant).toBe('primary');
-    expect(control(renderer, 'player-settings-engine-auto').props.variant).toBe('secondary');
+    expect(control(renderer, 'player-settings-engine-video').props.selected).toBe(true);
+    expect(control(renderer, 'player-settings-engine-auto').props.selected).toBe(false);
     expect(control(renderer, 'player-settings-engine-mpv').props.disabled).toBe(true);
 
     const scales = renderer.root.findAll(
-      (node) => node.type === Button && String(node.props.testID).startsWith('player-settings-scale-'),
+      (node) => node.type === Chip && String(node.props.testID).startsWith('player-settings-scale-'),
     );
-    expect(scales.map((node) => [node.props.testID, node.props.title, node.props.variant])).toEqual([
-      ['player-settings-scale-0', '原始', 'secondary'],
-      ['player-settings-scale-1', '16:9', 'secondary'],
-      ['player-settings-scale-2', '4:3', 'secondary'],
-      ['player-settings-scale-3', '填充', 'primary'],
-      ['player-settings-scale-4', '裁剪', 'secondary'],
+    expect(scales.every((node) => node.props.variant === 'accent')).toBe(true);
+    expect(scales.map((node) => [node.props.testID, node.props.label, node.props.selected])).toEqual([
+      ['player-settings-scale-0', '原始', false],
+      ['player-settings-scale-1', '16:9', false],
+      ['player-settings-scale-2', '4:3', false],
+      ['player-settings-scale-3', '填充', true],
+      ['player-settings-scale-4', '裁剪', false],
     ]);
 
     // Each section is a focus guide, so DOWN from the last engine lands on the first scale (原始), UP goes back.
     const sections = renderer.root.findAllByType(TVFocusGuideView);
     expect(sections).toHaveLength(2);
     expect(sections.every((node) => node.props.autoFocus)).toBe(true);
-    const inSection = (index: number) =>
-      sections[index]!.findAll((node) => node.type === Button).map((node) => node.props.testID as string);
+    const inSection = (index: number) => sections[index]!.findAll(isControl).map((node) => node.props.testID as string);
     expect(inSection(0)).toEqual([
       'player-settings-engine-auto',
       'player-settings-engine-video',

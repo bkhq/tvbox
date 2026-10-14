@@ -2,7 +2,7 @@ import { Image, StyleSheet, Text, View } from 'react-native';
 import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg';
 
 import type { Channel } from '../../core/types';
-import { type EpgItem, type Epg, formatEpgItem } from '../../player/live';
+import { type Epg, formatEpgItem } from '../../player/live';
 import {
   Badge,
   color,
@@ -14,14 +14,7 @@ import {
   tabular,
   useScaledStyles,
 } from '../../ui';
-import { lineLabel, nowAndNext } from './liveModel';
-
-/** Share of the programme already aired, 0..1. */
-export function programmeProgress(item: EpgItem, now = Date.now()): number {
-  const length = item.endTime - item.startTime;
-  if (length <= 0) return 0;
-  return Math.min(1, Math.max(0, (now - item.startTime) / length));
-}
+import { lineLabel, nowAndNext, programmeProgress } from './liveModel';
 
 /** LiveActivity's info widget, shown on channel or source change. */
 export function InfoBar({ channel, line, logo, epg }: { channel: Channel; line: number; logo: string; epg?: Epg }) {
@@ -62,7 +55,7 @@ export function InfoBar({ channel, line, logo, epg }: { channel: Channel; line: 
               <View style={styles.track}>
                 <View
                   testID="live-info-progress"
-                  style={[styles.fill, { width: `${Math.round(programmeProgress(current) * 100)}%` }]}
+                  style={[styles.fill, { width: `${Math.round((programmeProgress(current)?.fraction ?? 0) * 100)}%` }]}
                 />
               </View>
             </View>

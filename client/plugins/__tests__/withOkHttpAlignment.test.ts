@@ -1,13 +1,14 @@
 import { addGeneratedBlock, OKHTTP_VERSION } from '../withOkHttpAlignment';
 
-const BASE = 'buildscript {\n}\n\nallprojects {\n  repositories {\n  }\n}\n';
+const BASE = 'apply plugin: "com.android.application"\n\nandroid {\n}\n';
 
 describe('addGeneratedBlock', () => {
   it('lifts 3.x/4.x okhttp3 modules to the jarspider version in every configuration', () => {
     const out = addGeneratedBlock(BASE);
     expect(OKHTTP_VERSION).toBe('5.4.0');
     expect(out.startsWith(BASE.trimEnd())).toBe(true);
-    expect(out).toMatch(/allprojects \{\s*configurations\.configureEach \{\s*resolutionStrategy\.eachDependency/);
+    expect(out).toMatch(/^configurations\.configureEach \{\s*resolutionStrategy\.eachDependency/m);
+    expect(out).not.toContain('allprojects');
     expect(out).toContain("details.requested.group == 'com.squareup.okhttp3'");
     expect(out).toContain("details.requested.version?.matches('[34]\\\\..*')");
     expect(out).toContain("details.useVersion '5.4.0'");

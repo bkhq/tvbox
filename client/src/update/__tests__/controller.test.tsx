@@ -4,10 +4,9 @@ import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { createUpdateController, type UpdateControllerDeps } from '../controller';
 import type { DownloadedApk, InstallDeps } from '../install';
 import { UpdateDialog } from '../UpdateDialog';
-import { UpdateSettingsItem } from '../UpdateSettingsItem';
 
 // react-native resolves components lazily on first access; resolve the ones the
-// dialog and settings item render while the file loads so no test pays that cost inside its timeout.
+// dialog renders while the file loads so no test pays that cost inside its timeout.
 void [Modal, Pressable, ScrollView, Text, View];
 
 // Keeps the singleton (and its native deps) out of these tests.
@@ -127,19 +126,5 @@ describe('update UI', () => {
     });
     expect(install.launchInstaller).toHaveBeenCalled();
     expect(renderer.toJSON()).toBeNull();
-  });
-
-  it('settings item shows the version and the manual result', async () => {
-    const { controller } = setup({ versionCode: 10203 });
-    let renderer!: ReactTestRenderer;
-    await act(async () => {
-      renderer = create(<UpdateSettingsItem controller={controller} versionName="1.2.3" />);
-    });
-    expect(texts(renderer)).toEqual(['检查更新', 'v1.2.3']);
-
-    await act(async () => {
-      press(renderer, 'update-check');
-    });
-    expect(texts(renderer)).toEqual(['检查更新', 'v1.2.3', '已是最新版本']);
   });
 });

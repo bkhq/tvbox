@@ -7,12 +7,29 @@ import type { RootStackScreenProps } from '../../navigation/types';
 import { getEngine, listEngines } from '../../player/engine/registry';
 import type { PlayerParams } from '../../player/params';
 import { usePlayback } from '../../player/usePlayback';
-import { isPlaying, selectEpisode, selectHasNext, selectHasPrev } from '../../player/machine';
-import { colors, fontSize, radius, spacing, useLayout } from '../../ui';
+import type { Track, TrackId } from '../../player/engine/types';
+import {
+  isPlaying,
+  selectEpisode,
+  selectFlag,
+  selectHasNext,
+  selectHasPrev,
+  selectQualityLabel,
+} from '../../player/machine';
+import { color, radii, type Scaler, scaledText, space, useScaledStyles } from '../../ui';
 import { ErrorView } from '../common';
-import { Controls } from './Controls';
-import { formatTime } from './format';
-import { AudioPanel, EnginePanel, EpisodePanel, Panel, type PanelKind, SpeedPanel, SubtitlePanel } from './Panels';
+import { Controls, SeekOverlay } from './Controls';
+import { episodeLabel } from './format';
+import {
+  AudioPanel,
+  EpisodePanel,
+  LinePanel,
+  Panel,
+  type PanelKind,
+  SettingsPanel,
+  SpeedPanel,
+  SubtitlePanel,
+} from './Panels';
 import { useBackgroundPause } from './useBackgroundPause';
 import { useRemoteKeys } from './useRemoteKeys';
 import { useTouchGestures } from './useTouchGestures';
@@ -34,6 +51,13 @@ export function fallbackNotice(label: string): string {
   return `已切换到 ${label} 播放`;
 }
 
+/** Name of the chosen track (or the engine's default one); null = off. */
+function trackName(tracks: Track[], selected: TrackId | null | undefined): string | undefined {
+  if (selected === null) return undefined;
+  const track = tracks.find((item) => (selected === undefined ? item.selected : item.id === selected));
+  return track ? track.label || track.language : undefined;
+}
+
 interface PlayerViewProps {
   params: PlayerParams;
   focused: boolean;
@@ -42,10 +66,11 @@ interface PlayerViewProps {
 }
 
 function PlayerView({ params, focused, onExit, onReload }: PlayerViewProps) {
-  const { isTV } = useLayout();
+  const styles = useScaledStyles(makeStyles);
   const { width } = useWindowDimensions();
   const [background] = useSetting('background');
   const [enginePreference] = useSetting('playerEngine');
+  const [scale, setScale] = useSetting('scale');
   const playback = usePlayback(params, { attach: focused });
   const {
     state,
@@ -66,6 +91,7 @@ function PlayerView({ params, focused, onExit, onReload }: PlayerViewProps) {
     selectTrack,
     addSubtitle,
     switchEngine,
+    switchFlag,
   } = playback;
   const stateRef = useRef(state);
   useEffect(() => {
@@ -183,11 +209,6 @@ function PlayerView({ params, focused, onExit, onReload }: PlayerViewProps) {
     onSeekEnd: seekCommit,
   });
 
-  const withActivity = (action: () => void) => () => {
-    bump();
-    action();
-  };
-
   const Engine = engine?.Component;
   const statusText = STATUS_TEXT[state.status];
   const episode = selectEpisode(state);
@@ -243,15 +264,31 @@ function PlayerView({ params, focused, onExit, onReload }: PlayerViewProps) {
         }}
       />
     );
-  } else if (panel === 'engine') {
+  } else if (panel === 'line') {
     panelContent = (
-      <EnginePanel
+      <LinePanel
+        flags={state.flags}
+        flagIndex={state.flagIndex}
+        onSelect={(flagIndex) => {
+          setPanel(undefined);
+          switchFlag(flagIndex);
+        }}
+      />
+    );
+  } else if (panel === 'settings') {
+    panelContent = (
+      <SettingsPanel
         engines={listEngines()}
         preference={enginePreference}
         active={engine}
-        onSelect={(preference) => {
+        scale={scale}
+        onSelectEngine={(preference) => {
           setPanel(undefined);
           switchEngine(preference);
+        }}
+        onSelectScale={(value) => {
+          setPanel(undefined);
+          void setScale(value);
         }}
       />
     );
@@ -278,17 +315,19 @@ function PlayerView({ params, focused, onExit, onReload }: PlayerViewProps) {
       <View style={StyleSheet.absoluteFill} testID="player-touch" {...touch} />
       {statusText ? (
         <View style={styles.center} pointerEvents="none" testID="player-status">
-          <Text style={styles.statusTitle} numberOfLines={1}>
-            {title}
-          </Text>
-          <ActivityIndicator color={colors.primary} />
-          <Text style={styles.statusText}>{statusText}</Text>
+          <View style={styles.statusBox}>
+            <Text style={styles.statusTitle} numberOfLines={1}>
+              {title}
+            </Text>
+            <View style={styles.statusRow}>
+              <ActivityIndicator color={color.accent} />
+              <Text style={styles.statusText}>{statusText}</Text>
+            </View>
+          </View>
         </View>
       ) : null}
-      {seekTarget !== undefined ? (
-        <View style={styles.center} pointerEvents="none">
-          <Text style={styles.seek} testID="player-seek-target">{`${formatTime(seekTarget)} / ${formatTime(state.duration)}`}</Text>
-        </View>
+      {seekTarget !== undefined && !overlay && state.status !== 'error' ? (
+        <SeekOverlay position={state.position} duration={state.duration} buffered={state.buffered} seekTarget={seekTarget} />
       ) : null}
       {state.status === 'error' ? (
         <View style={[StyleSheet.absoluteFill, styles.errorBox]}>
@@ -298,24 +337,27 @@ function PlayerView({ params, focused, onExit, onReload }: PlayerViewProps) {
       {overlay && state.status !== 'error' ? (
         <Controls
           title={title}
-          episodeName={episode?.name}
+          episodeLabel={episode ? episodeLabel(state.episodeIndex, episode.name) : undefined}
+          quality={selectQualityLabel(state)}
           position={state.position}
           duration={state.duration}
+          buffered={state.buffered}
+          seekTarget={seekTarget}
           playing={isPlaying(state)}
           speed={state.speed}
-          engineLabel={engine?.label}
+          subtitleName={trackName(state.tracks.text, state.textTrack)}
+          audioName={trackName(state.tracks.audio, state.audioTrack)}
           hasEpisodes={hasEpisodes}
           hasPrev={selectHasPrev(state)}
           hasNext={selectHasNext(state)}
-          showBack={!isTV}
+          lineName={selectFlag(state)?.flag}
+          hasLines={state.flags.length > 1}
+          onActivity={bump}
           onBack={onExit}
-          onToggle={withActivity(toggle)}
-          onPrev={withActivity(prev)}
-          onNext={withActivity(next)}
-          onSeek={(ms) => {
-            bump();
-            seek(ms);
-          }}
+          onToggle={toggle}
+          onPrev={prev}
+          onNext={next}
+          onSeek={seek}
           onPanel={openPanel}
         />
       ) : null}
@@ -367,48 +409,25 @@ export default function PlayerScreen({ navigation, route }: RootStackScreenProps
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#000000',
-  },
-  center: {
-    ...StyleSheet.absoluteFill,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  statusTitle: {
-    marginBottom: spacing.sm,
-    color: colors.text,
-    fontSize: fontSize.heading,
-  },
-  statusText: {
-    marginTop: spacing.sm,
-    color: colors.text,
-    fontSize: fontSize.body,
-  },
-  seek: {
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.sm,
-    borderRadius: radius.md,
-    backgroundColor: colors.remarkBackground,
-    color: colors.text,
-    fontSize: fontSize.heading,
-  },
-  errorBox: {
-    backgroundColor: colors.background,
-  },
-  notice: {
-    position: 'absolute',
-    top: spacing.xl,
-    alignSelf: 'center',
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.sm,
-    borderRadius: radius.md,
-    backgroundColor: colors.remarkBackground,
-  },
-  noticeText: {
-    color: colors.text,
-    fontSize: fontSize.body,
-  },
-});
+const makeStyles = (s: Scaler) => {
+  const t = scaledText(s);
+  const pill = {
+    paddingHorizontal: s(space.md),
+    paddingVertical: s(space.sm),
+    borderRadius: s(radii.button),
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.1)',
+    backgroundColor: color.surface,
+  };
+  return {
+    container: { flex: 1, backgroundColor: '#000000' },
+    center: { ...StyleSheet.absoluteFill, alignItems: 'center' as const, justifyContent: 'center' as const },
+    statusBox: { ...pill, alignItems: 'center' as const, maxWidth: s(960), gap: s(space.xs) },
+    statusTitle: { ...t.h2, color: color.text },
+    statusRow: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: s(space.sm) },
+    statusText: { ...t.body, color: color.text2 },
+    errorBox: { backgroundColor: color.bg },
+    notice: { ...pill, position: 'absolute' as const, top: s(space.xl), alignSelf: 'center' as const },
+    noticeText: { ...t.body, color: color.text },
+  };
+};

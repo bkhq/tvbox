@@ -1,5 +1,13 @@
 import type { Channel, Group } from '../../core/types';
-import { currentProgrammeIndex, type Epg, type EpgItem, findKeepPosition, type LivePosition } from '../../player/live';
+import {
+  currentProgrammeIndex,
+  type Epg,
+  type EpgItem,
+  findKeepPosition,
+  isKeepGroup,
+  type LivePosition,
+} from '../../player/live';
+import { sameChannel } from '../../player/live/channel';
 
 export interface LiveSelection extends LivePosition {
   line: number;
@@ -46,4 +54,98 @@ export function nowAndNext(epg: Epg | undefined, now = Date.now()): { current?: 
   const index = currentProgrammeIndex(epg, now);
   if (index < 0) return {};
   return { current: epg.list[index], next: epg.list[index + 1] };
+}
+
+/** One entry of the group list: "全部", "收藏" (when it has channels), then every other group. */
+export interface LiveGroupItem {
+  key: string;
+  name: string;
+  count: number;
+  kind: 'all' | 'keep' | 'group';
+  groupIndex?: number;
+}
+
+/** A channel by its real position in `groups` (selection / route indices). */
+export interface LiveChannelRef {
+  group: number;
+  channel: number;
+}
+
+export const ALL_GROUP_NAME = '全部';
+
+/** Every channel of the non-keep groups in order; later duplicates (sameChannel) are dropped. */
+function allChannelRefs(groups: Group[]): LiveChannelRef[] {
+  const seen: Channel[] = [];
+  const refs: LiveChannelRef[] = [];
+  groups.forEach((group, groupIndex) => {
+    if (isKeepGroup(group)) return;
+    group.channel.forEach((channel, channelIndex) => {
+      if (seen.some((item) => sameChannel(item, channel))) return;
+      seen.push(channel);
+      refs.push({ group: groupIndex, channel: channelIndex });
+    });
+  });
+  return refs;
+}
+
+export function liveGroupItems(groups: Group[]): LiveGroupItem[] {
+  const items: LiveGroupItem[] = [
+    { key: 'all', name: ALL_GROUP_NAME, count: allChannelRefs(groups).length, kind: 'all' },
+  ];
+  const keepIndex = groups.findIndex(isKeepGroup);
+  const keep = groups[keepIndex];
+  if (keep && keep.channel.length > 0) {
+    items.push({ key: 'keep', name: keep.name, count: keep.channel.length, kind: 'keep', groupIndex: keepIndex });
+  }
+  groups.forEach((group, groupIndex) => {
+    if (isKeepGroup(group)) return;
+    items.push({
+      key: `group-${groupIndex}`,
+      name: group.name,
+      count: group.channel.length,
+      kind: 'group',
+      groupIndex,
+    });
+  });
+  return items;
+}
+
+export function liveGroupChannels(groups: Group[], item: LiveGroupItem): LiveChannelRef[] {
+  if (item.kind === 'all') return allChannelRefs(groups);
+  const group = item.groupIndex === undefined ? undefined : groups[item.groupIndex];
+  return (group?.channel ?? []).map((_, channel) => ({ group: item.groupIndex!, channel }));
+}
+
+/** The keep item when the selection is in the keep group, else "全部". */
+export function itemForSelection(
+  items: LiveGroupItem[],
+  groups: Group[],
+  selection: LivePosition | undefined,
+): LiveGroupItem | undefined {
+  const group = selection ? groups[selection.group] : undefined;
+  if (group && isKeepGroup(group)) {
+    const keep = items.find((item) => item.kind === 'keep');
+    if (keep) return keep;
+  }
+  return items.find((item) => item.kind === 'all');
+}
+
+/** Channel number padded to two digits ("02"), else the 1-based list position. */
+export function channelNumberLabel(channel: Channel, fallbackIndex: number): string {
+  const number = channel.number.trim();
+  if (/^\d+$/.test(number)) return String(Number(number)).padStart(2, '0');
+  if (number !== '') return number;
+  return String(fallbackIndex + 1).padStart(2, '0');
+}
+
+/** "HH:mm" start / end of a programme and how much of it has aired, clamped to [0, 1]. */
+export function programmeProgress(
+  item: EpgItem | undefined,
+  now = Date.now(),
+): { start: string; end: string; fraction: number } | undefined {
+  if (!item || item.start === '' || item.end === '' || item.startTime <= 0 || item.endTime <= item.startTime) {
+    return undefined;
+  }
+  const fraction = Math.min(1, Math.max(0, (now - item.startTime) / (item.endTime - item.startTime)));
+  return { start: item.start, end: item.end, fraction };
 }

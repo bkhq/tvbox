@@ -39,6 +39,13 @@ describe('Badge', () => {
     expect(renderer.root.findAllByType(View)).toHaveLength(2);
   });
 
+  it('does not pin its own cross-axis alignment, so rows can centre it', async () => {
+    const renderer = await render(<Badge testID="badge" label="4K" />);
+    expect(style(renderer).alignSelf).toBeUndefined();
+    const pinned = await render(<Badge testID="badge" label="4K" style={{ alignSelf: 'flex-start' }} />);
+    expect(style(pinned).alignSelf).toBe('flex-start');
+  });
+
   it('uses the tag radius', async () => {
     const outline = await render(<Badge testID="badge" label="HDR" />);
     const live = await render(<Badge testID="badge" label="LIVE" variant="live" />);

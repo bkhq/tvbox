@@ -58,7 +58,7 @@ export function SettingRow({
           </Text>
         ) : null}
       </View>
-      {selected ? <Badge label="当前" variant="accent" style={styles.badge} /> : null}
+      {selected ? <Badge label="当前" variant="accent" /> : null}
       {value !== undefined ? (
         <Text style={styles.value} numberOfLines={1}>
           {value}
@@ -174,7 +174,6 @@ const makeStyles = (s: Scaler) => {
       elevation: 12,
     },
     rowDisabled: { opacity: 0.45 },
-    badge: { alignSelf: 'center' as const },
     titleBox: { flex: 1, gap: s(6) },
     title: { fontFamily: fontFamily.semiBold, fontSize: s(26), lineHeight: s(34), color: color.text },
     note: { ...text.caption, color: color.text3 },

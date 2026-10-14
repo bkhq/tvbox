@@ -8,14 +8,17 @@ import { useFocusAnimation } from './useFocusAnimation';
 
 export interface ChipProps extends FocusableProps {
   label: string;
-  /** The active filter: light fill, dark bold text. */
+  /** The active filter: light fill (accent fill for the accent variant), dark bold text. */
   selected?: boolean;
+  /** accent: a selected chip takes the accent fill, so the current choice never reads as the focused one. */
+  variant?: 'default' | 'accent';
 }
 
 /** Pill filter chip, as in the search page kind filters. */
 export function Chip({
   label,
   selected,
+  variant = 'default',
   onPress,
   onLongPress,
   onFocus,
@@ -41,7 +44,7 @@ export function Chip({
       {...handlers}
       style={[
         styles.chip,
-        selected && styles.selected,
+        selected && (variant === 'accent' ? styles.selectedAccent : styles.selected),
         focused && styles.focused,
         disabled && styles.disabled,
         style,
@@ -66,6 +69,7 @@ const makeStyles = (s: Scaler) => ({
     backgroundColor: color.surface2,
   },
   selected: { backgroundColor: color.text },
+  selectedAccent: { backgroundColor: color.accent },
   focused: { backgroundColor: focus.borderColor },
   disabled: { opacity: 0.4 },
   label: { fontFamily: fontFamily.semiBold, fontSize: s(20), lineHeight: s(28), color: color.text },

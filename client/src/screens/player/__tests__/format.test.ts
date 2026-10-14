@@ -1,4 +1,4 @@
-import { trackLabel } from '../format';
+import { episodeLabel, trackLabel } from '../format';
 
 describe('trackLabel', () => {
   it('prefers a human track name', () => {
@@ -50,5 +50,27 @@ describe('trackLabel', () => {
 
   it('keeps an unmapped code rather than dropping it', () => {
     expect(trackLabel({ label: '', language: 'it' })).toBe('it');
+  });
+});
+
+describe('episodeLabel', () => {
+  it('prefixes a descriptive name with the episode number', () => {
+    expect(episodeLabel(0, '风起')).toBe('第 1 集·风起');
+    expect(episodeLabel(4, 'HD中字')).toBe('第 5 集·HD中字');
+  });
+
+  it('shows only the number when the name is empty or a bare number', () => {
+    expect(episodeLabel(0, '')).toBe('第 1 集');
+    expect(episodeLabel(0, '1')).toBe('第 1 集');
+    expect(episodeLabel(11, ' 12 ')).toBe('第 12 集');
+  });
+
+  it('keeps a name that is already an episode label', () => {
+    expect(episodeLabel(0, '第1集')).toBe('第1集');
+    expect(episodeLabel(2, '第 03 话')).toBe('第 03 话');
+    expect(episodeLabel(9, '第十集')).toBe('第十集');
+    expect(episodeLabel(0, 'EP01')).toBe('EP01');
+    expect(episodeLabel(1, 'Ep 2')).toBe('Ep 2');
+    expect(episodeLabel(2, 'E03')).toBe('E03');
   });
 });

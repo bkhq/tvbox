@@ -163,22 +163,21 @@ describe('DetailScreen', () => {
   });
 
   it('omits metadata the source does not provide and shows a score when present', async () => {
-    const bare = { vod_id: 'v1', vod_name: '一个名字很长很长的测试影片', vod_play_from: 'a', vod_play_url: '第1集$a1' };
-    // normalizeResult drops unknown fields; add the score afterwards as a source extension would.
-    const detail = jest.fn(async (): Promise<Result> => {
-      const result = normalizeResult({ list: [bare] });
-      return { ...result, list: [{ ...result.list[0]!, vod_score: '8.7' } as Result['list'][number]] };
-    });
-    registerProvider({
-      id: 'test',
-      match: (site) => site.key === 'cms',
-      create: (site) => ({ site, detail }) as unknown as SiteProvider,
-    });
+    mockProvider([
+      {
+        vod_id: 'v1',
+        vod_name: '一个名字很长很长的测试影片',
+        vod_score: 8.7,
+        vod_play_from: 'a',
+        vod_play_url: '第1集$a1',
+      },
+    ]);
     const { renderer } = await render({ siteKey: 'cms', vodId: 'v1' });
     expect(has(renderer, 'detail-remarks')).toBe(false);
     expect(has(renderer, 'detail-backdrop')).toBe(false);
     expect(has(renderer, 'detail-tab-cast')).toBe(false);
     expect(texts(renderer).some((text) => /导演|主演|·/.test(text))).toBe(false);
+    expect(has(renderer, 'detail-score')).toBe(true);
     expect(texts(renderer)).toContain('8.7');
     // One flag: no picker, only its name.
     expect(has(renderer, 'detail-flag-picker')).toBe(false);
@@ -406,10 +405,25 @@ describe('DetailScreen', () => {
     });
     const { renderer } = await render({ siteKey: 'cms', vodId: 'v1', vodName: '参数名称' });
     expect(texts(renderer)).toEqual(expect.arrayContaining(['返回', '参数名称', '加载失败：boom']));
-    expect(preferred(renderer)).toEqual(['detail-error-retry']);
+    // ErrorView forwards the flag to its retry button only.
+    expect(preferred(renderer)).toEqual(['detail-error', 'detail-error-retry']);
     fail = false;
     await act(async () => byTestId(renderer, 'detail-error-retry').props.onPress());
     expect(texts(renderer)).toContain('测试影片');
+    await act(async () => renderer.unmount());
+  });
+
+  it('focuses the back pill while the detail loads', async () => {
+    const detail = jest.fn(() => new Promise<Result>(() => undefined));
+    registerProvider({
+      id: 'test',
+      match: (site) => site.key === 'cms',
+      create: (site) => ({ site, detail }) as unknown as SiteProvider,
+    });
+    const { renderer } = await render({ siteKey: 'cms', vodId: 'v1', vodName: '参数名称' });
+    expect(texts(renderer)).toEqual(expect.arrayContaining(['返回', '参数名称', '正在加载…']));
+    expect(renderer.root.findAllByType(ActivityIndicator)).toHaveLength(1);
+    expect(preferred(renderer)).toEqual(['detail-back']);
     await act(async () => renderer.unmount());
   });
 
@@ -425,6 +439,8 @@ describe('DetailScreen', () => {
     for (const siteKey of ['missing', 'jar']) {
       const { renderer } = await render({ siteKey, vodId: 'v1' });
       expect(texts(renderer)).toEqual(expect.arrayContaining(['返回', '详情', '站点不可用']));
+      expect(has(renderer, 'detail-unavailable')).toBe(true);
+      expect(texts(renderer)).not.toContain('重试');
       expect(preferred(renderer)).toEqual(['detail-back']);
       await act(async () => renderer.unmount());
     }

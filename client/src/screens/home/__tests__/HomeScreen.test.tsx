@@ -1,5 +1,6 @@
 import {
   ActivityIndicator,
+  Dimensions,
   FlatList,
   Image,
   Modal,
@@ -21,7 +22,9 @@ import { normalizeResult, type Result } from '../../../core/types';
 import { getHistoryRepository, getKeepRepository, setUserDataStore } from '../../../core/userData';
 import { getMainNavAvailability, setMainNavAvailability } from '../../../navigation/mainNav';
 import type { RootStackScreenProps } from '../../../navigation/types';
+import { makeScaler, scaleFor } from '../../../ui/scale';
 import HomeScreen, { HERO_FOCUS_DELAY } from '..';
+import { SITE_LIST_MAX_HEIGHT } from '../SitePicker';
 
 // react-native resolves components lazily on first access; resolve the ones the
 // screen renders while the file loads so no test pays that cost inside its timeout.
@@ -55,6 +58,7 @@ function vods(siteKey: string) {
       vod_name: `${siteKey} 影片 1`,
       vod_pic: `https://img.example.com/${siteKey}-1.jpg`,
       vod_remarks: '更新至1集',
+      vod_score: '8.7',
       vod_year: '2026',
       vod_area: '大陆',
       type_name: '悬疑',
@@ -210,11 +214,12 @@ describe('HomeScreen', () => {
     expect(texts(hero)).toEqual(
       expect.arrayContaining(['更新至1集', '悬疑', 'cms 影片 1', '2026', '大陆', '极夜来临前的最后七天']),
     );
+    expect(texts(byTestID(renderer, 'home-hero-score'))).toEqual(['8.7']);
     expect(has(renderer, 'home-hero-bg')).toBe(true);
     expect(renderer.root.findByProps({ testID: 'home-hero-bg' }).props.blurRadius).toBe(30);
     expect(preferred(renderer)).toEqual(['home-hero-play']);
 
-    // A focused card becomes the hero after the debounce; it has no remarks, type, year or content.
+    // A focused card becomes the hero after the debounce; it has no remarks, type, score, year or content.
     await act(async () => byTestID(renderer, 'home-card-recommend-cms-2').props.onFocus());
     expect(texts(byTestID(renderer, 'home-hero'))).toContain('cms 影片 1');
     await wait(HERO_FOCUS_DELAY + 50);
@@ -223,6 +228,7 @@ describe('HomeScreen', () => {
     expect(texts(next)).not.toContain('悬疑');
     expect(texts(next)).not.toContain('2026');
     expect(has(renderer, 'home-hero-remarks')).toBe(false);
+    expect(has(renderer, 'home-hero-score')).toBe(false);
     expect(has(renderer, 'home-hero-description')).toBe(false);
 
     await act(async () => byTestID(renderer, 'home-hero-detail').props.onPress());
@@ -409,6 +415,9 @@ describe('HomeScreen', () => {
     expect(texts(byTestID(renderer, 'home-site-cms'))).toContain('首页');
     expect(byTestID(renderer, 'home-site-jar').props.disabled).toBe(true);
     expect(preferred(renderer)).toEqual(['home-site-cms']);
+    // The list is capped so a long site list scrolls instead of pushing 关闭 off screen.
+    const s = makeScaler(scaleFor(Dimensions.get('window').width));
+    expect(byTestID(renderer, 'home-site-list').props.style.maxHeight).toBe(s(SITE_LIST_MAX_HEIGHT));
 
     await act(async () => byTestID(renderer, 'home-site-xml').props.onPress());
     expect(appSettings.get('homeSiteKey')).toBe('xml');

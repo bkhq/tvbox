@@ -7,8 +7,10 @@ import type { EnginePreference } from '../../player/engine/policy';
 import type { EngineFactory, ExternalSubtitle, Track, TrackId } from '../../player/engine/types';
 import {
   Button,
+  Chip,
   color,
   focus,
+  OptionRow,
   radii,
   safeArea,
   type Scaler,
@@ -68,27 +70,6 @@ export function Panel({ kind, onClose, children }: { kind: PanelKind; onClose: (
   );
 }
 
-/** A full-width option row: accent fill when selected, inverted with a ring when focused. */
-function Option({
-  selected,
-  ...props
-}: { testID: string; title: string; selected?: boolean; disabled?: boolean; hasTVPreferredFocus?: boolean; onPress: () => void }) {
-  const styles = useScaledStyles(makeStyles);
-  return <Button size="md" variant={selected ? 'primary' : 'secondary'} style={styles.option} {...props} />;
-}
-
-/**
- * A choice in a chip row, marked like the option rows: accent fill when selected, so the current choice never
- * reads as the focused one (inverted with a ring).
- */
-function Choice({
-  selected,
-  ...props
-}: { testID: string; title: string; selected?: boolean; hasTVPreferredFocus?: boolean; onPress: () => void }) {
-  const styles = useScaledStyles(makeStyles);
-  return <Button size="md" variant={selected ? 'primary' : 'secondary'} style={styles.choice} {...props} />;
-}
-
 export function EpisodePanel({
   flags,
   flagIndex,
@@ -112,10 +93,11 @@ export function EpisodePanel({
       {flags.length > 1 ? (
         <ScrollView horizontal style={styles.flags} contentContainerStyle={[styles.chips, styles.bleed]}>
           {flags.map((flag, index) => (
-            <Choice
+            <Chip
               key={`${index}-${flag.flag}`}
+              variant="accent"
               testID={`player-flag-${index}`}
-              title={flag.flag}
+              label={flag.flag}
               selected={index === shownFlag}
               onPress={() => setShownFlag(index)}
             />
@@ -168,10 +150,11 @@ export function LinePanel({
   return (
     <ScrollView style={styles.list} contentContainerStyle={styles.bleed}>
       {flags.map((flag, index) => (
-        <Option
+        <OptionRow
           key={`${index}-${flag.flag}`}
+          style={styles.option}
           testID={`player-line-${index}`}
-          title={flag.flag}
+          label={flag.flag}
           selected={index === flagIndex}
           hasTVPreferredFocus={index === flagIndex}
           onPress={() => onSelect(index)}
@@ -186,10 +169,11 @@ export function SpeedPanel({ speed, onSelect }: { speed: number; onSelect: (spee
   return (
     <View style={[styles.chips, styles.wrap, styles.bleed, styles.outdent]}>
       {SPEED_PRESETS.map((value) => (
-        <Choice
+        <Chip
           key={value}
+          variant="accent"
           testID={`player-speed-${value}`}
-          title={formatSpeed(value)}
+          label={formatSpeed(value)}
           selected={value === speed}
           hasTVPreferredFocus={value === speed}
           onPress={() => onSelect(value)}
@@ -217,10 +201,11 @@ export function AudioPanel({
   return (
     <ScrollView style={styles.list} contentContainerStyle={styles.bleed}>
       {tracks.map((track, index) => (
-        <Option
+        <OptionRow
           key={String(track.id)}
+          style={styles.option}
           testID={`player-audio-${track.id}`}
-          title={trackLabel(track) ?? `音轨 ${index + 1}`}
+          label={trackLabel(track) ?? `音轨 ${index + 1}`}
           selected={isSelected(track, selected)}
           hasTVPreferredFocus={index === 0}
           onPress={() => onSelect(track.id)}
@@ -265,28 +250,31 @@ export function SubtitlePanel({
   const current = selected === null ? undefined : tracks.find((track) => isSelected(track, selected));
   return (
     <ScrollView style={styles.list} contentContainerStyle={styles.bleed}>
-      <Option
+      <OptionRow
+        style={styles.option}
         testID="player-subtitle-off"
-        title="关闭"
+        label="关闭"
         selected={!current}
         hasTVPreferredFocus={!current}
         onPress={() => onSelect(null)}
       />
       {tracks.map((track, index) => (
-        <Option
+        <OptionRow
           key={String(track.id)}
+          style={styles.option}
           testID={`player-subtitle-${track.id}`}
-          title={trackLabel(track) ?? `字幕 ${index + 1}`}
+          label={trackLabel(track) ?? `字幕 ${index + 1}`}
           selected={track === current}
           hasTVPreferredFocus={track === current}
           onPress={() => onSelect(track.id)}
         />
       ))}
       {shownExternal.map((subtitle) => (
-        <Option
+        <OptionRow
           key={subtitle.url}
+          style={styles.option}
           testID={`player-subtitle-external-${subtitle.name}`}
-          title={`外挂：${subtitle.name}`}
+          label={`外挂：${subtitle.name}`}
           onPress={() => pickExternal(subtitle)}
         />
       ))}
@@ -324,18 +312,20 @@ function EngineOptions({ engines, preference, active, onSelect, prefix }: Engine
   return (
     <>
       {active ? <Text style={styles.note}>{`当前：${active.label}`}</Text> : null}
-      <Option
+      <OptionRow
+        style={styles.option}
         testID={`${prefix}-auto`}
-        title="自动"
+        label="自动"
         selected={preference === 'auto'}
         hasTVPreferredFocus={preference === 'auto'}
         onPress={() => onSelect('auto')}
       />
       {engines.map((engine) => (
-        <Option
+        <OptionRow
           key={engine.kind}
+          style={styles.option}
           testID={`${prefix}-${engine.kind}`}
-          title={engine.label}
+          label={engine.label}
           selected={preference === engine.kind}
           disabled={!engine.isAvailable()}
           hasTVPreferredFocus={preference === engine.kind}
@@ -390,10 +380,11 @@ export function SettingsPanel({
       {/* Entering a section from the other one lands on its first (or last focused) control, not the nearest. */}
       <TVFocusGuideView autoFocus style={[styles.chips, styles.wrap]}>
         {SCALE_OPTIONS.map((option) => (
-          <Choice
+          <Chip
             key={option.value}
+            variant="accent"
             testID={`player-settings-scale-${option.value}`}
-            title={option.label}
+            label={option.label}
             selected={option.value === scale}
             onPress={() => onSelectScale(option.value)}
           />
@@ -432,8 +423,7 @@ const makeStyles = (s: Scaler) => {
     chips: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: s(space.sm) },
     wrap: { flexWrap: 'wrap' as const },
     cell: { width: s(CELL_WIDTH), paddingHorizontal: s(space.sm) },
-    choice: { paddingHorizontal: s(space.md) },
-    option: { marginBottom: s(space.sm), justifyContent: 'flex-start' as const },
+    option: { marginBottom: s(space.sm) },
     section: { ...t.label, marginTop: s(space.sm), marginBottom: s(space.sm), color: color.text2 },
     note: { ...t.label, marginBottom: s(space.sm), color: color.text3 },
     form: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: s(space.sm), marginTop: s(space.xs) },

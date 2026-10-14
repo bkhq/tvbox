@@ -73,13 +73,6 @@ export function optionLabel<T>(options: readonly Option<T>[], value: T): string 
   return options.find((option) => option.value === value)?.label ?? String(value);
 }
 
-/** The option after `value`, wrapping around; the first one when `value` is unknown. */
-export function cycleOption<T>(options: readonly Option<T>[], value: T): T {
-  const index = options.findIndex((option) => option.value === value);
-  const next = options[(index + 1) % options.length];
-  return next ? next.value : value;
-}
-
 /** `value` moved by one step in `direction`, rounded and clamped by the schema. */
 export function stepValue<K extends StepKey>(key: K, value: number, direction: 1 | -1): Settings[K] {
   const next = Math.round((value + direction * STEPS[key].step) * 100) / 100;
@@ -88,10 +81,6 @@ export function stepValue<K extends StepKey>(key: K, value: number, direction: 1
 
 export function formatSpeed(value: number): string {
   return `${value}x`;
-}
-
-export function formatBoolean(value: boolean): string {
-  return value ? '开' : '关';
 }
 
 export function formatText(value: string): string {

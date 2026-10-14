@@ -5,6 +5,7 @@ import {
   Modal,
   Pressable,
   ScrollView,
+  StyleSheet,
   Text,
   TextInput,
   TVFocusGuideView,
@@ -109,6 +110,12 @@ function texts(renderer: ReactTestRenderer): string[] {
 function byTestId(renderer: ReactTestRenderer, testID: string) {
   // The outermost match carries the props given by the screen.
   return renderer.root.findAll((node) => node.props.testID === testID)[0]!;
+}
+
+/** flexGrow of the page ScrollView content: status pages fill the viewport so the status view centres. */
+function contentGrow(renderer: ReactTestRenderer, testID: string) {
+  const scroll = renderer.root.findAllByType(ScrollView).find((node) => node.props.testID === testID)!;
+  return StyleSheet.flatten(scroll.props.contentContainerStyle).flexGrow;
 }
 
 const has = (renderer: ReactTestRenderer, testID: string) =>
@@ -456,9 +463,13 @@ describe('DetailScreen', () => {
     expect(texts(renderer)).toEqual(expect.arrayContaining(['返回', '参数名称', '加载失败：boom']));
     // ErrorView forwards the flag to its retry button only.
     expect(preferred(renderer)).toEqual(['detail-error', 'detail-error-retry']);
+    expect(contentGrow(renderer, 'detail-status')).toBe(1);
     fail = false;
     await act(async () => byTestId(renderer, 'detail-error-retry').props.onPress());
     expect(texts(renderer)).toContain('测试影片');
+    // The ready layout keeps its natural content height.
+    expect(has(renderer, 'detail-status')).toBe(false);
+    expect(contentGrow(renderer, 'detail-body')).toBeUndefined();
     await act(async () => renderer.unmount());
   });
 
@@ -473,6 +484,7 @@ describe('DetailScreen', () => {
     expect(texts(renderer)).toEqual(expect.arrayContaining(['返回', '参数名称', '正在加载…']));
     expect(renderer.root.findAllByType(ActivityIndicator)).toHaveLength(1);
     expect(preferred(renderer)).toEqual(['detail-back']);
+    expect(contentGrow(renderer, 'detail-status')).toBe(1);
     await act(async () => renderer.unmount());
   });
 
@@ -480,6 +492,7 @@ describe('DetailScreen', () => {
     mockProvider([]);
     const { renderer } = await render({ siteKey: 'cms', vodId: 'v1' });
     expect(texts(renderer)).toEqual(expect.arrayContaining(['返回', '未找到影片', '重试']));
+    expect(contentGrow(renderer, 'detail-status')).toBe(1);
     await act(async () => renderer.unmount());
   });
 
@@ -489,6 +502,7 @@ describe('DetailScreen', () => {
       const { renderer } = await render({ siteKey, vodId: 'v1' });
       expect(texts(renderer)).toEqual(expect.arrayContaining(['返回', '详情', '站点不可用']));
       expect(has(renderer, 'detail-unavailable')).toBe(true);
+      expect(contentGrow(renderer, 'detail-status')).toBe(1);
       expect(texts(renderer)).not.toContain('重试');
       expect(preferred(renderer)).toEqual(['detail-back']);
       await act(async () => renderer.unmount());

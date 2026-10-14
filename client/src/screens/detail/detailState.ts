@@ -67,9 +67,23 @@ export function tagLine(vod: Pick<Vod, 'type_name' | 'vod_area' | 'vod_year'>): 
   return [vod.type_name, vod.vod_area, vod.vod_year].filter(Boolean).join(' · ');
 }
 
-/** Names of a director / actor field, split on the separators sources use. */
+const PEOPLE_SEPARATORS = /[,，/、|；;]/;
+const CJK = /[\u3400-\u9fff\uf900-\ufaff]/;
+
+/**
+ * Names of a director / actor field. Punctuation separators win; whitespace only separates when every part is CJK
+ * ("张三 李四"), so a Latin full name ("Meret Manon Bannerman") stays one name.
+ */
 export function splitPeople(value: string | undefined): string[] {
-  return (value ?? '').split(/[,，/、\s]+/).filter(Boolean);
+  const trimmed = (value ?? '').trim();
+  if (!trimmed) return [];
+  if (PEOPLE_SEPARATORS.test(trimmed))
+    return trimmed
+      .split(PEOPLE_SEPARATORS)
+      .map((part) => part.trim())
+      .filter(Boolean);
+  const tokens = trimmed.split(/\s+/);
+  return tokens.every((token) => CJK.test(token)) ? tokens : [trimmed];
 }
 
 /** Watched fraction of `episode` when the history points at it and has a position and duration. */

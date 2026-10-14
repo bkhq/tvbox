@@ -214,6 +214,22 @@ describe('playback machine', () => {
       expect(state).toMatchObject({ status: 'resolving', engine: 'video', fallbackUsed: false, flagIndex: 2 });
     });
 
+    it('falls back from a pre-load engine error to the other engine, the next lines, then the error', () => {
+      let state = openLines();
+      state = playbackReducer(state, { type: 'resolved', token: state.token, source: source('http://a/u1') });
+      expect(state).toMatchObject({ status: 'loading', loaded: false });
+      state = playbackReducer(state, { type: 'engineFailed', message: 'format', fallback: 'mpv' });
+      expect(state).toMatchObject({ status: 'loading', engine: 'mpv', flagIndex: 0, fallbackUsed: true });
+      state = playbackReducer(state, { type: 'engineFailed', message: 'format' });
+      expect(state).toMatchObject({ status: 'resolving', engine: 'video', flagIndex: 2, notice: '正在切换线路至「good」' });
+      state = playbackReducer(state, { type: 'resolved', token: state.token, source: source('http://a/w1') });
+      state = playbackReducer(state, { type: 'engineFailed', message: 'format' });
+      expect(state).toMatchObject({ status: 'resolving', flagIndex: 3 });
+      state = playbackReducer(state, { type: 'resolved', token: state.token, source: source('http://a/x1') });
+      state = playbackReducer(state, { type: 'engineFailed', message: 'format' });
+      expect(state).toMatchObject({ status: 'error', error: `${MSG_PLAY_FAILED}：format` });
+    });
+
     it('stops after every line was tried with the last failure', () => {
       let state = openLines();
       state = playbackReducer(state, { type: 'failed', token: state.token, message: 'a' });

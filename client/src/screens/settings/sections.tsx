@@ -12,7 +12,7 @@ import { checkResultText, getUpdateController, useUpdateCheck } from '../../upda
 import { unsupportedText } from '../home';
 import { clearCache, formatBytes, getCacheSize } from './cache';
 import { CONFIG_TITLE, ConfigPanel, useSavedConfigs } from './ConfigPanel';
-import { useEntryRef } from './entryFocus';
+import { FocusEntry, useEntryRef } from './entryFocus';
 import {
   type BooleanKey,
   type ChoiceKey,
@@ -553,27 +553,28 @@ export function SourcesSection({ hasTVPreferredFocus }: SectionProps) {
 export function AboutSection({ hasTVPreferredFocus }: SectionProps) {
   const { versionName, versionCode } = getAppConfig();
   const { checking, lastResult, check } = useUpdateCheck(getUpdateController());
-  const entry = useEntryRef();
   const styles = useScaledStyles(makeStyles);
   return (
     <SettingsSection id="about">
       <SettingRow
-        ref={entry}
         testID="settings-version"
         title="版本"
         value={`${versionName} (${versionCode})`}
         note={lastResult && !checking ? checkResultText(lastResult) : undefined}
         noteTestID="update-result"
         accessory={
-          <Button
-            testID="update-check"
-            title={checking ? '正在检查…' : '检查更新'}
-            size="md"
-            disabled={checking}
-            hasTVPreferredFocus={hasTVPreferredFocus}
-            style={styles.aboutAction}
-            onPress={() => void check(true)}
-          />
+          // The row itself is not focusable, so the panel entry is 检查更新.
+          <FocusEntry enabled>
+            <Button
+              testID="update-check"
+              title={checking ? '正在检查…' : '检查更新'}
+              size="md"
+              disabled={checking}
+              hasTVPreferredFocus={hasTVPreferredFocus}
+              style={styles.aboutAction}
+              onPress={() => void check(true)}
+            />
+          </FocusEntry>
         }
       />
     </SettingsSection>

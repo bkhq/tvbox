@@ -298,8 +298,8 @@ describe('SettingsScreen', () => {
       ['live', () => 'settings-live'],
       ['net', () => 'settings-doh'],
       ['sources', () => 'settings-vod'],
-      // The row view; its only focusable is 检查更新.
-      ['about', () => 'settings-version'],
+      // The version row is not focusable; 检查更新 is.
+      ['about', () => 'update-check'],
     ];
     for (const [id, entry] of entries) {
       await press(renderer, `settings-menu-${id}`);

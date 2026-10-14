@@ -37,6 +37,7 @@ describe('Icon', () => {
         'history',
         'star',
         'chevronRight',
+        'filter',
       ]),
     );
   });

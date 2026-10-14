@@ -109,6 +109,6 @@ const makeStyles = (s: Scaler) => ({
     borderRadius: s(8),
   },
   segmentSelected: { backgroundColor: color.text },
-  segmentLabel: { fontFamily: fontFamily.semiBold, fontSize: s(22), lineHeight: s(30), color: color.text2 },
+  segmentLabel: { fontFamily: fontFamily.semiBold, fontSize: s(26), lineHeight: s(34), color: color.text2 },
   segmentLabelSelected: { fontFamily: fontFamily.bold, color: color.inverseText },
 });

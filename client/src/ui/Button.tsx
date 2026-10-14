@@ -67,7 +67,7 @@ export interface ButtonProps extends FocusableProps {
   accessibilityLabel?: string;
 }
 
-const height = { md: 64, lg: 76 } as const;
+const height = { md: 68, lg: 80 } as const;
 const OUTLINE_SIZE = 52;
 
 export function Button({
@@ -129,7 +129,7 @@ export function Button({
           style={[
             styles.title,
             primary ? styles.titlePrimary : null,
-            { color: fg, fontSize: s(large && primary ? 28 : 26) },
+            { color: fg, fontSize: s(large && primary ? 32 : 30) },
           ]}
         >
           {title}

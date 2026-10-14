@@ -26,7 +26,7 @@ const makeStyles = (s: Scaler) => ({
   // letter-spacing 0.06em of the 30px wordmark.
   word: {
     fontFamily: fontFamily.bold,
-    fontSize: s(30),
+    fontSize: s(36),
     lineHeight: s(40),
     letterSpacing: s(30) * 0.06,
     color: color.text,

@@ -62,9 +62,9 @@ export function Chip({
 
 const makeStyles = (s: Scaler) => ({
   chip: {
-    height: s(48),
-    paddingHorizontal: s(20),
-    borderRadius: s(24),
+    height: s(60),
+    paddingHorizontal: s(28),
+    borderRadius: s(60) / 2,
     justifyContent: 'center' as const,
     backgroundColor: color.surface2,
   },
@@ -72,6 +72,6 @@ const makeStyles = (s: Scaler) => ({
   selectedAccent: { backgroundColor: color.accent },
   focused: { backgroundColor: focus.borderColor },
   disabled: { opacity: 0.4 },
-  label: { fontFamily: fontFamily.semiBold, fontSize: s(20), lineHeight: s(28), color: color.text },
+  label: { fontFamily: fontFamily.semiBold, fontSize: s(30), lineHeight: s(38), color: color.text },
   labelInverse: { fontFamily: fontFamily.bold, color: color.inverseText },
 });

@@ -63,7 +63,7 @@ function ChannelCardImpl({
       {...nextFocus}
     >
       {source ? (
-        <Image source={source} style={styles.logo} resizeMode="contain" />
+        <Image source={source} style={styles.logo} resizeMode="contain" resizeMethod="resize" />
       ) : (
         <Text style={[styles.number, bright && styles.bright]}>{number}</Text>
       )}

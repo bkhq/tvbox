@@ -37,8 +37,8 @@ describe('SectionHeader', () => {
     const [title, caption] = renderer.root.findAllByType(Text);
     expect(StyleSheet.flatten(title!.props.style)).toMatchObject({
       fontFamily: fontFamily.bold,
-      fontSize: 40,
-      lineHeight: 44,
+      fontSize: 44,
+      lineHeight: 52,
       color: color.text,
     });
     expect(StyleSheet.flatten(caption!.props.style).color).toBe(color.text3);

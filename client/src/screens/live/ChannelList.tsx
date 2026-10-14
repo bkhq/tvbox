@@ -114,7 +114,7 @@ function ChannelRow({
       <Text style={[styles.number, playing && styles.numberPlaying]} numberOfLines={1}>
         {channel.number}
       </Text>
-      {logo !== '' ? <Image source={imageSource(logo)} style={styles.logo} resizeMode="contain" /> : null}
+      {logo !== '' ? <Image source={imageSource(logo)} style={styles.logo} resizeMode="contain" resizeMethod="resize" /> : null}
       <View style={styles.rowText}>
         <View style={styles.rowTitle}>
           <Text style={styles.name} numberOfLines={1}>

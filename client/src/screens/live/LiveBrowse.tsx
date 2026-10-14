@@ -186,7 +186,7 @@ export function LiveBrowse({
                     {channel.name}
                   </Text>
                   {line !== '' ? <Badge label={line} testID="live-browse-line" /> : null}
-                  {logo !== '' ? <Image source={imageSource(logo)} style={styles.logo} resizeMode="contain" /> : null}
+                  {logo !== '' ? <Image source={imageSource(logo)} style={styles.logo} resizeMode="contain" resizeMethod="resize" /> : null}
                   <FavouriteButton favourite={favourite} onPress={() => onToggleFavourite(channel)} />
                 </View>
                 {current ? (

@@ -59,7 +59,7 @@ function PosterCardImpl({
     >
       <Animated.View style={[box, animatedStyle]}>
         <View style={styles.poster}>
-          {source ? <Image source={source} style={StyleSheet.absoluteFill} resizeMode="cover" /> : null}
+          {source ? <Image source={source} style={StyleSheet.absoluteFill} resizeMode="cover" resizeMethod="resize" /> : null}
           {badge ? <Badge label={badge} variant={badgeVariant} style={styles.badge} /> : null}
         </View>
         {focused ? <View pointerEvents="none" style={styles.focusBorder} /> : null}
@@ -79,7 +79,7 @@ function PosterCardImpl({
 export const PosterCard = memo(PosterCardImpl);
 
 const makeStyles = (s: Scaler) => {
-  const { label, caption } = scaledText(s);
+  const { body, caption } = scaledText(s);
   return {
     card: { gap: s(12) },
     poster: { flex: 1, borderRadius: s(radii.card), overflow: 'hidden' as const, backgroundColor: color.surface },
@@ -94,7 +94,7 @@ const makeStyles = (s: Scaler) => {
       borderColor: focus.borderColor,
       borderRadius: s(radii.card + focus.borderWidth),
     },
-    title: { ...label, color: color.text2 },
+    title: { ...body, color: color.text2 },
     titleFocused: { color: color.text },
     meta: { ...caption, color: color.text3, marginTop: -s(6) },
   };

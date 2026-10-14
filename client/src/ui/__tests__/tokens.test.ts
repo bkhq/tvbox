@@ -17,11 +17,11 @@ describe('design tokens', () => {
     });
     expect(type.display).toEqual({ fontSize: 88, lineHeight: 88, fontWeight: 700 });
     expect(type.displaySm).toEqual({ fontSize: 72, lineHeight: 72, fontWeight: 700 });
-    expect(type.h1).toEqual({ fontSize: 40, lineHeight: 44, fontWeight: 700 });
-    expect(type.h2).toEqual({ fontSize: 32, lineHeight: 38, fontWeight: 600 });
-    expect(type.body).toEqual({ fontSize: 28, lineHeight: 39, fontWeight: 500 });
-    expect(type.label).toEqual({ fontSize: 24, lineHeight: 34, fontWeight: 500 });
-    expect(type.caption.fontSize).toBe(20);
+    expect(type.h1).toEqual({ fontSize: 44, lineHeight: 52, fontWeight: 700 });
+    expect(type.h2).toEqual({ fontSize: 36, lineHeight: 46, fontWeight: 600 });
+    expect(type.body).toEqual({ fontSize: 32, lineHeight: 44, fontWeight: 500 });
+    expect(type.label).toEqual({ fontSize: 28, lineHeight: 38, fontWeight: 500 });
+    expect(type.caption.fontSize).toBe(24);
     expect(Object.values(space)).toEqual([8, 16, 24, 40, 64, 96]);
     expect(radii).toEqual({ tag: 6, card: 10, button: 14, round: 9999 });
     expect(safeArea).toEqual({ horizontal: 96, vertical: 56 });
@@ -58,7 +58,7 @@ describe('legacy theme', () => {
       remarkBackground: 'rgba(0, 0, 0, 0.6)',
     });
     expect(spacing).toEqual({ xs: 4, sm: 8, md: 12, lg: 20, xl: 32 });
-    expect(fontSize).toEqual({ caption: 10, body: 14, title: 16, heading: 20, display: 36 });
+    expect(fontSize).toEqual({ caption: 12, body: 16, title: 18, heading: 22, display: 36 });
     expect(radius).toEqual({ sm: 3, md: 5 });
     expect(focusScale).toBe(1.08);
     expect(theme).toEqual({ colors, spacing, fontSize, radius, focusScale });

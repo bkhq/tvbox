@@ -101,6 +101,6 @@ const makeStyles = (s: Scaler) => ({
   },
   wide: { width: s(KEY_SIZE * 2 + KEY_GAP) },
   focused: { backgroundColor: focus.borderColor },
-  label: { ...scaledText(s).h2, fontSize: s(30) },
-  wideLabel: { fontFamily: fontFamily.semiBold, fontSize: s(24) },
+  label: { ...scaledText(s).h2, fontSize: s(36) },
+  wideLabel: { fontFamily: fontFamily.semiBold, fontSize: s(30) },
 });

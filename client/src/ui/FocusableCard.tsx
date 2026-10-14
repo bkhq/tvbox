@@ -57,7 +57,7 @@ export function FocusableCard({
       {...nextFocus}
     >
       <View style={styles.posterBox}>
-        {poster ? <Image source={imageSource(poster)} style={styles.poster} resizeMode="cover" /> : null}
+        {poster ? <Image source={imageSource(poster)} style={styles.poster} resizeMode="cover" resizeMethod="resize" /> : null}
         {remark ? (
           <Text style={styles.remark} numberOfLines={1}>
             {remark}

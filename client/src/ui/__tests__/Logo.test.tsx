@@ -24,7 +24,7 @@ describe('Logo', () => {
     expect(word.props.children).toBe('星幕');
     expect(StyleSheet.flatten(word.props.style)).toMatchObject({
       fontFamily: fontFamily.bold,
-      fontSize: 30,
+      fontSize: 36,
       color: color.text,
     });
     expect(StyleSheet.flatten(word.props.style).letterSpacing).toBeCloseTo(1.8);

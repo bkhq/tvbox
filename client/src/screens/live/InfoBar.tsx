@@ -38,7 +38,7 @@ export function InfoBar({ channel, line, logo, epg }: { channel: Channel; line: 
             {channelNumberLabel(channel, 0)}
           </Text>
         ) : logo !== '' ? (
-          <Image testID="live-info-logo" source={imageSource(logo)} style={styles.logo} resizeMode="contain" />
+          <Image testID="live-info-logo" source={imageSource(logo)} style={styles.logo} resizeMode="contain" resizeMethod="resize" />
         ) : null}
         <View style={styles.text}>
           <View style={styles.title}>

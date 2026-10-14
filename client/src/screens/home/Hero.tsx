@@ -61,7 +61,7 @@ function HeroBackground({ poster }: { poster: string }) {
   return (
     <View testID="home-hero-background" pointerEvents="none" style={styles.background}>
       {source ? (
-        <Image testID="home-hero-bg" source={source} blurRadius={BLUR_RADIUS} resizeMode="cover" style={styles.image} />
+        <Image testID="home-hero-bg" source={source} blurRadius={BLUR_RADIUS} resizeMode="cover" resizeMethod="resize" style={styles.image} />
       ) : null}
       <Svg style={styles.fadeX} width="100%" height="100%">
         <Defs>
@@ -228,7 +228,7 @@ const makeStyles = (s: Scaler) => {
     fadeY: { position: 'absolute' as const, top: s(FADE_Y_TOP), left: 0, right: 0, bottom: 0 },
     content: { position: 'absolute' as const, top: s(200), left: s(safeArea.horizontal), width: s(820), gap: s(20) },
     tags: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: s(14) },
-    type: { ...text.caption, fontSize: s(22), lineHeight: s(30), color: color.text2 },
+    type: { ...text.caption, fontSize: s(26), lineHeight: s(34), color: color.text2 },
     title: { ...text.display, lineHeight: s(Math.round(type.display.fontSize * TITLE_LINE_HEIGHT)), color: color.text },
     titleLong: {
       ...text.displaySm,
@@ -236,8 +236,8 @@ const makeStyles = (s: Scaler) => {
       color: color.text,
     },
     meta: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: s(18) },
-    metaText: { ...text.body, fontSize: s(26), color: color.text2 },
-    score: { ...text.body, ...tabular, fontFamily: fontFamily.bold, fontSize: s(26), color: color.text },
+    metaText: { ...text.body, fontSize: s(30), color: color.text2 },
+    score: { ...text.body, ...tabular, fontFamily: fontFamily.bold, fontSize: s(30), color: color.text },
     description: { ...text.body, lineHeight: s(42), maxWidth: s(720), color: color.text2 },
     actions: {
       flexDirection: 'row' as const,

@@ -79,7 +79,7 @@ const makeStyles = (s: Scaler) => {
     // Like the top-bar buttons: focus inverts to a white fill with dark text.
     focused: { backgroundColor: focus.borderColor },
     disabled: { opacity: 0.4 },
-    label: { ...text.body, color: color.text2 },
+    label: { ...text.body, fontSize: s(36), lineHeight: s(46), color: color.text2 },
     labelActive: { fontFamily: fontFamily.bold, color: color.text },
     labelFocused: { color: color.inverseText },
   };

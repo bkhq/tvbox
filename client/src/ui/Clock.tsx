@@ -39,5 +39,5 @@ export function Clock({ style, testID }: ClockProps) {
 }
 
 const makeStyles = (s: Scaler) => ({
-  clock: { ...scaledText(s).body, ...tabular, fontSize: s(26), lineHeight: s(36), color: color.text2 },
+  clock: { ...scaledText(s).body, ...tabular, fontSize: s(36), lineHeight: s(46), color: color.text2 },
 });

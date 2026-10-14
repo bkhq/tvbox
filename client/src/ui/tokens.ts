@@ -26,11 +26,11 @@ export const color = {
 export const type = {
   display: { fontSize: 88, lineHeight: 88, fontWeight: 700 },
   displaySm: { fontSize: 72, lineHeight: 72, fontWeight: 700 },
-  h1: { fontSize: 40, lineHeight: 44, fontWeight: 700 },
-  h2: { fontSize: 32, lineHeight: 38, fontWeight: 600 },
-  body: { fontSize: 28, lineHeight: 39, fontWeight: 500 },
-  label: { fontSize: 24, lineHeight: 34, fontWeight: 500 },
-  caption: { fontSize: 20, lineHeight: 28, fontWeight: 400 },
+  h1: { fontSize: 44, lineHeight: 52, fontWeight: 700 },
+  h2: { fontSize: 36, lineHeight: 46, fontWeight: 600 },
+  body: { fontSize: 32, lineHeight: 44, fontWeight: 500 },
+  label: { fontSize: 28, lineHeight: 38, fontWeight: 500 },
+  caption: { fontSize: 24, lineHeight: 32, fontWeight: 400 },
 } as const;
 
 export const space = { xs: 8, sm: 16, md: 24, lg: 40, xl: 64, xxl: 96 } as const;

@@ -13,7 +13,7 @@ export function Backdrop({ uri }: { uri?: string }) {
   if (!source) return null;
   return (
     <View pointerEvents="none" style={styles.backdrop} testID="detail-backdrop">
-      <Image source={source} blurRadius={24} resizeMode="cover" style={styles.image} />
+      <Image source={source} blurRadius={24} resizeMode="cover" resizeMethod="resize" style={styles.image} />
       <Svg style={StyleSheet.absoluteFill} width="100%" height="100%">
         <Defs>
           <LinearGradient id="detailFadeX" x1="0" y1="0" x2="1" y2="0">

@@ -176,7 +176,7 @@ export const makePanelStyles = (s: Scaler) => {
       backgroundColor: color.surface2,
       color: color.text,
       fontFamily: fontFamily.medium,
-      fontSize: s(24),
+      fontSize: s(28),
     },
     action: { alignSelf: 'flex-start' as const },
     actions: { flexDirection: 'row' as const, gap: s(24) },

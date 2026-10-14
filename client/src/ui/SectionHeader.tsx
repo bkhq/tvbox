@@ -46,6 +46,6 @@ const makeStyles = (s: Scaler) => {
     column: { gap: s(8) },
     title: { ...text.h2, color: color.text },
     titleH1: text.h1,
-    caption: { ...text.caption, fontSize: s(22), lineHeight: s(30), color: color.text3 },
+    caption: { ...text.caption, fontSize: s(26), lineHeight: s(34), color: color.text3 },
   };
 };

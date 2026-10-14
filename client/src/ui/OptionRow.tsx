@@ -97,7 +97,7 @@ const makeStyles = (s: Scaler) => {
     focused: { backgroundColor: focus.borderColor },
     disabled: { opacity: 0.4 },
     labelBox: { flex: 1, gap: s(4) },
-    label: { fontFamily: fontFamily.semiBold, fontSize: s(26), lineHeight: s(34), color: color.text },
+    label: { fontFamily: fontFamily.semiBold, fontSize: s(34), lineHeight: s(44), color: color.text },
     labelSelected: { fontFamily: fontFamily.bold, color: color.accent },
     hint: { ...text.caption, color: color.text3 },
     value: { ...text.label, flexShrink: 1, color: color.text2 },

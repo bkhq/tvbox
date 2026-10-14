@@ -64,7 +64,7 @@ function WideCardImpl({
     >
       <Animated.View style={[box, animatedStyle]}>
         <View style={styles.still}>
-          {source ? <Image source={source} style={StyleSheet.absoluteFill} resizeMode="cover" /> : null}
+          {source ? <Image source={source} style={StyleSheet.absoluteFill} resizeMode="cover" resizeMethod="resize" /> : null}
           {subtitle ? (
             <>
               <View pointerEvents="none" style={styles.gradient}>
@@ -101,7 +101,7 @@ function WideCardImpl({
 export const WideCard = memo(WideCardImpl);
 
 const makeStyles = (s: Scaler) => {
-  const { label, caption } = scaledText(s);
+  const { body, caption } = scaledText(s);
   return {
     card: { gap: s(12) },
     still: { flex: 1, borderRadius: s(radii.card), overflow: 'hidden' as const, backgroundColor: color.surface },
@@ -133,7 +133,7 @@ const makeStyles = (s: Scaler) => {
       borderColor: focus.borderColor,
       borderRadius: s(radii.card + focus.borderWidth),
     },
-    title: { ...label, color: color.text2, paddingTop: s(6) },
+    title: { ...body, color: color.text2, paddingTop: s(6) },
     titleFocused: { color: color.text },
   };
 };

@@ -24,6 +24,10 @@ const TITLES: Record<PanelKind, string> = {
 /** Episode grid columns; the sheet keeps one layout on TV and phone. */
 const EPISODE_COLUMNS = 4;
 
+const SHEET_WIDTH = 720;
+/** A focused full-width row grows by half the zoom of its width on each side, then draws its ring outside that. */
+const ROW_BLEED = Math.ceil(((focus.scale - 1) / 2) * (SHEET_WIDTH - 2 * space.lg) + focus.ringGap + focus.ringWidth);
+
 /**
  * Right-side modal sheet. The hardware back key (Android) and the Menu button
  * (tvOS) call onRequestClose, so back closes the panel before leaving the player.
@@ -69,7 +73,7 @@ export function EpisodePanel({
   return (
     <>
       {flags.length > 1 ? (
-        <ScrollView horizontal style={styles.flags} contentContainerStyle={styles.chips}>
+        <ScrollView horizontal style={styles.flags} contentContainerStyle={[styles.chips, styles.bleed]}>
           {flags.map((flag, index) => (
             <Chip
               key={`${index}-${flag.flag}`}
@@ -135,7 +139,7 @@ export function LinePanel({
 export function SpeedPanel({ speed, onSelect }: { speed: number; onSelect: (speed: number) => void }) {
   const styles = useScaledStyles(makeStyles);
   return (
-    <View style={[styles.chips, styles.wrap, styles.bleed]}>
+    <View style={[styles.chips, styles.wrap, styles.bleed, styles.outdent]}>
       {SPEED_PRESETS.map((value) => (
         <Chip
           key={value}
@@ -297,7 +301,7 @@ function EngineOptions({ engines, preference, active, onSelect, prefix }: Engine
 export function EnginePanel(props: EngineOptionsProps) {
   const styles = useScaledStyles(makeStyles);
   return (
-    <View style={styles.bleed}>
+    <View style={[styles.bleed, styles.outdent]}>
       <EngineOptions {...props} prefix="player-engine" />
     </View>
   );
@@ -357,7 +361,7 @@ const makeStyles = (s: Scaler) => {
       top: s(safeArea.vertical),
       bottom: s(safeArea.vertical),
       right: s(safeArea.horizontal),
-      width: s(720),
+      width: s(SHEET_WIDTH),
       padding: s(space.lg),
       borderRadius: s(radii.button),
       borderWidth: 1,
@@ -367,10 +371,12 @@ const makeStyles = (s: Scaler) => {
     title: { ...t.h2, marginBottom: s(space.md), color: color.text },
     body: { flex: 1, minHeight: 0 },
     close: { marginTop: s(space.md), alignSelf: 'flex-start' as const },
-    // Room around focusable children so the focus zoom and ring are not clipped.
-    bleed: { padding: s(focus.bleed) },
-    flags: { flexGrow: 0, marginBottom: s(space.xs) },
-    list: { flexGrow: 0 },
+    // Room around focusable children so the focus zoom and ring are not clipped; outdent keeps the rows aligned
+    // with the title.
+    bleed: { paddingVertical: s(focus.bleed), paddingHorizontal: s(ROW_BLEED) },
+    outdent: { marginHorizontal: -s(ROW_BLEED) },
+    flags: { flexGrow: 0, marginHorizontal: -s(ROW_BLEED), marginBottom: s(space.xs) },
+    list: { flexGrow: 0, marginHorizontal: -s(ROW_BLEED) },
     chips: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: s(space.sm) },
     wrap: { flexWrap: 'wrap' as const },
     cell: { flex: 1 / EPISODE_COLUMNS, margin: s(space.xs), paddingHorizontal: s(space.sm) },

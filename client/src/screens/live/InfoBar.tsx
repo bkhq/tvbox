@@ -14,7 +14,7 @@ import {
   tabular,
   useScaledStyles,
 } from '../../ui';
-import { lineLabel, nowAndNext, programmeProgress } from './liveModel';
+import { channelNumberLabel, lineLabel, nowAndNext, programmeProgress } from './liveModel';
 
 /** LiveActivity's info widget, shown on channel or source change. */
 export function InfoBar({ channel, line, logo, epg }: { channel: Channel; line: number; logo: string; epg?: Epg }) {
@@ -34,8 +34,8 @@ export function InfoBar({ channel, line, logo, epg }: { channel: Channel; line: 
       </Svg>
       <View style={styles.content}>
         {channel.number !== '' ? (
-          <Text style={styles.number} numberOfLines={1}>
-            {channel.number}
+          <Text style={styles.number} numberOfLines={1} testID="live-info-number">
+            {channelNumberLabel(channel, 0)}
           </Text>
         ) : logo !== '' ? (
           <Image testID="live-info-logo" source={imageSource(logo)} style={styles.logo} resizeMode="contain" />

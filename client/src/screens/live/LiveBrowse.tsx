@@ -336,8 +336,14 @@ const makeStyles = (s: Scaler) => {
       alignItems: 'flex-end' as const,
       gap: s(COLUMN_GAP),
     },
-    groups: { width: s(GROUP_WIDTH), maxHeight: s(600) },
-    groupList: { gap: s(8), paddingVertical: s(focus.ringGap + focus.ringWidth) },
+    // The list leaves a bleed around its rows so the focused row's zoom and ring are not clipped; the negative
+    // margins keep the rows where the design puts them.
+    groups: {
+      width: s(GROUP_WIDTH + 2 * focus.bleed),
+      maxHeight: s(600 + 2 * focus.bleed),
+      margin: -s(focus.bleed),
+    },
+    groupList: { gap: s(8), padding: s(focus.bleed) },
     group: {
       height: s(60),
       paddingHorizontal: s(20),

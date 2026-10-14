@@ -94,10 +94,18 @@ async function advance(ms: number) {
   await settle();
 }
 
+/** Navigation focus events of the rendered screen. */
+const navigationEvents = new Map<string, () => void>();
+
 async function render(params?: RootStackParamList['Live']): Promise<ReactTestRenderer> {
+  navigationEvents.clear();
+  const addListener = (event: string, listener: () => void) => {
+    navigationEvents.set(event, listener);
+    return () => navigationEvents.delete(event);
+  };
   const props = {
     route: { key: 'Live', name: 'Live', params },
-    navigation: { isFocused: () => true, addListener: () => () => undefined, setOptions: jest.fn(), goBack: jest.fn() },
+    navigation: { isFocused: () => true, addListener, setOptions: jest.fn(), goBack: jest.fn() },
   } as unknown as RootStackScreenProps<'Live'>;
   let renderer!: ReactTestRenderer;
   await act(async () => {
@@ -324,6 +332,36 @@ describe('LiveScreen', () => {
     await act(async () => renderer.unmount());
   });
 
+  it('takes OK and MENU again once a channel change leaves the error view', async () => {
+    await act(async () => appSettings.set('change', false));
+    const renderer = await render();
+    await full(renderer);
+    await emit(mpv, fatal('network'));
+    expect(has(renderer, 'live-error')).toBe(true);
+    // OK belongs to the error view's retry button.
+    await remote('select');
+    expect(has(renderer, 'live-list')).toBe(false);
+
+    await remote('down');
+    expect(has(renderer, 'live-error')).toBe(false);
+    expect(playing()).toBe('http://m/2');
+    await remote('select');
+    expect(has(renderer, 'live-list')).toBe(true);
+    await press(renderer, 'live-list-dismiss');
+    expect(has(renderer, 'live-list')).toBe(false);
+    await remote('info');
+    expect(has(renderer, 'live-panel')).toBe(true);
+    await act(async () => renderer.unmount());
+  });
+
+  it('shows the browse channel number in the full-screen info bar', async () => {
+    const renderer = await render();
+    expect(byTestId(renderer, 'live-browse-number').props.children).toBe('01');
+    await full(renderer);
+    expect(byTestId(renderer, 'live-info-number').props.children).toBe('01');
+    await act(async () => renderer.unmount());
+  });
+
   it('switches the live source from the menu panel', async () => {
     const renderer = await render();
     await full(renderer);
@@ -471,5 +509,33 @@ describe('LiveScreen', () => {
     expect(loadLiveGroups).toHaveBeenLastCalledWith(other, expect.anything());
     expect(has(second, 'live-browse')).toBe(true);
     await act(async () => second.unmount());
+  });
+
+  it('reloads a failed or empty load when the screen regains focus, but not a ready one', async () => {
+    const focusEvent = async (event: 'blur' | 'focus') => {
+      await act(async () => navigationEvents.get(event)!());
+      await settle();
+    };
+    jest.mocked(loadLiveGroups).mockClear();
+    jest.mocked(loadLiveGroups).mockRejectedValueOnce(new Error('boom'));
+    const renderer = await render();
+    expect(has(renderer, 'live-load-error')).toBe(true);
+    expect(loadLiveGroups).toHaveBeenCalledTimes(1);
+
+    jest.mocked(loadLiveSources).mockResolvedValueOnce({ lives: [] });
+    await focusEvent('blur');
+    await focusEvent('focus');
+    expect(has(renderer, 'live-empty')).toBe(true);
+
+    await focusEvent('blur');
+    await focusEvent('focus');
+    expect(has(renderer, 'live-browse')).toBe(true);
+    expect(loadLiveGroups).toHaveBeenCalledTimes(2);
+
+    await focusEvent('blur');
+    await focusEvent('focus');
+    expect(has(renderer, 'live-browse')).toBe(true);
+    expect(loadLiveGroups).toHaveBeenCalledTimes(2);
+    await act(async () => renderer.unmount());
   });
 });

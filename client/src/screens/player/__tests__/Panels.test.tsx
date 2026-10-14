@@ -98,6 +98,20 @@ describe('track panels', () => {
     ]);
   });
 
+  it('leaves room for the focus zoom and ring of a full-width option inside the scrolled list', async () => {
+    const renderer = await render(<SubtitlePanel tracks={tracks} external={[]} onSelect={jest.fn()} onAdd={jest.fn()} />);
+    const list = renderer.root.findAllByType(ScrollView)[0]!;
+    const content = StyleSheet.flatten(list.props.contentContainerStyle);
+    const outer = StyleSheet.flatten(list.props.style);
+    const option = StyleSheet.flatten(control(renderer, 'player-subtitle-off').props.style);
+    // A 1.08 zoom of a ~600 wide row grows ~24 per side; the ring adds 8 more.
+    expect(content.paddingHorizontal).toBeGreaterThanOrEqual((content.paddingVertical as number) * 2);
+    expect(content.paddingVertical).toBeGreaterThan(0);
+    expect(outer.marginHorizontal).toBe(-(content.paddingHorizontal as number));
+    // The gap between rows keeps the next row off the focused row's ring.
+    expect(option.marginBottom).toBeGreaterThanOrEqual(content.paddingVertical as number);
+  });
+
   it('shows a focus border on the subtitle URL input without a lineHeight or vertical padding', async () => {
     const renderer = await render(<SubtitlePanel tracks={[]} external={[]} onSelect={jest.fn()} onAdd={jest.fn()} />);
     const input = () => renderer.root.findByType(TextInput);

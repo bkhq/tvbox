@@ -358,7 +358,17 @@ function LivePlayer({ live, lives, visible, hidden: initialHidden, start, params
           onEvent={onEngineEvent}
         />
       ) : null}
-      {mode === 'full' ? <View style={StyleSheet.absoluteFill} testID="live-touch" {...touch} /> : null}
+      {mode === 'full' ? (
+        // Android only routes OK / MENU to the remote handler while some view holds focus; once the error view's
+        // retry button unmounts nothing would, so the video layer takes focus whenever no overlay owns it.
+        <View
+          style={StyleSheet.absoluteFill}
+          testID="live-touch"
+          focusable
+          hasTVPreferredFocus={state.status !== 'error' && !list && !panel}
+          {...touch}
+        />
+      ) : null}
       {statusText ? (
         <View style={styles.center} pointerEvents="none" testID="live-status">
           <ActivityIndicator color={color.accent} />

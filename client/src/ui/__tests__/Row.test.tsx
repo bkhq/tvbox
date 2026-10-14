@@ -35,6 +35,10 @@ describe('Row', () => {
     const header = renderer.root.findByType(SectionHeader);
     expect(header.props).toMatchObject({ title: '继续观看', caption: '3 部' });
     expect(StyleSheet.flatten(header.props.style)).toMatchObject({ marginHorizontal: 96 });
+    // A focused poster overhangs its slot by 13.44 + a 4.32 ring; with the 16 bleed this leaves 8 below the title.
+    const { marginBottom } = StyleSheet.flatten(header.props.style);
+    expect(marginBottom).toBe(10);
+    expect(Number(marginBottom) + 16 - ((1.08 - 1) / 2) * 336 - 4 * 1.08).toBeGreaterThanOrEqual(8);
     const texts = renderer.root.findAllByType(Text).map((node) => node.props.children);
     expect(texts).toEqual(expect.arrayContaining(['a', 'b', 'c']));
   });

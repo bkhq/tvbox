@@ -188,6 +188,8 @@ const icons = {
       </>
     ),
   },
+  /** Funnel for the category filters; drawn here, the mockups have no filter glyph. */
+  filter: { body: <Path d="M3 5 H21 L14 13 V19 L10 21 V13 Z" /> },
   fullscreen: { strokeWidth: 2.4, body: <Path d="M4 9 V4 H9 M15 4 H20 V9 M20 15 V20 H15 M9 20 H4 V15" /> },
   /** App mark; render it with the accent colour. */
   logo: {

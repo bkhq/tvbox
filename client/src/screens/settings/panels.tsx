@@ -1,9 +1,9 @@
 import { useState } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { Text, View } from 'react-native';
 
 import { SERVER_LINK_STATE_TEXT, useServerLink } from '../../core/serverLink';
 import { useSetting } from '../../core/settings';
-import { colors, FocusableButton, fontSize, radius, spacing } from '../../ui';
+import { Button, color, fontFamily, scaledText, tabular, useScaledStyles, type Scaler } from '../../ui';
 import { FocusableInput } from '../common';
 import { formatText, STEPS, stepValue, type StepKey, type TextKey } from './options';
 import { Panel } from './Panel';
@@ -32,7 +32,9 @@ export function OptionPanel<T>({
   onClose: () => void;
   testIDPrefix: string;
 }) {
-  const preferred = options.find((option) => option.value === value && !option.disabled) ?? options.find((option) => !option.disabled);
+  const styles = useScaledStyles(makePanelStyles);
+  const preferred =
+    options.find((option) => option.value === value && !option.disabled) ?? options.find((option) => !option.disabled);
   return (
     <Panel title={title} onClose={onClose}>
       {options.map((option) => (
@@ -43,6 +45,7 @@ export function OptionPanel<T>({
           note={option.note}
           disabled={option.disabled}
           selected={option.value === value}
+          raised
           hasTVPreferredFocus={option === preferred}
           onPress={() => onSelect(option.value)}
         />
@@ -54,20 +57,27 @@ export function OptionPanel<T>({
 
 /** -/+ editor for a numeric setting; the schema clamps the result. */
 export function StepPanel({ settingKey, title, onClose }: { settingKey: StepKey; title: string; onClose: () => void }) {
+  const styles = useScaledStyles(makePanelStyles);
   const [value, setValue] = useSetting(settingKey);
   return (
     <Panel title={title} onClose={onClose}>
       <View style={styles.stepper}>
-        <FocusableButton
+        <Button
           testID="settings-step-down"
           title="－"
+          size="md"
           hasTVPreferredFocus
           onPress={() => void setValue(stepValue(settingKey, value, -1))}
         />
         <Text testID="settings-step-value" style={styles.stepValue}>
           {STEPS[settingKey].format(value)}
         </Text>
-        <FocusableButton testID="settings-step-up" title="＋" onPress={() => void setValue(stepValue(settingKey, value, 1))} />
+        <Button
+          testID="settings-step-up"
+          title="＋"
+          size="md"
+          onPress={() => void setValue(stepValue(settingKey, value, 1))}
+        />
       </View>
     </Panel>
   );
@@ -84,6 +94,7 @@ export function TextPanel({
   placeholder?: string;
   onClose: () => void;
 }) {
+  const styles = useScaledStyles(makePanelStyles);
   const [value, setValue] = useSetting(settingKey);
   const [text, setText] = useState(value);
   const save = () => {
@@ -100,18 +111,19 @@ export function TextPanel({
         onChangeText={setText}
         onSubmitEditing={save}
         placeholder={placeholder ?? '留空使用默认值'}
-        placeholderTextColor={colors.textSecondary}
+        placeholderTextColor={color.text3}
         autoCapitalize="none"
         autoCorrect={false}
         hasTVPreferredFocus
       />
-      <FocusableButton testID="settings-text-save" title="保存" onPress={save} />
+      <Button testID="settings-text-save" title="保存" size="md" style={styles.action} onPress={save} />
     </Panel>
   );
 }
 
 /** Device link to the worker, mirroring EnrollDialog: request when off, refresh or unlink otherwise. */
 export function ServerLinkPanel({ onClose }: { onClose: () => void }) {
+  const styles = useScaledStyles(makePanelStyles);
   const { state, code, request, refresh, unlink } = useServerLink();
   return (
     <Panel title="服务器绑定" onClose={onClose}>
@@ -120,11 +132,23 @@ export function ServerLinkPanel({ onClose }: { onClose: () => void }) {
       <Text style={styles.note}>请在管理后台批准此设备码</Text>
       <View style={styles.actions}>
         {state === 'OFF' ? (
-          <FocusableButton testID="settings-link-request" title="绑定" hasTVPreferredFocus onPress={() => void request()} />
+          <Button
+            testID="settings-link-request"
+            title="绑定"
+            size="md"
+            hasTVPreferredFocus
+            onPress={() => void request()}
+          />
         ) : (
           <>
-            <FocusableButton testID="settings-link-refresh" title="刷新" hasTVPreferredFocus onPress={() => void refresh()} />
-            <FocusableButton testID="settings-link-unlink" title="解绑" onPress={() => void unlink()} />
+            <Button
+              testID="settings-link-refresh"
+              title="刷新"
+              size="md"
+              hasTVPreferredFocus
+              onPress={() => void refresh()}
+            />
+            <Button testID="settings-link-unlink" title="解绑" size="md" onPress={() => void unlink()} />
           </>
         )}
       </View>
@@ -132,38 +156,30 @@ export function ServerLinkPanel({ onClose }: { onClose: () => void }) {
   );
 }
 
-const styles = StyleSheet.create({
-  note: {
-    marginVertical: spacing.sm,
-    color: colors.textSecondary,
-    fontSize: fontSize.body,
-  },
-  code: {
-    color: colors.text,
-    fontSize: fontSize.display,
-  },
-  stepper: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  stepValue: {
-    minWidth: 96,
-    textAlign: 'center',
-    color: colors.text,
-    fontSize: fontSize.heading,
-  },
-  input: {
-    marginVertical: spacing.md,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-    borderRadius: radius.md,
-    backgroundColor: colors.surface,
-    color: colors.text,
-    fontSize: fontSize.body,
-  },
-  actions: {
-    flexDirection: 'row',
-    marginTop: spacing.md,
-  },
-});
+/** Shared by the editor panels of the settings screen. */
+export const makePanelStyles = (s: Scaler) => {
+  const text = scaledText(s);
+  return {
+    note: { ...text.label, color: color.text2 },
+    code: { ...text.h1, ...tabular, color: color.text },
+    stepper: {
+      flexDirection: 'row' as const,
+      alignItems: 'center' as const,
+      justifyContent: 'center' as const,
+      gap: s(24),
+    },
+    stepValue: { ...text.h2, ...tabular, minWidth: s(160), textAlign: 'center' as const, color: color.text },
+    input: {
+      minHeight: s(64),
+      paddingHorizontal: s(24),
+      paddingVertical: s(12),
+      borderRadius: s(12),
+      backgroundColor: color.surface2,
+      color: color.text,
+      fontFamily: fontFamily.medium,
+      fontSize: s(24),
+    },
+    action: { alignSelf: 'flex-start' as const },
+    actions: { flexDirection: 'row' as const, gap: s(24) },
+  };
+};

@@ -12,7 +12,15 @@ export type BooleanKey = { [K in SettingKey]: Settings[K] extends boolean ? K : 
 /** Free-text settings (enum-backed string settings excluded). */
 export type TextKey = { [K in SettingKey]: string extends Settings[K] ? K : never }[SettingKey];
 
-/** Settings edited by cycling through a short option list. */
+const SCALE_OPTIONS = [
+  { value: 0, label: '原始' },
+  { value: 1, label: '16:9' },
+  { value: 2, label: '4:3' },
+  { value: 3, label: '填充' },
+  { value: 4, label: '裁剪' },
+] as const;
+
+/** Settings edited by picking from a short option list. */
 export const CHOICES = {
   playerEngine: [
     { value: 'auto', label: '自动（iOS 默认 MPV，Android 默认系统播放器）' },
@@ -27,13 +35,8 @@ export const CHOICES = {
     { value: 'surface', label: 'Surface' },
     { value: 'texture', label: 'Texture' },
   ],
-  scale: [
-    { value: 0, label: '原始' },
-    { value: 1, label: '16:9' },
-    { value: 2, label: '4:3' },
-    { value: 3, label: '填充' },
-    { value: 4, label: '裁剪' },
-  ],
+  scale: SCALE_OPTIONS,
+  scaleLive: SCALE_OPTIONS,
   subtitleStyleSource: [
     { value: 'original', label: '原始' },
     { value: 'system', label: '系统' },
@@ -70,13 +73,6 @@ export function optionLabel<T>(options: readonly Option<T>[], value: T): string 
   return options.find((option) => option.value === value)?.label ?? String(value);
 }
 
-/** The option after `value`, wrapping around; the first one when `value` is unknown. */
-export function cycleOption<T>(options: readonly Option<T>[], value: T): T {
-  const index = options.findIndex((option) => option.value === value);
-  const next = options[(index + 1) % options.length];
-  return next ? next.value : value;
-}
-
 /** `value` moved by one step in `direction`, rounded and clamped by the schema. */
 export function stepValue<K extends StepKey>(key: K, value: number, direction: 1 | -1): Settings[K] {
   const next = Math.round((value + direction * STEPS[key].step) * 100) / 100;
@@ -85,10 +81,6 @@ export function stepValue<K extends StepKey>(key: K, value: number, direction: 1
 
 export function formatSpeed(value: number): string {
   return `${value}x`;
-}
-
-export function formatBoolean(value: boolean): string {
-  return value ? '开' : '关';
 }
 
 export function formatText(value: string): string {

@@ -57,12 +57,38 @@ export function buildPlayerParams(
   episode: Episode,
   position: number = TIME_UNSET,
 ): RootStackParamList['Player'] {
-  const params: RootStackParamList['Player'] = {
-    siteKey,
-    vodId,
-    flag,
-    episodeUrl: episode.url,
-  };
+  const params: RootStackParamList['Player'] = { siteKey, vodId, flag, episodeUrl: episode.url };
   if (position > TIME_UNSET) params.position = position;
   return params;
+}
+
+/** Tag line under the remarks badge: the present parts of type, area and year. */
+export function tagLine(vod: Pick<Vod, 'type_name' | 'vod_area' | 'vod_year'>): string {
+  return [vod.type_name, vod.vod_area, vod.vod_year].filter(Boolean).join(' · ');
+}
+
+const PEOPLE_SEPARATORS = /[,，/、|；;]/;
+const CJK = /[\u3400-\u9fff\uf900-\ufaff]/;
+
+/**
+ * Names of a director / actor field. Punctuation separators win; whitespace only separates when every part is CJK
+ * ("张三 李四"), so a Latin full name ("Meret Manon Bannerman") stays one name.
+ */
+export function splitPeople(value: string | undefined): string[] {
+  const trimmed = (value ?? '').trim();
+  if (!trimmed) return [];
+  if (PEOPLE_SEPARATORS.test(trimmed))
+    return trimmed
+      .split(PEOPLE_SEPARATORS)
+      .map((part) => part.trim())
+      .filter(Boolean);
+  const tokens = trimmed.split(/\s+/);
+  return tokens.every((token) => CJK.test(token)) ? tokens : [trimmed];
+}
+
+/** Watched fraction of `episode` when the history points at it and has a position and duration. */
+export function episodeProgress(history: History | undefined, flag: string, episode: Episode): number | undefined {
+  if (!history || history.vodFlag !== flag || history.episodeUrl !== episode.url) return undefined;
+  if (history.position <= 0 || history.duration <= 0) return undefined;
+  return history.position / history.duration;
 }

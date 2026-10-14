@@ -1,61 +1,76 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import { ScrollView, Text, View } from 'react-native';
 
+import { useVodConfig } from '../../core/bootstrap';
+import { getProvider, UnsupportedSiteError } from '../../core/provider';
 import { useSetting } from '../../core/settings';
+import type { Site } from '../../core/types';
 // Not the navigation barrel: it imports the route table, which imports this screen.
 import { useAppNavigation } from '../../navigation/useAppNavigation';
 import type { RootStackScreenProps } from '../../navigation/types';
-import { colors, FocusableButton, fontSize, radius, spacing } from '../../ui';
-import { FocusableInput } from '../common';
+import {
+  BackButton,
+  Chip,
+  Clock,
+  color,
+  focus,
+  Icon,
+  radii,
+  safeArea,
+  scaledText,
+  SectionHeader,
+  space,
+  useScaledStyles,
+  type Scaler,
+} from '../../ui';
+import { FocusableInput, LoadingView } from '../common';
 import { parseWords, useSearchHistory } from './history';
-import { Keyboard, keyboardWidth } from './Keyboard';
+import { Keyboard, KEYBOARD_WIDTH } from './Keyboard';
+import { Results } from './Results';
+import { searchSites, searchTargets, type SearchProgress } from './searchSites';
 import { fetchHotWords, fetchSuggestWords } from './words';
 
 /** CustomKeyboard stops adding characters at 20. */
 const MAX_LENGTH = 20;
 /** Typing pause before the suggestions are requested. */
 export const SUGGEST_DELAY_MS = 300;
-const KEY_ROWS = 7;
 
-function WordList({
-  title,
-  words,
-  prefix,
-  onPress,
-  onLongPress,
-}: {
-  title: string;
-  words: readonly string[];
-  prefix: string;
-  onPress: (word: string) => void;
-  onLongPress?: (word: string) => void;
-}) {
-  return (
-    <View style={styles.section} testID={prefix}>
-      <Text style={styles.sectionTitle}>{title}</Text>
-      <View style={styles.words}>
-        {words.map((word) => (
-          <FocusableButton
-            key={word}
-            testID={`${prefix}-${word}`}
-            title={word}
-            style={styles.word}
-            onPress={() => onPress(word)}
-            onLongPress={onLongPress ? () => onLongPress(word) : undefined}
-          />
-        ))}
-      </View>
-    </View>
-  );
+interface Submitted {
+  keyword: string;
+  quick: boolean;
 }
 
-/** Hot words while the input is empty, iQiyi suggestions for the typed text otherwise. */
-function useWords(text: string): string[] {
+function searchSite(site: Site, keyword: string, quick: boolean) {
+  try {
+    return getProvider(site).search(keyword, quick);
+  } catch (error) {
+    if (error instanceof UnsupportedSiteError) return Promise.reject(new Error('站点不支持搜索'));
+    throw error;
+  }
+}
+
+/** Searches every searchable site for the submitted keyword; a new submission or config cancels the previous search. */
+function useSiteSearch(submitted: Submitted | undefined, sites: readonly Site[] | undefined) {
+  const [progress, setProgress] = useState<{ for: Submitted; value: SearchProgress }>();
+  useEffect(() => {
+    if (!submitted || !sites) return;
+    const { keyword, quick } = submitted;
+    const handle = searchSites(
+      searchTargets(sites, quick),
+      (site) => searchSite(site, keyword, quick),
+      (value) => setProgress({ for: submitted, value }),
+    );
+    return handle.cancel;
+  }, [submitted, sites]);
+  return progress && progress.for === submitted ? progress.value : undefined;
+}
+
+/** The cached hot words, refreshed in the background, and iQiyi suggestions for `text`. */
+function useWords(text: string): { hot: string[]; suggest: string[] } {
   const [hotStored, setHotStored] = useSetting('hot');
   const hot = useMemo(() => parseWords(hotStored), [hotStored]);
   const [suggest, setSuggest] = useState<string[]>([]);
 
-  // The last hot list shows at once and is refreshed in the background.
   useEffect(() => {
     const controller = new AbortController();
     fetchHotWords({ signal: controller.signal }).then(
@@ -79,26 +94,65 @@ function useWords(text: string): string[] {
     };
   }, [text]);
 
-  return text ? suggest : hot;
+  return { hot, suggest };
 }
 
-/** SearchActivity: on-screen keyboard, search history and hot words; results open on their own screen. */
+function WordChips({
+  title,
+  caption,
+  words,
+  prefix,
+  onPress,
+  onLongPress,
+}: {
+  title: string;
+  caption?: string;
+  words: readonly string[];
+  prefix: string;
+  onPress: (word: string) => void;
+  onLongPress?: (word: string) => void;
+}) {
+  const styles = useScaledStyles(makeStyles);
+  return (
+    <View style={styles.section} testID={prefix}>
+      <SectionHeader title={title} caption={caption} />
+      <View style={styles.chips}>
+        {words.map((word) => (
+          <Chip
+            key={word}
+            testID={`${prefix}-${word}`}
+            label={word}
+            onPress={() => onPress(word)}
+            onLongPress={onLongPress ? () => onLongPress(word) : undefined}
+          />
+        ))}
+      </View>
+    </View>
+  );
+}
+
+/** SearchActivity and CollectActivity in one page: keyboard on the left, history, suggestions or results on the right. */
 export default function SearchScreen({ route }: RootStackScreenProps<'Search'>) {
   const navigation = useAppNavigation();
-  const { height } = useWindowDimensions();
+  const styles = useScaledStyles(makeStyles);
+  const { status, config } = useVodConfig();
   const [input, setInput] = useState('');
   const [quick, setQuick] = useState(false);
+  const [submitted, setSubmitted] = useState<Submitted>();
   const { history, add, remove } = useSearchHistory();
   const text = input.trim();
-  const words = useWords(text);
-  const keySize = Math.max(28, Math.min(56, Math.floor((height - 120) / KEY_ROWS) - spacing.xs));
+  const [inputFocused, setInputFocused] = useState(false);
+  // The submitted search shows while the input holds its keyword; other text asks for suggestions.
+  const shown = text && text === submitted?.keyword ? submitted : undefined;
+  const { hot, suggest } = useWords(text && !shown ? text : '');
+  const progress = useSiteSearch(submitted, config?.sites);
 
   const search = (value: string) => {
     const keyword = value.trim();
     if (!keyword) return;
     setInput(keyword);
     add(keyword);
-    navigation.navigate('SearchResult', { keyword, quick });
+    setSubmitted({ keyword, quick });
   };
 
   // A keyword in the route (home, detail, LAN push) searches at once, as SearchActivity does.
@@ -112,70 +166,136 @@ export default function SearchScreen({ route }: RootStackScreenProps<'Search'>) 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [route.params]);
 
+  let pane;
+  if (shown) {
+    pane = !config?.sites ? (
+      status === 'loading' ? (
+        <LoadingView />
+      ) : (
+        <Text style={styles.note}>尚未加载配置</Text>
+      )
+    ) : progress ? (
+      // Keyed by the submission so a new search starts on 全部.
+      <Results key={`${shown.keyword}-${shown.quick}`} keyword={shown.keyword} progress={progress} />
+    ) : null;
+  } else {
+    pane = (
+      <ScrollView style={styles.words} contentContainerStyle={styles.wordsContent}>
+        {text ? (
+          suggest.length > 0 ? (
+            <WordChips title="猜你想搜" words={suggest} prefix="search-suggest" onPress={search} />
+          ) : null
+        ) : (
+          <>
+            {history.length > 0 ? (
+              <WordChips
+                title="搜索历史"
+                caption="长按删除"
+                words={history}
+                prefix="search-history"
+                onPress={search}
+                onLongPress={remove}
+              />
+            ) : null}
+            {hot.length > 0 ? <WordChips title="热门搜索" words={hot} prefix="search-hot" onPress={search} /> : null}
+          </>
+        )}
+      </ScrollView>
+    );
+  }
+
   return (
     <View style={styles.container}>
-      <View style={[styles.left, { width: keyboardWidth(keySize) + spacing.xl * 2 }]}>
-        <FocusableInput
-          testID="search-input"
-          style={styles.input}
-          value={input}
-          onChangeText={setInput}
-          onSubmitEditing={() => search(input)}
-          placeholder="输入关键词"
-          placeholderTextColor={colors.textSecondary}
-          autoCorrect={false}
-          returnKeyType="search"
-        />
-        <Keyboard
-          keySize={keySize}
-          quick={quick}
-          hasTVPreferredFocus
-          onChar={(char) => setInput((value) => (value.length < MAX_LENGTH ? value + char : value))}
-          onBackspace={() => setInput((value) => value.slice(0, -1))}
-          onClear={() => setInput('')}
-          onToggleQuick={() => setQuick((value) => !value)}
-          onSearch={() => search(input)}
-        />
+      <View style={styles.top}>
+        <BackButton testID="search-back" onPress={() => navigation.goBack()} />
+        <Clock />
       </View>
-      <ScrollView style={styles.right} contentContainerStyle={styles.rightContent}>
-        {history.length > 0 ? (
-          <WordList
-            title="搜索历史（长按删除）"
-            words={history}
-            prefix="search-history"
-            onPress={search}
-            onLongPress={remove}
+      <View style={styles.body}>
+        <View style={styles.left}>
+          <View style={[styles.inputBox, inputFocused && styles.inputFocused]}>
+            <Icon name="search" size={30} color={color.text2} />
+            <FocusableInput
+              testID="search-input"
+              style={styles.input}
+              value={input}
+              onChangeText={setInput}
+              onSubmitEditing={() => search(input)}
+              maxLength={MAX_LENGTH}
+              placeholder="输入拼音首字母或片名"
+              placeholderTextColor={color.text3}
+              autoCorrect={false}
+              returnKeyType="search"
+              onFocus={() => setInputFocused(true)}
+              onBlur={() => setInputFocused(false)}
+            />
+            <View style={styles.cursor} />
+          </View>
+          <Keyboard
+            hasTVPreferredFocus
+            onChar={(char) => setInput((value) => (value.length < MAX_LENGTH ? value + char : value))}
+            onBackspace={() => setInput((value) => value.slice(0, -1))}
+            onClear={() => setInput('')}
           />
-        ) : null}
-        {words.length > 0 ? (
-          <WordList title={text ? '猜你想搜' : '热门搜索'} words={words} prefix="search-word" onPress={search} />
-        ) : null}
-      </ScrollView>
+          <View style={styles.actions}>
+            <Chip testID="search-quick" label="快速搜索" selected={quick} onPress={() => setQuick((value) => !value)} />
+            <Chip testID="search-submit" label="搜索" onPress={() => search(input)} />
+          </View>
+        </View>
+        <View style={styles.pane}>{pane}</View>
+      </View>
     </View>
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, flexDirection: 'row', backgroundColor: colors.background },
-  left: { paddingHorizontal: spacing.xl, paddingTop: spacing.lg },
-  input: {
-    marginBottom: spacing.sm,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-    borderRadius: radius.md,
-    backgroundColor: colors.surface,
-    color: colors.text,
-    fontSize: fontSize.title,
-  },
-  right: { flex: 1 },
-  rightContent: { paddingTop: spacing.lg, paddingRight: spacing.xl },
-  section: { marginBottom: spacing.lg },
-  sectionTitle: {
-    marginHorizontal: spacing.xs,
-    marginBottom: spacing.xs,
-    color: colors.textSecondary,
-    fontSize: fontSize.title,
-  },
-  words: { flexDirection: 'row', flexWrap: 'wrap' },
-  word: { paddingHorizontal: spacing.md, paddingVertical: spacing.xs },
-});
+const makeStyles = (s: Scaler) => {
+  const text = scaledText(s);
+  return {
+    container: { flex: 1, backgroundColor: color.bg },
+    top: {
+      flexDirection: 'row' as const,
+      alignItems: 'center' as const,
+      justifyContent: 'space-between' as const,
+      marginTop: s(48),
+      paddingHorizontal: s(safeArea.horizontal),
+    },
+    body: {
+      flex: 1,
+      flexDirection: 'row' as const,
+      gap: s(space.xl),
+      marginTop: s(40),
+      paddingHorizontal: s(safeArea.horizontal),
+      paddingBottom: s(safeArea.vertical),
+    },
+    left: { width: s(KEYBOARD_WIDTH), gap: s(28) },
+    inputBox: {
+      flexDirection: 'row' as const,
+      alignItems: 'center' as const,
+      gap: s(space.sm),
+      height: s(80),
+      paddingHorizontal: s(space.md),
+      borderRadius: s(radii.button),
+      borderWidth: s(2),
+      borderColor: color.divider,
+      backgroundColor: color.surface,
+    },
+    inputFocused: { borderColor: focus.borderColor },
+    input: {
+      ...text.h2,
+      flex: 1,
+      minWidth: 0,
+      height: s(60),
+      padding: 0,
+      borderWidth: 0,
+      letterSpacing: s(2.5),
+      color: color.text,
+    },
+    cursor: { width: s(3), height: s(40), backgroundColor: color.accent },
+    actions: { flexDirection: 'row' as const, gap: s(12) },
+    pane: { flex: 1 },
+    words: { flex: 1 },
+    wordsContent: { gap: s(space.lg), paddingVertical: s(space.xs) },
+    section: { gap: s(space.sm) },
+    chips: { flexDirection: 'row' as const, flexWrap: 'wrap' as const, gap: s(12) },
+    note: { ...text.body, color: color.text2 },
+  };
+};

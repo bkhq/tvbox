@@ -17,3 +17,9 @@ export function subtitleName(url: string): string {
   const name = decodeURIComponent(path.slice(path.lastIndexOf('/') + 1));
   return name || '外挂字幕';
 }
+
+/** OSD subtitle line: "第 N 集·<name>", or just the name when it already reads like "第N集". */
+export function episodeLabel(index: number, name: string): string {
+  if (/^第\s*\d+\s*[集话期]$/.test(name.trim())) return name;
+  return name ? `第 ${index + 1} 集·${name}` : `第 ${index + 1} 集`;
+}

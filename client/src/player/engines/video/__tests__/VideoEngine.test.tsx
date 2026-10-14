@@ -1,12 +1,14 @@
 import { createRef, useReducer } from 'react';
-import { NativeModules } from 'react-native';
+import { Dimensions, NativeModules } from 'react-native';
 import { act, create } from 'react-test-renderer';
 
+import { appSettings } from '../../../../core/settings';
+import { makeScaler, scaleFor } from '../../../../ui';
 import { clearEngines, getEngine } from '../../../engine/registry';
 import type { EngineEvent, EngineHandle, EngineSource, EngineViewProps } from '../../../engine/types';
 import { initialPlaybackState, playbackReducer } from '../../../machine';
 import { registerBuiltinEngines } from '../../index';
-import { subtitleMime, toVideoSource } from '../mapping';
+import { subtitleMime, toSubtitleStyle, toVideoSize, toVideoSource } from '../mapping';
 import { isVideoEngineAvailable, VideoEngineView, videoEngineFactory } from '../VideoEngine';
 
 // Records the props of the last <Video> render and the seeks made through its ref.
@@ -114,6 +116,27 @@ describe('video engine props', () => {
   });
 });
 
+describe('video engine subtitle style', () => {
+  afterEach(() => act(() => appSettings.set('subtitleScale', 1)));
+
+  it('sizes the design subtitle box at 1080p and applies subtitleScale', () => {
+    const identity = (px: number) => px;
+    expect(toSubtitleStyle(identity, 1)).toEqual({ fontSize: 36, opacity: 1 });
+    expect(toSubtitleStyle(identity, 1.5)).toEqual({ fontSize: 54, opacity: 1 });
+    // Never below the 20px design minimum.
+    expect(toSubtitleStyle(identity, 0.5)).toEqual({ fontSize: 20, opacity: 1 });
+  });
+
+  it('passes the scaled subtitle style to Video and follows the setting', async () => {
+    const s = makeScaler(scaleFor(Dimensions.get('window').width));
+    render();
+    expect(mockVideo.props.subtitleStyle).toEqual(toSubtitleStyle(s, 1));
+    await act(() => appSettings.set('subtitleScale', 2));
+    expect(mockVideo.props.subtitleStyle).toEqual(toSubtitleStyle(s, 2));
+    expect(mockVideo.props.subtitleStyle.fontSize).toBeGreaterThan(toSubtitleStyle(s, 1).fontSize!);
+  });
+});
+
 describe('video engine events', () => {
   it.each([false, true])('keeps playback intent while waiting for media (seeking: %s)', (isSeeking) => {
     function Harness() {
@@ -182,12 +205,22 @@ describe('video engine events', () => {
             { id: 1, label: '视频 2' },
           ],
         },
+        width: 1920,
+        height: 1080,
       },
       { type: 'progress', position: 10_250, duration: 120_500, buffered: 30_000 },
       { type: 'buffering', value: true },
       { type: 'playing' },
       { type: 'ended' },
     ]);
+  });
+
+  it('maps naturalSize to an upright video size', () => {
+    expect(toVideoSize({ width: 1280, height: 720, orientation: 'landscape' })).toEqual({ width: 1280, height: 720 });
+    expect(toVideoSize({ width: 1920, height: 1080, orientation: 'portrait' })).toEqual({ width: 1080, height: 1920 });
+    expect(toVideoSize({ width: 1080, height: 1920, orientation: 'portrait' })).toEqual({ width: 1080, height: 1920 });
+    expect(toVideoSize({ width: 0, height: 0, orientation: 'landscape' })).toBeUndefined();
+    expect(toVideoSize(undefined)).toBeUndefined();
   });
 
   it('reports track list updates', () => {

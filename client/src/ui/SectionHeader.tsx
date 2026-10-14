@@ -10,15 +10,24 @@ export interface SectionHeaderProps {
   caption?: string;
   /** Beside the title on the baseline (home rows) or underneath it. */
   captionPosition?: 'right' | 'below';
+  /** h2: row titles; h1: page section titles. */
+  variant?: 'h2' | 'h1';
   style?: StyleProp<ViewStyle>;
   testID?: string;
 }
 
-export function SectionHeader({ title, caption, captionPosition = 'right', style, testID }: SectionHeaderProps) {
+export function SectionHeader({
+  title,
+  caption,
+  captionPosition = 'right',
+  variant = 'h2',
+  style,
+  testID,
+}: SectionHeaderProps) {
   const styles = useScaledStyles(makeStyles);
   return (
     <View testID={testID} style={[captionPosition === 'right' ? styles.row : styles.column, style]}>
-      <Text numberOfLines={1} style={styles.title}>
+      <Text numberOfLines={1} style={[styles.title, variant === 'h1' && styles.titleH1]}>
         {title}
       </Text>
       {caption ? (
@@ -36,6 +45,7 @@ const makeStyles = (s: Scaler) => {
     row: { flexDirection: 'row' as const, alignItems: 'baseline' as const, gap: s(16) },
     column: { gap: s(8) },
     title: { ...text.h2, color: color.text },
+    titleH1: text.h1,
     caption: { ...text.caption, fontSize: s(22), lineHeight: s(30), color: color.text3 },
   };
 };

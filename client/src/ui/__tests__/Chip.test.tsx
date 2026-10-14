@@ -40,6 +40,19 @@ describe('Chip', () => {
     expect(host(selected).props.accessibilityState).toMatchObject({ selected: true });
   });
 
+  it('fills a selected accent chip with the accent colour', async () => {
+    const renderer = await render(<Chip testID="chip" label="线路一" variant="accent" selected />);
+    expect(style(renderer).backgroundColor).toBe(color.accent);
+    expect(label(renderer)).toMatchObject({ color: color.inverseText, fontFamily: fontFamily.bold });
+
+    await act(async () => host(renderer).props.onFocus({}));
+    expect(style(renderer).backgroundColor).toBe(focus.borderColor);
+    expect(ring(renderer)).toHaveLength(1);
+
+    const plain = await render(<Chip testID="chip" label="线路二" variant="accent" />);
+    expect(style(plain).backgroundColor).toBe(color.surface2);
+  });
+
   it('inverts with an outer ring while focused', async () => {
     const renderer = await render(<Chip testID="chip" label="剧集" />);
     await act(async () => host(renderer).props.onFocus({}));

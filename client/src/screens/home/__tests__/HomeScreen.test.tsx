@@ -445,8 +445,8 @@ describe('HomeScreen', () => {
       ]),
     );
     expect(texts(byTestID(renderer, 'home-site-cms'))).toContain('首页');
-    // Badge pins itself to the top; the row centres it.
-    expect(byTestID(renderer, 'home-site-badge').props.style).toMatchObject({ alignSelf: 'center' });
+    // The badge leaves its cross-axis alignment to the row, which centres it.
+    expect(byTestID(renderer, 'home-site-badge').props.style).toBeUndefined();
     expect(byTestID(renderer, 'home-site-jar').props.disabled).toBe(true);
     expect(preferred(renderer)).toEqual(['home-site-cms']);
     // The list is capped so a long site list scrolls instead of pushing 关闭 off screen.

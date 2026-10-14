@@ -42,7 +42,7 @@ function SiteRow({ site, isHome, onSelect }: { site: Site; isHome: boolean; onSe
       <Text style={[styles.siteName, focused && styles.siteNameFocused]} numberOfLines={1}>
         {site.name || site.key}
       </Text>
-      {isHome ? <Badge testID="home-site-badge" label="首页" variant="accent" style={styles.homeBadge} /> : null}
+      {isHome ? <Badge testID="home-site-badge" label="首页" variant="accent" /> : null}
       {site.supported ? null : <Text style={styles.unsupported}>{unsupportedText(site)}</Text>}
     </Pressable>
   );
@@ -113,8 +113,6 @@ const makeStyles = (s: Scaler) => {
       borderRadius: s(radii.button),
       backgroundColor: color.surface2,
     },
-    // Badge pins itself to flex-start; centre it in the row instead of on its top edge.
-    homeBadge: { alignSelf: 'center' as const },
     siteFocused: { backgroundColor: focus.borderColor },
     siteUnsupported: { opacity: 0.5 },
     siteName: { ...text.body, flex: 1, color: color.text },

@@ -200,6 +200,9 @@ describe('HomeScreen', () => {
     expect(mockNavigate).toHaveBeenLastCalledWith('Live');
     await act(async () => byTestID(renderer, 'top-nav-search').props.onPress());
     expect(mockNavigate).toHaveBeenLastCalledWith('Search');
+    expect(
+      ['home-control', 'home-settings', 'home-switch-site'].map((id) => byTestID(renderer, id).props.variant),
+    ).toEqual(['outline', 'outline', 'outline']);
     await act(async () => byTestID(renderer, 'home-control').props.onPress());
     expect(mockNavigate).toHaveBeenLastCalledWith('Control');
     await act(async () => byTestID(renderer, 'home-settings').props.onPress());

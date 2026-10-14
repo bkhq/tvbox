@@ -76,6 +76,13 @@ describe('normalisers', () => {
     expect(normalizeClass({ id: '1', name: '电影' })).toMatchObject({ type_id: '1', type_name: '电影', filters: [] });
   });
 
+  it('keep a non-empty vod_score as a trimmed string', () => {
+    expect(normalizeVod({ vod_score: ' 8.7 ' }).vod_score).toBe('8.7');
+    expect(normalizeVod({ vod_score: 9 }).vod_score).toBe('9');
+    expect(normalizeVod({ vod_score: '  ' })).not.toHaveProperty('vod_score');
+    expect(normalizeVod({})).not.toHaveProperty('vod_score');
+  });
+
   it('normalise a spider result', () => {
     const result = normalizeResult({
       class: [{ type_id: '1', type_name: '电影' }],

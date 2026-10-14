@@ -1,5 +1,5 @@
 import { type ReactNode, useCallback, useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, Text, View } from 'react-native';
+import { Pressable, ScrollView, Text, View } from 'react-native';
 
 import { useVodConfig } from '../../core/bootstrap';
 import { getProvider, type SiteProvider, UnsupportedSiteError } from '../../core/provider';
@@ -24,7 +24,7 @@ import {
   useScaledStyles,
   type Scaler,
 } from '../../ui';
-import { htmlToText, useActiveCid, useSite } from '../common';
+import { ErrorView, htmlToText, LoadingView, useActiveCid, useSite } from '../common';
 import { Backdrop } from './Backdrop';
 import { buildHistoryInput, buildPlayerParams, resolveResume, sortEpisodes, splitPeople, tagLine } from './detailState';
 import { EpisodeList } from './EpisodeList';
@@ -32,9 +32,6 @@ import { FlagPicker } from './FlagPicker';
 import { SimilarRow, useSimilar } from './Similar';
 
 type DetailParams = RootStackScreenProps<'Detail'>['route']['params'];
-
-/** Some sources send a score; the normalised Vod does not declare it. */
-type ScoredVod = Vod & { vod_score?: string };
 
 type DetailTab = 'episodes' | 'similar' | 'cast';
 
@@ -66,36 +63,7 @@ function Page({
   );
 }
 
-function Status({
-  message,
-  loading,
-  onRetry,
-  testID,
-}: {
-  message: string;
-  loading?: boolean;
-  onRetry?: () => void;
-  testID?: string;
-}) {
-  const styles = useScaledStyles(makeStyles);
-  return (
-    <View style={styles.status} testID={testID}>
-      {loading ? <ActivityIndicator color={color.accent} /> : null}
-      <Text style={styles.statusText}>{message}</Text>
-      {onRetry ? (
-        <Button
-          testID={testID && `${testID}-retry`}
-          title="重试"
-          variant="primary"
-          hasTVPreferredFocus
-          onPress={onRetry}
-        />
-      ) : null}
-    </View>
-  );
-}
-
-function Info({ vod }: { vod: ScoredVod }) {
+function Info({ vod }: { vod: Vod }) {
   const { isPhone } = useLayout();
   const styles = useScaledStyles(makeStyles);
   const [expanded, setExpanded] = useState(false);
@@ -398,11 +366,12 @@ function DetailContent({ provider, site, params }: { provider: SiteProvider; sit
         {vodName || '详情'}
       </Text>
       {state.status === 'loading' ? (
-        <Status message="正在加载…" loading />
+        <LoadingView />
       ) : (
-        <Status
+        <ErrorView
           testID="detail-error"
           message={state.message}
+          hasTVPreferredFocus
           onRetry={() => {
             setState({ status: 'loading' });
             setAttempt((n) => n + 1);
@@ -445,11 +414,7 @@ export default function DetailScreen({ route }: RootStackScreenProps<'Detail'>) 
       <Text numberOfLines={1} style={[styles.title, styles.paramTitle]}>
         {vodName || '详情'}
       </Text>
-      {status === 'loading' ? (
-        <Status message="正在加载…" loading />
-      ) : (
-        <Status testID="detail-unavailable" message="站点不可用" />
-      )}
+      {status === 'loading' ? <LoadingView /> : <ErrorView testID="detail-unavailable" message="站点不可用" />}
     </Page>
   );
 }
@@ -499,7 +464,5 @@ const makeStyles = (s: Scaler) => {
     cast: { gap: s(space.md), paddingHorizontal: s(safeArea.horizontal), paddingTop: s(space.md) },
     castGroup: { gap: s(space.sm) },
     castNames: { flexDirection: 'row' as const, flexWrap: 'wrap' as const, gap: s(space.sm) },
-    status: { alignItems: 'center' as const, gap: s(space.md), padding: s(space.xl) },
-    statusText: { ...text.body, color: color.text2 },
   };
 };

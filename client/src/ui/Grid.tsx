@@ -64,4 +64,6 @@ export function Grid<T>({
   );
 }
 
-const listStyle = { overflow: 'visible' as const };
+// The list is the scroll container: bounded by its parent and clipping, so focusing an off-screen card scrolls it in.
+// The content padding carries the focus bleed instead of an unclipped overflow.
+const listStyle = { flex: 1 };

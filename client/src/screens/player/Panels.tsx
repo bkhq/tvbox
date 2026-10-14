@@ -1,11 +1,22 @@
-import { type ReactNode, useState } from 'react';
-import { FlatList, Modal, ScrollView, Text, TextInput, TVFocusGuideView, View } from 'react-native';
+import { type ReactNode, useRef, useState } from 'react';
+import { Modal, ScrollView, Text, TextInput, TVFocusGuideView, View } from 'react-native';
 
 import { SPEED_PRESETS } from '../../core/settings/schema';
 import type { Flag } from '../../core/types';
 import type { EnginePreference } from '../../player/engine/policy';
 import type { EngineFactory, ExternalSubtitle, Track, TrackId } from '../../player/engine/types';
-import { Button, color, focus, radii, safeArea, type Scaler, scaledText, space, useScaledStyles } from '../../ui';
+import {
+  Button,
+  color,
+  focus,
+  radii,
+  safeArea,
+  type Scaler,
+  scaledText,
+  space,
+  useScale,
+  useScaledStyles,
+} from '../../ui';
 import { choiceOptions } from '../settings/options';
 import { formatSpeed, subtitleName, trackLabel } from './format';
 
@@ -25,6 +36,13 @@ const TITLES: Record<PanelKind, string> = {
 const EPISODE_COLUMNS = 4;
 
 const SHEET_WIDTH = 720;
+/** Height of a md Button. */
+const CELL_HEIGHT = 64;
+/**
+ * Fixed cell width, so a partial last row keeps the width of the full rows; one px short of the sheet width so
+ * pixel rounding never wraps a full row early.
+ */
+const CELL_WIDTH = (SHEET_WIDTH - 2 * space.lg - (EPISODE_COLUMNS - 1) * space.sm) / EPISODE_COLUMNS - 1;
 /** A focused full-width row grows by half the zoom of its width on each side, then draws its ring outside that. */
 const ROW_BLEED = Math.ceil(((focus.scale - 1) / 2) * (SHEET_WIDTH - 2 * space.lg) + focus.ringGap + focus.ringWidth);
 
@@ -82,8 +100,12 @@ export function EpisodePanel({
   episodeIndex: number;
   onSelect: (episodeIndex: number, flagIndex: number) => void;
 }) {
+  const { s } = useScale();
   const styles = useScaledStyles(makeStyles);
   const [shownFlag, setShownFlag] = useState(flagIndex);
+  const list = useRef<ScrollView>(null);
+  // The current episode's row is scrolled into view once, when the grid first lays out.
+  const scrolled = useRef(false);
   const episodes = flags[shownFlag]?.episodes ?? [];
   return (
     <>
@@ -100,16 +122,24 @@ export function EpisodePanel({
           ))}
         </ScrollView>
       ) : null}
-      <FlatList
+      {/* A wrapped grid in a ScrollView: unlike a FlatList grid it keeps D-pad focus on a cell at every edge. */}
+      <ScrollView
+        key={shownFlag}
+        ref={list}
         style={styles.list}
-        contentContainerStyle={styles.bleed}
-        data={episodes}
-        numColumns={EPISODE_COLUMNS}
-        keyExtractor={(item, index) => `${index}-${item.url}`}
-        renderItem={({ item, index }) => {
+        contentContainerStyle={[styles.chips, styles.wrap, styles.bleed]}
+        onContentSizeChange={() => {
+          if (scrolled.current || shownFlag !== flagIndex) return;
+          scrolled.current = true;
+          const row = Math.floor(episodeIndex / EPISODE_COLUMNS);
+          list.current?.scrollTo({ y: row * s(CELL_HEIGHT + space.sm), animated: false });
+        }}
+      >
+        {episodes.map((item, index) => {
           const current = shownFlag === flagIndex && index === episodeIndex;
           return (
             <Button
+              key={`${index}-${item.url}`}
               testID={`player-episode-${index}`}
               size="md"
               variant={current ? 'primary' : 'secondary'}
@@ -119,8 +149,8 @@ export function EpisodePanel({
               onPress={() => onSelect(index, shownFlag)}
             />
           );
-        }}
-      />
+        })}
+      </ScrollView>
     </>
   );
 }
@@ -231,13 +261,15 @@ export function SubtitlePanel({
     else onAdd(subtitle);
   };
   const shownExternal = external.filter((subtitle) => !tracks.some((track) => track.label === subtitle.name));
+  // Like the 音轨 panel: the selected track is current, and 关闭 when subtitles are off or no track is selected.
+  const current = selected === null ? undefined : tracks.find((track) => isSelected(track, selected));
   return (
     <ScrollView style={styles.list} contentContainerStyle={styles.bleed}>
       <Option
         testID="player-subtitle-off"
         title="关闭"
-        selected={selected === null}
-        hasTVPreferredFocus
+        selected={!current}
+        hasTVPreferredFocus={!current}
         onPress={() => onSelect(null)}
       />
       {tracks.map((track, index) => (
@@ -245,7 +277,8 @@ export function SubtitlePanel({
           key={String(track.id)}
           testID={`player-subtitle-${track.id}`}
           title={trackLabel(track) ?? `字幕 ${index + 1}`}
-          selected={selected !== null && isSelected(track, selected)}
+          selected={track === current}
+          hasTVPreferredFocus={track === current}
           onPress={() => onSelect(track.id)}
         />
       ))}
@@ -398,7 +431,7 @@ const makeStyles = (s: Scaler) => {
     list: { flexGrow: 0, marginHorizontal: -s(ROW_BLEED) },
     chips: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: s(space.sm) },
     wrap: { flexWrap: 'wrap' as const },
-    cell: { flex: 1 / EPISODE_COLUMNS, margin: s(space.xs), paddingHorizontal: s(space.sm) },
+    cell: { width: s(CELL_WIDTH), paddingHorizontal: s(space.sm) },
     choice: { paddingHorizontal: s(space.md) },
     option: { marginBottom: s(space.sm), justifyContent: 'flex-start' as const },
     section: { ...t.label, marginTop: s(space.sm), marginBottom: s(space.sm), color: color.text2 },

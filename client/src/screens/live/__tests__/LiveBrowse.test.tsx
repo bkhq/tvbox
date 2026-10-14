@@ -9,6 +9,7 @@ import { emptyChannel } from '../../../player/live/channel';
 import { focus, Tab } from '../../../ui';
 import { LiveBrowse } from '../LiveBrowse';
 import { toggleFavourite } from '../liveFavourites';
+import { DETAIL_MAX, shortDetail } from '../LiveStatus';
 import type { LiveChannelRef, LiveSelection } from '../liveModel';
 import type { LiveEpg } from '../useLiveEpg';
 
@@ -51,7 +52,7 @@ const onFull = jest.fn();
 const onGroupPress = jest.fn<void, [number | undefined]>();
 
 /** Holds groups and selection the way LivePlayer does. */
-function Harness() {
+function Harness({ error }: { error?: string }) {
   const [state, setState] = useState(groups);
   const [selection, setSelection] = useState<LiveSelection>({ group: 1, channel: 0, line: 0 });
   const repo = useState(() => createKeepRepository(new MemoryStore(), () => 1))[0];
@@ -66,6 +67,7 @@ function Harness() {
         setSelection({ ...ref, line: 0 });
       }}
       onFull={onFull}
+      error={error}
       onToggleFavourite={(target) =>
         void toggleFavourite(state, target, repo).then((result) => setState(result.groups))
       }
@@ -73,10 +75,10 @@ function Harness() {
   );
 }
 
-async function render(): Promise<ReactTestRenderer> {
+async function render(error?: string): Promise<ReactTestRenderer> {
   let renderer!: ReactTestRenderer;
   await act(async () => {
-    renderer = create(<Harness />);
+    renderer = create(<Harness error={error} />);
   });
   await act(async () => new Promise((resolve) => setTimeout(resolve, 0)));
   return renderer;
@@ -232,5 +234,31 @@ describe('LiveBrowse', () => {
     expect(heart().props.name).toBe('heart');
     expect(groupRows(renderer)).toContain('收藏 1');
     await act(async () => renderer.unmount());
+  });
+
+  it('shows a non-focusable error block over the preview with the shortened detail', async () => {
+    const fine = await render();
+    expect(find(fine, 'live-browse-error')).toBeUndefined();
+    await act(async () => fine.unmount());
+
+    const detail = `java.io.IOException: ${'x'.repeat(200)}\n\tat com.example.Foo(Foo.java:1)`;
+    const renderer = await render(detail);
+    const block = find(renderer, 'live-browse-error')!;
+    expect(texts(renderer)).toContain('CCTV1 播放失败');
+    const shown = [find(renderer, 'live-browse-error-detail')!.props.children].flat().join('');
+    expect(shown).toBe(shortDetail(detail));
+    expect(shown.length).toBeLessThanOrEqual(DETAIL_MAX);
+    expect(shown).not.toContain('Foo.java');
+    const wrappers = renderer.root.findAll(
+      (node) => node.props.pointerEvents === 'none' && node.findAll((inner) => inner === block).length > 0,
+    );
+    expect(wrappers.length).toBeGreaterThan(0);
+    expect(block.findAll((node) => node.props.focusable || typeof node.props.onPress === 'function')).toHaveLength(0);
+    await act(async () => renderer.unmount());
+
+    const bare = await render('');
+    expect(texts(bare)).toContain('CCTV1 播放失败');
+    expect(find(bare, 'live-browse-error-detail')).toBeUndefined();
+    await act(async () => bare.unmount());
   });
 });

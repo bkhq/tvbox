@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { FlatList, Image, ScrollView, StyleSheet, Text, TVFocusGuideView, View } from 'react-native';
 import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg';
 
@@ -115,6 +115,11 @@ export function LiveBrowse({
   const favourite = isFavourite(groups, channel);
 
   const pickItem = (next: LiveGroupItem) => setPicked(next.key);
+  // Only the first row takes focus to the playing card; rows rebuilt on group focus must leave focus in the list.
+  const entered = useRef(false);
+  useEffect(() => {
+    entered.current = true;
+  }, []);
 
   return (
     <View style={StyleSheet.absoluteFill} testID="live-browse">
@@ -248,7 +253,7 @@ export function LiveBrowse({
                     logo={target.logo || undefined}
                     playing={playing}
                     favourite={isFavourite(groups, target)}
-                    hasTVPreferredFocus={playing}
+                    hasTVPreferredFocus={playing && !entered.current}
                     onFocus={() => epg.request(target)}
                     onPress={() => (playing ? onFull() : onSelect(ref))}
                     onLongPress={() => onToggleFavourite(target)}
@@ -374,8 +379,9 @@ const makeStyles = (s: Scaler) => {
       backgroundColor: color.buttonFill,
     },
     favouriteFocused: { backgroundColor: focus.borderColor },
-    // Starts a bleed left of the column so the first card's focus zoom is not clipped.
-    cards: { marginLeft: -s(focus.bleed), overflow: 'visible' as const },
+    // Starts a bleed left of the column so the first card's focus zoom is not clipped; clipped so scrolled
+    // cards do not draw over the group column.
+    cards: { marginLeft: -s(focus.bleed) },
     cardsContent: { paddingVertical: s(focus.bleed), paddingLeft: s(focus.bleed), paddingRight: s(96) },
     card: { marginRight: s(CARD_GAP) },
   };

@@ -30,8 +30,6 @@ function expectWindow(node: ReactTestInstance, columns: number) {
     maxToRenderPerBatch: columns * 2,
     windowSize: 5,
     onEndReachedThreshold: 0.5,
-    snapToAlignment: 'item',
-    removeClippedSubviews: false,
   });
 }
 

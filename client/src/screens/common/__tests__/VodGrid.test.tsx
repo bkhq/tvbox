@@ -100,6 +100,16 @@ describe('VodGrid', () => {
     act(() => renderer.unmount());
   });
 
+  it('omits the meta line for a zero score in the remarks', () => {
+    let renderer!: ReactTestRenderer;
+    act(() => {
+      renderer = create(<VodGrid items={vods('a', 1, { vod_remarks: '评分：0' })} onPressVod={jest.fn()} />);
+    });
+    expect(card(renderer, 'a0').props.meta).toBeUndefined();
+    expect(texts(renderer)).not.toContain('评分：0');
+    act(() => renderer.unmount());
+  });
+
   it('shows the empty state only when not loading', () => {
     let renderer!: ReactTestRenderer;
     act(() => {

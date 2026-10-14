@@ -76,6 +76,8 @@ interface MockOptions {
   /** Sites without any videos. */
   noVideos?: Set<string>;
   classes?: object[];
+  /** Home videos of every site instead of vods(). */
+  videos?: object[];
 }
 
 function mockProviders(options: MockOptions = {}) {
@@ -84,7 +86,7 @@ function mockProviders(options: MockOptions = {}) {
     return normalizeResult({ class: options.classes ?? CLASSES, list: [] });
   });
   const homeVideo = jest.fn(async (site: string): Promise<Result> =>
-    normalizeResult({ list: options.noVideos?.has(site) ? [] : vods(site) }),
+    normalizeResult({ list: options.noVideos?.has(site) ? [] : (options.videos ?? vods(site)) }),
   );
   const category = jest.fn(async (site: string, tid: string, page: string): Promise<Result> =>
     normalizeResult({
@@ -252,6 +254,22 @@ describe('HomeScreen', () => {
       vodName: 'cms 影片 2',
       vodPic: 'https://img.example.com/cms-2.jpg',
     });
+    await act(async () => renderer.unmount());
+  });
+
+  it('hides a zero score in vod_remarks on the hero and the cards', async () => {
+    mockProviders({
+      videos: [
+        { vod_id: 'z1', vod_name: '零分 1', vod_pic: '', vod_remarks: '评分：0', type_name: '剧情' },
+        { vod_id: 'z2', vod_name: '零分 2', vod_pic: '', vod_remarks: '评分：0', vod_year: '2025' },
+      ],
+    });
+    const { renderer } = await setup({ saved: true });
+    expect(has(renderer, 'home-hero-remarks')).toBe(false);
+    expect(texts(byTestID(renderer, 'home-hero'))).toContain('剧情');
+    expect(texts(renderer)).not.toContain('评分：0');
+    expect(byTestID(renderer, 'home-card-recommend-z1').props).toMatchObject({ meta: undefined, badge: undefined });
+    expect(byTestID(renderer, 'home-card-recommend-z2').props).toMatchObject({ meta: '2025', badge: undefined });
     await act(async () => renderer.unmount());
   });
 

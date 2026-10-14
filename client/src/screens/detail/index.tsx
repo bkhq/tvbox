@@ -24,7 +24,7 @@ import {
   useScaledStyles,
   type Scaler,
 } from '../../ui';
-import { ErrorView, htmlToText, LoadingView, useActiveCid, useSite } from '../common';
+import { displayRemarks, ErrorView, htmlToText, LoadingView, useActiveCid, useSite } from '../common';
 import { Backdrop } from './Backdrop';
 import { buildHistoryInput, buildPlayerParams, resolveResume, sortEpisodes, splitPeople, tagLine } from './detailState';
 import { EpisodeList } from './EpisodeList';
@@ -74,13 +74,14 @@ function Info({ vod }: { vod: Vod }) {
   const styles = useScaledStyles(makeStyles);
   const [expanded, setExpanded] = useState(false);
   const tags = tagLine(vod);
+  const remarks = displayRemarks(vod.vod_remarks);
   const content = useMemo(() => htmlToText(vod.vod_content), [vod.vod_content]);
   const long = [...vod.vod_name].length > 8;
   return (
     <View style={styles.info}>
-      {vod.vod_remarks || tags ? (
+      {remarks || tags ? (
         <View style={styles.tagLine}>
-          {vod.vod_remarks ? <Badge testID="detail-remarks" label={vod.vod_remarks} variant="accent" /> : null}
+          {remarks ? <Badge testID="detail-remarks" label={remarks} variant="accent" /> : null}
           {tags ? <Text style={styles.tags}>{tags}</Text> : null}
         </View>
       ) : null}

@@ -5,7 +5,7 @@ import type { Vod } from '../../core/types';
 // Not the navigation barrel: it imports the route table, which imports the search screen.
 import { useAppNavigation } from '../../navigation/useAppNavigation';
 import { Chip, color, safeArea, scaledText, space, useScaledStyles, type Scaler } from '../../ui';
-import { openVod, VodGrid } from '../common';
+import { displayRemarks, openVod, VodGrid } from '../common';
 import type { SearchProgress, SiteGroup } from './searchSites';
 
 /** Filter key of the aggregated view. */
@@ -57,7 +57,7 @@ export function Results({ keyword, progress }: ResultsProps) {
   // The aggregated view names the site; a single site shows the year and remarks.
   const metaOf = useCallback(
     (vod: Vod) => {
-      if (selected !== ALL) return joinMeta([vod.vod_year, vod.vod_remarks]);
+      if (selected !== ALL) return joinMeta([vod.vod_year, displayRemarks(vod.vod_remarks)]);
       const site = siteOf.get(vod);
       return joinMeta([site && (site.name || site.key), vod.vod_year]);
     },

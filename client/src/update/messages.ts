@@ -5,6 +5,8 @@ import { HttpError } from '../core/http';
 
 export const MANUAL_INSTALL_NOTICE = '当前设备不支持在线安装，请联系管理员重新安装新版本。';
 
+const megabytes = (bytes: number) => (bytes / 1024 / 1024).toFixed(1);
+
 export function checkResultText(result: CheckResult): string {
   switch (result.status) {
     case 'disabled':
@@ -26,7 +28,10 @@ export function installPhaseText(install: InstallPhase): string | null {
     case 'idle':
       return null;
     case 'downloading':
-      return install.progress === null ? '正在下载…' : `正在下载 ${Math.floor(install.progress * 100)}%`;
+      if (install.progress === null) return install.bytes > 0 ? `正在下载 ${megabytes(install.bytes)} MB` : '正在下载…';
+      return `正在下载 ${Math.floor(install.progress * 100)}%（${megabytes(install.bytes)} / ${megabytes(install.total ?? 0)} MB）`;
+    case 'verifying':
+      return '正在校验安装包…';
     case 'installing':
       return '正在打开安装程序…';
     case 'manual':

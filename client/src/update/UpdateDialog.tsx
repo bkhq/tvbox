@@ -16,7 +16,7 @@ export function UpdateDialog({ controller = getUpdateController() }: UpdateDialo
   const { release, installState: phase, install, dismiss } = useUpdateCheck(controller);
   if (!release) return null;
 
-  const busy = phase.phase === 'downloading' || phase.phase === 'installing';
+  const busy = phase.phase === 'downloading' || phase.phase === 'verifying' || phase.phase === 'installing';
   const status = installPhaseText(phase);
   const primary = phase.phase === 'manual' ? null : phase.phase === 'error' ? '重试' : '立即更新';
   const secondary = busy ? '取消' : phase.phase === 'manual' ? '关闭' : '稍后';
@@ -29,6 +29,11 @@ export function UpdateDialog({ controller = getUpdateController() }: UpdateDialo
           <ScrollView style={styles.notes}>
             <Text style={styles.notesText}>{release.notes || '暂无更新说明'}</Text>
           </ScrollView>
+          {phase.phase === 'downloading' ? (
+            <View testID="update-progress" style={styles.track}>
+              <View testID="update-progress-fill" style={[styles.fill, { width: `${Math.round((phase.progress ?? 0) * 100)}%` }]} />
+            </View>
+          ) : null}
           {status ? (
             <Text testID="update-status" style={[styles.status, phase.phase === 'error' && styles.error]}>
               {status}
@@ -93,6 +98,17 @@ const styles = StyleSheet.create({
   notesText: {
     color: colors.textSecondary,
     fontSize: fontSize.body,
+  },
+  track: {
+    height: 8,
+    borderRadius: 4,
+    overflow: 'hidden',
+    marginBottom: spacing.md,
+    backgroundColor: colors.surfaceFocused,
+  },
+  fill: {
+    height: '100%',
+    backgroundColor: colors.primary,
   },
   status: {
     color: colors.text,

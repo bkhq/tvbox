@@ -23,6 +23,7 @@ const manifest = {
 
 function setup(overrides: Partial<UpdateControllerDeps> = {}) {
   const install: jest.Mocked<InstallDeps> = {
+    cachedApk: jest.fn<DownloadedApk | null, [string]>(() => null),
     downloadApk: jest.fn<Promise<DownloadedApk>, Parameters<InstallDeps['downloadApk']>>(async () => ({ size: 100, contentUri: 'content://apk', discard: jest.fn() })),
     launchInstaller: jest.fn<Promise<void>, [string]>(async () => {}),
     openURL: jest.fn<Promise<void>, [string]>(async () => {}),
@@ -91,7 +92,7 @@ describe('update controller', () => {
     const { controller, install } = setup();
     let signal: AbortSignal | undefined;
     install.downloadApk.mockImplementationOnce(
-      (_url, _progress, s) =>
+      (_url, _name, _progress, s) =>
         new Promise((_resolve, reject) => {
           signal = s;
           s?.addEventListener('abort', () => reject(new Error('aborted')));
@@ -108,6 +109,38 @@ describe('update controller', () => {
 });
 
 describe('update UI', () => {
+  it('shows a progress bar with the downloaded size while downloading', async () => {
+    const { controller, install } = setup();
+    let report!: (progress: { bytes: number; total: number | null }) => void;
+    let finish!: () => void;
+    install.downloadApk.mockImplementationOnce(
+      (_url, _name, onProgress) =>
+        new Promise((resolve) => {
+          report = onProgress;
+          finish = () => resolve({ size: 100, contentUri: 'content://apk', discard: jest.fn() });
+        }),
+    );
+    let renderer!: ReactTestRenderer;
+    await act(async () => {
+      renderer = create(<UpdateDialog controller={controller} />);
+      await controller.check(false);
+    });
+    let running!: Promise<void>;
+    await act(async () => {
+      running = controller.install();
+      report({ bytes: 12.5 * 1024 * 1024, total: 50 * 1024 * 1024 });
+    });
+    expect(texts(renderer)).toContain('正在下载 25%（12.5 / 50.0 MB）');
+    const fill = renderer.root.findByProps({ testID: 'update-progress-fill' });
+    expect(fill.props.style).toEqual(expect.arrayContaining([expect.objectContaining({ width: '25%' })]));
+    await act(async () => {
+      finish();
+      await running;
+    });
+    expect(renderer.toJSON()).toBeNull();
+  });
+
+
   it('renders the dialog with notes and installs on 立即更新', async () => {
     const { controller, install } = setup();
     let renderer!: ReactTestRenderer;

@@ -5,7 +5,10 @@ import android.database.Cursor
 import android.database.sqlite.SQLiteDatabase
 import android.net.Uri
 import expo.modules.kotlin.modules.Module
+import expo.modules.kotlin.functions.Coroutine
 import expo.modules.kotlin.modules.ModuleDefinition
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import java.io.File
 import java.security.MessageDigest
 
@@ -13,7 +16,7 @@ import java.security.MessageDigest
  * Read-only access to the Java app's data (same applicationId, so the same data
  * directory): the default SharedPreferences and the Room database "tv". Nothing
  * is ever written, migrated or deleted on the Java side. Also hosts small
- * Android utilities the app needs (ABI flavor, file SHA-256).
+ * Android utilities the app needs (ABI flavor, file SHA-256, parallel downloads).
  */
 class MigrateModule : Module() {
   private val context: Context
@@ -42,9 +45,24 @@ class MigrateModule : Module() {
       if (id == 0) "" else res.getString(id)
     }
 
+    Events("onDownloadProgress")
+
+    // Downloads `url` to `path` (file:// URI or plain path) with up to `threads` range
+    // connections; progress arrives as onDownloadProgress { id, bytes, total }.
+    AsyncFunction("downloadFile") Coroutine { id: String, url: String, uri: String, threads: Int ->
+      withContext(Dispatchers.IO) {
+        val downloader = Downloader(id, url, File(filePath(uri)), threads) { bytes, total ->
+          sendEvent("onDownloadProgress", mapOf("id" to id, "bytes" to bytes.toDouble(), "total" to total.toDouble()))
+        }
+        Downloader.start(downloader).toDouble()
+      }
+    }
+
+    Function("cancelDownload") { id: String -> Downloader.cancel(id) }
+
     // Lowercase hex SHA-256 of a file:// URI or plain path, streamed in 64 KiB chunks.
     AsyncFunction("sha256File") { uri: String ->
-      val path = if (uri.startsWith("file://")) requireNotNull(Uri.parse(uri).path) { "Invalid file URI" } else uri
+      val path = filePath(uri)
       val digest = MessageDigest.getInstance("SHA-256")
       File(path).inputStream().use { input ->
         val buffer = ByteArray(64 * 1024)
@@ -57,6 +75,9 @@ class MigrateModule : Module() {
       digest.digest().joinToString("") { "%02x".format(it) }
     }
   }
+
+  private fun filePath(uri: String): String =
+    if (uri.startsWith("file://")) requireNotNull(Uri.parse(uri).path) { "Invalid file URI" } else uri
 
   private fun typed(value: Any?): Map<String, Any>? = when (value) {
     is String -> mapOf("type" to "string", "value" to value)

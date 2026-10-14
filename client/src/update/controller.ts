@@ -3,12 +3,13 @@
  * Pure: the platform, config, fetch and install side effects are injected.
  */
 
-import { installUpdate, type InstallDeps, type InstallResult } from './install';
+import { type DownloadProgress, installUpdate, type InstallDeps, type InstallResult } from './install';
 import { checkForUpdate, type CheckResult, type FetchJson, type Release, type UpdatePlatform } from './logic';
 
 export type InstallPhase =
   | { phase: 'idle' }
-  | { phase: 'downloading'; progress: number | null }
+  | { phase: 'downloading'; progress: number | null; bytes: number; total: number | null }
+  | { phase: 'verifying' }
   | { phase: 'installing' }
   | { phase: 'manual'; reason: Extract<InstallResult, { status: 'manual' }>['reason'] }
   | { phase: 'error'; error: unknown };
@@ -52,7 +53,7 @@ export function createUpdateController(deps: UpdateControllerDeps): UpdateContro
     listeners.forEach((listener) => listener());
   };
 
-  const busy = () => state.installState.phase === 'downloading' || state.installState.phase === 'installing';
+  const busy = () => ['downloading', 'verifying', 'installing'].includes(state.installState.phase);
 
   async function run(manual: boolean): Promise<CheckResult> {
     checks += 1;
@@ -81,13 +82,16 @@ export function createUpdateController(deps: UpdateControllerDeps): UpdateContro
       if (!release || busy()) return;
       const controller = new AbortController();
       download = controller;
-      update({ installState: { phase: 'downloading', progress: null } });
+      update({ installState: { phase: 'downloading', progress: null, bytes: 0, total: null } });
       try {
         const result = await installUpdate(release, deps.install, {
           signal: controller.signal,
-          onProgress: (progress) => {
-            if (!controller.signal.aborted) update({ installState: { phase: 'downloading', progress } });
+          onProgress: ({ bytes, total }: DownloadProgress) => {
+            if (controller.signal.aborted) return;
+            const progress = total && total > 0 ? Math.min(1, bytes / total) : null;
+            update({ installState: { phase: 'downloading', progress, bytes, total } });
           },
+          onVerifying: () => update({ installState: { phase: 'verifying' } }),
           onDownloaded: () => update({ installState: { phase: 'installing' } }),
         });
         if (controller.signal.aborted) return;

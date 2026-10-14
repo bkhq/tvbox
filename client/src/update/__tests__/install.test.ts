@@ -25,8 +25,9 @@ function deps(size = 100, hash: string | null = HASH): jest.Mocked<InstallDeps> 
   return {
     discard,
     sha256,
-    downloadApk: jest.fn<Promise<DownloadedApk>, Parameters<InstallDeps['downloadApk']>>(async (_url, onProgress) => {
-      onProgress(0.5);
+    cachedApk: jest.fn<DownloadedApk | null, [string]>(() => null),
+    downloadApk: jest.fn<Promise<DownloadedApk>, Parameters<InstallDeps['downloadApk']>>(async (_url, _name, onProgress) => {
+      onProgress({ bytes: 50, total: 100 });
       return { size, contentUri: 'content://apk', discard, ...(hash === null ? {} : { sha256 }) };
     }),
     launchInstaller: jest.fn<Promise<void>, [string]>(async () => {}),
@@ -40,11 +41,39 @@ describe('installUpdate', () => {
     const onProgress = jest.fn();
     const onDownloaded = jest.fn();
     expect(await installUpdate(release('leanback-arm64_v8a'), d, { onProgress, onDownloaded })).toEqual({ status: 'started' });
-    expect(d.downloadApk).toHaveBeenCalledWith('https://w/u/rn/apk/10203/leanback-arm64_v8a.apk', onProgress, undefined);
-    expect(onProgress).toHaveBeenCalledWith(0.5);
+    expect(d.cachedApk).toHaveBeenCalledWith('10203-leanback-arm64_v8a.apk');
+    expect(d.downloadApk).toHaveBeenCalledWith(
+      'https://w/u/rn/apk/10203/leanback-arm64_v8a.apk',
+      '10203-leanback-arm64_v8a.apk',
+      onProgress,
+      undefined,
+    );
+    expect(onProgress).toHaveBeenCalledWith({ bytes: 50, total: 100 });
     expect(onDownloaded).toHaveBeenCalled();
     expect(d.launchInstaller).toHaveBeenCalledWith('content://apk');
     expect(d.openURL).not.toHaveBeenCalled();
+  });
+
+  it('reuses a cached apk that matches the manifest without downloading', async () => {
+    const d = deps();
+    const cachedDiscard = jest.fn();
+    d.cachedApk.mockReturnValue({ size: 100, contentUri: 'content://cached', discard: cachedDiscard, sha256: async () => HASH });
+    const onVerifying = jest.fn();
+    expect(await installUpdate(release('leanback-arm64_v8a', { sha256: HASH }), d, { onVerifying })).toEqual({ status: 'started' });
+    expect(onVerifying).toHaveBeenCalled();
+    expect(d.downloadApk).not.toHaveBeenCalled();
+    expect(cachedDiscard).not.toHaveBeenCalled();
+    expect(d.launchInstaller).toHaveBeenCalledWith('content://cached');
+  });
+
+  it('discards a cached apk that fails verification and downloads again', async () => {
+    const d = deps();
+    const cachedDiscard = jest.fn();
+    d.cachedApk.mockReturnValue({ size: 100, contentUri: 'content://cached', discard: cachedDiscard, sha256: async () => 'ef'.repeat(32) });
+    expect(await installUpdate(release('leanback-arm64_v8a', { sha256: HASH }), d)).toEqual({ status: 'started' });
+    expect(cachedDiscard).toHaveBeenCalled();
+    expect(d.downloadApk).toHaveBeenCalled();
+    expect(d.launchInstaller).toHaveBeenCalledWith('content://apk');
   });
 
   it('skips the size check when the manifest has no size', async () => {

@@ -8,7 +8,9 @@
  * its size when stated, then its SHA-256 (hashed natively by the Migrate
  * module) when the manifest sha256 is non-empty. If the native hash is
  * unavailable only the size is checked. The Android installer still rejects
- * an APK whose signature does not match the installed app.
+ * an APK whose signature does not match the installed app. A verified APK of
+ * the same release left from an earlier attempt is reused instead of
+ * downloading it again.
  */
 
 import { itmsServicesUrl, type Release } from './logic';
@@ -22,8 +24,21 @@ export interface DownloadedApk {
   discard(): void;
 }
 
+export interface DownloadProgress {
+  bytes: number;
+  /** Null when the server does not state the size. */
+  total: number | null;
+}
+
 export interface InstallDeps {
-  downloadApk(url: string, onProgress: (fraction: number | null) => void, signal?: AbortSignal): Promise<DownloadedApk>;
+  /** The APK kept under `name` by an earlier download, or null. */
+  cachedApk(name: string): DownloadedApk | null;
+  downloadApk(
+    url: string,
+    name: string,
+    onProgress: (progress: DownloadProgress) => void,
+    signal?: AbortSignal,
+  ): Promise<DownloadedApk>;
   launchInstaller(contentUri: string): Promise<void>;
   openURL(url: string): Promise<void>;
 }
@@ -51,31 +66,52 @@ export class ChecksumMismatchError extends Error {
 }
 
 export interface InstallOptions {
-  onProgress?: (fraction: number | null) => void;
+  onProgress?: (progress: DownloadProgress) => void;
+  /** Called before the size / checksum check of a downloaded or cached APK. */
+  onVerifying?: () => void;
   /** Called once the APK is verified, before the installer opens. */
   onDownloaded?: () => void;
   signal?: AbortSignal;
 }
 
+/** Cache file name of a release's APK; the version code prefix lets old ones be cleaned up. */
+export function apkCacheName(release: Pick<Release, 'versionCode' | 'flavor'>): string {
+  return `${release.versionCode}-${release.flavor}.apk`;
+}
+
+/** The mismatch found in `apk`, or null when it matches the manifest. */
+async function checkApk(release: Release, apk: DownloadedApk): Promise<Error | null> {
+  if (release.size !== undefined && apk.size !== release.size) return new SizeMismatchError(release.size, apk.size);
+  if (!release.sha256) return null;
+  if (!apk.sha256) {
+    console.warn('[update] native sha256 unavailable; verified APK size only');
+    return null;
+  }
+  const actual = await apk.sha256();
+  return actual.toLowerCase() === release.sha256.toLowerCase() ? null : new ChecksumMismatchError(release.sha256, actual);
+}
+
 export async function installUpdate(release: Release, deps: InstallDeps, options: InstallOptions = {}): Promise<InstallResult> {
-  const { onProgress = () => {}, onDownloaded, signal } = options;
+  const { onProgress = () => {}, onVerifying, onDownloaded, signal } = options;
   switch (release.flavor) {
     case 'leanback-arm64_v8a':
     case 'leanback-armeabi_v7a': {
-      const apk = await deps.downloadApk(release.binaryUrl, onProgress, signal);
-      if (release.size !== undefined && apk.size !== release.size) {
-        apk.discard();
-        throw new SizeMismatchError(release.size, apk.size);
+      const name = apkCacheName(release);
+      let apk = deps.cachedApk(name);
+      if (apk) {
+        onVerifying?.();
+        if (await checkApk(release, apk)) {
+          apk.discard();
+          apk = null;
+        }
       }
-      if (release.sha256) {
-        if (apk.sha256) {
-          const actual = await apk.sha256();
-          if (actual.toLowerCase() !== release.sha256.toLowerCase()) {
-            apk.discard();
-            throw new ChecksumMismatchError(release.sha256, actual);
-          }
-        } else {
-          console.warn('[update] native sha256 unavailable; verified APK size only');
+      if (!apk) {
+        apk = await deps.downloadApk(release.binaryUrl, name, onProgress, signal);
+        onVerifying?.();
+        const mismatch = await checkApk(release, apk);
+        if (mismatch) {
+          apk.discard();
+          throw mismatch;
         }
       }
       onDownloaded?.();

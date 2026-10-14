@@ -162,6 +162,29 @@ describe('LiveBrowse', () => {
     await act(async () => renderer.unmount());
   });
 
+  it('gives the playing card initial focus only, so group focus is not pulled into the row', async () => {
+    const renderer = await render();
+    const preferred = () =>
+      renderer.root
+        .findAll((node) => node.props.name !== undefined && /^live-browse-card-\d+$/.test(node.props.testID ?? ''))
+        .filter((node) => node.props.hasTVPreferredFocus)
+        .map((node) => node.props.name as string);
+    expect(preferred()).toContain('CCTV1');
+
+    await press(renderer, 'live-browse-group-group-2', 'onFocus');
+    await press(renderer, 'live-browse-group-group-1', 'onFocus');
+    expect(cards(renderer).map(([name]) => name)).toEqual(['CCTV1', 'CCTV2']);
+    expect(preferred()).toEqual([]);
+    await act(async () => renderer.unmount());
+  });
+
+  it('clips the scrolled card row so it does not draw over the group column', async () => {
+    const renderer = await render();
+    const style = [find(renderer, 'live-browse-cards')!.props.style].flat();
+    expect(style).not.toContainEqual(expect.objectContaining({ overflow: 'visible' }));
+    await act(async () => renderer.unmount());
+  });
+
   it('plays a card on OK, enters full mode on the playing card and from 全屏观看', async () => {
     const renderer = await render();
     await press(renderer, 'live-browse-group-group-2');

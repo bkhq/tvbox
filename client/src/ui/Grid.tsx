@@ -61,7 +61,9 @@ export function Grid<T>({
         windowSize={5}
         onEndReachedThreshold={0.5}
         // TV: D-pad moves straight to the next card and scrolls it in, instead of first paging by half a screen.
+        // That needs the off-screen rows attached, so the cells stay mounted (the window above bounds them).
         snapToAlignment="item"
+        removeClippedSubviews={false}
         style={height === undefined ? undefined : { height }}
         contentContainerStyle={styles.content}
         // FlatList rejects columnWrapperStyle for a single column.

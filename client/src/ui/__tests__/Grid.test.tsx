@@ -31,6 +31,7 @@ function expectWindow(node: ReactTestInstance, columns: number) {
     windowSize: 5,
     onEndReachedThreshold: 0.5,
     snapToAlignment: 'item',
+    removeClippedSubviews: false,
   });
 }
 

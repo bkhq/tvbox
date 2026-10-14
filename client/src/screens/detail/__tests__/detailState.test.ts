@@ -1,11 +1,16 @@
 import { TIME_UNSET } from '../../../core/storage';
 import { type History, parseFlags } from '../../../core/types';
-import { buildHistoryInput, buildPlayerParams, resolveResume, sortEpisodes } from '../detailState';
+import {
+  buildHistoryInput,
+  buildPlayerParams,
+  episodeProgress,
+  resolveResume,
+  sortEpisodes,
+  splitPeople,
+  tagLine,
+} from '../detailState';
 
-const flags = parseFlags({
-  vod_play_from: 'a$$$b',
-  vod_play_url: '第1集$a1#第2集$a2$$$第1集$b1#第2集$b2#第3集$b3',
-});
+const flags = parseFlags({ vod_play_from: 'a$$$b', vod_play_url: '第1集$a1#第2集$a2$$$第1集$b1#第2集$b2#第3集$b3' });
 
 function history(overrides: Partial<History>): History {
   return {
@@ -31,10 +36,7 @@ function history(overrides: Partial<History>): History {
 
 describe('resolveResume', () => {
   it('defaults to the first flag without history', () => {
-    expect(resolveResume(flags, undefined)).toEqual({
-      flagIndex: 0,
-      revSort: false,
-    });
+    expect(resolveResume(flags, undefined)).toEqual({ flagIndex: 0, revSort: false });
   });
 
   it('selects the saved flag and episode with its sort order', () => {
@@ -67,22 +69,10 @@ describe('sortEpisodes', () => {
 });
 
 describe('buildHistoryInput', () => {
-  const base = {
-    key: 'cms@@@v1',
-    cid: 1,
-    vod: { vod_name: '影片', vod_pic: 'p.jpg' },
-    revSort: true,
-  };
+  const base = { key: 'cms@@@v1', cid: 1, vod: { vod_name: '影片', vod_pic: 'p.jpg' }, revSort: true };
 
   it('keeps the saved position for the same episode', () => {
-    expect(
-      buildHistoryInput({
-        ...base,
-        flag: 'b',
-        episode: flags[1]!.episodes[1]!,
-        existing: history({}),
-      }),
-    ).toEqual({
+    expect(buildHistoryInput({ ...base, flag: 'b', episode: flags[1]!.episodes[1]!, existing: history({}) })).toEqual({
       key: 'cms@@@v1',
       cid: 1,
       vodName: '影片',
@@ -96,27 +86,10 @@ describe('buildHistoryInput', () => {
   });
 
   it('resets the position for another episode or without history', () => {
-    const other = buildHistoryInput({
-      ...base,
-      flag: 'b',
-      episode: flags[1]!.episodes[0]!,
-      existing: history({}),
-    });
-    expect(other).toMatchObject({
-      episodeUrl: 'b1',
-      vodRemarks: '第1集',
-      position: TIME_UNSET,
-    });
-    const fresh = buildHistoryInput({
-      ...base,
-      flag: 'a',
-      episode: flags[0]!.episodes[0]!,
-    });
-    expect(fresh).toMatchObject({
-      vodFlag: 'a',
-      episodeUrl: 'a1',
-      position: TIME_UNSET,
-    });
+    const other = buildHistoryInput({ ...base, flag: 'b', episode: flags[1]!.episodes[0]!, existing: history({}) });
+    expect(other).toMatchObject({ episodeUrl: 'b1', vodRemarks: '第1集', position: TIME_UNSET });
+    const fresh = buildHistoryInput({ ...base, flag: 'a', episode: flags[0]!.episodes[0]! });
+    expect(fresh).toMatchObject({ vodFlag: 'a', episodeUrl: 'a1', position: TIME_UNSET });
   });
 });
 
@@ -141,5 +114,56 @@ describe('buildPlayerParams', () => {
       episodeUrl: 'a1',
     });
     expect(buildPlayerParams('cms', 'v1', 'a', episode)).not.toHaveProperty('position');
+  });
+});
+
+describe('tagLine', () => {
+  it('joins only the present parts', () => {
+    expect(tagLine({ type_name: '剧情', vod_area: '大陆', vod_year: '2024' })).toBe('剧情 · 大陆 · 2024');
+    expect(tagLine({ type_name: '', vod_area: '大陆', vod_year: '' })).toBe('大陆');
+    expect(tagLine({ type_name: '', vod_area: '', vod_year: '' })).toBe('');
+  });
+});
+
+describe('splitPeople', () => {
+  it('keeps a Latin full name whole', () => {
+    expect(splitPeople('Meret Manon Bannerman')).toEqual(['Meret Manon Bannerman']);
+    expect(splitPeople('  Tom Hanks  ')).toEqual(['Tom Hanks']);
+  });
+
+  it('splits space-separated CJK names', () => {
+    expect(splitPeople('张三 李四  王五')).toEqual(['张三', '李四', '王五']);
+  });
+
+  it('splits only on punctuation when present, keeping spaces inside names', () => {
+    expect(splitPeople('Meret Manon Bannerman, Tom Hanks')).toEqual(['Meret Manon Bannerman', 'Tom Hanks']);
+    expect(splitPeople('甲,乙，丙/丁、戊|己；庚;辛 壬')).toEqual(['甲', '乙', '丙', '丁', '戊', '己', '庚', '辛 壬']);
+    expect(splitPeople(' 张三 / ,李四 ')).toEqual(['张三', '李四']);
+  });
+
+  it('keeps mixed CJK and Latin space-separated text whole', () => {
+    expect(splitPeople('张三 John Smith')).toEqual(['张三 John Smith']);
+  });
+
+  it('returns nothing for an empty value', () => {
+    expect(splitPeople('')).toEqual([]);
+    expect(splitPeople('   ')).toEqual([]);
+    expect(splitPeople(undefined)).toEqual([]);
+  });
+});
+
+describe('episodeProgress', () => {
+  const episode = flags[1]!.episodes[1]!;
+
+  it('is the watched fraction of the history episode', () => {
+    expect(episodeProgress(history({ position: 30, duration: 120 }), 'b', episode)).toBe(0.25);
+  });
+
+  it('is undefined for another episode or without a position and duration', () => {
+    expect(episodeProgress(undefined, 'b', episode)).toBeUndefined();
+    expect(episodeProgress(history({ duration: 120 }), 'a', episode)).toBeUndefined();
+    expect(episodeProgress(history({ duration: 120 }), 'b', flags[1]!.episodes[0]!)).toBeUndefined();
+    expect(episodeProgress(history({ position: 30, duration: TIME_UNSET }), 'b', episode)).toBeUndefined();
+    expect(episodeProgress(history({ position: TIME_UNSET, duration: 120 }), 'b', episode)).toBeUndefined();
   });
 });

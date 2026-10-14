@@ -7,7 +7,18 @@ import type { Vod } from '../../core/types';
 import { getHistoryRepository, getKeepRepository } from '../../core/userData';
 // Not the navigation barrel: it imports the route table, which imports this screen.
 import { useAppNavigation } from '../../navigation/useAppNavigation';
-import { Badge, Button, color, imageSource, safeArea, scaledText, useScaledStyles, type Scaler } from '../../ui';
+import {
+  Badge,
+  Button,
+  color,
+  fontFamily,
+  imageSource,
+  safeArea,
+  scaledText,
+  tabular,
+  useScaledStyles,
+  type Scaler,
+} from '../../ui';
 import { htmlToText, openVod } from '../common';
 import { buildPlayerParams } from '../detail/detailState';
 
@@ -133,8 +144,13 @@ export function Hero({
         >
           {vod.vod_name}
         </Text>
-        {meta.length > 0 ? (
+        {vod.vod_score || meta.length > 0 ? (
           <View style={styles.meta}>
+            {vod.vod_score ? (
+              <Text testID="home-hero-score" style={styles.score}>
+                {vod.vod_score}
+              </Text>
+            ) : null}
             {meta.map((value) => (
               <Text key={value} style={styles.metaText}>
                 {value}
@@ -190,6 +206,7 @@ const makeStyles = (s: Scaler) => {
     titleLong: { ...text.displaySm, lineHeight: s(76), color: color.text },
     meta: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: s(18) },
     metaText: { ...text.body, fontSize: s(26), color: color.text2 },
+    score: { ...text.body, ...tabular, fontFamily: fontFamily.bold, fontSize: s(26), color: color.text },
     description: { ...text.body, lineHeight: s(42), maxWidth: s(720), color: color.text2 },
     actions: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: s(18), marginTop: s(10) },
   };

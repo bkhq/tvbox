@@ -60,6 +60,8 @@ export function Grid<T>({
         maxToRenderPerBatch={numColumns * 2}
         windowSize={5}
         onEndReachedThreshold={0.5}
+        // TV: D-pad moves straight to the next card and scrolls it in, instead of first paging by half a screen.
+        snapToAlignment="item"
         style={height === undefined ? undefined : { height }}
         contentContainerStyle={styles.content}
         // FlatList rejects columnWrapperStyle for a single column.

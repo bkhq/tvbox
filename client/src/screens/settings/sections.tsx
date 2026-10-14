@@ -1,5 +1,5 @@
 import { type ReactNode, type Ref, useEffect, useState, useSyncExternalStore } from 'react';
-import { Platform, Text, View } from 'react-native';
+import { Platform, View } from 'react-native';
 
 import { getAppConfig } from '../../core/appConfig';
 import { useVodConfig } from '../../core/bootstrap';
@@ -7,12 +7,12 @@ import { selectHome } from '../../core/config';
 import { isServerLinkEnabled, SERVER_LINK_STATE_TEXT, useServerLink } from '../../core/serverLink';
 import { type Settings, SPEED_PRESETS, useSetting } from '../../core/settings';
 import type { ConfigKind } from '../../core/storage';
-import { Button, color, scaledText, useScaledStyles, type Scaler } from '../../ui';
+import { Button, SectionHeader, useScaledStyles, type Scaler } from '../../ui';
 import { checkResultText, getUpdateController, useUpdateCheck } from '../../update';
 import { unsupportedText } from '../home';
 import { clearCache, formatBytes, getCacheSize } from './cache';
 import { CONFIG_TITLE, ConfigPanel, useSavedConfigs } from './ConfigPanel';
-import { useEntryRef } from './entryFocus';
+import { FocusEntry, useEntryRef } from './entryFocus';
 import {
   type BooleanKey,
   type ChoiceKey,
@@ -430,10 +430,7 @@ function SettingsSection({ id, children }: { id: SettingsSectionId; children: Re
   const { title, subtitle } = SECTION[id];
   return (
     <View testID={`settings-section-${id}`} style={styles.section}>
-      <View style={styles.header}>
-        <Text style={styles.title}>{title}</Text>
-        <Text style={styles.subtitle}>{subtitle}</Text>
-      </View>
+      <SectionHeader title={title} caption={subtitle} captionPosition="below" variant="h1" />
       <View style={styles.rows}>{children}</View>
     </View>
   );
@@ -556,42 +553,37 @@ export function SourcesSection({ hasTVPreferredFocus }: SectionProps) {
 export function AboutSection({ hasTVPreferredFocus }: SectionProps) {
   const { versionName, versionCode } = getAppConfig();
   const { checking, lastResult, check } = useUpdateCheck(getUpdateController());
-  const entry = useEntryRef();
   const styles = useScaledStyles(makeStyles);
   return (
     <SettingsSection id="about">
       <SettingRow
-        ref={entry}
         testID="settings-version"
         title="版本"
         value={`${versionName} (${versionCode})`}
         note={lastResult && !checking ? checkResultText(lastResult) : undefined}
         noteTestID="update-result"
         accessory={
-          <Button
-            testID="update-check"
-            title={checking ? '正在检查…' : '检查更新'}
-            size="md"
-            disabled={checking}
-            hasTVPreferredFocus={hasTVPreferredFocus}
-            style={styles.aboutAction}
-            onPress={() => void check(true)}
-          />
+          // The row itself is not focusable, so the panel entry is 检查更新.
+          <FocusEntry enabled>
+            <Button
+              testID="update-check"
+              title={checking ? '正在检查…' : '检查更新'}
+              size="md"
+              disabled={checking}
+              hasTVPreferredFocus={hasTVPreferredFocus}
+              style={styles.aboutAction}
+              onPress={() => void check(true)}
+            />
+          </FocusEntry>
         }
       />
     </SettingsSection>
   );
 }
 
-const makeStyles = (s: Scaler) => {
-  const text = scaledText(s);
-  return {
-    section: { gap: s(28) },
-    header: { gap: s(8) },
-    title: { ...text.h1, color: color.text },
-    subtitle: { ...text.caption, fontSize: s(22), lineHeight: s(30), color: color.text3 },
-    rows: { gap: s(12) },
-    // With the row gap, keeps 24 between the version and the focused button (1.08 zoom plus ring).
-    aboutAction: { marginLeft: s(24) },
-  };
-};
+const makeStyles = (s: Scaler) => ({
+  section: { gap: s(28) },
+  rows: { gap: s(12) },
+  // With the row gap, keeps 24 between the version and the focused button (1.08 zoom plus ring).
+  aboutAction: { marginLeft: s(24) },
+});

@@ -43,26 +43,23 @@ function HeaderActions({ onSwitch }: { onSwitch?: () => void }) {
     <>
       <Button
         testID="home-control"
-        variant="icon"
+        variant="outline"
         icon="phone"
-        size="md"
         accessibilityLabel="手机控制"
         onPress={() => navigation.navigate('Control')}
       />
       <Button
         testID="home-settings"
-        variant="icon"
+        variant="outline"
         icon="settings"
-        size="md"
         accessibilityLabel="设置"
         onPress={() => navigation.navigate('Settings')}
       />
       {onSwitch ? (
         <Button
           testID="home-switch-site"
-          variant="icon"
+          variant="outline"
           icon="switch"
-          size="md"
           accessibilityLabel="切换站点"
           onPress={onSwitch}
         />

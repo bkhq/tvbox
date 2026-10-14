@@ -2,10 +2,10 @@ import { useState } from 'react';
 import { ActivityIndicator, Text, View } from 'react-native';
 
 import type { Live } from '../../core/types';
-import { useMainNav } from '../../navigation/mainNav';
 import { useAppNavigation } from '../../navigation/useAppNavigation';
-import { Button, color, type Scaler, safeArea, scaledText, space, TopNav, useScaledStyles } from '../../ui';
+import { Button, color, type Scaler, safeArea, scaledText, space, useScaledStyles } from '../../ui';
 import { LivePanel } from './LivePanel';
+import { LiveTopNav } from './LiveTopNav';
 
 /** Longest technical detail shown under a status title. */
 export const DETAIL_MAX = 120;
@@ -40,7 +40,6 @@ export interface LiveStatusProps {
 /** Loading / error / empty page of the live screen: the main top bar over a centred status block. */
 export function LiveStatus({ kind, title, detail, lives = [], home = '', onRetry, onSelectLive }: LiveStatusProps) {
   const navigation = useAppNavigation();
-  const nav = useMainNav('live');
   const styles = useScaledStyles(makeStyles);
   const [picking, setPicking] = useState(false);
   const testID = TEST_IDS[kind];
@@ -48,31 +47,7 @@ export function LiveStatus({ kind, title, detail, lives = [], home = '', onRetry
 
   return (
     <View style={styles.page} testID={testID}>
-      <TopNav
-        items={nav.items}
-        onSelect={nav.select}
-        onSearch={() => navigation.navigate('Search')}
-        right={
-          <>
-            <Button
-              testID="live-nav-control"
-              variant="icon"
-              size="md"
-              icon="phone"
-              accessibilityLabel="手机控制"
-              onPress={() => navigation.navigate('Control')}
-            />
-            <Button
-              testID="live-nav-settings"
-              variant="icon"
-              size="md"
-              icon="settings"
-              accessibilityLabel="设置"
-              onPress={() => navigation.navigate('Settings')}
-            />
-          </>
-        }
-      />
+      <LiveTopNav />
       <View style={styles.body}>
         {kind === 'loading' ? (
           <>

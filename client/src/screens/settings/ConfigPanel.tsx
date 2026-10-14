@@ -9,12 +9,11 @@ import {
   createConfigRepository,
   type SavedConfig,
 } from '../../core/storage';
-import { Button, color, useScaledStyles, type Scaler } from '../../ui';
+import { Button, color, OptionRow, useScaledStyles, type Scaler } from '../../ui';
 import { FocusableInput } from '../common';
 import { vodStatusText } from './options';
 import { Panel } from './Panel';
 import { makePanelStyles } from './panels';
-import { SettingRow } from './SettingRow';
 
 /** Saved VOD and live configs; the bootstrap reads the same VOD repository. */
 export const configRepositories: Record<ConfigKind, ConfigRepository> = {
@@ -89,10 +88,10 @@ export function ConfigPanel({ kind, onClose }: { kind: ConfigKind; onClose: () =
       {items.map((entry) => (
         <View key={entry.url} style={styles.item}>
           <View style={styles.itemRow}>
-            <SettingRow
+            <OptionRow
               testID={`settings-config-${entry.url}`}
-              title={entry.name || entry.url}
-              note={entry.name ? entry.url : undefined}
+              label={entry.name || entry.url}
+              hint={entry.name ? entry.url : undefined}
               selected={entry.url === active?.url}
               raised
               hasTVPreferredFocus={entry.url === preferred?.url}

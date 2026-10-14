@@ -1,4 +1,4 @@
-import { FlatList, StyleSheet, Text } from 'react-native';
+import { FlatList, StyleSheet, Text, View } from 'react-native';
 import { act, create, type ReactTestInstance, type ReactTestRenderer } from 'react-test-renderer';
 
 import { Grid } from '../Grid';
@@ -55,17 +55,41 @@ describe('Grid', () => {
     expect(list(renderer)).not.toBe(first);
   });
 
-  it('pads by the safe area with a focus bleed and gaps the cards by 24', async () => {
+  it('pads by the safe area with a focus bleed that fits the ring and gaps the cards by 24', async () => {
     const renderer = await render(<Grid data={data} keyExtractor={(item) => item} renderItem={renderItem} />);
     expect(StyleSheet.flatten(list(renderer).props.contentContainerStyle)).toEqual({
       paddingHorizontal: 96,
-      paddingVertical: 16,
+      paddingVertical: 20,
       gap: 24,
     });
     expect(StyleSheet.flatten(list(renderer).props.columnWrapperStyle)).toEqual({ gap: 24 });
 
     const single = await render(<Grid columns={1} data={data} keyExtractor={(item) => item} renderItem={renderItem} />);
     expect(list(single).props.columnWrapperStyle).toBeUndefined();
+  });
+
+  it('pins the list to the height its flex frame is given so it scrolls to the focused row', async () => {
+    const renderer = await render(<Grid data={data} keyExtractor={(item) => item} renderItem={renderItem} />);
+    const [frame] = renderer.root.findAllByType(View) as [ReactTestInstance];
+    expect(StyleSheet.flatten(frame.props.style)).toEqual({ flex: 1 });
+    expect(list(renderer).props.style).toBeUndefined();
+
+    await act(async () => frame.props.onLayout({ nativeEvent: { layout: { x: 0, y: 0, width: 1920, height: 858 } } }));
+    expect(StyleSheet.flatten(list(renderer).props.style)).toEqual({ height: 858 });
+    // Cancels the cell batch the resize scheduled.
+    await act(async () => renderer.unmount());
+  });
+
+  it('takes a custom inset and gap in design px', async () => {
+    const renderer = await render(
+      <Grid inset={40} gap={16} data={data} keyExtractor={(item) => item} renderItem={renderItem} />,
+    );
+    expect(StyleSheet.flatten(list(renderer).props.contentContainerStyle)).toEqual({
+      paddingHorizontal: 40,
+      paddingVertical: 20,
+      gap: 16,
+    });
+    expect(StyleSheet.flatten(list(renderer).props.columnWrapperStyle)).toEqual({ gap: 16 });
   });
 
   it('passes the list props through', async () => {

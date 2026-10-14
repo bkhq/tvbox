@@ -3,11 +3,10 @@ import { Text, View } from 'react-native';
 
 import { SERVER_LINK_STATE_TEXT, useServerLink } from '../../core/serverLink';
 import { useSetting } from '../../core/settings';
-import { Button, color, fontFamily, scaledText, tabular, useScaledStyles, type Scaler } from '../../ui';
+import { Button, color, fontFamily, OptionRow, scaledText, tabular, useScaledStyles, type Scaler } from '../../ui';
 import { FocusableInput } from '../common';
 import { formatText, STEPS, stepValue, type StepKey, type TextKey } from './options';
 import { Panel } from './Panel';
-import { SettingRow } from './SettingRow';
 
 export interface PickerOption<T> {
   value: T;
@@ -38,11 +37,11 @@ export function OptionPanel<T>({
   return (
     <Panel title={title} onClose={onClose}>
       {options.map((option) => (
-        <SettingRow
+        <OptionRow
           key={String(option.value)}
           testID={`${testIDPrefix}-${String(option.value)}`}
-          title={option.label}
-          note={option.note}
+          label={option.label}
+          hint={option.note}
           disabled={option.disabled}
           selected={option.value === value}
           raised

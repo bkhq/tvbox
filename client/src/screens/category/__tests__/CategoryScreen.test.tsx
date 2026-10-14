@@ -138,6 +138,7 @@ describe('CategoryScreen', () => {
     expect(cardIds(renderer)).toEqual(['vod-card-all-1-1', 'vod-card-all-1-2']);
     expect(byTestId(renderer, 'vod-card-all-1-1').props.hasTVPreferredFocus).toBe(true);
     expect(byTestId(renderer, 'category-filter-toggle').props.hasTVPreferredFocus).toBe(false);
+    expect(byTestId(renderer, 'category-filter-toggle').props.icon).toBe('filter');
     expect(byTestId(renderer, 'category-back').props.hasTVPreferredFocus).toBeUndefined();
     expect(byTestId(renderer, 'vod-card-all-1-1').props).toMatchObject({ width: 224, meta: '更新至1集' });
     expect(renderer.root.findByType(FlatList).props.numColumns).toBe(7);

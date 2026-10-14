@@ -200,6 +200,9 @@ describe('HomeScreen', () => {
     expect(mockNavigate).toHaveBeenLastCalledWith('Live');
     await act(async () => byTestID(renderer, 'top-nav-search').props.onPress());
     expect(mockNavigate).toHaveBeenLastCalledWith('Search');
+    expect(
+      ['home-control', 'home-settings', 'home-switch-site'].map((id) => byTestID(renderer, id).props.variant),
+    ).toEqual(['outline', 'outline', 'outline']);
     await act(async () => byTestID(renderer, 'home-control').props.onPress());
     expect(mockNavigate).toHaveBeenLastCalledWith('Control');
     await act(async () => byTestID(renderer, 'home-settings').props.onPress());
@@ -403,6 +406,8 @@ describe('HomeScreen', () => {
     expect(preferred(renderer)).toEqual(['vod-card-cms-tv-1']);
     expect(getMainNavAvailability()).toEqual({ series: true, movie: true });
 
+    expect(byTestID(renderer, 'home-section-title').props.variant).toBe('h1');
+    expect(byTestID(renderer, 'home-section-filter').props.icon).toBe('filter');
     await act(async () => byTestID(renderer, 'home-section-filter').props.onPress());
     expect(mockNavigate).toHaveBeenLastCalledWith('Category', { siteKey: 'cms', typeId: 'tv', typeName: '剧集' });
     await act(async () => byTestID(renderer, 'vod-card-cms-tv-1').props.onPress());
@@ -439,14 +444,12 @@ describe('HomeScreen', () => {
         'CMS 站',
         'XML 站',
         'Py 站',
-        '首页',
         '不支持：JAR 爬虫',
         '不支持：Python 爬虫',
       ]),
     );
-    expect(texts(byTestID(renderer, 'home-site-cms'))).toContain('首页');
-    // Badge pins itself to the top; the row centres it.
-    expect(byTestID(renderer, 'home-site-badge').props.style).toMatchObject({ alignSelf: 'center' });
+    expect(byTestID(renderer, 'home-site-cms').props.selected).toBe(true);
+    expect(byTestID(renderer, 'home-site-xml').props.selected).toBe(false);
     expect(byTestID(renderer, 'home-site-jar').props.disabled).toBe(true);
     expect(preferred(renderer)).toEqual(['home-site-cms']);
     // The list is capped so a long site list scrolls instead of pushing 关闭 off screen.

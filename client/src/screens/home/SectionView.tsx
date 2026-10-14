@@ -1,10 +1,10 @@
-import { Text, View } from 'react-native';
+import { View } from 'react-native';
 
 import { getProvider } from '../../core/provider';
 import type { Class, Site, Vod } from '../../core/types';
 // Not the navigation barrel: it imports the route table, which imports this screen.
 import { useAppNavigation } from '../../navigation/useAppNavigation';
-import { Button, color, safeArea, scaledText, space, useScaledStyles, type Scaler } from '../../ui';
+import { Button, safeArea, SectionHeader, space, useScaledStyles, type Scaler } from '../../ui';
 import { ErrorView, openVod, usePagedList, VodGrid } from '../common';
 
 /** 剧集 / 电影: the class backing the section as a paged poster grid, the filters one press away. */
@@ -21,11 +21,9 @@ export function SectionView({ site, cls, preferFocus }: { site: Site; cls: Class
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <Text testID="home-section-title" numberOfLines={1} style={styles.title}>
-          {cls.type_name}
-        </Text>
+        <SectionHeader testID="home-section-title" title={cls.type_name} variant="h1" />
         {cls.filters.length > 0 ? (
-          <Button testID="home-section-filter" title="筛选" size="md" onPress={category} />
+          <Button testID="home-section-filter" title="筛选" icon="filter" size="md" onPress={category} />
         ) : null}
       </View>
       {list.error && list.items.length === 0 ? (
@@ -58,5 +56,4 @@ const makeStyles = (s: Scaler) => ({
     paddingHorizontal: s(safeArea.horizontal),
     paddingBottom: s(space.xs),
   },
-  title: { ...scaledText(s).h1, color: color.text },
 });

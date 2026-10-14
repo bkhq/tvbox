@@ -4,7 +4,7 @@ import { ScrollView, Text, View } from 'react-native';
 import type { Vod } from '../../core/types';
 // Not the navigation barrel: it imports the route table, which imports the search screen.
 import { useAppNavigation } from '../../navigation/useAppNavigation';
-import { Chip, color, safeArea, scaledText, space, useScaledStyles, type Scaler } from '../../ui';
+import { Chip, color, safeArea, scaledText, SectionHeader, space, useScaledStyles, type Scaler } from '../../ui';
 import { displayRemarks, openVod, VodGrid } from '../common';
 import type { SearchProgress, SiteGroup } from './searchSites';
 
@@ -66,10 +66,12 @@ export function Results({ keyword, progress }: ResultsProps) {
 
   return (
     <View testID="search-results" style={styles.container}>
-      <View style={styles.header}>
-        <Text numberOfLines={1} style={styles.title}>{`“${keyword}” 的搜索结果`}</Text>
-        <Text style={styles.caption}>{done ? `${count} 个结果` : `${count} 个结果 · 搜索中…`}</Text>
-      </View>
+      <SectionHeader
+        title={`“${keyword}” 的搜索结果`}
+        caption={done ? `${count} 个结果` : `${count} 个结果 · 搜索中…`}
+        captionPosition="below"
+        variant="h1"
+      />
       {groups.length > 0 ? (
         <ScrollView
           testID="search-filters"
@@ -109,9 +111,6 @@ const makeStyles = (s: Scaler) => {
   const text = scaledText(s);
   return {
     container: { flex: 1 },
-    header: { gap: s(space.xs) },
-    title: { ...text.h1, color: color.text },
-    caption: { ...text.caption, fontSize: s(22), lineHeight: s(30), color: color.text3 },
     filters: { flexGrow: 0, marginTop: s(space.md), overflow: 'visible' as const },
     filterRow: { gap: s(12) },
     grid: { flex: 1, marginTop: s(space.xs), marginHorizontal: -s(safeArea.horizontal) },

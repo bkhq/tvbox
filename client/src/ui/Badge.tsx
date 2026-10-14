@@ -36,7 +36,6 @@ const makeStyles = (s: Scaler) => {
     badge: {
       flexDirection: 'row' as const,
       alignItems: 'center' as const,
-      alignSelf: 'flex-start' as const,
       gap: s(8),
       paddingVertical: s(4),
       paddingHorizontal: s(10),

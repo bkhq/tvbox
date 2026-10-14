@@ -18,10 +18,17 @@ export function subtitleName(url: string): string {
   return name || '外挂字幕';
 }
 
-/** OSD subtitle line: "第 N 集·<name>", or just the name when it already reads like "第N集". */
+/** A name that is already an episode label, e.g. "第3集", "第 十 话", "EP03", "E3". */
+const EPISODE_NAME = /^(第\s*[\d零一二三四五六七八九十百千]+\s*[集话期回]|EP?\s*\d+)$/i;
+
+/**
+ * OSD subtitle line: "第 N 集·<name>"; just "第 N 集" for an empty or bare-number name,
+ * and the name itself when it already reads like an episode label.
+ */
 export function episodeLabel(index: number, name: string): string {
-  if (/^第\s*\d+\s*[集话期]$/.test(name.trim())) return name;
-  return name ? `第 ${index + 1} 集·${name}` : `第 ${index + 1} 集`;
+  const trimmed = name.trim();
+  if (EPISODE_NAME.test(trimmed)) return trimmed;
+  return trimmed && !/^\d+$/.test(trimmed) ? `第 ${index + 1} 集·${name}` : `第 ${index + 1} 集`;
 }
 
 const CHINESE = new Set(['zh', 'chi', 'zho', 'cmn']);

@@ -135,14 +135,16 @@ const episodeTitles = (renderer: ReactTestRenderer) =>
     .filter((node) => node.props.title !== undefined)
     .map((node) => node.props.title as string);
 
-/** Text of the flag picker; the chevron must follow it. */
+/** Title of the flag picker button; a chevron icon must follow it. */
 function flagPickerName(renderer: ReactTestRenderer): string {
-  const ids = byTestId(renderer, 'detail-flag-picker')
-    .findAll((node) => typeof node.type !== 'string' && typeof node.props.testID === 'string')
-    .map((node) => node.props.testID as string)
-    .filter((id, index, list) => list.indexOf(id) === index);
-  expect(ids.slice(-2)).toEqual(['detail-flag-picker-name', 'detail-flag-picker-chevron']);
-  return byTestId(renderer, 'detail-flag-picker-name').props.children as string;
+  const picker = byTestId(renderer, 'detail-flag-picker');
+  expect(picker.props.trailingIcon).toBe('chevronDown');
+  const parts = picker
+    .findAll((node) => node.type === Text || (typeof node.type !== 'string' && node.props.name === 'chevronDown'))
+    .map((node) => (node.type === Text ? 'text' : 'chevron'))
+    .filter((part, index, list) => list.indexOf(part) === index);
+  expect(parts).toEqual(['text', 'chevron']);
+  return picker.props.title as string;
 }
 
 const flat = (renderer: ReactTestRenderer, testID: string) =>
@@ -260,7 +262,7 @@ describe('DetailScreen', () => {
     const { renderer } = await render({ siteKey: 'cms', vodId: 'v1' });
     expect(has(renderer, 'detail-flag-1')).toBe(false);
     await act(async () => byTestId(renderer, 'detail-flag-picker').props.onPress());
-    expect(byTestId(renderer, 'detail-flag-0').props).toMatchObject({ label: 'a', selected: true });
+    expect(byTestId(renderer, 'detail-flag-0').props).toMatchObject({ label: 'a', selected: true, variant: 'accent' });
     expect(byTestId(renderer, 'detail-flag-1').props).toMatchObject({ label: 'b', selected: false });
     await act(async () => byTestId(renderer, 'detail-flag-1').props.onPress());
     expect(has(renderer, 'detail-flag-1')).toBe(false);

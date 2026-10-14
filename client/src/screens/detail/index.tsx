@@ -41,6 +41,14 @@ type DetailTab = 'episodes' | 'similar' | 'cast';
 const TITLE_LINE_HEIGHT = 1.15;
 /** Design: the tab section's 8 gap plus the card row's 24 top padding between the tab row and the cards. */
 export const EPISODES_TOP = 32;
+/** Widest play button in design px (继续播放 with a long episode name is ~480). */
+const ACTION_MAX_WIDTH = 560;
+/**
+ * Action gap, as Home's hero: a focused button grows by (scale - 1) / 2 of its width per side and its ring (gap +
+ * width, also scaled) sits outside that, so 片单 keeps space.xs of clearance. 32 + 8 = 40.
+ */
+export const DETAIL_ACTION_GAP =
+  Math.ceil(((focus.scale - 1) / 2) * ACTION_MAX_WIDTH + (focus.ringGap + focus.ringWidth) * focus.scale) + space.xs;
 
 /** Page frame: background, optional backdrop and the back pill. `fill` stretches the content to the viewport. */
 function Page({
@@ -288,7 +296,7 @@ function DetailBody({
   return (
     <Page pic={vod.vod_pic} testID="detail-body">
       <Info vod={vod} />
-      <View style={styles.actions}>
+      <View style={styles.actions} testID="detail-actions">
         {resumeEpisode && resumeFlag !== undefined ? (
           <Button
             testID="detail-resume"
@@ -317,15 +325,13 @@ function DetailBody({
           onPress={() => void toggleKeep()}
         />
       </View>
-      {/* Left/right stay in the row; up/down leave it, and entering it lands on the selected tab. */}
-      <TVFocusGuideView
-        testID="detail-tab-bar"
-        style={styles.tabBar}
-        destinations={tabDestinations}
-        trapFocusLeft
-        trapFocusRight
-      >
-        <View style={styles.tabs}>
+      {/* Left/right stay in the row; up/down leave it. */}
+      <TVFocusGuideView testID="detail-tab-bar" style={styles.tabBar} trapFocusLeft trapFocusRight>
+        {/*
+         * Entering the tabs lands on the selected one. Only the tabs: Android ranks a candidate by the distance
+         * between centres, so a full-width guide loses D-pad up from the cards to the play button.
+         */}
+        <TVFocusGuideView testID="detail-tabs" style={styles.tabs} destinations={tabDestinations}>
           <TabSlot name="episodes" onSlot={onTabSlot}>
             <Tab
               testID="detail-tab-episodes"
@@ -350,7 +356,7 @@ function DetailBody({
               <Tab testID="detail-tab-cast" label="演职员" active={tab === 'cast'} onPress={() => setTab('cast')} />
             </TabSlot>
           ) : null}
-        </View>
+        </TVFocusGuideView>
         {tab === 'episodes' && flag ? (
           <View style={styles.tabTools} testID="detail-tab-tools">
             <FlagPicker flags={flags} flagIndex={flagIndex} onSelect={setFlagIndex} />
@@ -502,7 +508,7 @@ const makeStyles = (s: Scaler) => {
     actions: {
       flexDirection: 'row' as const,
       alignItems: 'center' as const,
-      gap: s(18),
+      gap: s(DETAIL_ACTION_GAP),
       marginTop: s(28),
       paddingHorizontal: s(safeArea.horizontal),
     },

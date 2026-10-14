@@ -21,7 +21,7 @@ import { normalizeResult, type Result } from '../../../core/types';
 import { getHistoryRepository, getKeepRepository, setUserDataStore } from '../../../core/userData';
 import type { RootStackScreenProps } from '../../../navigation/types';
 import { card, focus, space, type } from '../../../ui';
-import DetailScreen, { EPISODES_TOP } from '..';
+import DetailScreen, { DETAIL_ACTION_GAP, EPISODES_TOP } from '..';
 import { FLAG_PICKER_GAP } from '../FlagPicker';
 
 // react-native resolves components lazily on first access; resolve the ones the
@@ -148,8 +148,9 @@ function flagPickerName(renderer: ReactTestRenderer): string {
 const flat = (renderer: ReactTestRenderer, testID: string) =>
   StyleSheet.flatten(byTestId(renderer, testID).props.style);
 
-const tabBar = (renderer: ReactTestRenderer) =>
-  renderer.root.findAllByType(TVFocusGuideView).find((node) => node.props.testID === 'detail-tab-bar')!;
+const guideOf = (renderer: ReactTestRenderer, testID: string) =>
+  renderer.root.findAllByType(TVFocusGuideView).find((node) => node.props.testID === testID)!;
+const tabBar = (renderer: ReactTestRenderer) => guideOf(renderer, 'detail-tab-bar');
 
 /** The rendered title and the screen's scale factor, derived from it. */
 function title(renderer: ReactTestRenderer, name: string) {
@@ -408,11 +409,18 @@ describe('DetailScreen', () => {
   it('lands focus entering the tab row on the selected tab and keeps left/right in the row', async () => {
     mockProvider([VOD], [{ vod_id: 'v1', vod_name: '测试影片' }]);
     const { renderer } = await render({ siteKey: 'cms', vodId: 'v1' });
+    const inside = (parent: string | ReturnType<typeof tabBar>, testID: string) =>
+      (typeof parent === 'string' ? byTestId(renderer, parent) : parent).findAll((node) => node.props.testID === testID)
+        .length > 0;
     const guide = () => {
-      const { destinations, trapFocusLeft, trapFocusRight, trapFocusUp, trapFocusDown } = tabBar(renderer).props;
+      const { destinations, ...bar } = tabBar(renderer).props;
+      const { trapFocusLeft, trapFocusRight, trapFocusUp, trapFocusDown } = bar;
+      const tabs = guideOf(renderer, 'detail-tabs').props;
       // The jest View is a component instance; its testID names the tab slot.
-      const slots = (destinations as { props: { testID: string } }[] | undefined)?.map((view) => view.props.testID);
-      return { slots, trapFocusLeft, trapFocusRight, trapFocusUp, trapFocusDown };
+      const slots = (tabs.destinations as { props: { testID: string } }[] | undefined)?.map(
+        (view) => view.props.testID,
+      );
+      return { slots, barDestinations: destinations, trapFocusLeft, trapFocusRight, trapFocusUp, trapFocusDown };
     };
     expect(guide()).toMatchObject({ trapFocusLeft: true, trapFocusRight: true });
     // Up and down still leave the row.
@@ -420,9 +428,11 @@ describe('DetailScreen', () => {
     expect(guide().trapFocusDown).toBeUndefined();
     // D-pad down from 立即播放 lands on 剧集, not the nearest tab.
     expect(guide().slots).toEqual(['detail-tab-slot-episodes']);
-    const inside = (parent: string | ReturnType<typeof tabBar>, testID: string) =>
-      (typeof parent === 'string' ? byTestId(renderer, parent) : parent).findAll((node) => node.props.testID === testID)
-        .length > 0;
+    // The redirecting guide wraps only the tabs, so its centre sits over the first cards (D-pad up lands on it);
+    // the row-wide trap has no destinations of its own.
+    expect(guide().barDestinations).toBeUndefined();
+    expect(inside(tabBar(renderer), 'detail-tabs')).toBe(true);
+    expect(inside(guideOf(renderer, 'detail-tabs'), 'detail-flag-picker')).toBe(false);
     expect(inside('detail-tab-slot-episodes', 'detail-tab-episodes')).toBe(true);
     // The flag picker and 倒序 are in the trapped row too.
     expect(inside(tabBar(renderer), 'detail-flag-picker')).toBe(true);
@@ -463,7 +473,7 @@ describe('DetailScreen', () => {
     await act(async () => long.renderer.unmount());
   });
 
-  it('keeps the focused episode and flag picker rings clear of the tabs and the sort chip', async () => {
+  it('keeps the focused episode, flag picker and play button rings clear of their neighbours', async () => {
     mockProvider();
     const { renderer } = await render({ siteKey: 'cms', vodId: 'v1' });
     const k = (title(renderer, '测试影片').fontSize as number) / type.display.fontSize;
@@ -481,6 +491,11 @@ describe('DetailScreen', () => {
     const pickerGrowth = ((focus.scale - 1) / 2) * maxWidth + (focus.ringGap + focus.ringWidth) * focus.scale * k;
     expect(FLAG_PICKER_GAP * k).toBeGreaterThanOrEqual(pickerGrowth + space.xs * k);
     expect(FLAG_PICKER_GAP).toBe(28);
+    // A focused play button (up to ~560 wide) zooms and rings short of 片单, as Home's hero actions.
+    expect(flat(renderer, 'detail-actions').gap).toBeCloseTo(DETAIL_ACTION_GAP * k, 0);
+    const playGrowth = ((focus.scale - 1) / 2) * 560 + (focus.ringGap + focus.ringWidth) * focus.scale;
+    expect(DETAIL_ACTION_GAP).toBeGreaterThanOrEqual(playGrowth + space.xs);
+    expect(DETAIL_ACTION_GAP).toBe(40);
     await act(async () => renderer.unmount());
   });
 

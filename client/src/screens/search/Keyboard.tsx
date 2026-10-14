@@ -1,125 +1,106 @@
-import { useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Text, View } from 'react-native';
 
-import { colors, fontSize, radius, spacing } from '../../ui';
+import {
+  AnimatedPressable,
+  color,
+  focus,
+  FocusRing,
+  fontFamily,
+  Icon,
+  radii,
+  scaledText,
+  useFocusAnimation,
+  useScaledStyles,
+  type Scaler,
+} from '../../ui';
 
 const COLUMNS = 6;
-const CHARS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'.split('');
+const CHARS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890'.split('');
+/** Width of the keyboard column in design px. */
+export const KEYBOARD_WIDTH = 516;
+const KEY_GAP = 12;
+const KEY_SIZE = (KEYBOARD_WIDTH - KEY_GAP * (COLUMNS - 1)) / COLUMNS;
 
 export interface KeyboardProps {
-  /** Width of one key; keys are square. */
-  keySize: number;
-  quick: boolean;
   onChar: (char: string) => void;
   onBackspace: () => void;
   onClear: () => void;
-  onToggleQuick: () => void;
-  onSearch: () => void;
   hasTVPreferredFocus?: boolean;
 }
 
 function Key({
   label,
+  icon,
   span = 1,
-  size,
-  selected,
   onPress,
   onLongPress,
   hasTVPreferredFocus,
   testID,
 }: {
   label: string;
+  icon?: 'backspace';
   span?: number;
-  size: number;
-  selected?: boolean;
   onPress: () => void;
   onLongPress?: () => void;
   hasTVPreferredFocus?: boolean;
   testID: string;
 }) {
-  const [focused, setFocused] = useState(false);
+  const styles = useScaledStyles(makeStyles);
+  const { focused, animatedStyle, handlers } = useFocusAnimation();
+  const fg = focused ? color.inverseText : color.text;
   return (
-    <Pressable
+    <AnimatedPressable
       testID={testID}
       accessibilityRole="button"
       accessibilityLabel={label}
-      accessibilityState={{ selected }}
       hasTVPreferredFocus={hasTVPreferredFocus}
       onPress={onPress}
       onLongPress={onLongPress}
-      onFocus={() => setFocused(true)}
-      onBlur={() => setFocused(false)}
-      style={[
-        styles.key,
-        { width: size * span + KEY_GAP * 2 * (span - 1), height: size },
-        selected && styles.selected,
-        focused && styles.focused,
-      ]}
+      {...handlers}
+      style={[styles.key, span > 1 && styles.wide, focused && styles.focused, animatedStyle]}
     >
-      <Text style={[styles.label, focused && styles.focusedLabel]}>{label}</Text>
-    </Pressable>
+      {focused ? <FocusRing radius={styles.key.borderRadius} /> : null}
+      {icon ? (
+        <Icon name={icon} size={30} color={fg} />
+      ) : (
+        <Text style={[styles.label, span > 1 && styles.wideLabel, { color: fg }]}>{label}</Text>
+      )}
+    </AnimatedPressable>
   );
 }
 
-const KEY_GAP = spacing.xs / 2;
-
-/** SearchActivity's on-screen keyboard: edit keys on top, then A-Z and 0-9. */
-export function Keyboard({
-  keySize,
-  quick,
-  onChar,
-  onBackspace,
-  onClear,
-  onToggleQuick,
-  onSearch,
-  hasTVPreferredFocus,
-}: KeyboardProps) {
-  const rows: string[][] = [];
-  for (let i = 0; i < CHARS.length; i += COLUMNS) rows.push(CHARS.slice(i, i + COLUMNS));
+/** Search page keyboard: A-Z and 1-0 in six columns, then backspace (long press clears) and 清空. */
+export function Keyboard({ onChar, onBackspace, onClear, hasTVPreferredFocus }: KeyboardProps) {
+  const styles = useScaledStyles(makeStyles);
   return (
-    <View testID="search-keyboard">
-      <View style={styles.row}>
-        <Key testID="search-key-clear" label="清空" size={keySize} onPress={onClear} />
-        <Key testID="search-key-backspace" label="⌫" size={keySize} onPress={onBackspace} onLongPress={onClear} />
-        <Key testID="search-quick" label="快速" span={2} size={keySize} selected={quick} onPress={onToggleQuick} />
-        <Key testID="search-submit" label="搜索" span={2} size={keySize} onPress={onSearch} />
-      </View>
-      {rows.map((row) => (
-        <View key={row[0]} style={styles.row}>
-          {row.map((char) => (
-            <Key
-              key={char}
-              testID={`search-key-${char}`}
-              label={char}
-              size={keySize}
-              hasTVPreferredFocus={hasTVPreferredFocus === true && char === 'A'}
-              onPress={() => onChar(char)}
-            />
-          ))}
-        </View>
+    <View testID="search-keyboard" style={styles.grid}>
+      {CHARS.map((char) => (
+        <Key
+          key={char}
+          testID={`search-key-${char}`}
+          label={char}
+          hasTVPreferredFocus={hasTVPreferredFocus === true && char === 'A'}
+          onPress={() => onChar(char)}
+        />
       ))}
+      <Key testID="search-key-backspace" label="删除" icon="backspace" onPress={onBackspace} onLongPress={onClear} />
+      <Key testID="search-key-clear" label="清空" span={2} onPress={onClear} />
     </View>
   );
 }
 
-/** Total width of the keyboard for a key size. */
-export function keyboardWidth(keySize: number): number {
-  return COLUMNS * (keySize + KEY_GAP * 2);
-}
-
-const styles = StyleSheet.create({
-  row: { flexDirection: 'row' },
+const makeStyles = (s: Scaler) => ({
+  grid: { flexDirection: 'row' as const, flexWrap: 'wrap' as const, gap: s(KEY_GAP), width: s(KEYBOARD_WIDTH) },
   key: {
-    margin: KEY_GAP,
-    borderRadius: radius.md,
-    borderWidth: 2,
-    borderColor: 'transparent',
-    backgroundColor: colors.surface,
-    alignItems: 'center',
-    justifyContent: 'center',
+    width: s(KEY_SIZE),
+    height: s(KEY_SIZE),
+    borderRadius: s(radii.card),
+    alignItems: 'center' as const,
+    justifyContent: 'center' as const,
+    backgroundColor: color.surface,
   },
-  selected: { backgroundColor: colors.primary },
-  focused: { borderColor: colors.focusBorder, backgroundColor: colors.text },
-  label: { color: colors.text, fontSize: fontSize.body },
-  focusedLabel: { color: colors.background },
+  wide: { width: s(KEY_SIZE * 2 + KEY_GAP) },
+  focused: { backgroundColor: focus.borderColor },
+  label: { ...scaledText(s).h2, fontSize: s(30) },
+  wideLabel: { fontFamily: fontFamily.semiBold, fontSize: s(24) },
 });

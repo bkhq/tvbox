@@ -19,7 +19,10 @@ export interface OptionRowProps extends Omit<FocusableProps, 'onLongPress'> {
   raised?: boolean;
 }
 
-/** Full-width selectable row of settings lists, player panels and pickers; inverted with a ring when focused. */
+/**
+ * Full-width selectable row of settings lists, player panels and pickers; inverted with a ring when focused.
+ * Unlike cards it never zooms: a 4% zoom of a list-wide row would overflow any list bleed.
+ */
 export function OptionRow({
   label,
   value,
@@ -35,7 +38,7 @@ export function OptionRow({
   testID,
   ...nextFocus
 }: OptionRowProps) {
-  const { focused, animatedStyle, handlers } = useFocusAnimation({ onFocus, onBlur });
+  const { focused, handlers } = useFocusAnimation({ onFocus, onBlur });
   const styles = useScaledStyles(makeStyles);
   return (
     <AnimatedPressable
@@ -53,7 +56,6 @@ export function OptionRow({
         focused && styles.focused,
         disabled && styles.disabled,
         style,
-        animatedStyle,
       ]}
       {...nextFocus}
     >

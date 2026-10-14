@@ -53,6 +53,7 @@ describe('ui exports', () => {
         'Icon',
         'iconNames',
         'Logo',
+        'OptionRow',
         'PosterCard',
         'Row',
         'SectionHeader',
@@ -64,7 +65,22 @@ describe('ui exports', () => {
   });
 
   it('exports usable values', () => {
-    const { BackButton, Badge, Button, Chip, Clock, FocusRing, Grid, Icon, Logo, Row, SectionHeader, Tab, TopNav } = ui;
+    const {
+      BackButton,
+      Badge,
+      Button,
+      Chip,
+      Clock,
+      FocusRing,
+      Grid,
+      Icon,
+      Logo,
+      OptionRow,
+      Row,
+      SectionHeader,
+      Tab,
+      TopNav,
+    } = ui;
     for (const component of [
       BackButton,
       Badge,
@@ -75,6 +91,7 @@ describe('ui exports', () => {
       Grid,
       Icon,
       Logo,
+      OptionRow,
       Row,
       SectionHeader,
       Tab,
@@ -86,7 +103,7 @@ describe('ui exports', () => {
     for (const component of [ui.PosterCard, ui.WideCard, ui.ChannelCard, ui.AnimatedPressable]) {
       expect(component).toBeTruthy();
     }
-    expect(ui.iconNames).toContain('logo');
+    expect(ui.iconNames).toEqual(expect.arrayContaining(['logo', 'filter']));
     expect(ui.formatClock(new Date(2026, 0, 1, 9, 5))).toBe('09:05');
   });
 });
@@ -108,6 +125,7 @@ export type ExportedTypes = [
   ui.IconName,
   ui.IconProps,
   ui.LogoProps,
+  ui.OptionRowProps,
   ui.PosterCardProps,
   ui.RowProps<unknown>,
   ui.SectionHeaderProps,

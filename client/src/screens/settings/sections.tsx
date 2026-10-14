@@ -1,5 +1,5 @@
 import { type ReactNode, type Ref, useEffect, useState, useSyncExternalStore } from 'react';
-import { Platform, Text, View } from 'react-native';
+import { Platform, View } from 'react-native';
 
 import { getAppConfig } from '../../core/appConfig';
 import { useVodConfig } from '../../core/bootstrap';
@@ -7,7 +7,7 @@ import { selectHome } from '../../core/config';
 import { isServerLinkEnabled, SERVER_LINK_STATE_TEXT, useServerLink } from '../../core/serverLink';
 import { type Settings, SPEED_PRESETS, useSetting } from '../../core/settings';
 import type { ConfigKind } from '../../core/storage';
-import { Button, color, scaledText, useScaledStyles, type Scaler } from '../../ui';
+import { Button, SectionHeader, useScaledStyles, type Scaler } from '../../ui';
 import { checkResultText, getUpdateController, useUpdateCheck } from '../../update';
 import { unsupportedText } from '../home';
 import { clearCache, formatBytes, getCacheSize } from './cache';
@@ -430,10 +430,7 @@ function SettingsSection({ id, children }: { id: SettingsSectionId; children: Re
   const { title, subtitle } = SECTION[id];
   return (
     <View testID={`settings-section-${id}`} style={styles.section}>
-      <View style={styles.header}>
-        <Text style={styles.title}>{title}</Text>
-        <Text style={styles.subtitle}>{subtitle}</Text>
-      </View>
+      <SectionHeader title={title} caption={subtitle} captionPosition="below" variant="h1" />
       <View style={styles.rows}>{children}</View>
     </View>
   );
@@ -583,15 +580,9 @@ export function AboutSection({ hasTVPreferredFocus }: SectionProps) {
   );
 }
 
-const makeStyles = (s: Scaler) => {
-  const text = scaledText(s);
-  return {
-    section: { gap: s(28) },
-    header: { gap: s(8) },
-    title: { ...text.h1, color: color.text },
-    subtitle: { ...text.caption, fontSize: s(22), lineHeight: s(30), color: color.text3 },
-    rows: { gap: s(12) },
-    // With the row gap, keeps 24 between the version and the focused button (1.08 zoom plus ring).
-    aboutAction: { marginLeft: s(24) },
-  };
-};
+const makeStyles = (s: Scaler) => ({
+  section: { gap: s(28) },
+  rows: { gap: s(12) },
+  // With the row gap, keeps 24 between the version and the focused button (1.08 zoom plus ring).
+  aboutAction: { marginLeft: s(24) },
+});

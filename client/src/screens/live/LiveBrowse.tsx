@@ -3,8 +3,6 @@ import { FlatList, Image, ScrollView, StyleSheet, Text, TVFocusGuideView, View }
 import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg';
 
 import type { Channel, Group } from '../../core/types';
-import { useMainNav } from '../../navigation/mainNav';
-import { useAppNavigation } from '../../navigation/useAppNavigation';
 import { sameChannel } from '../../player/live/channel';
 import {
   AnimatedPressable,
@@ -23,13 +21,13 @@ import {
   scaledText,
   space,
   tabular,
-  TopNav,
   useFocusAnimation,
   useScale,
   useScaledStyles,
 } from '../../ui';
 import { isFavourite } from './liveFavourites';
 import { shortDetail } from './LiveStatus';
+import { LiveTopNav } from './LiveTopNav';
 import {
   channelNumberLabel,
   itemForSelection,
@@ -90,8 +88,6 @@ export function LiveBrowse({
   onToggleFavourite,
   error,
 }: LiveBrowseProps) {
-  const navigation = useAppNavigation();
-  const nav = useMainNav('live');
   const { s } = useScale();
   const styles = useScaledStyles(makeStyles);
   const [now, setNow] = useState(Date.now);
@@ -160,31 +156,7 @@ export function LiveBrowse({
           </View>
         </View>
       ) : null}
-      <TopNav
-        items={nav.items}
-        onSelect={nav.select}
-        onSearch={() => navigation.navigate('Search')}
-        right={
-          <>
-            <Button
-              testID="live-nav-control"
-              variant="icon"
-              size="md"
-              icon="phone"
-              accessibilityLabel="手机控制"
-              onPress={() => navigation.navigate('Control')}
-            />
-            <Button
-              testID="live-nav-settings"
-              variant="icon"
-              size="md"
-              icon="settings"
-              accessibilityLabel="设置"
-              onPress={() => navigation.navigate('Settings')}
-            />
-          </>
-        }
-      />
+      <LiveTopNav />
       <View style={styles.bottom}>
         <TVFocusGuideView autoFocus style={styles.groups}>
           <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.groupList}>

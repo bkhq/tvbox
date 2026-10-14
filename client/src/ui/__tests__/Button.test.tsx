@@ -1,8 +1,14 @@
 import { Animated, Pressable, StyleSheet, Text, View } from 'react-native';
 import { act, create, type ReactTestInstance, type ReactTestRenderer } from 'react-test-renderer';
 
-import { Button } from '../Button';
+import { Button, FocusRing } from '../Button';
+import { Icon } from '../Icon';
 import { color, focus } from '../tokens';
+
+jest.mock('react-native/Libraries/Utilities/useWindowDimensions', () => ({
+  __esModule: true,
+  default: () => ({ width: 1920, height: 1080, scale: 1, fontScale: 1 }),
+}));
 
 // Resolve the lazily loaded components up front so no test pays for it inside its timeout.
 void [Animated, Pressable, Text, View];
@@ -70,6 +76,41 @@ describe('Button', () => {
     await act(async () => host(renderer).props.onClick({ nativeEvent: {} }));
     expect(onPress).toHaveBeenCalledTimes(1);
     expect(host(renderer).props).toMatchObject({ hasTVPreferredFocus: true, nextFocusDown: 7 });
+  });
+
+  it('renders a trailing icon after a shrinkable title', async () => {
+    const renderer = await render(<Button testID="btn" title="线路一" icon="play" trailingIcon="chevronDown" />);
+    const children = host(renderer).findAll((n) => n.type === Icon || n.type === Text);
+    expect(children.map((n) => (n.type === Icon ? n.props.name : 'text'))).toEqual(['play', 'text', 'chevronDown']);
+    expect(label(renderer)).toMatchObject({ flexShrink: 1 });
+    expect(renderer.root.findByType(Text).props.numberOfLines).toBe(1);
+    const [lead, trail] = renderer.root.findAllByType(Icon);
+    expect(trail!.props).toMatchObject({ size: lead!.props.size, color: color.text });
+
+    await act(async () => host(renderer).props.onFocus({}));
+    expect(renderer.root.findAllByType(Icon)[1]!.props.color).toBe(color.inverseText);
+  });
+
+  it('renders the 52 px outline top-bar button', async () => {
+    const renderer = await render(
+      <Button testID="btn" icon="settings" variant="outline" title="设置" accessibilityLabel="设置" />,
+    );
+    expect(style(renderer)).toMatchObject({
+      width: 52,
+      height: 52,
+      borderRadius: 26,
+      borderWidth: 2,
+      borderColor: color.border,
+    });
+    expect(style(renderer).backgroundColor).toBeUndefined();
+    expect(host(renderer).props.accessibilityLabel).toBe('设置');
+    expect(renderer.root.findAllByType(Text)).toHaveLength(0);
+    expect(renderer.root.findByType(Icon).props).toMatchObject({ size: 24, color: color.text });
+
+    await act(async () => host(renderer).props.onFocus({}));
+    expect(style(renderer)).toMatchObject({ backgroundColor: focus.borderColor, borderColor: focus.borderColor });
+    expect(renderer.root.findByType(Icon).props.color).toBe(color.inverseText);
+    expect(renderer.root.findAllByType(FocusRing)).toHaveLength(1);
   });
 
   it('blocks presses while disabled', async () => {

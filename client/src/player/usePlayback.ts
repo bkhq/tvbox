@@ -36,6 +36,7 @@ import {
 } from './engine/types';
 import { createHistoryTracker, type HistoryTracker, pickEpisode, shouldSkipEnding, startPosition } from './history';
 import {
+  episodeIndexForFlag,
   initialPlaybackState,
   isActive,
   isPlaying,
@@ -54,7 +55,21 @@ export interface UsePlaybackOptions {
   getProvider?: (site: Site) => SiteProvider;
   /** Attach as the app-wide playback host (default true); the screen passes its focus state. */
   attach?: boolean;
+  /** Receives the load-timeout error instead of onEngineEvent (a screen that wraps onEngineEvent). */
+  onLoadTimeout?(event: EngineEvent): void;
 }
+
+/** Milliseconds an engine may take to report `load` for a source before it counts as failed. */
+export const LOAD_TIMEOUT = 15_000;
+
+const LOAD_TIMEOUT_ERROR: EngineEvent = {
+  type: 'error',
+  code: 'timeout',
+  message: '加载超时',
+  fatal: true,
+  phase: 'init',
+  reason: 'init',
+};
 
 export interface UsePlayback {
   state: PlaybackState;
@@ -73,6 +88,8 @@ export interface UsePlayback {
   next(): void;
   prev(): void;
   selectEpisode(episodeIndex: number, flagIndex?: number): void;
+  /** Switches the play line keeping the episode (episodeIndexForFlag); no-op for the current or an unknown line. */
+  switchFlag(flagIndex: number): void;
   setSpeed(speed: number): void;
   selectTrack(kind: 'audio' | 'text', id: TrackId | null): void;
   addSubtitle(subtitle: ExternalSubtitle): void;
@@ -332,6 +349,15 @@ export function usePlayback(params: PlayerParams, options: UsePlaybackOptions = 
     }
   }, []);
 
+  // Load watchdog: an engine that never reports load or error (e.g. an idle native view) fails like an init error.
+  const sourceKey = `${state.engine ?? ''}:${state.attempt}`;
+  const awaitingLoad = state.source !== undefined && state.engine !== undefined && !state.loaded && state.status !== 'error';
+  useEffect(() => {
+    if (!awaitingLoad) return;
+    const timer = setTimeout(() => (optionsRef.current.onLoadTimeout ?? onEngineEvent)(LOAD_TIMEOUT_ERROR), LOAD_TIMEOUT);
+    return () => clearTimeout(timer);
+  }, [awaitingLoad, sourceKey, onEngineEvent]);
+
   const switchEngine = useCallback(
     (preference: EnginePreference) => {
       void setPreferredEngine(preference, settings);
@@ -341,13 +367,19 @@ export function usePlayback(params: PlayerParams, options: UsePlaybackOptions = 
     [settings],
   );
 
+  const switchFlag = useCallback((flagIndex: number) => {
+    const current = stateRef.current;
+    if (flagIndex === current.flagIndex || flagIndex < 0 || flagIndex >= current.flags.length) return;
+    dispatch({ type: 'selectEpisode', episodeIndex: episodeIndexForFlag(current, flagIndex), flagIndex });
+  }, []);
+
   const engine = state.engine ? getEngine(state.engine) : undefined;
   const resizeMode = useMemo(() => resizeModeFromScale(scale), [scale]);
 
   return {
     state,
     source: state.source,
-    sourceKey: `${state.engine ?? ''}:${state.attempt}`,
+    sourceKey,
     engine,
     resizeMode,
     setEngineHandle,
@@ -358,6 +390,7 @@ export function usePlayback(params: PlayerParams, options: UsePlaybackOptions = 
     next,
     prev,
     selectEpisode: useCallback((episodeIndex: number, flagIndex?: number) => dispatch({ type: 'selectEpisode', episodeIndex, flagIndex }), []),
+    switchFlag,
     setSpeed,
     selectTrack: useCallback((kind: 'audio' | 'text', id: TrackId | null) => dispatch({ type: 'selectTrack', kind, id }), []),
     addSubtitle: useCallback((subtitle: ExternalSubtitle) => dispatch({ type: 'addSubtitle', subtitle }), []),

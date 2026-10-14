@@ -59,6 +59,8 @@ export interface PlaybackState {
   position: number;
   duration: number;
   buffered: number;
+  /** Video pixel size from the engine's `load`; unknown until then. */
+  videoSize?: { width: number; height: number };
   speed: number;
   tracks: EngineTracks;
   audioTrack?: TrackId;
@@ -156,6 +158,30 @@ export function relativeEpisodeIndex(state: PlaybackState, direction: 1 | -1): n
 export const selectHasNext = (state: PlaybackState) => relativeEpisodeIndex(state, 1) !== undefined;
 export const selectHasPrev = (state: PlaybackState) => relativeEpisodeIndex(state, -1) !== undefined;
 
+/** Resolution badge from the video size: 4K / 2K / 1080P / 720P; undefined below 720 lines or when unknown. */
+export function selectQualityLabel(state: PlaybackState): string | undefined {
+  const size = state.videoSize;
+  if (!size) return undefined;
+  if (size.height >= 2160 || size.width >= 3840) return '4K';
+  if (size.height >= 1440) return '2K';
+  if (size.height >= 1080) return '1080P';
+  if (size.height >= 720) return '720P';
+  return undefined;
+}
+
+/**
+ * Episode to play when switching to line `flagIndex`: the one with the current episode's name,
+ * else the same index clamped to that line's episodes; 0 when the line has none.
+ */
+export function episodeIndexForFlag(state: PlaybackState, flagIndex: number): number {
+  const episodes = state.flags[flagIndex]?.episodes ?? [];
+  if (episodes.length === 0) return 0;
+  const name = selectEpisode(state)?.name;
+  const byName = name === undefined ? -1 : episodes.findIndex((episode) => episode.name === name);
+  if (byName >= 0) return byName;
+  return Math.min(Math.max(state.episodeIndex, 0), episodes.length - 1);
+}
+
 export const isActive = (state: PlaybackState) => state.status !== 'idle';
 
 /** Playing or about to (buffering while not paused). */
@@ -184,6 +210,7 @@ function newItem(state: PlaybackState): PlaybackState {
     position: 0,
     duration: 0,
     buffered: 0,
+    videoSize: undefined,
     tracks: NO_TRACKS,
     audioTrack: undefined,
     textTrack: undefined,
@@ -238,7 +265,15 @@ function replay(state: PlaybackState): PlaybackState {
 function switchEngine(state: PlaybackState, engine: EngineKind): PlaybackState {
   if (!state.source) return { ...state, engine };
   const startPosition = state.position > 0 ? state.position : state.source.startPosition;
-  return { ...state, engine, status: 'loading', attempt: state.attempt + 1, loaded: false, source: { ...state.source, startPosition } };
+  return {
+    ...state,
+    engine,
+    status: 'loading',
+    attempt: state.attempt + 1,
+    loaded: false,
+    videoSize: undefined,
+    source: { ...state.source, startPosition },
+  };
 }
 
 function fail(state: PlaybackState, message: string): PlaybackState {
@@ -262,6 +297,7 @@ function onEngineEvent(state: PlaybackState, event: EngineEvent): PlaybackState 
         loaded: true,
         duration: event.duration,
         tracks: event.tracks,
+        videoSize: event.width && event.height ? { width: event.width, height: event.height } : undefined,
       };
     case 'progress':
       return { ...state, position: event.position, duration: event.duration, buffered: event.buffered };

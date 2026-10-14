@@ -18,6 +18,7 @@ import { clearProviders, registerProvider, resetProviderRegistry, type SiteProvi
 import { createSettingsStore } from '../../../core/settings';
 import { createConfigRepository, MemoryStore } from '../../../core/storage';
 import { normalizeResult, type Result } from '../../../core/types';
+import { Chip } from '../../../ui';
 import type { RootStackScreenProps } from '../../../navigation/types';
 import CategoryScreen from '..';
 
@@ -26,8 +27,9 @@ import CategoryScreen from '..';
 void [ActivityIndicator, FlatList, Image, Modal, Pressable, ScrollView, TextInput, TVFocusGuideView];
 
 const mockNavigate = jest.fn();
+const mockGoBack = jest.fn();
 jest.mock('../../../navigation/useAppNavigation', () => ({
-  useAppNavigation: () => ({ navigate: mockNavigate }),
+  useAppNavigation: () => ({ navigate: mockNavigate, goBack: mockGoBack }),
 }));
 
 const URL = 'https://example.com/config.json';
@@ -120,7 +122,10 @@ describe('CategoryScreen', () => {
   // firing outside act() on a slow host, and unmounting clears it.
   beforeEach(() => jest.useFakeTimers());
   afterEach(() => jest.useRealTimers());
-  beforeEach(() => mockNavigate.mockClear());
+  beforeEach(() => {
+    mockNavigate.mockClear();
+    mockGoBack.mockClear();
+  });
   afterEach(() => resetProviderRegistry());
 
   it('renders the first page and loads the next one at the end of the grid', async () => {
@@ -133,6 +138,9 @@ describe('CategoryScreen', () => {
     expect(cardIds(renderer)).toEqual(['vod-card-all-1-1', 'vod-card-all-1-2']);
     expect(byTestId(renderer, 'vod-card-all-1-1').props.hasTVPreferredFocus).toBe(true);
     expect(byTestId(renderer, 'category-filter-toggle').props.hasTVPreferredFocus).toBe(false);
+    expect(byTestId(renderer, 'category-back').props.hasTVPreferredFocus).toBeUndefined();
+    expect(byTestId(renderer, 'vod-card-all-1-1').props).toMatchObject({ width: 224, meta: '更新至1集' });
+    expect(renderer.root.findByType(FlatList).props.numColumns).toBe(7);
 
     await act(async () => byTestId(renderer, 'vod-grid').props.onEndReached());
     expect(category).toHaveBeenLastCalledWith('movie', '2', true, {});
@@ -146,7 +154,16 @@ describe('CategoryScreen', () => {
     await act(async () => byTestId(renderer, 'vod-grid').props.onEndReached());
 
     await act(async () => byTestId(renderer, 'category-filter-toggle').props.onPress());
-    expect(byTestId(renderer, 'category-filter-year-0').props).toMatchObject({ selected: true, hasTVPreferredFocus: true });
+    expect(byTestId(renderer, 'category-filter-year-0').props).toMatchObject({
+      selected: true,
+      hasTVPreferredFocus: true,
+    });
+    expect(byTestId(renderer, 'category-filter-year-1').props).toMatchObject({
+      selected: false,
+      hasTVPreferredFocus: false,
+    });
+    expect(renderer.root.findAllByType(Chip).map((chip) => chip.props.label)).toEqual(['全部', '2024']);
+    expect(texts(renderer)).toContain('年份');
     expect(byTestId(renderer, 'vod-card-all-1-1').props.hasTVPreferredFocus).toBe(false);
 
     await act(async () => byTestId(renderer, 'category-filter-year-1').props.onPress());
@@ -196,6 +213,24 @@ describe('CategoryScreen', () => {
       vodName: '影片 all 1-2',
       vodPic: 'https://img.example.com/1-2.jpg',
     });
+    await act(async () => renderer.unmount());
+  });
+
+  it('goes back from the back pill', async () => {
+    mockProvider();
+    const renderer = await render({ siteKey: 'cms', typeId: 'movie', typeName: '电影' });
+    await act(async () => byTestId(renderer, 'category-back').props.onPress());
+    expect(mockGoBack).toHaveBeenCalledTimes(1);
+    await act(async () => renderer.unmount());
+  });
+
+  it('retries a failed first page', async () => {
+    const { category } = mockProvider();
+    category.mockRejectedValueOnce(new Error('boom'));
+    const renderer = await render({ siteKey: 'cms', typeId: 'movie', typeName: '电影' });
+    expect(texts(renderer)).toContain('加载失败：boom');
+    await act(async () => byTestId(renderer, 'category-error-retry').props.onPress());
+    expect(cardIds(renderer)).toEqual(['vod-card-all-1-1', 'vod-card-all-1-2']);
     await act(async () => renderer.unmount());
   });
 

@@ -83,6 +83,8 @@ export default ({ config }: ConfigContext): ExpoConfig => {
       './modules/airplay/app.plugin.js',
       // Android-only JAR spiders: app-level desugaring and the JitPack repository.
       './modules/jarspider/app.plugin.js',
+      // One okhttp 5.x family: React Native's okhttp-urlconnection 4.x crashes against jarspider's okhttp 5.x.
+      './plugins/withOkHttpAlignment.js',
       // Local network usage text and Bonjour service for the httpd module (iOS/tvOS).
       './modules/httpd/app.plugin.js',
       // Outfit for Latin text and digits, embedded at build time; family names are the file names.

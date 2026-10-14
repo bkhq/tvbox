@@ -1,14 +1,26 @@
-import { type ReactNode, useState } from 'react';
-import { FlatList, Modal, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { type ReactNode, useRef, useState } from 'react';
+import { Modal, ScrollView, Text, TextInput, TVFocusGuideView, View } from 'react-native';
 
 import { SPEED_PRESETS } from '../../core/settings/schema';
 import type { Flag } from '../../core/types';
 import type { EnginePreference } from '../../player/engine/policy';
 import type { EngineFactory, ExternalSubtitle, Track, TrackId } from '../../player/engine/types';
-import { colors, FocusableButton, fontSize, radius, spacing, useLayout } from '../../ui';
-import { formatSpeed, subtitleName } from './format';
+import {
+  Button,
+  color,
+  focus,
+  radii,
+  safeArea,
+  type Scaler,
+  scaledText,
+  space,
+  useScale,
+  useScaledStyles,
+} from '../../ui';
+import { choiceOptions } from '../settings/options';
+import { formatSpeed, subtitleName, trackLabel } from './format';
 
-export type PanelKind = 'episodes' | 'speed' | 'audio' | 'subtitle' | 'engine';
+export type PanelKind = 'episodes' | 'speed' | 'audio' | 'subtitle' | 'engine' | 'line' | 'settings';
 
 const TITLES: Record<PanelKind, string> = {
   episodes: '选集',
@@ -16,25 +28,65 @@ const TITLES: Record<PanelKind, string> = {
   audio: '音轨',
   subtitle: '字幕',
   engine: '播放器',
+  line: '画质',
+  settings: '设置',
 };
 
+/** Episode grid columns; the sheet keeps one layout on TV and phone. */
+const EPISODE_COLUMNS = 4;
+
+const SHEET_WIDTH = 720;
+/** Height of a md Button. */
+const CELL_HEIGHT = 64;
 /**
- * Modal panel. The hardware back key (Android) and the Menu button (tvOS)
- * call onRequestClose, so back closes the panel before leaving the player.
+ * Fixed cell width, so a partial last row keeps the width of the full rows; one px short of the sheet width so
+ * pixel rounding never wraps a full row early.
+ */
+const CELL_WIDTH = (SHEET_WIDTH - 2 * space.lg - (EPISODE_COLUMNS - 1) * space.sm) / EPISODE_COLUMNS - 1;
+/** A focused full-width row grows by half the zoom of its width on each side, then draws its ring outside that. */
+const ROW_BLEED = Math.ceil(((focus.scale - 1) / 2) * (SHEET_WIDTH - 2 * space.lg) + focus.ringGap + focus.ringWidth);
+
+/**
+ * Right-side modal sheet. The hardware back key (Android) and the Menu button
+ * (tvOS) call onRequestClose, so back closes the panel before leaving the player.
+ * The sheet traps D-pad focus on every side so it never escapes the modal.
  */
 export function Panel({ kind, onClose, children }: { kind: PanelKind; onClose: () => void; children: ReactNode }) {
-  const { isTV } = useLayout();
+  const styles = useScaledStyles(makeStyles);
   return (
     <Modal visible transparent animationType="fade" onRequestClose={onClose}>
       <View style={styles.backdrop}>
-        <View testID={`player-panel-${kind}`} style={[styles.panel, isTV ? styles.panelTV : styles.panelPhone]}>
-          <Text style={styles.title}>{TITLES[kind]}</Text>
-          {children}
-          <FocusableButton testID="player-panel-close" title="关闭" onPress={onClose} />
+        <View testID={`player-panel-${kind}`} style={styles.sheet}>
+          <TVFocusGuideView style={styles.trap} trapFocusUp trapFocusDown trapFocusLeft trapFocusRight>
+            <Text style={styles.title}>{TITLES[kind]}</Text>
+            <View style={styles.body}>{children}</View>
+            <Button testID="player-panel-close" size="md" title="关闭" style={styles.close} onPress={onClose} />
+          </TVFocusGuideView>
         </View>
       </View>
     </Modal>
   );
+}
+
+/** A full-width option row: accent fill when selected, inverted with a ring when focused. */
+function Option({
+  selected,
+  ...props
+}: { testID: string; title: string; selected?: boolean; disabled?: boolean; hasTVPreferredFocus?: boolean; onPress: () => void }) {
+  const styles = useScaledStyles(makeStyles);
+  return <Button size="md" variant={selected ? 'primary' : 'secondary'} style={styles.option} {...props} />;
+}
+
+/**
+ * A choice in a chip row, marked like the option rows: accent fill when selected, so the current choice never
+ * reads as the focused one (inverted with a ring).
+ */
+function Choice({
+  selected,
+  ...props
+}: { testID: string; title: string; selected?: boolean; hasTVPreferredFocus?: boolean; onPress: () => void }) {
+  const styles = useScaledStyles(makeStyles);
+  return <Button size="md" variant={selected ? 'primary' : 'secondary'} style={styles.choice} {...props} />;
 }
 
 export function EpisodePanel({
@@ -48,15 +100,19 @@ export function EpisodePanel({
   episodeIndex: number;
   onSelect: (episodeIndex: number, flagIndex: number) => void;
 }) {
-  const { isTV } = useLayout();
+  const { s } = useScale();
+  const styles = useScaledStyles(makeStyles);
   const [shownFlag, setShownFlag] = useState(flagIndex);
+  const list = useRef<ScrollView>(null);
+  // The current episode's row is scrolled into view once, when the grid first lays out.
+  const scrolled = useRef(false);
   const episodes = flags[shownFlag]?.episodes ?? [];
   return (
     <>
       {flags.length > 1 ? (
-        <ScrollView horizontal style={styles.flags}>
+        <ScrollView horizontal style={styles.flags} contentContainerStyle={[styles.chips, styles.bleed]}>
           {flags.map((flag, index) => (
-            <FocusableButton
+            <Choice
               key={`${index}-${flag.flag}`}
               testID={`player-flag-${index}`}
               title={flag.flag}
@@ -66,35 +122,71 @@ export function EpisodePanel({
           ))}
         </ScrollView>
       ) : null}
-      <FlatList
-        key={isTV ? 'tv' : 'phone'}
+      {/* A wrapped grid in a ScrollView: unlike a FlatList grid it keeps D-pad focus on a cell at every edge. */}
+      <ScrollView
+        key={shownFlag}
+        ref={list}
         style={styles.list}
-        data={episodes}
-        numColumns={isTV ? 6 : 4}
-        keyExtractor={(item, index) => `${index}-${item.url}`}
-        renderItem={({ item, index }) => {
+        contentContainerStyle={[styles.chips, styles.wrap, styles.bleed]}
+        onContentSizeChange={() => {
+          if (scrolled.current || shownFlag !== flagIndex) return;
+          scrolled.current = true;
+          const row = Math.floor(episodeIndex / EPISODE_COLUMNS);
+          list.current?.scrollTo({ y: row * s(CELL_HEIGHT + space.sm), animated: false });
+        }}
+      >
+        {episodes.map((item, index) => {
           const current = shownFlag === flagIndex && index === episodeIndex;
           return (
-            <FocusableButton
+            <Button
+              key={`${index}-${item.url}`}
               testID={`player-episode-${index}`}
+              size="md"
+              variant={current ? 'primary' : 'secondary'}
               style={styles.cell}
               title={item.name}
-              selected={current}
               hasTVPreferredFocus={current}
               onPress={() => onSelect(index, shownFlag)}
             />
           );
-        }}
-      />
+        })}
+      </ScrollView>
     </>
   );
 }
 
-export function SpeedPanel({ speed, onSelect }: { speed: number; onSelect: (speed: number) => void }) {
+export function LinePanel({
+  flags,
+  flagIndex,
+  onSelect,
+}: {
+  flags: Flag[];
+  flagIndex: number;
+  onSelect: (flagIndex: number) => void;
+}) {
+  const styles = useScaledStyles(makeStyles);
   return (
-    <View style={styles.wrap}>
+    <ScrollView style={styles.list} contentContainerStyle={styles.bleed}>
+      {flags.map((flag, index) => (
+        <Option
+          key={`${index}-${flag.flag}`}
+          testID={`player-line-${index}`}
+          title={flag.flag}
+          selected={index === flagIndex}
+          hasTVPreferredFocus={index === flagIndex}
+          onPress={() => onSelect(index)}
+        />
+      ))}
+    </ScrollView>
+  );
+}
+
+export function SpeedPanel({ speed, onSelect }: { speed: number; onSelect: (speed: number) => void }) {
+  const styles = useScaledStyles(makeStyles);
+  return (
+    <View style={[styles.chips, styles.wrap, styles.bleed, styles.outdent]}>
       {SPEED_PRESETS.map((value) => (
-        <FocusableButton
+        <Choice
           key={value}
           testID={`player-speed-${value}`}
           title={formatSpeed(value)}
@@ -111,10 +203,6 @@ function isSelected(track: Track, selected: TrackId | null | undefined): boolean
   return selected === undefined ? !!track.selected : track.id === selected;
 }
 
-function trackLabel(track: Track, index: number): string {
-  return track.label || track.language || `轨道 ${index + 1}`;
-}
-
 export function AudioPanel({
   tracks,
   selected,
@@ -124,14 +212,15 @@ export function AudioPanel({
   selected?: TrackId;
   onSelect: (id: TrackId) => void;
 }) {
+  const styles = useScaledStyles(makeStyles);
   if (tracks.length === 0) return <Text style={styles.note}>没有可选的音轨</Text>;
   return (
-    <ScrollView style={styles.list}>
+    <ScrollView style={styles.list} contentContainerStyle={styles.bleed}>
       {tracks.map((track, index) => (
-        <FocusableButton
+        <Option
           key={String(track.id)}
           testID={`player-audio-${track.id}`}
-          title={trackLabel(track, index)}
+          title={trackLabel(track) ?? `音轨 ${index + 1}`}
           selected={isSelected(track, selected)}
           hasTVPreferredFocus={index === 0}
           onPress={() => onSelect(track.id)}
@@ -156,7 +245,9 @@ export function SubtitlePanel({
   onSelect: (id: TrackId | null) => void;
   onAdd: (subtitle: ExternalSubtitle) => void;
 }) {
+  const styles = useScaledStyles(makeStyles);
   const [url, setUrl] = useState('');
+  const [inputFocused, setInputFocused] = useState(false);
   const add = () => {
     const value = url.trim();
     if (!value) return;
@@ -170,26 +261,29 @@ export function SubtitlePanel({
     else onAdd(subtitle);
   };
   const shownExternal = external.filter((subtitle) => !tracks.some((track) => track.label === subtitle.name));
+  // Like the 音轨 panel: the selected track is current, and 关闭 when subtitles are off or no track is selected.
+  const current = selected === null ? undefined : tracks.find((track) => isSelected(track, selected));
   return (
-    <ScrollView style={styles.list}>
-      <FocusableButton
+    <ScrollView style={styles.list} contentContainerStyle={styles.bleed}>
+      <Option
         testID="player-subtitle-off"
         title="关闭"
-        selected={selected === null}
-        hasTVPreferredFocus
+        selected={!current}
+        hasTVPreferredFocus={!current}
         onPress={() => onSelect(null)}
       />
       {tracks.map((track, index) => (
-        <FocusableButton
+        <Option
           key={String(track.id)}
           testID={`player-subtitle-${track.id}`}
-          title={trackLabel(track, index)}
-          selected={selected !== null && isSelected(track, selected)}
+          title={trackLabel(track) ?? `字幕 ${index + 1}`}
+          selected={track === current}
+          hasTVPreferredFocus={track === current}
           onPress={() => onSelect(track.id)}
         />
       ))}
       {shownExternal.map((subtitle) => (
-        <FocusableButton
+        <Option
           key={subtitle.url}
           testID={`player-subtitle-external-${subtitle.name}`}
           title={`外挂：${subtitle.name}`}
@@ -199,47 +293,48 @@ export function SubtitlePanel({
       <View style={styles.form}>
         <TextInput
           testID="player-subtitle-url"
-          style={styles.input}
+          style={[styles.input, inputFocused && styles.inputFocused]}
           value={url}
+          onFocus={() => setInputFocused(true)}
+          onBlur={() => setInputFocused(false)}
           onChangeText={setUrl}
           onSubmitEditing={add}
           placeholder="输入字幕地址"
-          placeholderTextColor={colors.textSecondary}
+          placeholderTextColor={color.text3}
           autoCapitalize="none"
           autoCorrect={false}
           keyboardType="url"
         />
-        <FocusableButton testID="player-subtitle-add" title="添加字幕" disabled={!url.trim()} onPress={add} />
+        <Button testID="player-subtitle-add" size="md" title="添加字幕" disabled={!url.trim()} onPress={add} />
       </View>
     </ScrollView>
   );
 }
 
-export function EnginePanel({
-  engines,
-  preference,
-  active,
-  onSelect,
-}: {
+interface EngineOptionsProps {
   engines: EngineFactory[];
   preference: EnginePreference;
   active?: EngineFactory;
   onSelect: (preference: EnginePreference) => void;
-}) {
+}
+
+/** Engine choices shared by EnginePanel and SettingsPanel; testIDs are `<prefix>-auto` / `<prefix>-<kind>`. */
+function EngineOptions({ engines, preference, active, onSelect, prefix }: EngineOptionsProps & { prefix: string }) {
+  const styles = useScaledStyles(makeStyles);
   return (
-    <View>
+    <>
       {active ? <Text style={styles.note}>{`当前：${active.label}`}</Text> : null}
-      <FocusableButton
-        testID="player-engine-auto"
+      <Option
+        testID={`${prefix}-auto`}
         title="自动"
         selected={preference === 'auto'}
         hasTVPreferredFocus={preference === 'auto'}
         onPress={() => onSelect('auto')}
       />
       {engines.map((engine) => (
-        <FocusableButton
+        <Option
           key={engine.kind}
-          testID={`player-engine-${engine.kind}`}
+          testID={`${prefix}-${engine.kind}`}
           title={engine.label}
           selected={preference === engine.kind}
           disabled={!engine.isAvailable()}
@@ -247,66 +342,116 @@ export function EnginePanel({
           onPress={() => onSelect(engine.kind)}
         />
       ))}
+    </>
+  );
+}
+
+export function EnginePanel(props: EngineOptionsProps) {
+  const styles = useScaledStyles(makeStyles);
+  return (
+    <View style={[styles.bleed, styles.outdent]}>
+      <EngineOptions {...props} prefix="player-engine" />
     </View>
   );
 }
 
-const styles = StyleSheet.create({
-  backdrop: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: colors.remarkBackground,
-  },
-  panel: {
-    maxHeight: '90%',
-    padding: spacing.xl,
-    borderRadius: radius.md,
-    backgroundColor: colors.background,
-  },
-  panelTV: {
-    width: '60%',
-  },
-  panelPhone: {
-    width: '92%',
-  },
-  title: {
-    marginBottom: spacing.md,
-    color: colors.text,
-    fontSize: fontSize.heading,
-  },
-  flags: {
-    flexGrow: 0,
-    marginBottom: spacing.sm,
-  },
-  list: {
-    flexGrow: 0,
-  },
-  cell: {
-    flex: 1,
-  },
-  wrap: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-  },
-  note: {
-    marginVertical: spacing.sm,
-    color: colors.textSecondary,
-    fontSize: fontSize.body,
-  },
-  form: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginVertical: spacing.sm,
-  },
-  input: {
-    flex: 1,
-    marginRight: spacing.sm,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-    borderRadius: radius.md,
-    backgroundColor: colors.surface,
-    color: colors.text,
-    fontSize: fontSize.body,
-  },
-});
+/** The `scale` setting values, worded as on the settings screen. */
+const SCALE_OPTIONS = choiceOptions('scale');
+
+export function SettingsPanel({
+  engines,
+  preference,
+  active,
+  scale,
+  onSelectEngine,
+  onSelectScale,
+}: {
+  engines: EngineFactory[];
+  preference: EnginePreference;
+  active?: EngineFactory;
+  scale: number;
+  onSelectEngine: (preference: EnginePreference) => void;
+  onSelectScale: (scale: number) => void;
+}) {
+  const styles = useScaledStyles(makeStyles);
+  return (
+    <ScrollView style={styles.list} contentContainerStyle={styles.bleed}>
+      <Text style={styles.section}>播放器</Text>
+      <TVFocusGuideView autoFocus>
+        <EngineOptions
+          engines={engines}
+          preference={preference}
+          active={active}
+          onSelect={onSelectEngine}
+          prefix="player-settings-engine"
+        />
+      </TVFocusGuideView>
+      <Text style={styles.section}>画面比例</Text>
+      {/* Entering a section from the other one lands on its first (or last focused) control, not the nearest. */}
+      <TVFocusGuideView autoFocus style={[styles.chips, styles.wrap]}>
+        {SCALE_OPTIONS.map((option) => (
+          <Choice
+            key={option.value}
+            testID={`player-settings-scale-${option.value}`}
+            title={option.label}
+            selected={option.value === scale}
+            onPress={() => onSelectScale(option.value)}
+          />
+        ))}
+      </TVFocusGuideView>
+    </ScrollView>
+  );
+}
+
+const makeStyles = (s: Scaler) => {
+  const t = scaledText(s);
+  return {
+    backdrop: { flex: 1, backgroundColor: 'rgba(11,14,20,0.6)' },
+    sheet: {
+      position: 'absolute' as const,
+      top: s(safeArea.vertical),
+      bottom: s(safeArea.vertical),
+      right: s(safeArea.horizontal),
+      width: s(SHEET_WIDTH),
+      padding: s(space.lg),
+      borderRadius: s(radii.button),
+      borderWidth: 1,
+      borderColor: 'rgba(255,255,255,0.1)',
+      backgroundColor: 'rgba(21,26,36,0.96)',
+    },
+    title: { ...t.h2, marginBottom: s(space.md), color: color.text },
+    trap: { flex: 1 },
+    body: { flex: 1, minHeight: 0 },
+    close: { marginTop: s(space.md), alignSelf: 'flex-start' as const },
+    // Room around focusable children so the focus zoom and ring are not clipped; outdent keeps the rows aligned
+    // with the title.
+    bleed: { paddingVertical: s(focus.bleed), paddingHorizontal: s(ROW_BLEED) },
+    outdent: { marginHorizontal: -s(ROW_BLEED) },
+    flags: { flexGrow: 0, marginHorizontal: -s(ROW_BLEED), marginBottom: s(space.xs) },
+    list: { flexGrow: 0, marginHorizontal: -s(ROW_BLEED) },
+    chips: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: s(space.sm) },
+    wrap: { flexWrap: 'wrap' as const },
+    cell: { width: s(CELL_WIDTH), paddingHorizontal: s(space.sm) },
+    choice: { paddingHorizontal: s(space.md) },
+    option: { marginBottom: s(space.sm), justifyContent: 'flex-start' as const },
+    section: { ...t.label, marginTop: s(space.sm), marginBottom: s(space.sm), color: color.text2 },
+    note: { ...t.label, marginBottom: s(space.sm), color: color.text3 },
+    form: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: s(space.sm), marginTop: s(space.xs) },
+    input: {
+      ...t.label,
+      // Android clips single-line TextInput glyphs when a lineHeight is set.
+      lineHeight: undefined,
+      flex: 1,
+      height: s(64),
+      paddingHorizontal: s(space.md),
+      paddingVertical: 0,
+      borderRadius: s(radii.button),
+      // A transparent border of the focus width keeps the text from shifting when focused.
+      borderWidth: s(focus.borderWidth),
+      borderColor: 'transparent',
+      backgroundColor: color.surface2,
+      color: color.text,
+    },
+    inputFocused: { borderColor: focus.borderColor },
+  };
+};

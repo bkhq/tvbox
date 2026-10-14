@@ -23,7 +23,7 @@ import {
   WideCard,
   type Scaler,
 } from '../../ui';
-import { ErrorView, LoadingView, openVod, useActiveCid } from '../common';
+import { displayRemarks, ErrorView, LoadingView, openVod, useActiveCid } from '../common';
 import { ConfigSetup } from './ConfigSetup';
 import { progressOf, siteKeyOf, subtitleOf, useContinueWatching, vodIdOf } from './continueWatching';
 import { Hero, type HeroItem } from './Hero';
@@ -154,8 +154,8 @@ const HomeRows = memo(function HomeRows({ history, rows, classes, siteKey, onFoc
               testID={`home-card-${row.key}-${item.vod_id}`}
               title={item.vod_name}
               poster={item.vod_pic}
-              meta={item.vod_year || item.vod_remarks || undefined}
-              badge={item.vod_year ? item.vod_remarks || undefined : undefined}
+              meta={item.vod_year || displayRemarks(item.vod_remarks)}
+              badge={item.vod_year ? displayRemarks(item.vod_remarks) : undefined}
               onFocus={() => onFocusItem({ siteKey: row.siteKey, vod: item })}
               onPress={() => openVod(navigation, row.siteKey, item)}
             />

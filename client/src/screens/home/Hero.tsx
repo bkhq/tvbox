@@ -22,7 +22,7 @@ import {
   useScaledStyles,
   type Scaler,
 } from '../../ui';
-import { htmlToText, openVod } from '../common';
+import { displayRemarks, htmlToText, openVod } from '../common';
 import { buildPlayerParams } from '../detail/detailState';
 
 export const HERO_HEIGHT = 720;
@@ -121,6 +121,7 @@ export function Hero({
 
   const meta = [vod.vod_year, vod.vod_area].filter(Boolean);
   const description = vod.vod_content ? htmlToText(vod.vod_content) : '';
+  const remarks = displayRemarks(vod.vod_remarks);
 
   const play = async () => {
     const record = cid === undefined ? undefined : await getHistoryRepository().get(cid, key);
@@ -150,9 +151,9 @@ export function Hero({
     <View testID="home-hero" style={styles.hero}>
       <HeroBackground poster={vod.vod_pic} />
       <View style={styles.content}>
-        {vod.vod_remarks || vod.type_name ? (
+        {remarks || vod.type_name ? (
           <View style={styles.tags}>
-            {vod.vod_remarks ? <Badge testID="home-hero-remarks" label={vod.vod_remarks} variant="accent" /> : null}
+            {remarks ? <Badge testID="home-hero-remarks" label={remarks} variant="accent" /> : null}
             {vod.type_name ? <Text style={styles.type}>{vod.type_name}</Text> : null}
           </View>
         ) : null}

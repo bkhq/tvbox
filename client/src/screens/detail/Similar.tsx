@@ -8,7 +8,7 @@ import { useSetting } from '../../core/settings';
 import type { Vod } from '../../core/types';
 import { useAppNavigation } from '../../navigation/useAppNavigation';
 import { color, PosterCard, Row, safeArea, scaledText, space, useScaledStyles, type Scaler } from '../../ui';
-import { openVod } from '../common';
+import { displayRemarks, openVod } from '../common';
 
 type SimilarState =
   | { status: 'idle' | 'loading' | 'empty' }
@@ -64,7 +64,7 @@ export function SimilarRow({ state }: { state: SimilarState }) {
           <PosterCard
             testID={`detail-similar-${index}`}
             title={item.vod_name}
-            meta={item.vod_year || item.vod_remarks}
+            meta={item.vod_year || displayRemarks(item.vod_remarks)}
             poster={item.vod_pic}
             onPress={() => openVod(navigation, state.siteKey, item)}
           />

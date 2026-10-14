@@ -14,6 +14,7 @@ import {
   useScaledStyles,
   type Scaler,
 } from '../../ui';
+import { displayRemarks } from './remarks';
 
 export interface VodGridProps {
   items: readonly Vod[];
@@ -43,7 +44,7 @@ export function posterWidth(columns: number, width: number = DESIGN_WIDTH): numb
   return Math.max(80, Math.floor(available / columns));
 }
 
-const remarksOf = (vod: Vod) => vod.vod_remarks || undefined;
+const remarksOf = (vod: Vod) => displayRemarks(vod.vod_remarks);
 const noBadge = () => undefined;
 
 interface VodCardProps {

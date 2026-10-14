@@ -54,7 +54,7 @@ function answer(siteKey: string, keyword: string): Result {
       vod_id: id,
       vod_name: `${keyword} ${id}`,
       vod_year: id === 'a2' ? '' : '2024',
-      vod_remarks: '更新至1集',
+      vod_remarks: id === 'a2' ? '评分：0' : '更新至1集',
     })),
   });
 }
@@ -196,6 +196,12 @@ describe('SearchScreen', () => {
     expect(byTestId(renderer, 'search-filter-b').props.selected).toBe(true);
     expect(cardIds(renderer)).toEqual(['vod-card-b1']);
     expect(texts(renderer)).toContain('2024 · 更新至1集');
+
+    // A single site hides a zero score in the remarks.
+    await press(renderer, 'search-filter-a');
+    expect(byTestId(renderer, 'vod-card-a2').props.meta).toBeUndefined();
+    expect(texts(renderer)).not.toContain('评分：0');
+    await press(renderer, 'search-filter-b');
 
     await press(renderer, 'vod-card-b1');
     expect(mockNavigate).toHaveBeenCalledWith('Detail', { siteKey: 'b', vodId: 'b1', vodName: '流浪 b1', vodPic: '' });

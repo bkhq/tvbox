@@ -221,6 +221,15 @@ describe('DetailScreen', () => {
     await act(async () => renderer.unmount());
   });
 
+  it('hides a zero score in vod_remarks', async () => {
+    mockProvider([{ ...VOD, vod_remarks: '评分：0' }]);
+    const { renderer } = await render({ siteKey: 'cms', vodId: 'v1' });
+    expect(has(renderer, 'detail-remarks')).toBe(false);
+    expect(texts(renderer)).not.toContain('评分：0');
+    expect(texts(renderer).some((text) => text.includes('剧情'))).toBe(true);
+    await act(async () => renderer.unmount());
+  });
+
   it('renders an HTML description as plain text', async () => {
     mockProvider([
       { ...VOD, vod_content: '<p>&nbsp;&nbsp;第一段&ldquo;引用&rdquo;</p><p>　第二段<br/>第三行 &amp; &#20013;</p>' },
@@ -412,6 +421,7 @@ describe('DetailScreen', () => {
         { vod_id: 'v1', vod_name: '测试影片' },
         { vod_id: 'v2', vod_name: '测试影片2', vod_year: '2023', vod_remarks: '完结' },
         { vod_id: 'v3', vod_name: '测试影片3', vod_remarks: 'HD' },
+        { vod_id: 'v4', vod_name: '测试影片4', vod_remarks: '评分：0' },
       ],
     );
     const { renderer } = await render({ siteKey: 'cms', vodId: 'v1' });
@@ -420,7 +430,9 @@ describe('DetailScreen', () => {
     expect(provider.search).toHaveBeenCalledWith('测试影片', false);
     expect(byTestId(renderer, 'detail-similar-0').props).toMatchObject({ title: '测试影片2', meta: '2023' });
     expect(byTestId(renderer, 'detail-similar-1').props).toMatchObject({ title: '测试影片3', meta: 'HD' });
-    expect(has(renderer, 'detail-similar-2')).toBe(false);
+    // A zero score is no data.
+    expect(byTestId(renderer, 'detail-similar-2').props).toMatchObject({ title: '测试影片4', meta: undefined });
+    expect(has(renderer, 'detail-similar-3')).toBe(false);
     await act(async () => byTestId(renderer, 'detail-similar-0').props.onPress());
     expect(mockNavigate).toHaveBeenCalledWith('Detail', {
       siteKey: 'cms',

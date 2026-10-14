@@ -15,51 +15,117 @@ import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 
 import { type Bootstrap, BootstrapProvider, createBootstrap } from '../../../core/bootstrap';
 import { parseVodConfig } from '../../../core/config';
-import type { ServerLinkState } from '../../../core/serverLink';
 import { appSettings } from '../../../core/settings';
+import { historyKey, MemoryStore } from '../../../core/storage';
+import { getHistoryRepository, getKeepRepository, setUserDataStore } from '../../../core/userData';
+import { Tab } from '../../../ui';
+import type { UpdateState } from '../../../update';
+import { formatBytes } from '../cache';
 import { configRepositories } from '../ConfigPanel';
+import { settingsSections } from '../sections';
 import SettingsScreen from '..';
 
 // react-native resolves components lazily on first access; resolve the ones the
 // screen renders while the file loads so no test pays that cost inside its timeout.
 void [ActivityIndicator, FlatList, Image, Modal, Pressable, ScrollView, TextInput, TVFocusGuideView];
 
+// On TV the panel's focus guide sends its destinations through a native command, which the preset's
+// view mock lacks; the destinations are recorded as the (mock) component instances.
+const mockSetDestinations = jest.fn();
+jest.mock('react-native/Libraries/Components/View/ViewNativeComponent', () => ({
+  __esModule: true,
+  ...jest.requireActual('@react-native/jest-preset/jest/mocks/ViewNativeComponent'),
+  Commands: { setDestinations: (...args: unknown[]) => mockSetDestinations(...args) },
+}));
+jest.mock('react-native/Libraries/Components/TV/tagForComponentOrHandle', () => ({
+  __esModule: true,
+  default: (component: unknown) => component,
+}));
+
+const mockNavigate = jest.fn();
 jest.mock('../../../navigation/useAppNavigation', () => ({
-  useAppNavigation: () => ({ navigate: jest.fn() }),
+  useAppNavigation: () => ({ navigate: mockNavigate, goBack: jest.fn(), addListener: () => () => undefined }),
 }));
 
 jest.mock('../../../core/appConfig', () => ({
   getAppConfig: () => ({ workerUrl: '', versionName: '1.2.3', versionCode: 42 }),
 }));
 
-const mockLink = {
-  state: 'OFF' as ServerLinkState,
-  code: 'ABCD-EFGH',
-  subscription: '',
-  request: jest.fn(async () => undefined),
-  refresh: jest.fn(async () => undefined),
-  unlink: jest.fn(async () => undefined),
-};
 const mockLinkEnabled = jest.fn(() => false);
 jest.mock('../../../core/serverLink', () => ({
   ...jest.requireActual('../../../core/serverLink'),
   isServerLinkEnabled: () => mockLinkEnabled(),
-  useServerLink: () => mockLink,
+  useServerLink: () => ({ state: 'OFF', code: 'ABCD', request: jest.fn(), refresh: jest.fn(), unlink: jest.fn() }),
+}));
+
+const CACHE_SIZE = 5 * 1024 * 1024;
+jest.mock('../cache', () => ({
+  ...jest.requireActual('../cache'),
+  getCacheSize: async () => CACHE_SIZE,
+  clearCache: async () => undefined,
+}));
+
+const mockUpdateState: UpdateState = { checking: false, lastResult: null, release: null, installState: { phase: 'idle' } };
+jest.mock('../../../update', () => ({
+  ...jest.requireActual('../../../update'),
+  getUpdateController: () => ({
+    getState: () => mockUpdateState,
+    subscribe: () => () => undefined,
+    check: jest.fn(async () => ({ status: 'up-to-date' })),
+    install: jest.fn(async () => undefined),
+    dismiss: jest.fn(),
+  }),
 }));
 
 const URL_A = 'https://a.example.com/config.json';
-const URL_B = 'https://b.example.com/config.json';
 const CONFIG_TEXT = JSON.stringify({
-  sites: [
-    { key: 'jar', name: 'Jar 站', type: 3, api: 'csp_Jar' },
-    { key: 'cms', name: 'CMS 站', type: 1, api: 'https://cms.example.com/api.php/provide/vod' },
-    { key: 'xml', name: 'XML 站', type: 0, api: 'https://xml.example.com/api.php/provide/vod/at/xml' },
-  ],
+  sites: [{ key: 'cms', name: 'CMS 站', type: 1, api: 'https://cms.example.com/api.php/provide/vod' }],
 });
 
-function texts(renderer: ReactTestRenderer): string[] {
-  return renderer.root.findAllByType(Text).map((node) => [node.props.children].flat().join(''));
-}
+/** A row of each section, proving the panel shows that section. */
+const SECTION_ROWS: [string, string][] = [
+  ['collect', 'collect-grid'],
+  ['history', 'history-grid'],
+  ['play', 'settings-playerEngine'],
+  ['subaudio', 'settings-subtitleScale'],
+  ['live', 'settings-live'],
+  ['net', 'settings-doh'],
+  ['sources', 'settings-vod'],
+  ['about', 'settings-version'],
+];
+
+/** Every row of the previous settings list (server link and AirPlay only when available). */
+const ROW_IDS = [
+  'vod',
+  'live',
+  'homeSite',
+  'serverLink',
+  'playerEngine',
+  'decode',
+  'render',
+  'scale',
+  'buffer',
+  'background',
+  'speedPlayback',
+  'speedLongPress',
+  'speedSkipSilence',
+  'audioPassThrough',
+  'audioPrefer',
+  'videoPrefer',
+  'preferAac',
+  'tunnel',
+  'subtitleStyleSource',
+  'subtitleScale',
+  'subtitlePosition',
+  'doh',
+  'ua',
+  'incognito',
+  'adblock',
+  'siteMode',
+  'airplay',
+  'airplayName',
+  'version',
+].map((key) => `settings-${key}`);
 
 function byID(renderer: ReactTestRenderer, testID: string) {
   return renderer.root.findByProps({ testID });
@@ -69,19 +135,43 @@ function has(renderer: ReactTestRenderer, testID: string): boolean {
   return renderer.root.findAllByProps({ testID }).length > 0;
 }
 
+function textOf(renderer: ReactTestRenderer, testID: string): string {
+  return [byID(renderer, testID).props.children].flat().join('');
+}
+
 async function press(renderer: ReactTestRenderer, testID: string) {
   await act(async () => byID(renderer, testID).props.onPress());
 }
 
-async function setup(saved: string[] = []) {
+async function focus(renderer: ReactTestRenderer, testID: string) {
+  await act(async () => byID(renderer, testID).props.onFocus());
+}
+
+/** testID of the element focus lands on when entering the panel from the menu (Platform.isTV). */
+function panelEntry(): string | undefined {
+  const [, destinations] = mockSetDestinations.mock.calls.at(-1) ?? [];
+  // A component instance of the View mock; a FocusEntry wrapper holds the control as its child.
+  const node = destinations?.[0];
+  return node?.props.testID ?? node?.props.children?.props.testID;
+}
+
+async function setup() {
+  setUserDataStore(new MemoryStore());
   const configs = configRepositories.vod;
-  for (const url of saved) await configs.add({ url, name: url === URL_A ? '配置 A' : '' });
-  if (saved[0]) await configs.setActive(saved[0]);
-  const loadConfig = jest.fn((url: string) => Promise.resolve(parseVodConfig(CONFIG_TEXT, url)));
-  const bootstrap: Bootstrap = createBootstrap({ configs, settings: appSettings, loadConfig: (url) => loadConfig(url) });
+  await configs.add({ url: URL_A, name: '配置 A' });
+  await configs.setActive(URL_A);
+  const bootstrap: Bootstrap = createBootstrap({
+    configs,
+    settings: appSettings,
+    loadConfig: (url) => Promise.resolve(parseVodConfig(CONFIG_TEXT, url)),
+  });
   await bootstrap.start();
-  const reload = jest.spyOn(bootstrap, 'reload');
-  const addConfig = jest.spyOn(bootstrap, 'addConfig');
+  const cid = bootstrap.getSnapshot().entry!.id;
+  await getKeepRepository().add({ key: historyKey('cms', 'a'), cid, siteName: 'CMS 站', vodName: '甲', vodPic: '' });
+  for (const id of ['a', 'b']) {
+    await getHistoryRepository().upsert({ key: historyKey('cms', id), cid, vodName: id, vodPic: '', vodRemarks: '' });
+    jest.advanceTimersByTime(5);
+  }
   let renderer!: ReactTestRenderer;
   await act(async () => {
     renderer = create(
@@ -90,7 +180,7 @@ async function setup(saved: string[] = []) {
       </BootstrapProvider>,
     );
   });
-  return { renderer, loadConfig, reload, addConfig };
+  return renderer;
 }
 
 describe('SettingsScreen', () => {
@@ -105,197 +195,137 @@ describe('SettingsScreen', () => {
     await AsyncStorage.clear();
     await appSettings.loadSettings();
     mockLinkEnabled.mockReturnValue(false);
-    mockLink.state = 'OFF';
     jest.clearAllMocks();
   });
 
   afterEach(() => {
     Object.defineProperty(Platform, 'OS', { value: originalOS, configurable: true });
     Object.defineProperty(Platform, 'isTV', { value: originalIsTV, configurable: true });
-    jest.restoreAllMocks();
   });
 
-  it('focuses the first row and shows the active config and version', async () => {
-    const { renderer } = await setup([URL_A]);
-    expect(byID(renderer, 'settings-vod').props.hasTVPreferredFocus).toBe(true);
-    const preferred = renderer.root.findAll((node) => node.props.hasTVPreferredFocus === true && typeof node.type !== 'string');
-    expect(new Set(preferred.map((node) => node.props.testID))).toEqual(new Set(['settings-vod']));
-    expect(texts(renderer)).toEqual(expect.arrayContaining(['点播配置', '配置 A', '1.2.3 (42)', 'CMS 站']));
+  it('shows the top bar with 我的 active and searches from it', async () => {
+    const renderer = await setup();
+    const tabs = renderer.root.findAllByType(Tab).map((tab) => [tab.props.label, tab.props.active]);
+    expect(tabs).toContainEqual(['我的', true]);
+    expect(tabs.filter(([, active]) => active)).toHaveLength(1);
+    expect(has(renderer, 'settings-top-nav')).toBe(true);
+
+    await press(renderer, 'top-nav-search');
+    expect(mockNavigate).toHaveBeenCalledWith('Search');
+    await press(renderer, 'top-nav-home');
+    expect(mockNavigate).toHaveBeenCalledWith('Home', {});
     await act(async () => renderer.unmount());
   });
 
-  it('selects a saved VOD config and reloads it', async () => {
-    const { renderer, loadConfig, reload } = await setup([URL_A, URL_B]);
-    const setActive = jest.spyOn(configRepositories.vod, 'setActive');
-    await press(renderer, 'settings-vod');
-    expect(byID(renderer, `settings-config-${URL_A}`).props.selected).toBe(true);
-    expect(byID(renderer, `settings-config-${URL_A}`).props.hasTVPreferredFocus).toBe(true);
-    expect(byID(renderer, 'settings-vod').props.hasTVPreferredFocus).toBe(false);
+  it('lists the eight sections with their hints and focuses the selected one', async () => {
+    const renderer = await setup();
+    const labels = settingsSections.map(
+      ({ id }) => byID(renderer, `settings-menu-${id}`).findAllByType(Text)[0]!.props.children,
+    );
+    expect(labels).toEqual([
+      '我的片单',
+      '观看历史',
+      '播放设置',
+      '字幕与音频',
+      '直播设置',
+      '网络与缓存',
+      '配置与源',
+      '关于',
+    ]);
+    expect(textOf(renderer, 'settings-menu-collect-hint')).toBe('1');
+    expect(textOf(renderer, 'settings-menu-history-hint')).toBe('2');
+    expect(textOf(renderer, 'settings-menu-play-hint')).toBe('自动');
+    expect(textOf(renderer, 'settings-menu-subaudio-hint')).toBe('1.0x');
+    expect(textOf(renderer, 'settings-menu-net-hint')).toBe(formatBytes(CACHE_SIZE));
+    expect(textOf(renderer, 'settings-menu-about-hint')).toBe('v1.2.3');
+    expect(has(renderer, 'settings-menu-live-hint')).toBe(false);
 
-    await press(renderer, `settings-config-${URL_B}`);
-    expect(setActive).toHaveBeenCalledWith(URL_B);
-    expect(reload).toHaveBeenCalled();
-    expect(loadConfig).toHaveBeenLastCalledWith(URL_B);
-    expect(byID(renderer, `settings-config-${URL_B}`).props.selected).toBe(true);
+    // 播放设置 is selected by default and is the only preferred focus.
+    expect(byID(renderer, 'settings-menu-play').props.accessibilityState.selected).toBe(true);
+    expect(has(renderer, 'settings-playerEngine')).toBe(true);
+    const preferred = renderer.root.findAll(
+      (node) => node.props.hasTVPreferredFocus === true && typeof node.type !== 'string' && node.props.testID,
+    );
+    expect(new Set(preferred.map((node) => node.props.testID))).toEqual(new Set(['settings-menu-play']));
     await act(async () => renderer.unmount());
   });
 
-  it('adds a VOD config and removes a saved one', async () => {
-    const { renderer, addConfig } = await setup([URL_A]);
-    await press(renderer, 'settings-vod');
-    await act(async () => byID(renderer, 'settings-config-input').props.onChangeText(` ${URL_B} `));
-    await press(renderer, 'settings-config-add');
-    expect(addConfig).toHaveBeenCalledWith(URL_B);
-    expect((await configRepositories.vod.getActive())?.url).toBe(URL_B);
-    expect(byID(renderer, `settings-config-${URL_B}`).props.selected).toBe(true);
-
-    await press(renderer, `settings-config-remove-${URL_A}`);
-    expect(has(renderer, `settings-config-${URL_A}`)).toBe(false);
-    expect(await configRepositories.vod.find(URL_A)).toBeUndefined();
-    await act(async () => renderer.unmount());
-  });
-
-  it('adds and selects live configs', async () => {
-    const { renderer, reload } = await setup();
-    expect(texts(renderer)).toContain('直播配置');
-    await press(renderer, 'settings-live');
-    expect(byID(renderer, 'settings-config-input').props.hasTVPreferredFocus).toBe(true);
-    for (const url of [URL_A, URL_B]) {
-      await act(async () => byID(renderer, 'settings-config-input').props.onChangeText(url));
-      await press(renderer, 'settings-config-add');
+  it('switches the panel when a menu item is focused or pressed', async () => {
+    const renderer = await setup();
+    for (const [id, row] of SECTION_ROWS) {
+      await focus(renderer, `settings-menu-${id}`);
+      expect(byID(renderer, `settings-menu-${id}`).props.accessibilityState.selected).toBe(true);
+      expect(has(renderer, row)).toBe(true);
     }
-    expect((await configRepositories.live.getActive())?.url).toBe(URL_B);
-    await press(renderer, `settings-config-${URL_A}`);
-    expect((await configRepositories.live.getActive())?.url).toBe(URL_A);
-    expect(reload).not.toHaveBeenCalled();
-
-    await press(renderer, 'settings-panel-close');
-    expect(has(renderer, 'settings-panel')).toBe(false);
-    expect(byID(renderer, 'settings-live').findAllByType(Text).map((node) => node.props.children)).toContain(URL_A);
+    for (const [id, row] of [...SECTION_ROWS].reverse()) {
+      await press(renderer, `settings-menu-${id}`);
+      expect(has(renderer, row)).toBe(true);
+      const others = SECTION_ROWS.filter(([other]) => other !== id).map(([, otherRow]) => otherRow);
+      expect(others.filter((other) => has(renderer, other))).toEqual([]);
+    }
     await act(async () => renderer.unmount());
   });
 
-  it('closes an open panel on back before leaving the screen', async () => {
-    const { renderer } = await setup();
-    await press(renderer, 'settings-ua');
-    expect(has(renderer, 'settings-panel')).toBe(true);
-    await act(async () => renderer.root.findByType(Modal).props.onRequestClose());
-    expect(has(renderer, 'settings-panel')).toBe(false);
-    expect(byID(renderer, 'settings-vod').props.hasTVPreferredFocus).toBe(true);
-    await act(async () => renderer.unmount());
-  });
-
-  it('toggles booleans and cycles choices through the settings store', async () => {
-    const { renderer } = await setup();
-    await press(renderer, 'settings-incognito');
-    expect(appSettings.get('incognito')).toBe(true);
-    await press(renderer, 'settings-decode');
-    expect(appSettings.get('decode')).toBe('soft');
-    const engineLabels = () => byID(renderer, 'settings-playerEngine').findAllByType(Text).map((node) => node.props.children);
-    expect(appSettings.get('playerEngine')).toBe('auto');
-    expect(engineLabels()).toContain('自动（iOS 默认 MPV，Android 默认系统播放器）');
-    await press(renderer, 'settings-playerEngine');
-    expect(appSettings.get('playerEngine')).toBe('video');
-    await press(renderer, 'settings-playerEngine');
-    expect(appSettings.get('playerEngine')).toBe('mpv');
-    expect(engineLabels()).toContain('MPV');
-    await press(renderer, 'settings-playerEngine');
-    expect(appSettings.get('playerEngine')).toBe('auto');
-    expect(engineLabels()).toContain('自动（iOS 默认 MPV，Android 默认系统播放器）');
-    await act(async () => renderer.unmount());
-  });
-
-  it('steps a decimal, picks a speed preset and saves text', async () => {
-    const { renderer } = await setup();
-    await press(renderer, 'settings-subtitleScale');
-    await press(renderer, 'settings-step-up');
-    expect(appSettings.get('subtitleScale')).toBe(1.1);
-    expect(byID(renderer, 'settings-step-value').props.children).toBe('1.1x');
-    await press(renderer, 'settings-panel-close');
-
-    await press(renderer, 'settings-speedPlayback');
-    expect(byID(renderer, 'settings-speed-1').props.hasTVPreferredFocus).toBe(true);
-    await press(renderer, 'settings-speed-1.5');
-    expect(appSettings.get('speedPlayback')).toBe(1.5);
-    expect(has(renderer, 'settings-panel')).toBe(false);
-
-    await press(renderer, 'settings-doh');
-    await act(async () => byID(renderer, 'settings-text-input').props.onChangeText(' https://dns.example/dns-query '));
-    await press(renderer, 'settings-text-save');
-    expect(appSettings.get('doh')).toBe('https://dns.example/dns-query');
-    await act(async () => renderer.unmount());
-  });
-
-  it('focuses the config and text inputs itself on TV', async () => {
-    Object.defineProperty(Platform, 'isTV', { value: true, configurable: true });
-    const focus = jest.spyOn(TextInput.prototype, 'focus').mockImplementation(() => undefined);
-    const { renderer } = await setup();
-    await press(renderer, 'settings-vod');
-    expect(focus).toHaveBeenCalledTimes(1);
-    await press(renderer, 'settings-panel-close');
-    await press(renderer, 'settings-doh');
-    expect(focus).toHaveBeenCalledTimes(2);
-    await act(async () => renderer.unmount());
-  });
-
-  it('picks the home site and disables unsupported sites', async () => {
-    const { renderer } = await setup([URL_A]);
-    await press(renderer, 'settings-homeSite');
-    expect(byID(renderer, 'settings-site-jar').props.disabled).toBe(true);
-    expect(texts(renderer)).toContain('不支持：JAR 爬虫');
-    expect(byID(renderer, 'settings-site-cms').props.hasTVPreferredFocus).toBe(true);
-    await press(renderer, 'settings-site-xml');
-    expect(appSettings.get('homeSiteKey')).toBe('xml');
-    await act(async () => renderer.unmount());
-  });
-
-  it('shows AirPlay only on Android TV', async () => {
-    Object.defineProperty(Platform, 'OS', { value: 'ios', configurable: true });
-    Object.defineProperty(Platform, 'isTV', { value: true, configurable: true });
-    let { renderer } = await setup();
-    expect(has(renderer, 'settings-airplay')).toBe(false);
-    await act(async () => renderer.unmount());
-
+  it('keeps every previous setting reachable through some section', async () => {
     Object.defineProperty(Platform, 'OS', { value: 'android', configurable: true });
-    Object.defineProperty(Platform, 'isTV', { value: false, configurable: true });
-    ({ renderer } = await setup());
-    expect(has(renderer, 'settings-airplay')).toBe(false);
-    await act(async () => renderer.unmount());
-
     Object.defineProperty(Platform, 'isTV', { value: true, configurable: true });
-    ({ renderer } = await setup());
-    await press(renderer, 'settings-airplay');
-    expect(appSettings.get('airplay')).toBe(false);
-    expect(has(renderer, 'settings-airplayName')).toBe(true);
-    await act(async () => renderer.unmount());
-  });
-
-  it('hides the server link section when the build has no worker', async () => {
-    const { renderer } = await setup();
-    expect(has(renderer, 'settings-serverLink')).toBe(false);
-    await act(async () => renderer.unmount());
-  });
-
-  it('requests, refreshes and unlinks the server link when enabled', async () => {
     mockLinkEnabled.mockReturnValue(true);
-    const { renderer } = await setup();
-    expect(byID(renderer, 'settings-serverLink').findAllByType(Text).map((node) => node.props.children)).toContain('未关联');
-    await press(renderer, 'settings-serverLink');
-    expect(texts(renderer)).toContain('设备码：ABCD-EFGH');
-    expect(has(renderer, 'settings-link-unlink')).toBe(false);
-    await press(renderer, 'settings-link-request');
-    expect(mockLink.request).toHaveBeenCalled();
+    const renderer = await setup();
+    const reached = new Set<string>();
+    for (const { id } of settingsSections) {
+      await press(renderer, `settings-menu-${id}`);
+      for (const testID of [...ROW_IDS, 'update-check']) if (has(renderer, testID)) reached.add(testID);
+    }
+    expect([...reached].sort()).toEqual([...ROW_IDS, 'update-check'].sort());
     await act(async () => renderer.unmount());
+  });
 
-    mockLink.state = 'PENDING';
-    const linked = await setup();
-    await press(linked.renderer, 'settings-serverLink');
-    expect(texts(linked.renderer)).toContain('状态：等待批准');
-    expect(has(linked.renderer, 'settings-link-request')).toBe(false);
-    await press(linked.renderer, 'settings-link-refresh');
-    expect(mockLink.refresh).toHaveBeenCalled();
-    await press(linked.renderer, 'settings-link-unlink');
-    expect(mockLink.unlink).toHaveBeenCalled();
-    await act(async () => linked.renderer.unmount());
+  it('enters every section on its first element', async () => {
+    Object.defineProperty(Platform, 'isTV', { value: true, configurable: true });
+    const renderer = await setup();
+    // Play is shown first.
+    expect(panelEntry()).toBe('settings-playerEngine');
+    const firstCard = (channel: string) =>
+      renderer.root.findAll(
+        (node) => typeof node.type === 'string' && node.props.testID?.startsWith(`${channel}-card-`),
+      )[0]!.props.testID;
+    const entries: [string, () => string][] = [
+      ['collect', () => firstCard('collect')],
+      ['history', () => firstCard('history')],
+      ['play', () => 'settings-playerEngine'],
+      // The selected segment of 样式来源, not the row below it.
+      ['subaudio', () => `settings-subtitleStyleSource-${appSettings.get('subtitleStyleSource')}`],
+      ['live', () => 'settings-live'],
+      ['net', () => 'settings-doh'],
+      ['sources', () => 'settings-vod'],
+      // The row view; its only focusable is 检查更新.
+      ['about', () => 'settings-version'],
+    ];
+    for (const [id, entry] of entries) {
+      await press(renderer, `settings-menu-${id}`);
+      expect([id, panelEntry()]).toEqual([id, entry()]);
+    }
+
+    // An empty list lands on 删除.
+    await press(renderer, 'settings-menu-history');
+    await press(renderer, 'history-clear');
+    await press(renderer, 'history-confirm-ok');
+    expect(panelEntry()).toBe('history-edit');
+    await act(async () => renderer.unmount());
+  });
+
+  it('manages history and the watchlist inline', async () => {
+    const renderer = await setup();
+    await press(renderer, 'settings-menu-history');
+    expect(has(renderer, 'history-edit')).toBe(true);
+    await press(renderer, 'history-clear');
+    await press(renderer, 'history-confirm-ok');
+    expect(textOf(renderer, 'settings-menu-history-hint')).toBe('0');
+
+    await press(renderer, 'settings-menu-collect');
+    await press(renderer, 'collect-edit');
+    await press(renderer, `collect-card-${historyKey('cms', 'a')}`);
+    expect(textOf(renderer, 'settings-menu-collect-hint')).toBe('0');
+    await act(async () => renderer.unmount());
   });
 });

@@ -354,6 +354,30 @@ describe('LiveScreen', () => {
     await act(async () => renderer.unmount());
   });
 
+  it('keeps TV focus on the video layer whenever no error view, list or panel owns it', async () => {
+    await act(async () => appSettings.set('change', false));
+    const renderer = await render();
+    await full(renderer);
+    const touchFocus = () => byTestId(renderer, 'live-touch').props.hasTVPreferredFocus;
+    expect(byTestId(renderer, 'live-touch').props.focusable).toBe(true);
+    expect(touchFocus()).toBe(true);
+
+    await emit(mpv, fatal('network'));
+    expect(touchFocus()).toBe(false);
+    // The retry button unmounts on a channel change; the video layer must take focus back so OK / MENU still arrive.
+    await remote('down');
+    expect(has(renderer, 'live-error')).toBe(false);
+    expect(touchFocus()).toBe(true);
+
+    await remote('select');
+    expect(touchFocus()).toBe(false);
+    await press(renderer, 'live-list-dismiss');
+    expect(touchFocus()).toBe(true);
+    await remote('info');
+    expect(touchFocus()).toBe(false);
+    await act(async () => renderer.unmount());
+  });
+
   it('shows the browse channel number in the full-screen info bar', async () => {
     const renderer = await render();
     expect(byTestId(renderer, 'live-browse-number').props.children).toBe('01');

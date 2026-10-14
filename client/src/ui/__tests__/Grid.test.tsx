@@ -68,6 +68,11 @@ describe('Grid', () => {
     expect(list(single).props.columnWrapperStyle).toBeUndefined();
   });
 
+  it('is a bounded, clipping scroll container so focused rows scroll into view', async () => {
+    const renderer = await render(<Grid data={data} keyExtractor={(item) => item} renderItem={renderItem} />);
+    expect(StyleSheet.flatten(list(renderer).props.style)).toEqual({ flex: 1 });
+  });
+
   it('takes a custom inset and gap in design px', async () => {
     const renderer = await render(
       <Grid inset={40} gap={16} data={data} keyExtractor={(item) => item} renderItem={renderItem} />,

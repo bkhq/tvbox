@@ -35,22 +35,28 @@ type DetailParams = RootStackScreenProps<'Detail'>['route']['params'];
 
 type DetailTab = 'episodes' | 'similar' | 'cast';
 
-/** Page frame: background, optional backdrop and the back pill. */
+/** Page frame: background, optional backdrop and the back pill. `fill` stretches the content to the viewport. */
 function Page({
   pic,
   backFocus,
+  fill,
   children,
   testID,
 }: {
   pic?: string;
   backFocus?: boolean;
+  fill?: boolean;
   children: ReactNode;
   testID?: string;
 }) {
   const navigation = useAppNavigation();
   const styles = useScaledStyles(makeStyles);
   return (
-    <ScrollView style={styles.page} contentContainerStyle={styles.scroll} testID={testID}>
+    <ScrollView
+      style={styles.page}
+      contentContainerStyle={fill ? [styles.scroll, styles.fill] : styles.scroll}
+      testID={testID}
+    >
       <Backdrop uri={pic} />
       <BackButton
         testID="detail-back"
@@ -361,7 +367,7 @@ function DetailContent({ provider, site, params }: { provider: SiteProvider; sit
     return <DetailBody site={site} siteKey={siteKey} vodId={vodId} vod={state.vod} initialHistory={state.history} />;
   }
   return (
-    <Page pic={vodPic} backFocus={state.status === 'loading'}>
+    <Page pic={vodPic} backFocus={state.status === 'loading'} fill testID="detail-status">
       <Text numberOfLines={1} style={[styles.title, styles.paramTitle]}>
         {vodName || '详情'}
       </Text>
@@ -410,7 +416,7 @@ export default function DetailScreen({ route }: RootStackScreenProps<'Detail'>) 
     );
   }
   return (
-    <Page backFocus>
+    <Page backFocus fill testID="detail-status">
       <Text numberOfLines={1} style={[styles.title, styles.paramTitle]}>
         {vodName || '详情'}
       </Text>
@@ -424,6 +430,7 @@ const makeStyles = (s: Scaler) => {
   return {
     page: { flex: 1, backgroundColor: color.bg },
     scroll: { paddingBottom: s(space.xxl) },
+    fill: { flexGrow: 1 },
     back: { marginTop: s(48), marginLeft: s(safeArea.horizontal) },
     info: { width: s(880), marginTop: s(50), marginLeft: s(safeArea.horizontal), gap: s(20) },
     tagLine: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: s(14) },

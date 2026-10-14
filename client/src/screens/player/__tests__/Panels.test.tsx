@@ -1,10 +1,30 @@
-import { Animated, BackHandler, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import {
+  Animated,
+  BackHandler,
+  Modal,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TVFocusGuideView,
+  View,
+} from 'react-native';
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 
 import type { Flag } from '../../../core/types';
 import type { EngineFactory, Track } from '../../../player/engine/types';
 import { Button, Chip, focus } from '../../../ui';
-import { AudioPanel, EnginePanel, LinePanel, Panel, SettingsPanel, SubtitlePanel } from '../Panels';
+import {
+  AudioPanel,
+  EnginePanel,
+  EpisodePanel,
+  LinePanel,
+  Panel,
+  SettingsPanel,
+  SpeedPanel,
+  SubtitlePanel,
+} from '../Panels';
 
 void [Animated, BackHandler, Modal, Pressable, ScrollView, Text, TextInput, View];
 
@@ -51,6 +71,48 @@ describe('Panel', () => {
     await act(async () => renderer.update(<Panel kind="settings" onClose={onClose}>{null}</Panel>));
     expect(byTestId(renderer, 'player-panel-settings')).toBeTruthy();
     expect(renderer.root.findAllByType(Text).map((node) => node.props.children)).toContain('设置');
+  });
+
+  it('traps D-pad focus on every side of the sheet, close button included', async () => {
+    const renderer = await render(
+      <Panel kind="episodes" onClose={jest.fn()}>
+        <Text>x</Text>
+      </Panel>,
+    );
+    const trap = byTestId(renderer, 'player-panel-episodes').findByType(TVFocusGuideView);
+    expect(trap.props).toMatchObject({
+      trapFocusUp: true,
+      trapFocusDown: true,
+      trapFocusLeft: true,
+      trapFocusRight: true,
+    });
+    expect(trap.findAll((node) => node.props.testID === 'player-panel-close').length).toBeGreaterThan(0);
+  });
+});
+
+describe('chip rows', () => {
+  it('mark the current speed with the accent fill, not the focus look', async () => {
+    const onSelect = jest.fn();
+    const renderer = await render(<SpeedPanel speed={1.5} onSelect={onSelect} />);
+    const current = control(renderer, 'player-speed-1.5');
+    expect(current.props).toMatchObject({ variant: 'primary', hasTVPreferredFocus: true });
+    expect(control(renderer, 'player-speed-1').props.variant).toBe('secondary');
+    expect(renderer.root.findAllByType(Chip)).toHaveLength(0);
+    await act(async () => control(renderer, 'player-speed-2').props.onPress());
+    expect(onSelect).toHaveBeenCalledWith(2);
+  });
+
+  it('mark the shown episode line with the accent fill and switch lines', async () => {
+    const lines = [
+      { flag: '线路一', episodes: [{ name: '第1集', url: 'a' }] },
+      { flag: '线路二', episodes: [{ name: '第1集', url: 'b' }, { name: '第2集', url: 'c' }] },
+    ] as unknown as Flag[];
+    const renderer = await render(<EpisodePanel flags={lines} flagIndex={0} episodeIndex={0} onSelect={jest.fn()} />);
+    expect(control(renderer, 'player-flag-0').props.variant).toBe('primary');
+    expect(control(renderer, 'player-flag-1').props.variant).toBe('secondary');
+    await act(async () => control(renderer, 'player-flag-1').props.onPress());
+    expect(control(renderer, 'player-flag-1').props.variant).toBe('primary');
+    expect(ids(renderer, 'player-episode-')).toEqual(['player-episode-0', 'player-episode-1']);
   });
 });
 
@@ -153,15 +215,28 @@ describe('SettingsPanel', () => {
     expect(control(renderer, 'player-settings-engine-mpv').props.disabled).toBe(true);
 
     const scales = renderer.root.findAll(
-      (node) => node.type === Chip && String(node.props.testID).startsWith('player-settings-scale-'),
+      (node) => node.type === Button && String(node.props.testID).startsWith('player-settings-scale-'),
     );
-    expect(scales.map((node) => [node.props.testID, node.props.label, !!node.props.selected])).toEqual([
-      ['player-settings-scale-0', '原始', false],
-      ['player-settings-scale-1', '16:9', false],
-      ['player-settings-scale-2', '4:3', false],
-      ['player-settings-scale-3', '填充', true],
-      ['player-settings-scale-4', '裁剪', false],
+    expect(scales.map((node) => [node.props.testID, node.props.title, node.props.variant])).toEqual([
+      ['player-settings-scale-0', '原始', 'secondary'],
+      ['player-settings-scale-1', '16:9', 'secondary'],
+      ['player-settings-scale-2', '4:3', 'secondary'],
+      ['player-settings-scale-3', '填充', 'primary'],
+      ['player-settings-scale-4', '裁剪', 'secondary'],
     ]);
+
+    // Each section is a focus guide, so DOWN from the last engine lands on the first scale (原始), UP goes back.
+    const sections = renderer.root.findAllByType(TVFocusGuideView);
+    expect(sections).toHaveLength(2);
+    expect(sections.every((node) => node.props.autoFocus)).toBe(true);
+    const inSection = (index: number) =>
+      sections[index]!.findAll((node) => node.type === Button).map((node) => node.props.testID as string);
+    expect(inSection(0)).toEqual([
+      'player-settings-engine-auto',
+      'player-settings-engine-video',
+      'player-settings-engine-mpv',
+    ]);
+    expect(inSection(1)[0]).toBe('player-settings-scale-0');
 
     await act(async () => control(renderer, 'player-settings-engine-auto').props.onPress());
     await act(async () => control(renderer, 'player-settings-scale-4').props.onPress());

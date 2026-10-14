@@ -1,11 +1,11 @@
 import { type ReactNode, useState } from 'react';
-import { FlatList, Modal, ScrollView, Text, TextInput, View } from 'react-native';
+import { FlatList, Modal, ScrollView, Text, TextInput, TVFocusGuideView, View } from 'react-native';
 
 import { SPEED_PRESETS } from '../../core/settings/schema';
 import type { Flag } from '../../core/types';
 import type { EnginePreference } from '../../player/engine/policy';
 import type { EngineFactory, ExternalSubtitle, Track, TrackId } from '../../player/engine/types';
-import { Button, Chip, color, focus, radii, safeArea, type Scaler, scaledText, space, useScaledStyles } from '../../ui';
+import { Button, color, focus, radii, safeArea, type Scaler, scaledText, space, useScaledStyles } from '../../ui';
 import { choiceOptions } from '../settings/options';
 import { formatSpeed, subtitleName, trackLabel } from './format';
 
@@ -31,6 +31,7 @@ const ROW_BLEED = Math.ceil(((focus.scale - 1) / 2) * (SHEET_WIDTH - 2 * space.l
 /**
  * Right-side modal sheet. The hardware back key (Android) and the Menu button
  * (tvOS) call onRequestClose, so back closes the panel before leaving the player.
+ * The sheet traps D-pad focus on every side so it never escapes the modal.
  */
 export function Panel({ kind, onClose, children }: { kind: PanelKind; onClose: () => void; children: ReactNode }) {
   const styles = useScaledStyles(makeStyles);
@@ -38,9 +39,11 @@ export function Panel({ kind, onClose, children }: { kind: PanelKind; onClose: (
     <Modal visible transparent animationType="fade" onRequestClose={onClose}>
       <View style={styles.backdrop}>
         <View testID={`player-panel-${kind}`} style={styles.sheet}>
-          <Text style={styles.title}>{TITLES[kind]}</Text>
-          <View style={styles.body}>{children}</View>
-          <Button testID="player-panel-close" size="md" title="关闭" style={styles.close} onPress={onClose} />
+          <TVFocusGuideView style={styles.trap} trapFocusUp trapFocusDown trapFocusLeft trapFocusRight>
+            <Text style={styles.title}>{TITLES[kind]}</Text>
+            <View style={styles.body}>{children}</View>
+            <Button testID="player-panel-close" size="md" title="关闭" style={styles.close} onPress={onClose} />
+          </TVFocusGuideView>
         </View>
       </View>
     </Modal>
@@ -54,6 +57,18 @@ function Option({
 }: { testID: string; title: string; selected?: boolean; disabled?: boolean; hasTVPreferredFocus?: boolean; onPress: () => void }) {
   const styles = useScaledStyles(makeStyles);
   return <Button size="md" variant={selected ? 'primary' : 'secondary'} style={styles.option} {...props} />;
+}
+
+/**
+ * A choice in a chip row, marked like the option rows: accent fill when selected, so the current choice never
+ * reads as the focused one (inverted with a ring).
+ */
+function Choice({
+  selected,
+  ...props
+}: { testID: string; title: string; selected?: boolean; hasTVPreferredFocus?: boolean; onPress: () => void }) {
+  const styles = useScaledStyles(makeStyles);
+  return <Button size="md" variant={selected ? 'primary' : 'secondary'} style={styles.choice} {...props} />;
 }
 
 export function EpisodePanel({
@@ -75,10 +90,10 @@ export function EpisodePanel({
       {flags.length > 1 ? (
         <ScrollView horizontal style={styles.flags} contentContainerStyle={[styles.chips, styles.bleed]}>
           {flags.map((flag, index) => (
-            <Chip
+            <Choice
               key={`${index}-${flag.flag}`}
               testID={`player-flag-${index}`}
-              label={flag.flag}
+              title={flag.flag}
               selected={index === shownFlag}
               onPress={() => setShownFlag(index)}
             />
@@ -141,10 +156,10 @@ export function SpeedPanel({ speed, onSelect }: { speed: number; onSelect: (spee
   return (
     <View style={[styles.chips, styles.wrap, styles.bleed, styles.outdent]}>
       {SPEED_PRESETS.map((value) => (
-        <Chip
+        <Choice
           key={value}
           testID={`player-speed-${value}`}
-          label={formatSpeed(value)}
+          title={formatSpeed(value)}
           selected={value === speed}
           hasTVPreferredFocus={value === speed}
           onPress={() => onSelect(value)}
@@ -329,25 +344,28 @@ export function SettingsPanel({
   return (
     <ScrollView style={styles.list} contentContainerStyle={styles.bleed}>
       <Text style={styles.section}>播放器</Text>
-      <EngineOptions
-        engines={engines}
-        preference={preference}
-        active={active}
-        onSelect={onSelectEngine}
-        prefix="player-settings-engine"
-      />
+      <TVFocusGuideView autoFocus>
+        <EngineOptions
+          engines={engines}
+          preference={preference}
+          active={active}
+          onSelect={onSelectEngine}
+          prefix="player-settings-engine"
+        />
+      </TVFocusGuideView>
       <Text style={styles.section}>画面比例</Text>
-      <View style={[styles.chips, styles.wrap]}>
+      {/* Entering a section from the other one lands on its first (or last focused) control, not the nearest. */}
+      <TVFocusGuideView autoFocus style={[styles.chips, styles.wrap]}>
         {SCALE_OPTIONS.map((option) => (
-          <Chip
+          <Choice
             key={option.value}
             testID={`player-settings-scale-${option.value}`}
-            label={option.label}
+            title={option.label}
             selected={option.value === scale}
             onPress={() => onSelectScale(option.value)}
           />
         ))}
-      </View>
+      </TVFocusGuideView>
     </ScrollView>
   );
 }
@@ -369,6 +387,7 @@ const makeStyles = (s: Scaler) => {
       backgroundColor: 'rgba(21,26,36,0.96)',
     },
     title: { ...t.h2, marginBottom: s(space.md), color: color.text },
+    trap: { flex: 1 },
     body: { flex: 1, minHeight: 0 },
     close: { marginTop: s(space.md), alignSelf: 'flex-start' as const },
     // Room around focusable children so the focus zoom and ring are not clipped; outdent keeps the rows aligned
@@ -380,6 +399,7 @@ const makeStyles = (s: Scaler) => {
     chips: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: s(space.sm) },
     wrap: { flexWrap: 'wrap' as const },
     cell: { flex: 1 / EPISODE_COLUMNS, margin: s(space.xs), paddingHorizontal: s(space.sm) },
+    choice: { paddingHorizontal: s(space.md) },
     option: { marginBottom: s(space.sm), justifyContent: 'flex-start' as const },
     section: { ...t.label, marginTop: s(space.sm), marginBottom: s(space.sm), color: color.text2 },
     note: { ...t.label, marginBottom: s(space.sm), color: color.text3 },

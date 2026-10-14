@@ -29,8 +29,7 @@ import {
 } from '../../player/live';
 import type { UrlPlayerParams } from '../../player/params';
 import { toSnapshot, usePlayback } from '../../player/usePlayback';
-import { color, type Scaler, scaledText, space, useLayout, useScaledStyles } from '../../ui';
-import { ErrorView } from '../common';
+import { Button, color, safeArea, type Scaler, scaledText, space, useLayout, useScaledStyles } from '../../ui';
 import { fallbackNotice, NOTICE_DURATION } from '../player';
 import { useBackgroundPause } from '../player/useBackgroundPause';
 import { ChannelList } from './ChannelList';
@@ -39,7 +38,7 @@ import { LiveBrowse } from './LiveBrowse';
 import { toggleFavourite } from './liveFavourites';
 import { initialSelection, type LiveSelection } from './liveModel';
 import { LivePanel, PassPrompt } from './LivePanel';
-import { LiveStatus } from './LiveStatus';
+import { LiveStatus, shortDetail } from './LiveStatus';
 import { useLiveEpg } from './useLiveEpg';
 import { useLiveGestures } from './useLiveGestures';
 import { type LiveRemoteAction, useLiveRemote } from './useLiveRemote';
@@ -394,8 +393,21 @@ function LivePlayer({ live, lives, visible, hidden: initialHidden, start, params
         </>
       ) : null}
       {mode === 'full' && state.status === 'error' ? (
-        <View style={[StyleSheet.absoluteFill, ui.page]}>
-          <ErrorView testID="live-error" message={`${channel.name}：${state.error ?? '播放失败'}`} onRetry={replay} hasTVPreferredFocus />
+        <View style={[StyleSheet.absoluteFill, ui.page, ui.error]} testID="live-error">
+          <Text style={ui.errorTitle}>{`${channel.name} 播放失败`}</Text>
+          {state.error ? (
+            <Text style={ui.errorDetail} numberOfLines={2} testID="live-error-detail">
+              {shortDetail(state.error)}
+            </Text>
+          ) : null}
+          <Button
+            testID="live-error-retry"
+            title="重试"
+            size="md"
+            style={ui.errorRetry}
+            onPress={replay}
+            hasTVPreferredFocus
+          />
         </View>
       ) : null}
       {mode === 'full' && info > 0 && !list ? (
@@ -596,9 +608,24 @@ const styles = StyleSheet.create({
 });
 
 const makeStyles = (s: Scaler) => {
-  const { body } = scaledText(s);
+  const { body, h2, caption } = scaledText(s);
   return {
     page: { backgroundColor: color.bg },
+    // The full-screen playback error, laid out like the LiveStatus block.
+    error: {
+      alignItems: 'center' as const,
+      justifyContent: 'center' as const,
+      paddingHorizontal: s(safeArea.horizontal),
+    },
+    errorTitle: { ...h2, color: color.text, textAlign: 'center' as const },
+    errorDetail: {
+      ...caption,
+      marginTop: s(space.sm),
+      maxWidth: s(1200),
+      color: color.text3,
+      textAlign: 'center' as const,
+    },
+    errorRetry: { marginTop: s(space.lg) },
     statusText: { ...body, marginTop: s(space.sm), color: color.text },
     notice: {
       position: 'absolute' as const,

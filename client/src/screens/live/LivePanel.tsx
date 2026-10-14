@@ -3,7 +3,7 @@ import { Modal, ScrollView, Text, TextInput, View } from 'react-native';
 
 import { useSetting } from '../../core/settings/useSetting';
 import type { Live } from '../../core/types';
-import { Button, Chip, color, focus, radii, type Scaler, scaledText, space, useScaledStyles } from '../../ui';
+import { Button, color, focus, radii, type Scaler, scaledText, space, useScaledStyles } from '../../ui';
 
 type Styles = ReturnType<typeof makeStyles>;
 
@@ -35,13 +35,15 @@ function Sheet({
   );
 }
 
+/** A switch marked like the player panel choices: accent fill when on, so it never reads as the focused one. */
 function Toggle({ setting, title }: { setting: 'invert' | 'across' | 'change'; title: string }) {
   const [value, setValue] = useSetting(setting);
   return (
-    <Chip
+    <Button
       testID={`live-setting-${setting}`}
-      label={`${title}：${value ? '开' : '关'}`}
-      selected={value}
+      size="md"
+      variant={value ? 'primary' : 'secondary'}
+      title={`${title}：${value ? '开' : '关'}`}
       onPress={() => void setValue(!value)}
     />
   );
@@ -65,11 +67,12 @@ export function LivePanel({
       <Text style={styles.section}>直播源</Text>
       <ScrollView style={styles.list} contentContainerStyle={styles.chips}>
         {lives.map((live, index) => (
-          <Chip
+          <Button
             key={`${index}-${live.name}`}
             testID={`live-source-${index}`}
-            label={live.name}
-            selected={live.name === home}
+            size="md"
+            variant={live.name === home ? 'primary' : 'secondary'}
+            title={live.name}
             hasTVPreferredFocus={live.name === home}
             onPress={() => onSelect(live)}
           />

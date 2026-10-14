@@ -6,6 +6,7 @@ import { MemoryStore } from '../../../core/storage';
 import { type Group, normalizeLive } from '../../../core/types';
 import { setUserDataStore } from '../../../core/userData';
 import type { Epg } from '../../../player/live';
+import { Button, Chip } from '../../../ui';
 import { emptyChannel } from '../../../player/live/channel';
 import { ChannelList } from '../ChannelList';
 import { InfoBar } from '../InfoBar';
@@ -50,6 +51,8 @@ async function render(element: React.ReactElement) {
 }
 
 const byTestId = (testID: string) => renderer.root.findAll((node) => node.props.testID === testID)[0];
+const button = (testID: string) =>
+  renderer.root.findAll((node) => node.type === Button && node.props.testID === testID)[0]!;
 const has = (testID: string) => byTestId(testID) !== undefined;
 const texts = () => renderer.root.findAllByType(Text).map((node) => [node.props.children].flat().join(''));
 
@@ -147,12 +150,17 @@ describe('LivePanel and PassPrompt', () => {
     ];
     await act(async () => appSettings.set('invert', false));
     await render(<LivePanel lives={lives} home="直播A" onSelect={onSelect} onClose={onClose} />);
-    expect(byTestId('live-source-0')!.props.selected).toBe(true);
+    // The current source and the switches that are on use the accent fill, never the focus look.
+    expect(button('live-source-0').props.variant).toBe('primary');
+    expect(button('live-source-1').props.variant).toBe('secondary');
+    expect(renderer.root.findAllByType(Chip)).toHaveLength(0);
     await press('live-source-1');
     expect(onSelect).toHaveBeenCalledWith(lives[1]);
     expect(texts()).toContain('换台反转：关');
+    expect(button('live-setting-invert').props.variant).toBe('secondary');
     await press('live-setting-invert');
     expect(texts()).toContain('换台反转：开');
+    expect(button('live-setting-invert').props.variant).toBe('primary');
     await press('live-panel-close');
     expect(onClose).toHaveBeenCalled();
   });

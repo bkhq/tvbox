@@ -1,6 +1,7 @@
 import {
   Animated,
   BackHandler,
+  FlatList,
   Modal,
   Pressable,
   ScrollView,
@@ -116,6 +117,43 @@ describe('chip rows', () => {
   });
 });
 
+describe('EpisodePanel', () => {
+  const many = [
+    {
+      flag: '线路一',
+      episodes: Array.from({ length: 7 }, (_, index) => ({ name: `第${index + 1}集`, url: `u${index}` })),
+    },
+  ] as unknown as Flag[];
+
+  it('renders every episode as an equal-width cell of a wrapped grid, partial last row included', async () => {
+    const renderer = await render(<EpisodePanel flags={many} flagIndex={0} episodeIndex={5} onSelect={jest.fn()} />);
+    expect(renderer.root.findAllByType(FlatList)).toHaveLength(0);
+    const cells = ids(renderer, 'player-episode-').map((id) => StyleSheet.flatten(control(renderer, id).props.style));
+    expect(cells).toHaveLength(7);
+    expect(cells[0]!.width).toBeGreaterThan(0);
+    expect(cells.every((style) => style.width === cells[0]!.width && style.flex === undefined)).toBe(true);
+    const grid = StyleSheet.flatten(renderer.root.findAllByType(ScrollView)[0]!.props.contentContainerStyle);
+    expect(grid).toMatchObject({ flexDirection: 'row', flexWrap: 'wrap' });
+    // Four cells and three gaps fit in the content width of the sheet.
+    expect(4 * (cells[0]!.width as number) + 3 * (grid.gap as number)).toBeLessThanOrEqual(720 - 2 * 40);
+  });
+
+  it('prefers the current episode and selects with the shown line', async () => {
+    const onSelect = jest.fn();
+    const renderer = await render(<EpisodePanel flags={many} flagIndex={0} episodeIndex={5} onSelect={onSelect} />);
+    expect(control(renderer, 'player-episode-5').props).toMatchObject({
+      variant: 'primary',
+      hasTVPreferredFocus: true,
+    });
+    expect(control(renderer, 'player-episode-4').props).toMatchObject({
+      variant: 'secondary',
+      hasTVPreferredFocus: false,
+    });
+    await act(async () => control(renderer, 'player-episode-6').props.onPress());
+    expect(onSelect).toHaveBeenCalledWith(6, 0);
+  });
+});
+
 describe('LinePanel', () => {
   it('lists one option per line, selects the current one and calls back', async () => {
     const onSelect = jest.fn();
@@ -158,6 +196,25 @@ describe('track panels', () => {
       '英语',
       '繁体中文',
     ]);
+  });
+
+  it('marks the current subtitle choice with the accent fill like the 音轨 panel', async () => {
+    const props = { tracks, external: [], onSelect: jest.fn(), onAdd: jest.fn() };
+    const variants = (renderer: ReactTestRenderer) =>
+      ['off', 'a', 'b'].map((id) => control(renderer, `player-subtitle-${id}`).props.variant as string);
+    const off = await render(<SubtitlePanel {...props} selected={null} />);
+    expect(variants(off)).toEqual(['primary', 'secondary', 'secondary']);
+    expect(control(off, 'player-subtitle-off').props.hasTVPreferredFocus).toBe(true);
+
+    const picked = await render(<SubtitlePanel {...props} selected="b" />);
+    expect(variants(picked)).toEqual(['secondary', 'secondary', 'primary']);
+    expect(control(picked, 'player-subtitle-b').props.hasTVPreferredFocus).toBe(true);
+
+    const engine = await render(<SubtitlePanel {...props} tracks={[tracks[0]!, { ...tracks[1]!, selected: true }]} />);
+    expect(variants(engine)).toEqual(['secondary', 'secondary', 'primary']);
+
+    // No track selected reads as off.
+    expect(variants(await render(<SubtitlePanel {...props} />))).toEqual(['primary', 'secondary', 'secondary']);
   });
 
   it('leaves room for the focus zoom and ring of a full-width option inside the scrolled list', async () => {

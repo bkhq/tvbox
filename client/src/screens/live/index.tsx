@@ -376,11 +376,6 @@ function LivePlayer({ live, lives, visible, hidden: initialHidden, start, params
       ) : null}
       {mode === 'browse' ? (
         <>
-          {state.status === 'error' ? (
-            <View style={styles.center} pointerEvents="none">
-              <Text style={ui.statusText} testID="live-browse-error">{`${channel.name}：${state.error ?? '播放失败'}`}</Text>
-            </View>
-          ) : null}
           <LiveBrowse
             groups={groups}
             selection={selection}
@@ -389,6 +384,7 @@ function LivePlayer({ live, lives, visible, hidden: initialHidden, start, params
             onSelect={(ref) => select({ ...ref, line: 0 })}
             onFull={() => setMode('full')}
             onToggleFavourite={onToggleFavourite}
+            error={state.status === 'error' ? (state.error ?? '') : undefined}
           />
         </>
       ) : null}

@@ -18,8 +18,10 @@ import {
   Icon,
   imageSource,
   radii,
+  safeArea,
   type Scaler,
   scaledText,
+  space,
   tabular,
   TopNav,
   useFocusAnimation,
@@ -27,6 +29,7 @@ import {
   useScaledStyles,
 } from '../../ui';
 import { isFavourite } from './liveFavourites';
+import { shortDetail } from './LiveStatus';
 import {
   channelNumberLabel,
   itemForSelection,
@@ -51,6 +54,8 @@ export interface LiveBrowseProps {
   onSelect(ref: LiveChannelRef): void;
   onFull(): void;
   onToggleFavourite(channel: Channel): void;
+  /** Playback error detail of the playing channel; undefined while it plays. */
+  error?: string;
 }
 
 // Channel tile of the live mockup plus the row gap.
@@ -83,6 +88,7 @@ export function LiveBrowse({
   onSelect,
   onFull,
   onToggleFavourite,
+  error,
 }: LiveBrowseProps) {
   const navigation = useAppNavigation();
   const nav = useMainNav('live');
@@ -141,6 +147,19 @@ export function LiveBrowse({
         </Defs>
         <Rect width="100%" height="100%" fill="url(#liveBottomFade)" />
       </Svg>
+      {error !== undefined ? (
+        // Over the preview, never focusable: D-pad browsing stays as it is; full screen has its own 重试 block.
+        <View style={styles.errorArea} pointerEvents="none">
+          <View style={styles.errorBlock} testID="live-browse-error">
+            <Text style={styles.errorTitle} numberOfLines={1}>{`${channel.name} 播放失败`}</Text>
+            {shortDetail(error) ? (
+              <Text style={styles.errorDetail} numberOfLines={2} testID="live-browse-error-detail">
+                {shortDetail(error)}
+              </Text>
+            ) : null}
+          </View>
+        </View>
+      ) : null}
       <TopNav
         items={nav.items}
         onSelect={nav.select}
@@ -323,10 +342,32 @@ function FavouriteButton({ favourite, onPress }: { favourite: boolean; onPress()
 }
 
 const makeStyles = (s: Scaler) => {
-  const { display, h1, body, label, caption } = scaledText(s);
+  const { display, h1, h2, body, label, caption } = scaledText(s);
   return {
     topFade: { position: 'absolute' as const, top: 0, left: 0, right: 0, height: s(220) },
     bottomFade: { position: 'absolute' as const, bottom: 0, left: 0, right: 0, height: s(520) },
+    // The preview area between the top bar and the browse rows.
+    errorArea: {
+      position: 'absolute' as const,
+      top: s(150),
+      left: s(safeArea.horizontal),
+      right: s(safeArea.horizontal),
+      bottom: s(420),
+      alignItems: 'center' as const,
+      justifyContent: 'center' as const,
+    },
+    errorBlock: {
+      maxWidth: s(1200),
+      alignItems: 'center' as const,
+      paddingHorizontal: s(space.lg),
+      paddingVertical: s(space.md),
+      borderRadius: s(radii.card),
+      borderWidth: 1,
+      borderColor: 'rgba(255,255,255,0.1)',
+      backgroundColor: 'rgba(21,26,36,0.92)',
+    },
+    errorTitle: { ...h2, color: color.text, textAlign: 'center' as const },
+    errorDetail: { ...caption, marginTop: s(space.xs), color: color.text3, textAlign: 'center' as const },
     bottom: {
       position: 'absolute' as const,
       left: s(96),

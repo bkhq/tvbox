@@ -1,5 +1,6 @@
 import {
   ActivityIndicator,
+  Dimensions,
   FlatList,
   Image,
   Modal,
@@ -21,7 +22,9 @@ import { normalizeResult, type Result } from '../../../core/types';
 import { getHistoryRepository, getKeepRepository, setUserDataStore } from '../../../core/userData';
 import { getMainNavAvailability, setMainNavAvailability } from '../../../navigation/mainNav';
 import type { RootStackScreenProps } from '../../../navigation/types';
+import { makeScaler, scaleFor } from '../../../ui/scale';
 import HomeScreen, { HERO_FOCUS_DELAY } from '..';
+import { SITE_LIST_MAX_HEIGHT } from '../SitePicker';
 
 // react-native resolves components lazily on first access; resolve the ones the
 // screen renders while the file loads so no test pays that cost inside its timeout.
@@ -412,6 +415,9 @@ describe('HomeScreen', () => {
     expect(texts(byTestID(renderer, 'home-site-cms'))).toContain('首页');
     expect(byTestID(renderer, 'home-site-jar').props.disabled).toBe(true);
     expect(preferred(renderer)).toEqual(['home-site-cms']);
+    // The list is capped so a long site list scrolls instead of pushing 关闭 off screen.
+    const s = makeScaler(scaleFor(Dimensions.get('window').width));
+    expect(byTestID(renderer, 'home-site-list').props.style.maxHeight).toBe(s(SITE_LIST_MAX_HEIGHT));
 
     await act(async () => byTestID(renderer, 'home-site-xml').props.onPress());
     expect(appSettings.get('homeSiteKey')).toBe('xml');

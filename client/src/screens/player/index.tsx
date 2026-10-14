@@ -19,7 +19,7 @@ import {
 import { color, radii, type Scaler, scaledText, space, useScaledStyles } from '../../ui';
 import { ErrorView } from '../common';
 import { Controls, SeekOverlay } from './Controls';
-import { episodeLabel } from './format';
+import { episodeLabel, trackLabel } from './format';
 import {
   AudioPanel,
   EpisodePanel,
@@ -55,7 +55,7 @@ export function fallbackNotice(label: string): string {
 function trackName(tracks: Track[], selected: TrackId | null | undefined): string | undefined {
   if (selected === null) return undefined;
   const track = tracks.find((item) => (selected === undefined ? item.selected : item.id === selected));
-  return track ? track.label || track.language : undefined;
+  return track ? trackLabel(track) : undefined;
 }
 
 interface PlayerViewProps {

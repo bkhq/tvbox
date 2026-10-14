@@ -123,4 +123,10 @@ describe('Controls', () => {
     press(renderer, 'player-back');
     expect(props.onBack).toHaveBeenCalled();
   });
+
+  it('drops the track suffix when no label is known', () => {
+    const { renderer } = renderControls({ subtitleName: undefined, audioName: undefined });
+    expect(texts(renderer)).toEqual(expect.arrayContaining(['字幕', '音轨']));
+    expect(texts(renderer).some((value) => value.includes('und'))).toBe(false);
+  });
 });

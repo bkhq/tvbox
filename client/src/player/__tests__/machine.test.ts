@@ -109,6 +109,26 @@ describe('playback machine', () => {
       expect(state.source?.startPosition).toBe(700);
     });
 
+    it('retries a format error as HLS on the same engine before switching engines', () => {
+      let state = openVod();
+      state = playbackReducer(state, { type: 'resolved', token: state.token, source: source('http://a/m.php?id=1', 300) });
+      state = playbackReducer(state, { type: 'engineFailed', message: 'unrecognized', reason: 'format', fallback: 'mpv' });
+      expect(state).toMatchObject({ status: 'loading', engine: 'video', hlsRetried: true, fallbackUsed: false, attempt: 2 });
+      expect(state.source).toMatchObject({ url: 'http://a/m.php?id=1', format: 'application/x-mpegURL', startPosition: 300 });
+      state = playbackReducer(state, { type: 'engineFailed', message: 'still', reason: 'format', fallback: 'mpv' });
+      expect(state).toMatchObject({ status: 'loading', engine: 'mpv', fallbackUsed: true });
+      expect(state.source?.format).toBe('application/x-mpegURL');
+    });
+
+    it('does not retry as HLS when the source already is HLS or the error is not a format error', () => {
+      const hls = openVod();
+      let state = playbackReducer(hls, { type: 'resolved', token: hls.token, source: { ...source('http://a/x'), format: 'application/vnd.apple.mpegurl' } });
+      state = playbackReducer(state, { type: 'engineFailed', message: 'f', reason: 'format', fallback: 'mpv' });
+      expect(state).toMatchObject({ engine: 'mpv', hlsRetried: false });
+      state = playbackReducer(playing(openVod(), 'http://a/1.mp4'), { type: 'engineFailed', message: 'n', reason: 'network', fallback: 'mpv' });
+      expect(state).toMatchObject({ engine: 'mpv', hlsRetried: false });
+    });
+
     it('errors when there is no fallback', () => {
       const state = playbackReducer(playing(openVod()), { type: 'engineFailed', message: '' });
       expect(state).toMatchObject({ status: 'error', error: MSG_PLAY_FAILED });

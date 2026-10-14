@@ -332,7 +332,7 @@ export function usePlayback(params: PlayerParams, options: UsePlaybackOptions = 
         ? fallbackDecision(Platform.OS, current.engine, event, current)
         : undefined;
       const fallback = decision && getEngine(decision)?.isAvailable() ? decision : undefined;
-      dispatch({ type: 'engineFailed', message: event.message, fallback });
+      dispatch({ type: 'engineFailed', message: event.message, reason: event.reason, fallback });
       return;
     }
     dispatch({ type: 'engine', event });

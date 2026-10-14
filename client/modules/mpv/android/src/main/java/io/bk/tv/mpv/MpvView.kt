@@ -4,6 +4,7 @@ import android.content.Context
 import android.os.Handler
 import android.os.Looper
 import android.os.SystemClock
+import android.util.Log
 import android.view.SurfaceHolder
 import android.view.SurfaceView
 import expo.modules.kotlin.AppContext
@@ -43,6 +44,7 @@ class MpvView(context: Context, appContext: AppContext) :
   private var surfaceAttached = false
   private var loadedUrl: String? = null
   private var fileLoaded = false
+  @Volatile private var loadRequestId = 0L
 
   @Volatile private var duration = 0.0
   @Volatile private var buffered = 0.0
@@ -132,6 +134,20 @@ class MpvView(context: Context, appContext: AppContext) :
     option("cache", "yes")
     option("demuxer-max-bytes", "64MiB")
     option("demuxer-max-back-bytes", "32MiB")
+    // mpv's libcurl has no system CA store on Android; without a bundle every https open fails.
+    caFile(configDir)?.let { option("tls-ca-file", it.absolutePath) }
+  }
+
+  /** Copies the bundled CA certificates next to the mpv config when missing or changed. */
+  private fun caFile(configDir: File): File? {
+    val file = File(configDir, CA_ASSET)
+    return runCatching {
+      context.assets.open(CA_ASSET).use { input ->
+        val bytes = input.readBytes()
+        if (!file.exists() || file.length() != bytes.size.toLong()) file.writeBytes(bytes)
+      }
+      file
+    }.onFailure { Log.w("Mpv", "CA bundle unavailable", it) }.getOrNull()
   }
 
   private fun observeProperties() {
@@ -151,7 +167,9 @@ class MpvView(context: Context, appContext: AppContext) :
     setProperty("force-media-title", src.title ?: "")
     applyHeaders(src.headers)
     setProperty("demuxer-lavf-format", if (isHlsHint(src)) "hls" else "")
-    command("loadfile", src.url, "replace")
+    val requestId = command("loadfile", src.url, "replace")
+    loadRequestId = requestId
+    if (requestId == 0L) emit(mapOf("type" to "error", "phase" to "init", "code" to "loadfile", "message" to "mpv rejected loadfile"))
   }
 
   private fun applyHeaders(headers: Map<String, String>) {
@@ -283,6 +301,12 @@ class MpvView(context: Context, appContext: AppContext) :
     }
   }
 
+  override fun eventCommandReply(requestId: Long, error: Int) {
+    if (error >= 0 || requestId != loadRequestId) return
+    val event = mapOf("type" to "error", "phase" to "init", "code" to "loadfile", "message" to (lastLog ?: "mpv loadfile failed ($error)"))
+    post { emit(event) }
+  }
+
   override fun eventEndFile(reason: Int, error: Int, errorString: String?) {
     if (reason != MpvEndFileReason.MPV_END_FILE_REASON_EOF && reason != MpvEndFileReason.MPV_END_FILE_REASON_ERROR) return
     val event = mapOf(
@@ -324,13 +348,28 @@ class MpvView(context: Context, appContext: AppContext) :
     command("set", name, value)
   }
 
-  private fun command(vararg args: String) {
-    MPVLib.enqueueCommand(0, arrayOf(*args))
+  /** Returns the request id, or 0 when libplayer refused to queue the command. */
+  private fun command(vararg args: String): Long {
+    val requestId = nextRequestId()
+    val result = MPVLib.enqueueCommand(requestId, arrayOf(*args))
+    if (result >= 0) return requestId
+    Log.w("Mpv", "enqueue ${args.firstOrNull()} failed: $result")
+    return 0L
   }
 
   private companion object {
     const val PROGRESS_INTERVAL_MS = 250L
     const val LOG_LEVEL_WARN = 30
+    const val CA_ASSET = "mpv-cacert.pem"
+
+    // libplayer rejects request ids below 1 (MPV_ERROR_INVALID_PARAMETER) without queueing the command.
+    private var requestCounter = 0L
+
+    @Synchronized
+    fun nextRequestId(): Long {
+      requestCounter = if (requestCounter == Long.MAX_VALUE) 1L else requestCounter + 1
+      return requestCounter
+    }
 
     fun yesNo(value: Boolean) = if (value) "yes" else "no"
   }

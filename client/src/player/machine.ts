@@ -16,7 +16,15 @@
 
 import type { Episode, Flag } from '../core/types';
 import { nextLine, switchLineNotice } from './fallback';
-import type { EngineEvent, EngineKind, EngineSource, EngineTracks, ExternalSubtitle, TrackId } from './engine/types';
+import type {
+  EngineErrorReason,
+  EngineEvent,
+  EngineKind,
+  EngineSource,
+  EngineTracks,
+  ExternalSubtitle,
+  TrackId,
+} from './engine/types';
 
 export type PlaybackStatus =
   | 'idle'
@@ -46,6 +54,8 @@ export interface PlaybackState {
   engine?: EngineKind;
   /** The one engine fallback of the current item has been used. */
   fallbackUsed: boolean;
+  /** The source was retried as HLS after a format error (ExoUtil.getMimeType in the Java app). */
+  hlsRetried: boolean;
   /** The site allows automatic line fallback (Site.isChangeable). */
   changeable: boolean;
   /** Flag indices tried for the current episode request. */
@@ -90,7 +100,7 @@ export type PlaybackAction =
   | { type: 'failed'; token: number; message: string }
   | { type: 'engine'; event: EngineEvent }
   /** Engine init or fatal playback error; `fallback` is the other available engine. */
-  | { type: 'engineFailed'; message: string; fallback?: EngineKind }
+  | { type: 'engineFailed'; message: string; reason?: EngineErrorReason; fallback?: EngineKind }
   /** Manual engine switch keeping the position. */
   | { type: 'setEngine'; engine: EngineKind }
   | { type: 'play' }
@@ -125,6 +135,7 @@ export const initialPlaybackState: PlaybackState = {
   episodeIndex: 0,
   revPlay: false,
   fallbackUsed: false,
+  hlsRetried: false,
   changeable: false,
   triedFlags: [],
   loaded: false,
@@ -206,6 +217,7 @@ function newItem(state: PlaybackState): PlaybackState {
     source: undefined,
     engine: state.preferredEngine,
     fallbackUsed: false,
+    hlsRetried: false,
     loaded: false,
     position: 0,
     duration: 0,
@@ -315,12 +327,30 @@ function onEngineEvent(state: PlaybackState, event: EngineEvent): PlaybackState 
     case 'tracks':
       return { ...state, tracks: { audio: event.audio, text: event.text, video: event.video } };
     case 'error':
-      return event.fatal ? engineFailed(state, event.message, undefined) : state;
+      return event.fatal ? engineFailed(state, event.message, event.reason, undefined) : state;
   }
 }
 
-function engineFailed(state: PlaybackState, message: string, fallback: EngineKind | undefined): PlaybackState {
+const HLS_FORMAT = 'application/x-mpegURL';
+const HLS_HINT = /mpegurl|m3u8/i;
+
+function isHlsSource(source: EngineSource): boolean {
+  return HLS_HINT.test(source.format ?? '') || /\.m3u8?$/i.test(source.url.split(/[?#]/)[0] ?? '');
+}
+
+function engineFailed(
+  state: PlaybackState,
+  message: string,
+  reason: EngineErrorReason | undefined,
+  fallback: EngineKind | undefined,
+): PlaybackState {
   if (!hasMedia(state)) return state;
+  // Sources often serve HLS from a .php URL with a non-HLS MIME type, which neither ExoPlayer nor
+  // FFmpeg will sniff as a playlist: retry the same source as HLS once before switching engines.
+  if (reason === 'format' && !state.hlsRetried && state.source && !isHlsSource(state.source)) {
+    const retry = switchEngine(state, state.engine ?? fallback ?? 'video');
+    return { ...retry, hlsRetried: true, source: retry.source && { ...retry.source, format: HLS_FORMAT } };
+  }
   if (!state.fallbackUsed && fallback && fallback !== state.engine) {
     return { ...switchEngine(state, fallback), fallbackUsed: true };
   }
@@ -380,7 +410,7 @@ export function playbackReducer(state: PlaybackState, action: PlaybackAction): P
     case 'engine':
       return onEngineEvent(state, action.event);
     case 'engineFailed':
-      return engineFailed(state, action.message, action.fallback);
+      return engineFailed(state, action.message, action.reason, action.fallback);
     case 'setEngine':
       if (action.engine === state.engine) return state;
       return hasMedia(state) ? switchEngine(state, action.engine) : { ...state, engine: action.engine };

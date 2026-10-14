@@ -381,9 +381,12 @@ const makeStyles = (s: Scaler) => {
     form: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: s(space.sm), marginTop: s(space.xs) },
     input: {
       ...t.label,
+      // Android clips single-line TextInput glyphs when a lineHeight is set.
+      lineHeight: undefined,
       flex: 1,
       height: s(64),
       paddingHorizontal: s(space.md),
+      paddingVertical: 0,
       borderRadius: s(radii.button),
       backgroundColor: color.surface2,
       color: color.text,

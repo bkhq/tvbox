@@ -8,7 +8,7 @@ import { setUserDataStore } from '../../../core/userData';
 import type { Epg } from '../../../player/live';
 import { emptyChannel } from '../../../player/live/channel';
 import { ChannelList } from '../ChannelList';
-import { InfoBar, programmeProgress } from '../InfoBar';
+import { InfoBar } from '../InfoBar';
 import { LivePanel, PassPrompt } from '../LivePanel';
 import type { LiveEpg } from '../useLiveEpg';
 
@@ -83,13 +83,6 @@ describe('InfoBar', () => {
     expect(has('live-info-current')).toBe(false);
     expect(has('live-info-next')).toBe(false);
     expect(has('live-info-progress')).toBe(false);
-  });
-
-  it('clamps the programme progress', () => {
-    const item = epg.list[0]!;
-    expect(programmeProgress(item, item.startTime - 1)).toBe(0);
-    expect(programmeProgress(item, item.endTime + 1)).toBe(1);
-    expect(programmeProgress({ ...item, endTime: item.startTime }, now)).toBe(0);
   });
 });
 

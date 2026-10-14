@@ -19,6 +19,7 @@ import { loadLiveGroups, loadLiveSources, readLiveState, saveLiveHome, saveLiveK
 import { createMockEngine, type MockEngine } from '../../../player/testing/mockEngine';
 import { LOAD_TIMEOUT } from '../../../player/usePlayback';
 import LiveScreen, { PASS_PRESSES } from '..';
+import { DETAIL_MAX, shortDetail } from '../LiveStatus';
 
 void [ActivityIndicator, FlatList, Image, Modal, Pressable, ScrollView, TextInput];
 
@@ -313,6 +314,28 @@ describe('LiveScreen', () => {
     await full(renderer);
     await emit(mpv, fatal('network'));
     expect(has(renderer, 'live-error')).toBe(true);
+    await act(async () => renderer.unmount());
+  });
+
+  it('shows the full-screen error as a status block with a short detail, and retries', async () => {
+    await act(async () => appSettings.set('change', false));
+    const renderer = await render();
+    await full(renderer);
+    const message = `ExoPlaybackException: ${'x'.repeat(200)}\n  at com.google.android.exoplayer2.Foo`;
+    await emit(mpv, { ...fatal('network'), message } as EngineEvent);
+    expect(has(renderer, 'live-error')).toBe(true);
+    expect(texts(renderer).some((text) => text.endsWith(' 播放失败'))).toBe(true);
+    const detail = byTestId(renderer, 'live-error-detail').props.children as string;
+    expect(detail).toBe(shortDetail(detail));
+    expect(detail).toContain('ExoPlaybackException: xxx');
+    expect(detail.length).toBeLessThanOrEqual(DETAIL_MAX);
+    expect(detail).not.toContain('com.google');
+    const retry = byTestId(renderer, 'live-error-retry');
+    expect(retry.props.hasTVPreferredFocus).toBe(true);
+
+    await press(renderer, 'live-error-retry');
+    expect(has(renderer, 'live-error')).toBe(false);
+    expect(playing()).toBe('http://m/1a');
     await act(async () => renderer.unmount());
   });
 

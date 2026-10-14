@@ -139,17 +139,6 @@ function PlayerView({ params, focused, onExit, onReload }: PlayerViewProps) {
     if (!focused) pause();
   }, [focused, pause]);
 
-  // Back closes the controls first; panels close through their modal.
-  useEffect(() => {
-    if (!focused) return;
-    const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
-      if (!overlay) return false;
-      setOverlay(false);
-      return true;
-    });
-    return () => subscription.remove();
-  }, [focused, overlay]);
-
   const showControls = useCallback(() => {
     setOverlay(true);
     bump();
@@ -165,6 +154,21 @@ function PlayerView({ params, focused, onExit, onReload }: PlayerViewProps) {
     setPanel(undefined);
     bump();
   }, [bump]);
+
+  // Back closes an open panel only (in case its modal lost window focus), then the controls.
+  useEffect(() => {
+    if (!focused) return;
+    const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
+      if (panel) {
+        closePanel();
+        return true;
+      }
+      if (!overlay) return false;
+      setOverlay(false);
+      return true;
+    });
+    return () => subscription.remove();
+  }, [focused, overlay, panel, closePanel]);
 
   const seekPreview = (offset: number) => {
     const { position, duration } = stateRef.current;

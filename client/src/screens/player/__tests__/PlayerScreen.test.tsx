@@ -300,6 +300,16 @@ describe('PlayerScreen', () => {
     await press(renderer, 'player-panel-close');
     expect(has(renderer, 'player-panel-settings')).toBe(false);
 
+    // Back with a panel open closes only the panel, even when the activity gets the key instead of the modal.
+    await press(renderer, 'player-engine');
+    let closed: boolean | null | undefined;
+    await act(async () => {
+      closed = handlers[handlers.length - 1]!();
+    });
+    expect(closed).toBe(true);
+    expect(has(renderer, 'player-panel-settings')).toBe(false);
+    expect(has(renderer, 'player-controls')).toBe(true);
+
     // Panel closed, controls still shown: back hides them; with nothing shown it leaves the screen.
     expect(has(renderer, 'player-controls')).toBe(true);
     const back = handlers[handlers.length - 1]!;

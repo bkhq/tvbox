@@ -1,4 +1,4 @@
-import { type ComponentType, useState } from 'react';
+import { type ComponentRef, type ComponentType, useCallback, useRef, useState } from 'react';
 import { ScrollView, TVFocusGuideView, View } from 'react-native';
 
 import { useMainNav } from '../../navigation/mainNav';
@@ -6,6 +6,7 @@ import { useAppNavigation } from '../../navigation/useAppNavigation';
 import { color, safeArea, TopNav, useScaledStyles, type Scaler } from '../../ui';
 import { CollectView } from '../collect';
 import { HistoryView } from '../history';
+import { EntryFocusContext } from './entryFocus';
 import { ProfileMenu } from './ProfileMenu';
 import {
   AboutSection,
@@ -51,6 +52,20 @@ export default function SettingsScreen() {
   const styles = useScaledStyles(makeStyles);
   const nav = useMainNav('profile');
   const [selected, setSelected] = useState<SettingsSectionId>('play');
+  // First focusable element of the shown section (a card, row or segment), set through its ref.
+  // Destinations go through the guide's command at ref time: a destinations prop would reach the
+  // guide's effect one commit late, after a section switch has unmounted the previous entry.
+  const guide = useRef<ComponentRef<typeof TVFocusGuideView>>(null);
+  const entry = useRef<View>(null);
+  const setEntry = useCallback((node: View | null) => {
+    entry.current = node;
+    guide.current?.setDestinations(node ? [node] : []);
+  }, []);
+  // Child refs attach before the guide's, so the first entry is applied here.
+  const setGuide = useCallback((node: ComponentRef<typeof TVFocusGuideView> | null) => {
+    guide.current = node;
+    if (node && entry.current) node.setDestinations([entry.current]);
+  }, []);
 
   return (
     <View style={styles.screen}>
@@ -62,9 +77,14 @@ export default function SettingsScreen() {
       />
       <View style={styles.content}>
         <ProfileMenu selected={selected} onSelect={setSelected} hasTVPreferredFocus />
-        {/* Entering from the menu lands on the panel's first (or last focused) element. */}
-        <TVFocusGuideView autoFocus style={styles.panelGuide}>
-          <SectionPanel key={selected} id={selected} />
+        {/*
+          Entering from the menu lands on the section's first element; autoFocus covers sections
+          without one (loading, error) by restoring the last focused element.
+        */}
+        <TVFocusGuideView ref={setGuide} autoFocus style={styles.panelGuide}>
+          <EntryFocusContext value={setEntry}>
+            <SectionPanel key={selected} id={selected} />
+          </EntryFocusContext>
         </TVFocusGuideView>
       </View>
     </View>

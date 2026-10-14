@@ -1,4 +1,4 @@
-import { type ReactNode, useEffect, useState, useSyncExternalStore } from 'react';
+import { type ReactNode, type Ref, useEffect, useState, useSyncExternalStore } from 'react';
 import { Platform, Text, View } from 'react-native';
 
 import { getAppConfig } from '../../core/appConfig';
@@ -12,6 +12,7 @@ import { checkResultText, getUpdateController, useUpdateCheck } from '../../upda
 import { unsupportedText } from '../home';
 import { clearCache, formatBytes, getCacheSize } from './cache';
 import { CONFIG_TITLE, ConfigPanel, useSavedConfigs } from './ConfigPanel';
+import { useEntryRef } from './entryFocus';
 import {
   type BooleanKey,
   type ChoiceKey,
@@ -210,6 +211,8 @@ function PanelView({ panel, onClose }: { panel: PanelState; onClose: () => void 
 interface RowProps {
   title: string;
   hasTVPreferredFocus?: boolean;
+  /** Set on the first row of a section: the 我的 panel entry. */
+  ref?: Ref<View>;
 }
 
 function ToggleRow({ settingKey, ...row }: RowProps & { settingKey: BooleanKey }) {
@@ -238,10 +241,12 @@ function PickerRow<K extends ChoiceKey>({
   format,
   open,
   hasTVPreferredFocus,
+  ref,
 }: RowProps & { settingKey: K; format?: (value: Settings[K]) => string; open: OpenPanel }) {
   const [value] = useSetting(settingKey);
   return (
     <SettingRow
+      ref={ref}
       testID={`settings-${settingKey}`}
       title={title}
       value={format ? format(value) : optionLabel(choiceOptions(settingKey), value)}
@@ -257,10 +262,12 @@ function StepRow({
   title,
   open,
   hasTVPreferredFocus,
+  ref,
 }: RowProps & { settingKey: StepKey; open: OpenPanel }) {
   const [value] = useSetting(settingKey);
   return (
     <SettingRow
+      ref={ref}
       testID={`settings-${settingKey}`}
       title={title}
       value={STEPS[settingKey].format(value)}
@@ -277,10 +284,12 @@ function TextRow({
   placeholder,
   open,
   hasTVPreferredFocus,
+  ref,
 }: RowProps & { settingKey: TextKey; placeholder?: string; open: OpenPanel }) {
   const [value] = useSetting(settingKey);
   return (
     <SettingRow
+      ref={ref}
       testID={`settings-${settingKey}`}
       title={title}
       value={formatText(value)}
@@ -304,10 +313,19 @@ function SpeedRow({ open }: { open: OpenPanel }) {
   );
 }
 
-function VodConfigRow({ open, hasTVPreferredFocus }: { open: OpenPanel; hasTVPreferredFocus?: boolean }) {
+function VodConfigRow({
+  open,
+  hasTVPreferredFocus,
+  ref,
+}: {
+  open: OpenPanel;
+  hasTVPreferredFocus?: boolean;
+  ref?: Ref<View>;
+}) {
   const vod = useVodConfig();
   return (
     <SettingRow
+      ref={ref}
       testID="settings-vod"
       title={CONFIG_TITLE.vod}
       value={vodStatusText(vod)}
@@ -322,14 +340,17 @@ function LiveConfigRow({
   open,
   refreshKey,
   hasTVPreferredFocus,
+  ref,
 }: {
   open: OpenPanel;
   refreshKey: unknown;
   hasTVPreferredFocus?: boolean;
+  ref?: Ref<View>;
 }) {
   const [{ active }] = useSavedConfigs('live', refreshKey);
   return (
     <SettingRow
+      ref={ref}
       testID="settings-live"
       title={CONFIG_TITLE.live}
       value={active ? active.name || active.url : '未设置'}
@@ -427,9 +448,11 @@ function usePanel(): [PanelState | undefined, OpenPanel, ReactNode] {
 
 export function PlaybackSection({ hasTVPreferredFocus }: SectionProps) {
   const [panel, open, panelView] = usePanel();
+  const entry = useEntryRef();
   return (
     <SettingsSection id="play">
       <PickerRow
+        ref={entry}
         settingKey="playerEngine"
         title="播放引擎"
         format={(value) => ENGINE_SHORT[value]}
@@ -455,9 +478,11 @@ export function PlaybackSection({ hasTVPreferredFocus }: SectionProps) {
 
 export function SubtitleAudioSection({ hasTVPreferredFocus }: SectionProps) {
   const [panel, open, panelView] = usePanel();
+  const entry = useEntryRef();
   return (
     <SettingsSection id="subaudio">
       <SegmentRow
+        ref={entry}
         settingKey="subtitleStyleSource"
         title="样式来源"
         hasTVPreferredFocus={hasTVPreferredFocus && !panel}
@@ -474,9 +499,10 @@ export function SubtitleAudioSection({ hasTVPreferredFocus }: SectionProps) {
 
 export function LiveSection({ hasTVPreferredFocus }: SectionProps) {
   const [panel, open, panelView] = usePanel();
+  const entry = useEntryRef();
   return (
     <SettingsSection id="live">
-      <LiveConfigRow open={open} refreshKey={panel} hasTVPreferredFocus={hasTVPreferredFocus && !panel} />
+      <LiveConfigRow ref={entry} open={open} refreshKey={panel} hasTVPreferredFocus={hasTVPreferredFocus && !panel} />
       <ToggleRow settingKey="across" title="跨分类换台" />
       <ToggleRow settingKey="change" title="失败自动换源" />
       <ToggleRow settingKey="invert" title="换台反转" />
@@ -489,9 +515,11 @@ export function LiveSection({ hasTVPreferredFocus }: SectionProps) {
 export function NetworkSection({ hasTVPreferredFocus }: SectionProps) {
   const [panel, open, panelView] = usePanel();
   const showAirplay = Platform.OS === 'android' && Platform.isTV;
+  const entry = useEntryRef();
   return (
     <SettingsSection id="net">
       <TextRow
+        ref={entry}
         settingKey="doh"
         title="DoH"
         placeholder="DoH 地址，留空不使用"
@@ -513,9 +541,10 @@ export function NetworkSection({ hasTVPreferredFocus }: SectionProps) {
 
 export function SourcesSection({ hasTVPreferredFocus }: SectionProps) {
   const [panel, open, panelView] = usePanel();
+  const entry = useEntryRef();
   return (
     <SettingsSection id="sources">
-      <VodConfigRow open={open} hasTVPreferredFocus={hasTVPreferredFocus && !panel} />
+      <VodConfigRow ref={entry} open={open} hasTVPreferredFocus={hasTVPreferredFocus && !panel} />
       <HomeSiteRow open={open} />
       <SegmentRow settingKey="siteMode" title="站点显示" />
       {isServerLinkEnabled() ? <ServerLinkRow open={open} /> : null}
@@ -527,9 +556,12 @@ export function SourcesSection({ hasTVPreferredFocus }: SectionProps) {
 export function AboutSection({ hasTVPreferredFocus }: SectionProps) {
   const { versionName, versionCode } = getAppConfig();
   const { checking, lastResult, check } = useUpdateCheck(getUpdateController());
+  const entry = useEntryRef();
+  const styles = useScaledStyles(makeStyles);
   return (
     <SettingsSection id="about">
       <SettingRow
+        ref={entry}
         testID="settings-version"
         title="版本"
         value={`${versionName} (${versionCode})`}
@@ -542,6 +574,7 @@ export function AboutSection({ hasTVPreferredFocus }: SectionProps) {
             size="md"
             disabled={checking}
             hasTVPreferredFocus={hasTVPreferredFocus}
+            style={styles.aboutAction}
             onPress={() => void check(true)}
           />
         }
@@ -558,5 +591,7 @@ const makeStyles = (s: Scaler) => {
     title: { ...text.h1, color: color.text },
     subtitle: { ...text.caption, fontSize: s(22), lineHeight: s(30), color: color.text3 },
     rows: { gap: s(12) },
+    // With the row gap, keeps 24 between the version and the focused button (1.08 zoom plus ring).
+    aboutAction: { marginLeft: s(24) },
   };
 };

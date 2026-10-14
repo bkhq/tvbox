@@ -13,7 +13,7 @@ import { clearEngines, registerEngine } from '../engine/registry';
 import type { EngineEvent } from '../engine/types';
 import type { PlayerParams } from '../params';
 import { createMockEngine, type MockEngine } from '../testing/mockEngine';
-import { usePlayback, type UsePlayback } from '../usePlayback';
+import { LOAD_TIMEOUT, usePlayback, type UsePlayback } from '../usePlayback';
 
 const config = parseVodConfig(JSON.stringify({ sites: [{ key: 'cms', name: 'CMS', type: 1, api: 'https://cms/api' }] }), 'https://cfg/');
 const snapshot = { status: 'ready', config, entry: { id: 7, name: 'cfg', url: 'https://cfg/', time: 0 } } as const;
@@ -71,8 +71,17 @@ async function render(params: PlayerParams): Promise<ReactTestRenderer> {
   return renderer;
 }
 
+let fakeTimers = false;
+
 async function settle() {
-  for (let i = 0; i < 5; i++) await act(async () => new Promise((resolve) => setTimeout(resolve, 0)));
+  for (let i = 0; i < 5; i++) {
+    await act(async () => (fakeTimers ? jest.advanceTimersByTimeAsync(0) : new Promise((resolve) => setTimeout(resolve, 0))));
+  }
+}
+
+async function advance(ms: number) {
+  await act(async () => jest.advanceTimersByTimeAsync(ms));
+  await settle();
 }
 
 async function emit(engine: MockEngine, event: EngineEvent) {
@@ -194,5 +203,100 @@ describe('usePlayback', () => {
 
     await act(async () => renderer.unmount());
     expect(controller.getState().active).toBe(false);
+  });
+
+  describe('load watchdog', () => {
+    beforeEach(() => {
+      jest.useFakeTimers();
+      fakeTimers = true;
+    });
+
+    afterEach(() => {
+      jest.useRealTimers();
+      fakeTimers = false;
+    });
+
+    it('falls back to the other engine, then the next line, then the error view when no engine loads', async () => {
+      const detail = provider.detail as jest.Mock;
+      detail.mockImplementationOnce(async () =>
+        normalizeResult({ list: [{ vod_id: '1', vod_name: 'Show', vod_play_from: 'a$$$b', vod_play_url: 'E1$https://a/1$$$E1$https://b/1' }] }),
+      );
+      const renderer = await render({ siteKey: 'cms', vodId: '1' });
+      expect(captured.value!.state).toMatchObject({ engine: 'mpv', status: 'loading', flagIndex: 0 });
+
+      await act(async () => captured.value!.pause());
+      await advance(LOAD_TIMEOUT - 1);
+      expect(captured.value!.state.engine).toBe('mpv');
+      await advance(1);
+      expect(captured.value!.state).toMatchObject({ engine: 'video', fallbackUsed: true, flagIndex: 0 });
+      expect(video.props?.source).toMatchObject({ url: 'https://a/1' });
+
+      await advance(LOAD_TIMEOUT);
+      expect(captured.value!.state).toMatchObject({ engine: 'mpv', flagIndex: 1, status: 'loading' });
+      expect(mpv.props?.source).toMatchObject({ url: 'https://b/1' });
+
+      await advance(LOAD_TIMEOUT);
+      expect(captured.value!.state).toMatchObject({ engine: 'video', flagIndex: 1 });
+      await advance(LOAD_TIMEOUT);
+      expect(captured.value!.state).toMatchObject({ status: 'error', error: expect.stringContaining('加载超时') });
+      await advance(LOAD_TIMEOUT * 2);
+      expect(captured.value!.state.status).toBe('error');
+      await act(async () => renderer.unmount());
+    });
+
+    it('is cancelled by load but not by buffering or progress', async () => {
+      const renderer = await render({ url: 'https://m/a.m3u8', title: 'A' });
+      await emit(mpv, { type: 'buffering', value: true });
+      await emit(mpv, { type: 'progress', position: 0, duration: 0, buffered: 0 });
+      await advance(LOAD_TIMEOUT - 1);
+      await emit(mpv, load);
+      await advance(LOAD_TIMEOUT * 2);
+      expect(captured.value!.state).toMatchObject({ engine: 'mpv', status: 'playing', fallbackUsed: false });
+      await act(async () => renderer.unmount());
+    });
+
+    it('restarts for a new attempt', async () => {
+      const renderer = await render({ url: 'https://m/a.m3u8', title: 'A' });
+      await advance(LOAD_TIMEOUT - 1_000);
+      await act(async () => captured.value!.replay());
+      await advance(LOAD_TIMEOUT - 1);
+      expect(captured.value!.state).toMatchObject({ engine: 'mpv', status: 'loading' });
+      await advance(1);
+      expect(captured.value!.state).toMatchObject({ engine: 'video', fallbackUsed: true });
+      await act(async () => renderer.unmount());
+    });
+
+    it('routes the timeout to onLoadTimeout when given', async () => {
+      const onLoadTimeout = jest.fn();
+      function Wrapped() {
+        const playback = usePlayback({ url: 'https://m/a.m3u8' }, { settings, onLoadTimeout });
+        const { engine, source } = playback;
+        const Engine = engine?.Component;
+        return Engine && source ? <Engine source={source} paused={false} rate={1} resizeMode="contain" onEvent={() => undefined} /> : null;
+      }
+      let renderer!: ReactTestRenderer;
+      await act(async () => {
+        renderer = create(
+          <BootstrapProvider value={bootstrap}>
+            <Wrapped />
+          </BootstrapProvider>,
+        );
+      });
+      await advance(LOAD_TIMEOUT);
+      expect(onLoadTimeout).toHaveBeenCalledWith(expect.objectContaining({ type: 'error', fatal: true, phase: 'init', message: '加载超时' }));
+      await act(async () => renderer.unmount());
+    });
+
+    it('is cleared on unmount', async () => {
+      const setTimer = jest.spyOn(global, 'setTimeout');
+      const clearTimer = jest.spyOn(global, 'clearTimeout');
+      const renderer = await render({ url: 'https://m/a.m3u8', title: 'A' });
+      const watchdog = setTimer.mock.results[setTimer.mock.calls.findIndex(([, ms]) => ms === LOAD_TIMEOUT)]!.value;
+      expect(clearTimer).not.toHaveBeenCalledWith(watchdog);
+      await act(async () => renderer.unmount());
+      expect(clearTimer).toHaveBeenCalledWith(watchdog);
+      setTimer.mockRestore();
+      clearTimer.mockRestore();
+    });
   });
 });

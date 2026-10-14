@@ -5,6 +5,11 @@ import { SectionHeader } from '../SectionHeader';
 import { color } from '../tokens';
 import { fontFamily } from '../typography';
 
+jest.mock('react-native/Libraries/Utilities/useWindowDimensions', () => ({
+  __esModule: true,
+  default: () => ({ width: 1920, height: 1080, scale: 1, fontScale: 1 }),
+}));
+
 void [Text, View];
 
 async function render(element: React.ReactElement) {
@@ -25,6 +30,18 @@ describe('SectionHeader', () => {
     expect(rest).toHaveLength(0);
     expect(title!.props.children).toBe('继续观看');
     expect(StyleSheet.flatten(title!.props.style)).toMatchObject({ fontFamily: fontFamily.semiBold, color: color.text });
+  });
+
+  it('uses the h1 text style for the h1 variant', async () => {
+    const renderer = await render(<SectionHeader testID="header" title="播放设置" variant="h1" caption="共 6 项" />);
+    const [title, caption] = renderer.root.findAllByType(Text);
+    expect(StyleSheet.flatten(title!.props.style)).toMatchObject({
+      fontFamily: fontFamily.bold,
+      fontSize: 40,
+      lineHeight: 44,
+      color: color.text,
+    });
+    expect(StyleSheet.flatten(caption!.props.style).color).toBe(color.text3);
   });
 
   it('puts the caption beside the title by default', async () => {

@@ -27,6 +27,7 @@ export { Clock, formatClock, type ClockProps } from './Clock';
 export { Grid, type GridProps, type GridVariant } from './Grid';
 export { Icon, iconNames, type IconName, type IconProps } from './Icon';
 export { Logo, type LogoProps } from './Logo';
+export { OptionRow, type OptionRowProps } from './OptionRow';
 export { PosterCard, type PosterCardProps } from './PosterCard';
 export { Row, type RowProps } from './Row';
 export { SectionHeader, type SectionHeaderProps } from './SectionHeader';

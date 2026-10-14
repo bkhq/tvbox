@@ -5,9 +5,17 @@ import { handleUpdates } from "./updates";
 
 function bucket(objects: Record<string, string>): SubscriptionBucket {
   return {
-    async get(key: string) {
+    async get(key, options) {
       const body = objects[key];
-      return body === undefined ? null : Object.assign(new Response(body), { size: body.length });
+      if (body === undefined)
+        return null;
+      const range = options?.range;
+      const part = range ? body.slice(range.offset, range.offset + range.length) : body;
+      return Object.assign(new Response(part), { size: body.length });
+    },
+    async head(key) {
+      const body = objects[key];
+      return body === undefined ? null : { size: body.length };
     },
   };
 }
@@ -42,7 +50,43 @@ describe("update endpoints", () => {
     expect(res.headers.get("content-type")).toBe("application/vnd.android.package-archive");
     expect(res.headers.get("content-length")).toBe("9");
     expect(res.headers.get("content-disposition")).toBe("attachment; filename=\"tvbox-10203-mobile-arm64_v8a.apk\"");
+    expect(res.headers.get("accept-ranges")).toBe("bytes");
     expect(await res.text()).toBe("APK-BYTES");
+  });
+
+  test("serve byte ranges of a binary for parallel and resumed downloads", async () => {
+    const path = "/u/apk/10203/mobile-arm64_v8a.apk";
+    for (const [range, body, contentRange] of [
+      ["bytes=0-2", "APK", "bytes 0-2/9"],
+      ["bytes=4-", "BYTES", "bytes 4-8/9"],
+      ["bytes=4-100", "BYTES", "bytes 4-8/9"],
+      ["bytes=-5", "BYTES", "bytes 4-8/9"],
+    ] as const) {
+      const res = await handleUpdates(get(path, { headers: { range } }), { FILES });
+      expect({ range, status: res.status }).toEqual({ range, status: 206 });
+      expect(res.headers.get("content-range")).toBe(contentRange);
+      expect(res.headers.get("content-length")).toBe(String(body.length));
+      expect(await res.text()).toBe(body);
+    }
+    const rn = await handleUpdates(get("/u/rn/apk/10000/android-universal.apk", { headers: { range: "bytes=3-" } }), { FILES });
+    expect(rn.status).toBe(206);
+    expect(await rn.text()).toBe("APK");
+  });
+
+  test("an unsatisfiable range is 416 and an unsupported one serves the whole file", async () => {
+    const path = "/u/apk/10203/mobile-arm64_v8a.apk";
+    for (const range of ["bytes=9-", "bytes=5-3", "bytes=-0"]) {
+      const res = await handleUpdates(get(path, { headers: { range } }), { FILES });
+      expect({ range, status: res.status }).toEqual({ range, status: 416 });
+      expect(res.headers.get("content-range")).toBe("bytes */9");
+    }
+    for (const range of ["bytes=0-1,4-5", "items=0-1", "bytes=x-"]) {
+      const res = await handleUpdates(get(path, { headers: { range } }), { FILES });
+      expect({ range, status: res.status }).toEqual({ range, status: 200 });
+      expect(await res.text()).toBe("APK-BYTES");
+    }
+    const missing = await handleUpdates(get("/u/apk/1/mobile-arm64_v8a.apk", { headers: { range: "bytes=0-1" } }), { FILES });
+    expect(missing.status).toBe(404);
   });
 
   test("serve the rn manifest and binaries apart from the Java ones", async () => {

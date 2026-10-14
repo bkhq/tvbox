@@ -32,7 +32,11 @@ import { handleMedia } from "./media";
 
 /** The slice of an R2 bucket this needs, so tests can pass a fake. */
 export interface SubscriptionBucket {
-  get: (key: string) => Promise<{ readonly body: ReadableStream | null; readonly size?: number; text: () => Promise<string> } | null>;
+  get: (
+    key: string,
+    options?: { range?: { offset: number; length: number } },
+  ) => Promise<{ readonly body: ReadableStream | null; readonly size?: number; text: () => Promise<string> } | null>;
+  head?: (key: string) => Promise<{ readonly size: number } | null>;
 }
 
 /** The media read model: a D1 binding, whose sessions read from the nearest replica. */

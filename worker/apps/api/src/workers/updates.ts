@@ -62,17 +62,60 @@ function itmsManifest(ipaUrl: string, manifest: UpdateManifest & { bundleId: str
 `;
 }
 
-async function serveBinary(bucket: SubscriptionBucket, key: string, kind: "apk" | "ipa", filename: string): Promise<Response> {
+const RE_RANGE = /^bytes=(\d*)-(\d*)$/;
+
+/**
+ * A single `bytes=` range resolved against the object size: the slice to send,
+ * "unsatisfiable", or null when the header is absent or not a single byte range
+ * (then the whole object is sent, as RFC 9110 allows).
+ */
+function parseRange(header: string | null, size: number): { offset: number; length: number } | "unsatisfiable" | null {
+  const match = header ? RE_RANGE.exec(header.trim()) : null;
+  if (!match || (match[1] === "" && match[2] === ""))
+    return null;
+  if (match[1] === "") {
+    const suffix = Number(match[2]);
+    return suffix === 0 ? "unsatisfiable" : { offset: Math.max(0, size - suffix), length: Math.min(suffix, size) };
+  }
+  const start = Number(match[1]);
+  const end = match[2] === "" ? size - 1 : Math.min(Number(match[2]), size - 1);
+  return start >= size || end < start ? "unsatisfiable" : { offset: start, length: end - start + 1 };
+}
+
+async function serveBinary(request: Request, bucket: SubscriptionBucket, key: string, kind: "apk" | "ipa", filename: string): Promise<Response> {
+  const headers: Record<string, string> = {
+    "content-type": CONTENT_TYPES[kind],
+    "content-disposition": `attachment; filename="${filename}"`,
+    "accept-ranges": "bytes",
+    "cache-control": "public, max-age=31536000, immutable",
+  };
+  const rangeHeader = request.headers.get("range");
+  if (rangeHeader && bucket.head) {
+    const meta = await bucket.head(key);
+    if (!meta)
+      return notFound();
+    const range = parseRange(rangeHeader, meta.size);
+    if (range === "unsatisfiable")
+      return new Response(null, { status: 416, headers: { ...headers, "content-range": `bytes */${meta.size}` } });
+    if (range) {
+      const object = await bucket.get(key, { range });
+      if (!object)
+        return notFound();
+      return new Response(object.body, {
+        status: 206,
+        headers: {
+          ...headers,
+          "content-length": String(range.length),
+          "content-range": `bytes ${range.offset}-${range.offset + range.length - 1}/${meta.size}`,
+        },
+      });
+    }
+  }
   const object = await bucket.get(key);
   if (!object)
     return notFound();
   return new Response(object.body, {
-    headers: {
-      "content-type": CONTENT_TYPES[kind],
-      "content-disposition": `attachment; filename="${filename}"`,
-      ...(object.size !== undefined ? { "content-length": String(object.size) } : {}),
-      "cache-control": "public, max-age=31536000, immutable",
-    },
+    headers: { ...headers, ...(object.size !== undefined ? { "content-length": String(object.size) } : {}) },
   });
 }
 
@@ -106,7 +149,7 @@ async function handleRn(request: Request, pathname: string, bucket: Subscription
     const kind = releaseKind("rn", mode!);
     if (dir !== kind || ext !== kind)
       return notFound();
-    return await serveBinary(bucket, releaseFileKey(Number(code), mode!, abi!, "rn"), kind, `rn-${code}-${mode}-${abi}.${kind}`);
+    return await serveBinary(request, bucket, releaseFileKey(Number(code), mode!, abi!, "rn"), kind, `rn-${code}-${mode}-${abi}.${kind}`);
   }
   return notFound();
 }
@@ -134,6 +177,6 @@ export async function handleUpdates(request: Request, env: SubscriptionEnv): Pro
 
   const apk = RE_APK.exec(pathname);
   if (apk)
-    return await serveBinary(bucket, releaseFileKey(Number(apk[1]), apk[2]!, apk[3]!), "apk", `tvbox-${apk[1]}-${apk[2]}-${apk[3]}.apk`);
+    return await serveBinary(request, bucket, releaseFileKey(Number(apk[1]), apk[2]!, apk[3]!), "apk", `tvbox-${apk[1]}-${apk[2]}-${apk[3]}.apk`);
   return notFound();
 }

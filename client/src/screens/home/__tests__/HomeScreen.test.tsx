@@ -403,6 +403,8 @@ describe('HomeScreen', () => {
     expect(preferred(renderer)).toEqual(['vod-card-cms-tv-1']);
     expect(getMainNavAvailability()).toEqual({ series: true, movie: true });
 
+    expect(byTestID(renderer, 'home-section-title').props.variant).toBe('h1');
+    expect(byTestID(renderer, 'home-section-filter').props.icon).toBe('filter');
     await act(async () => byTestID(renderer, 'home-section-filter').props.onPress());
     expect(mockNavigate).toHaveBeenLastCalledWith('Category', { siteKey: 'cms', typeId: 'tv', typeName: '剧集' });
     await act(async () => byTestID(renderer, 'vod-card-cms-tv-1').props.onPress());

@@ -104,3 +104,9 @@ describe('app.config fonts', () => {
     for (const file of fontPlugin![1].fonts) expect(fs.existsSync(path.join(__dirname, '..', file))).toBe(true);
   });
 });
+
+describe('app.config okhttp alignment', () => {
+  it('registers the plugin that keeps a single okhttp 5.x family', () => {
+    expect(loadConfig({}).plugins).toContain('./plugins/withOkHttpAlignment.js');
+  });
+});

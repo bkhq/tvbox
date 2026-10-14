@@ -248,6 +248,21 @@ describe('PlayerScreen', () => {
     await act(async () => renderer.unmount());
   });
 
+  it('opens the controls with up while the source is still loading', async () => {
+    const renderer = await render({ url: 'https://m/a.m3u8', title: '标题' });
+    expect(has(renderer, 'player-status')).toBe(true);
+    expect(has(renderer, 'player-controls')).toBe(false);
+    await remote('up');
+    expect(has(renderer, 'player-controls')).toBe(true);
+    expect(has(renderer, 'player-status')).toBe(true);
+    await press(renderer, 'player-engine');
+    expect(has(renderer, 'player-panel-settings')).toBe(true);
+    await press(renderer, 'player-panel-close');
+    await press(renderer, 'player-back');
+    expect(goBack).toHaveBeenCalled();
+    await act(async () => renderer.unmount());
+  });
+
   it('opens the controls and panels, and closes them with back', async () => {
     const handlers: (() => boolean | null | undefined)[] = [];
     const spy = jest.spyOn(BackHandler, 'addEventListener').mockImplementation((_event, handler) => {

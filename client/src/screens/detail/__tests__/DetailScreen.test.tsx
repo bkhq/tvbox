@@ -27,8 +27,17 @@ void [ActivityIndicator, FlatList, Image, Modal, Pressable, ScrollView, TextInpu
 
 const mockNavigate = jest.fn();
 const mockGoBack = jest.fn();
+const mockFocusListeners = new Set<() => void>();
 jest.mock('../../../navigation/useAppNavigation', () => ({
-  useAppNavigation: () => ({ navigate: mockNavigate, goBack: mockGoBack, addListener: () => () => undefined }),
+  useAppNavigation: () => ({
+    navigate: mockNavigate,
+    goBack: mockGoBack,
+    addListener: (event: string, listener: () => void) => {
+      if (event !== 'focus') return () => undefined;
+      mockFocusListeners.add(listener);
+      return () => mockFocusListeners.delete(listener);
+    },
+  }),
 }));
 
 const URL = 'https://example.com/config.json';
@@ -135,6 +144,7 @@ describe('DetailScreen', () => {
   beforeEach(() => {
     mockNavigate.mockClear();
     mockGoBack.mockClear();
+    mockFocusListeners.clear();
     setUserDataStore(new MemoryStore());
   });
   afterEach(() => {
@@ -332,6 +342,35 @@ describe('DetailScreen', () => {
     expect(mockNavigate).toHaveBeenCalledWith('Player', { siteKey: 'cms', vodId: 'v1', flag: 'a', episodeUrl: 'a2' });
     expect(has(renderer, 'detail-episode-1-current')).toBe(true);
     expect(byTestId(renderer, 'detail-resume').props.title).toBe('继续播放 · 第2集');
+    await act(async () => renderer.unmount());
+  });
+
+  it('picks up the player progress on focus without remounting or reloading the body', async () => {
+    const detail = mockProvider();
+    await getHistoryRepository().upsert({ key: KEY, cid: 1, vodFlag: 'a', episodeUrl: 'a1', position: 5000 });
+    const { renderer } = await render({ siteKey: 'cms', vodId: 'v1' });
+    const body = byTestId(renderer, 'detail-body');
+    const episodes = byTestId(renderer, 'detail-episodes');
+    // The player moved on to the third episode of the other flag before BACK.
+    await getHistoryRepository().upsert({
+      key: KEY,
+      cid: 1,
+      vodFlag: 'b',
+      episodeUrl: 'b3',
+      position: 60_000,
+      duration: 120_000,
+    });
+    expect(mockFocusListeners.size).toBe(1);
+    await act(async () => mockFocusListeners.forEach((listener) => listener()));
+    expect(byTestId(renderer, 'detail-body')).toBe(body);
+    expect(byTestId(renderer, 'detail-episodes')).toBe(episodes);
+    expect(detail).toHaveBeenCalledTimes(1);
+    expect(byTestId(renderer, 'detail-flag-picker').props.title).toBe('b');
+    expect(episodeTitles(renderer)).toEqual(['第1集', '第2集', '第3集']);
+    expect(has(renderer, 'detail-episode-2-current')).toBe(true);
+    expect(byTestId(renderer, 'detail-episode-2').props.progress).toBe(0.5);
+    expect(byTestId(renderer, 'detail-resume').props.title).toBe('继续播放 · 第3集');
+    expect(preferred(renderer)).toEqual(['detail-resume']);
     await act(async () => renderer.unmount());
   });
 

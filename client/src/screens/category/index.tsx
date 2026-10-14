@@ -122,6 +122,7 @@ function CategoryList({
           <Button
             testID="category-filter-toggle"
             title="筛选"
+            icon="filter"
             size="md"
             variant={panelOpen ? 'primary' : 'secondary'}
             hasTVPreferredFocus={!panelOpen && empty}

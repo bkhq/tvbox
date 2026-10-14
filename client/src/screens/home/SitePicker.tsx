@@ -1,21 +1,8 @@
-import { FlatList, Modal, Pressable, Text, View } from 'react-native';
+import { FlatList, Modal, Text, View } from 'react-native';
 
 import { useSetting } from '../../core/settings';
 import type { Site, SiteUnsupportedReason } from '../../core/types';
-import {
-  Badge,
-  Button,
-  color,
-  focus,
-  FocusRing,
-  radii,
-  scaledText,
-  space,
-  useScale,
-  useScaledStyles,
-  useFocusAnimation,
-  type Scaler,
-} from '../../ui';
+import { Button, color, focus, OptionRow, radii, scaledText, space, useScaledStyles, type Scaler } from '../../ui';
 
 const REASON_TEXT: Record<SiteUnsupportedReason, string> = { jar: 'JAR 爬虫', py: 'Python 爬虫', type: '未知类型' };
 
@@ -24,27 +11,17 @@ export function unsupportedText(site: Site): string {
 }
 
 function SiteRow({ site, isHome, onSelect }: { site: Site; isHome: boolean; onSelect: (site: Site) => void }) {
-  const { s } = useScale();
-  const styles = useScaledStyles(makeStyles);
-  const { focused, handlers } = useFocusAnimation();
   return (
-    <Pressable
+    <OptionRow
       testID={`home-site-${site.key}`}
-      accessibilityRole="button"
-      accessibilityState={{ disabled: !site.supported, selected: isHome }}
+      label={site.name || site.key}
+      hint={site.supported ? undefined : unsupportedText(site)}
+      selected={isHome}
+      raised
       disabled={!site.supported}
       hasTVPreferredFocus={isHome && site.supported}
       onPress={() => onSelect(site)}
-      {...handlers}
-      style={[styles.site, focused && styles.siteFocused, !site.supported && styles.siteUnsupported]}
-    >
-      {focused ? <FocusRing radius={s(radii.button)} /> : null}
-      <Text style={[styles.siteName, focused && styles.siteNameFocused]} numberOfLines={1}>
-        {site.name || site.key}
-      </Text>
-      {isHome ? <Badge testID="home-site-badge" label="首页" variant="accent" style={styles.homeBadge} /> : null}
-      {site.supported ? null : <Text style={styles.unsupported}>{unsupportedText(site)}</Text>}
-    </Pressable>
+    />
   );
 }
 
@@ -104,22 +81,6 @@ const makeStyles = (s: Scaler) => {
     sites: { maxHeight: s(SITE_LIST_MAX_HEIGHT) },
     // Room for the focus ring of the first and last row.
     list: { gap: s(space.sm), paddingVertical: s(focus.bleed), paddingHorizontal: s(focus.bleed) },
-    site: {
-      flexDirection: 'row' as const,
-      alignItems: 'center' as const,
-      gap: s(space.sm),
-      height: s(76),
-      paddingHorizontal: s(32),
-      borderRadius: s(radii.button),
-      backgroundColor: color.surface2,
-    },
-    // Badge pins itself to flex-start; centre it in the row instead of on its top edge.
-    homeBadge: { alignSelf: 'center' as const },
-    siteFocused: { backgroundColor: focus.borderColor },
-    siteUnsupported: { opacity: 0.5 },
-    siteName: { ...text.body, flex: 1, color: color.text },
-    siteNameFocused: { color: color.inverseText },
-    unsupported: { ...text.caption, color: color.text3 },
     close: { alignSelf: 'flex-end' as const },
   };
 };

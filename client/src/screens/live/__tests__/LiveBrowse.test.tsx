@@ -1,12 +1,12 @@
 import { useState } from 'react';
-import { FlatList, Image, Pressable, ScrollView, Text } from 'react-native';
+import { FlatList, Image, Pressable, ScrollView, StyleSheet, Text, TVFocusGuideView } from 'react-native';
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 
 import { createKeepRepository } from '../../../core/storage/keep';
 import { MemoryStore } from '../../../core/storage/keyValueStore';
 import type { Channel, Group } from '../../../core/types';
 import { emptyChannel } from '../../../player/live/channel';
-import { Tab } from '../../../ui';
+import { focus, Tab } from '../../../ui';
 import { LiveBrowse } from '../LiveBrowse';
 import { toggleFavourite } from '../liveFavourites';
 import type { LiveChannelRef, LiveSelection } from '../liveModel';
@@ -182,6 +182,16 @@ describe('LiveBrowse', () => {
     const renderer = await render();
     const style = [find(renderer, 'live-browse-cards')!.props.style].flat();
     expect(style).not.toContainEqual(expect.objectContaining({ overflow: 'visible' }));
+    await act(async () => renderer.unmount());
+  });
+
+  it('leaves a focus bleed around the group rows and offsets the column back into place', async () => {
+    const renderer = await render();
+    const list = renderer.root.findAllByType(ScrollView)[0]!;
+    expect(StyleSheet.flatten(list.props.contentContainerStyle)).toMatchObject({ padding: focus.bleed });
+    const guide = renderer.root.findAllByType(TVFocusGuideView).find((node) => node.findAllByType(ScrollView)[0] === list)!;
+    const column = StyleSheet.flatten(guide.props.style);
+    expect(column).toMatchObject({ width: 200 + 2 * focus.bleed, margin: -focus.bleed });
     await act(async () => renderer.unmount());
   });
 

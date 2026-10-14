@@ -499,6 +499,14 @@ function LiveView({ params, focused, onReload }: { params: LiveParams; focused: 
     return () => controller.abort();
   }, [home]);
 
+  // Coming back to the screen (e.g. after changing 直播配置 in Settings) retries a failed or empty load.
+  const wasFocused = useRef(focused);
+  useEffect(() => {
+    const regained = focused && !wasFocused.current;
+    wasFocused.current = focused;
+    if (regained && (load.status === 'error' || load.status === 'empty')) onReload();
+  }, [focused, load.status, onReload]);
+
   const selectLive = useCallback((live: Live) => {
     void saveLiveHome(live.name);
     setLoad({ status: 'loading' });

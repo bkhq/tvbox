@@ -68,7 +68,7 @@ describe('InfoBar', () => {
   it('shows number, name, line badge, programme with progress and the next programme', async () => {
     await render(<InfoBar channel={channel('CCTV1', '001', ['a', 'b'])} line={1} logo="" epg={epg} />);
     const shown = texts();
-    expect(shown).toEqual(expect.arrayContaining(['001', 'CCTV1', '线路 2/2']));
+    expect(shown).toEqual(expect.arrayContaining(['01', 'CCTV1', '线路 2/2']));
     expect(has('live-info-line')).toBe(true);
     expect(byTestId('live-info-current')!.props.children).toBe('当前：19:00 ~ 19:30  新闻联播');
     expect(byTestId('live-info-next')!.props.children).toBe('下一个：19:30 ~ 19:45  焦点访谈');

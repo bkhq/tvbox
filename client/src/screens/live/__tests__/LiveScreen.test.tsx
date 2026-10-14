@@ -1,5 +1,5 @@
 import type { HWEvent } from 'react-native';
-import { ActivityIndicator, FlatList, Image, Modal, Pressable, ScrollView, Text, TextInput } from 'react-native';
+import { ActivityIndicator, BackHandler, FlatList, Image, Modal, Pressable, ScrollView, Text, TextInput } from 'react-native';
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 
 import { type Bootstrap, BootstrapProvider } from '../../../core/bootstrap';
@@ -22,6 +22,10 @@ import LiveScreen, { PASS_PRESSES } from '..';
 void [ActivityIndicator, FlatList, Image, Modal, Pressable, ScrollView, TextInput];
 
 let mockRemote: ((event: HWEvent) => void) | undefined;
+const mockNavigate = jest.fn();
+jest.mock('../../../navigation/useAppNavigation', () => ({
+  useAppNavigation: () => ({ navigate: mockNavigate }),
+}));
 jest.mock('react-native/Libraries/Components/TV/useTVEventHandler', () => ({
   __esModule: true,
   default: (handler: (event: HWEvent) => void) => {
@@ -96,6 +100,12 @@ async function render(params?: RootStackParamList['Live']): Promise<ReactTestRen
   return renderer;
 }
 
+/** Enters the full-screen player from browse. */
+async function full(renderer: ReactTestRenderer) {
+  await press(renderer, 'live-browse-full');
+  expect(has(renderer, 'live-browse')).toBe(false);
+}
+
 async function remote(eventType: string) {
   await act(async () => mockRemote!({ eventType, eventKeyAction: 1 }));
   await settle();
@@ -164,6 +174,7 @@ afterEach(() => {
 describe('LiveScreen', () => {
   it('plays the first channel after 收藏 with its headers, info bar and EPG', async () => {
     const renderer = await render();
+    await full(renderer);
     expect(playing()).toBe('http://m/1a');
     expect(mpv.props?.source.headers).toMatchObject({ 'User-Agent': 'UA1', Referer: 'http://r/' });
     expect(fetchChannelEpg).toHaveBeenCalledWith(expect.objectContaining({ name: 'CCTV1' }), '');
@@ -193,6 +204,7 @@ describe('LiveScreen', () => {
 
   it('changes channel with up / down, across groups and inverted', async () => {
     const renderer = await render();
+    await full(renderer);
     await remote('down');
     expect(playing()).toBe('http://m/2');
     await remote('channelDown');
@@ -213,6 +225,7 @@ describe('LiveScreen', () => {
 
   it('switches source with left / right', async () => {
     const renderer = await render();
+    await full(renderer);
     await remote('right');
     expect(playing()).toBe('http://m/1b');
     expect(texts(renderer)).toContain('线路 2/2');
@@ -225,6 +238,7 @@ describe('LiveScreen', () => {
 
   it('tries the next source on a fatal error, then the engine fallback', async () => {
     const renderer = await render();
+    await full(renderer);
     await emit(mpv, fatal('open'));
     expect(playing()).toBe('http://m/1b');
     expect(texts(renderer)).toContain('播放失败，切换到线路 2');
@@ -241,6 +255,7 @@ describe('LiveScreen', () => {
   it('does not change source on error when `change` is off', async () => {
     await act(async () => appSettings.set('change', false));
     const renderer = await render();
+    await full(renderer);
     await emit(mpv, fatal('network'));
     expect(has(renderer, 'live-error')).toBe(true);
     await act(async () => renderer.unmount());
@@ -248,6 +263,7 @@ describe('LiveScreen', () => {
 
   it('opens the channel list on OK and plays the pressed channel', async () => {
     const renderer = await render();
+    await full(renderer);
     await remote('select');
     expect(has(renderer, 'live-list')).toBe(true);
     // Keys belong to the list while it is open.
@@ -263,6 +279,7 @@ describe('LiveScreen', () => {
 
   it('switches the live source from the menu panel', async () => {
     const renderer = await render();
+    await full(renderer);
     await remote('info');
     expect(has(renderer, 'live-panel')).toBe(true);
     await press(renderer, 'live-source-1');
@@ -275,6 +292,7 @@ describe('LiveScreen', () => {
 
   it('unlocks password groups after repeated presses on 收藏', async () => {
     const renderer = await render();
+    await full(renderer);
     await remote('select');
     for (let i = 0; i < PASS_PRESSES; i++) await press(renderer, 'live-group-0');
     expect(has(renderer, 'live-pass')).toBe(true);
@@ -298,6 +316,75 @@ describe('LiveScreen', () => {
     await act(async () => getLiveController().selectChannel(2, 0));
     await settle();
     expect(playing()).toBe('http://m/zj');
+    await act(async () => renderer.unmount());
+  });
+
+  it('starts in browse: cards play channels, the playing card and 全屏观看 enter full mode, back returns', async () => {
+    const handlers: (() => boolean | null | undefined)[] = [];
+    const spy = jest.spyOn(BackHandler, 'addEventListener').mockImplementation((_event, handler) => {
+      handlers.push(handler as () => boolean);
+      return { remove: () => handlers.splice(handlers.indexOf(handler as () => boolean), 1) && undefined };
+    });
+    const renderer = await render();
+    expect(has(renderer, 'live-browse')).toBe(true);
+    expect(has(renderer, 'live-info')).toBe(false);
+    expect(handlers).toHaveLength(0);
+    // Remote keys belong to the browse controls.
+    await remote('down');
+    expect(playing()).toBe('http://m/1a');
+
+    await press(renderer, 'live-browse-card-1');
+    expect(playing()).toBe('http://m/2');
+    expect(has(renderer, 'live-browse')).toBe(true);
+    expect(byTestId(renderer, 'live-browse-name').props.children).toBe('CCTV2');
+
+    await press(renderer, 'live-browse-card-1');
+    expect(has(renderer, 'live-browse')).toBe(false);
+    expect(has(renderer, 'live-info')).toBe(true);
+    await remote('down');
+    expect(playing()).toBe('http://m/zj');
+
+    expect(handlers).toHaveLength(1);
+    let consumed: boolean | null | undefined;
+    await act(async () => {
+      consumed = handlers[0]!();
+    });
+    await settle();
+    expect(consumed).toBe(true);
+    expect(has(renderer, 'live-browse')).toBe(true);
+    expect(handlers).toHaveLength(0);
+    expect(playing()).toBe('http://m/zj');
+
+    await full(renderer);
+    expect(has(renderer, 'live-info')).toBe(true);
+    spy.mockRestore();
+    await act(async () => renderer.unmount());
+  });
+
+  it('shows a LAN-selected channel in browse', async () => {
+    const renderer = await render();
+    await act(async () => getLiveController().selectChannel(2, 0));
+    await settle();
+    expect(playing()).toBe('http://m/zj');
+    expect(byTestId(renderer, 'live-browse-name').props.children).toBe('浙江卫视');
+    expect(has(renderer, 'live-browse')).toBe(true);
+    await act(async () => renderer.unmount());
+  });
+
+  it('keeps playing when the playing 收藏 channel loses its favourite', async () => {
+    const renderer = await render();
+    await press(renderer, 'live-browse-favourite');
+    expect(has(renderer, 'live-browse-group-keep')).toBe(true);
+    // The keep copy of CCTV1 (LAN select into 收藏).
+    await act(async () => getLiveController().selectChannel(0, 0));
+    await settle();
+    expect(playing()).toBe('http://m/1a');
+
+    await press(renderer, 'live-browse-favourite');
+    expect(has(renderer, 'live-browse-group-keep')).toBe(false);
+    expect(byTestId(renderer, 'live-browse-name').props.children).toBe('CCTV1');
+    expect(playing()).toBe('http://m/1a');
+    expect(saveLiveKeep).toHaveBeenLastCalledWith('直播A', '央视@@@CCTV1@@@http://m/1a');
     await act(async () => renderer.unmount());
   });
 

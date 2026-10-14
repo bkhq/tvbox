@@ -74,6 +74,14 @@ describe('OptionRow', () => {
     expect(onBlur).toHaveBeenCalledTimes(1);
   });
 
+  it('never scales, so a full-width row and its ring fit the list bleed', async () => {
+    const renderer = await render(<OptionRow testID="row" label="线路一" />);
+    await act(async () => host(renderer).props.onFocus({}));
+    expect(style(renderer).transform).toBeUndefined();
+    await act(async () => host(renderer).props.onPressIn({}));
+    expect(style(renderer).transform).toBeUndefined();
+  });
+
   it('fires onPress, forwards the focus props and blocks presses while disabled', async () => {
     const onPress = jest.fn();
     const enabled = await render(

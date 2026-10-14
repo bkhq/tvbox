@@ -26,6 +26,5 @@ export {
 } from './logic';
 export { checkResultText, installPhaseText } from './messages';
 export { UpdateDialog, UpdatePrompt, type UpdateDialogProps } from './UpdateDialog';
-export { UpdateSettingsItem, type UpdateSettingsItemProps } from './UpdateSettingsItem';
 export { checkForUpdatesNow, getUpdateController } from './updater';
 export { useUpdateCheck, type UseUpdateCheck } from './useUpdateCheck';

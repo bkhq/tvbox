@@ -1,10 +1,10 @@
 import { StatusBar } from 'expo-status-bar';
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, BackHandler, StyleSheet, Text, View } from 'react-native';
 
 import { useVodConfig } from '../../core/bootstrap';
 import { useSetting } from '../../core/settings/useSetting';
-import type { Group, Live } from '../../core/types';
+import type { Channel, Group, Live } from '../../core/types';
 import type { RootStackParamList, RootStackScreenProps } from '../../navigation/types';
 import { attachPlaybackHost, type SnapshotListener } from '../../player/controller';
 import { getEngine } from '../../player/engine/registry';
@@ -29,14 +29,17 @@ import {
 } from '../../player/live';
 import type { UrlPlayerParams } from '../../player/params';
 import { toSnapshot, usePlayback } from '../../player/usePlayback';
-import { colors, fontSize, radius, spacing, useLayout } from '../../ui';
+import { color, type Scaler, scaledText, space, useLayout, useScaledStyles } from '../../ui';
 import { ErrorView } from '../common';
 import { fallbackNotice, NOTICE_DURATION } from '../player';
 import { useBackgroundPause } from '../player/useBackgroundPause';
 import { ChannelList } from './ChannelList';
 import { InfoBar } from './InfoBar';
+import { LiveBrowse } from './LiveBrowse';
+import { toggleFavourite } from './liveFavourites';
 import { initialSelection, type LiveSelection } from './liveModel';
 import { LivePanel, PassPrompt } from './LivePanel';
+import { LiveStatus } from './LiveStatus';
 import { useLiveEpg } from './useLiveEpg';
 import { useLiveGestures } from './useLiveGestures';
 import { type LiveRemoteAction, useLiveRemote } from './useLiveRemote';
@@ -63,11 +66,11 @@ interface LivePlayerProps {
   params: LiveParams;
   focused: boolean;
   onSelectLive(live: Live): void;
-  onExit(): void;
 }
 
-function LivePlayer({ live, lives, visible, hidden: initialHidden, start, params, focused, onSelectLive, onExit }: LivePlayerProps) {
+function LivePlayer({ live, lives, visible, hidden: initialHidden, start, params, focused, onSelectLive }: LivePlayerProps) {
   const { isTV } = useLayout();
+  const ui = useScaledStyles(makeStyles);
   const [background] = useSetting('background');
   const [scaleLive] = useSetting('scaleLive');
   const [across] = useSetting('across');
@@ -77,6 +80,8 @@ function LivePlayer({ live, lives, visible, hidden: initialHidden, start, params
   const [groups, setGroups] = useState(visible);
   const [hidden, setHidden] = useState(initialHidden);
   const [selection, setSelection] = useState(start);
+  // browse: the TV live home over the playing channel; full: the full-screen player.
+  const [mode, setMode] = useState<'browse' | 'full'>('browse');
   const [list, setList] = useState(false);
   const [panel, setPanel] = useState<'menu' | 'pass' | undefined>(undefined);
   const [info, setInfo] = useState(1);
@@ -97,7 +102,10 @@ function LivePlayer({ live, lives, visible, hidden: initialHidden, start, params
   if (paramsKey !== seenParams) {
     setSeenParams(paramsKey);
     const channel = params?.groupIndex !== undefined ? groups[params.groupIndex]?.channel[params.channelIndex ?? 0] : undefined;
-    if (channel) select({ group: params!.groupIndex!, channel: params!.channelIndex ?? 0, line: 0 });
+    if (channel) {
+      select({ group: params!.groupIndex!, channel: params!.channelIndex ?? 0, line: 0 });
+      setMode('browse');
+    }
   }
 
   const group = groups[selection.group]!;
@@ -107,7 +115,9 @@ function LivePlayer({ live, lives, visible, hidden: initialHidden, start, params
     () => ({ url, title: channel.name, headers: channelHeaders(channel) }),
     [url, channel],
   );
-  const playback = usePlayback(request, { attach: false });
+  // The load watchdog takes the same line-switch path as engine errors (onEngineEvent is defined below).
+  const timeoutRef = useRef<(event: EngineEvent) => void>(() => {});
+  const playback = usePlayback(request, { attach: false, onLoadTimeout: (event) => timeoutRef.current(event) });
   const { state, source, sourceKey, engine, setEngineHandle, onEngineEvent: onPlaybackEvent, play, pause, toggle, stop, repeat, replay, seek, setSpeed } =
     playback;
 
@@ -160,6 +170,9 @@ function LivePlayer({ live, lives, visible, hidden: initialHidden, start, params
     },
     [onPlaybackEvent, select, showNotice],
   );
+  useEffect(() => {
+    timeoutRef.current = onEngineEvent;
+  }, [onEngineEvent]);
 
   // Engine fallback toast (state adjusted during render).
   const fallbackKey = state.fallbackUsed && state.engine ? `${state.token}:${state.engine}` : '';
@@ -259,16 +272,27 @@ function LivePlayer({ live, lives, visible, hidden: initialHidden, start, params
         return;
     }
   };
-  useLiveRemote(list || !!panel, onRemote);
+  useLiveRemote(mode !== 'full' || list || !!panel, onRemote);
+
+  // Back in full mode returns to browse; in browse it leaves the screen.
+  useEffect(() => {
+    if (mode !== 'full' || !focused) return;
+    const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
+      setMode('browse');
+      return true;
+    });
+    return () => subscription.remove();
+  }, [mode, focused]);
 
   const touch = useLiveGestures({
     onTap: () => setList((shown) => !shown),
     onSwipe: (direction) => step(direction === 'up' ? 1 : -1),
   });
 
-  const onGroupPress = (index: number) => {
+  const onGroupPress = (index: number | undefined) => {
     // PassDialog after repeated presses on "收藏" while groups are locked.
-    if (!isKeepGroup(groups[index]!) || hidden.length === 0) {
+    const pressed = index === undefined ? undefined : groups[index];
+    if (!pressed || !isKeepGroup(pressed) || hidden.length === 0) {
       keepPresses.current = 0;
       return;
     }
@@ -288,7 +312,30 @@ function LivePlayer({ live, lives, visible, hidden: initialHidden, start, params
     }
     setGroups(result.visible);
     setHidden(result.hidden);
-    setList(true);
+    if (mode === 'full') setList(true);
+  };
+
+  const onToggleFavourite = (target: Channel) => {
+    void toggleFavourite(latest.current.groups, target).then((result) => {
+      const { selection: at, channel: current } = latest.current;
+      setGroups(result.groups);
+      // The keep group gained or lost a channel: keep pointing at the playing one.
+      if (!isKeepGroup(result.groups[at.group]!)) return;
+      const kept = result.groups[at.group]!.channel.findIndex((item) => item.name === current.name);
+      if (kept === at.channel) return;
+      if (kept >= 0) {
+        setSelection({ ...at, channel: kept });
+        return;
+      }
+      const group = result.groups.findIndex(
+        (item) => !isKeepGroup(item) && item.channel.some((entry) => entry.name === current.name),
+      );
+      const moved =
+        group >= 0
+          ? { group, channel: result.groups[group]!.channel.findIndex((entry) => entry.name === current.name), line: 0 }
+          : initialSelection(result.groups, undefined, '');
+      if (moved) setSelection(moved);
+    });
   };
 
   const Engine = engine?.Component;
@@ -311,24 +358,42 @@ function LivePlayer({ live, lives, visible, hidden: initialHidden, start, params
           onEvent={onEngineEvent}
         />
       ) : null}
-      <View style={StyleSheet.absoluteFill} testID="live-touch" {...touch} />
+      {mode === 'full' ? <View style={StyleSheet.absoluteFill} testID="live-touch" {...touch} /> : null}
       {statusText ? (
         <View style={styles.center} pointerEvents="none" testID="live-status">
-          <ActivityIndicator color={colors.primary} />
-          <Text style={styles.statusText}>{statusText}</Text>
+          <ActivityIndicator color={color.accent} />
+          <Text style={ui.statusText}>{statusText}</Text>
         </View>
       ) : null}
-      {state.status === 'error' ? (
-        <View style={[StyleSheet.absoluteFill, styles.errorBox]}>
+      {mode === 'browse' ? (
+        <>
+          {state.status === 'error' ? (
+            <View style={styles.center} pointerEvents="none">
+              <Text style={ui.statusText} testID="live-browse-error">{`${channel.name}：${state.error ?? '播放失败'}`}</Text>
+            </View>
+          ) : null}
+          <LiveBrowse
+            groups={groups}
+            selection={selection}
+            epg={epg}
+            onGroupPress={onGroupPress}
+            onSelect={(ref) => select({ ...ref, line: 0 })}
+            onFull={() => setMode('full')}
+            onToggleFavourite={onToggleFavourite}
+          />
+        </>
+      ) : null}
+      {mode === 'full' && state.status === 'error' ? (
+        <View style={[StyleSheet.absoluteFill, ui.page]}>
           <ErrorView testID="live-error" message={`${channel.name}：${state.error ?? '播放失败'}`} onRetry={replay} hasTVPreferredFocus />
         </View>
       ) : null}
-      {info > 0 && !list ? (
+      {mode === 'full' && info > 0 && !list ? (
         <InfoBar channel={channel} line={selection.line} logo={epg.logoOf(channel)} epg={epg.epgFor(channel)} />
       ) : null}
       {notice ? (
-        <View style={styles.notice} pointerEvents="none">
-          <Text style={styles.noticeText} testID="live-notice">
+        <View style={ui.notice} pointerEvents="none">
+          <Text style={ui.noticeText} testID="live-notice">
             {notice.text}
           </Text>
         </View>
@@ -349,7 +414,14 @@ function LivePlayer({ live, lives, visible, hidden: initialHidden, start, params
             setList(false);
             setPanel('menu');
           }}
-          onBack={isTV ? undefined : onExit}
+          onBack={
+            isTV
+              ? undefined
+              : () => {
+                  setList(false);
+                  setMode('browse');
+                }
+          }
         />
       ) : null}
       {panel === 'menu' ? (
@@ -368,14 +440,16 @@ function LivePlayer({ live, lives, visible, hidden: initialHidden, start, params
   );
 }
 
+const errorText = (error: unknown) => (error instanceof Error ? error.message : String(error));
+
 type LoadState =
   | { status: 'loading' }
-  | { status: 'error'; message: string }
-  | { status: 'empty'; message: string }
+  | { status: 'error'; title: string; detail: string }
+  | { status: 'empty'; title: string }
   | { status: 'ready'; id: number; live: Live; visible: Group[]; hidden: Group[]; start: LiveSelection };
 
 /** Loads the live sources and the selected source's channels, then plays. */
-function LiveView({ params, focused, onExit, onReload }: { params: LiveParams; focused: boolean; onExit(): void; onReload(): void }) {
+function LiveView({ params, focused, onReload }: { params: LiveParams; focused: boolean; onReload(): void }) {
   const vodConfig = useVodConfig();
   const vodLives = vodConfig.status === 'ready' ? vodConfig.config?.lives : undefined;
   const [lives, setLives] = useState<Live[]>([]);
@@ -393,10 +467,10 @@ function LiveView({ params, focused, onExit, onReload }: { params: LiveParams; f
         if (cancelled) return;
         setLives(sources.lives);
         setHome(sources.home);
-        if (!sources.home) setLoad({ status: 'empty', message: '暂无直播源' });
+        if (!sources.home) setLoad({ status: 'empty', title: '暂无直播源' });
       },
       (error: unknown) => {
-        if (!cancelled) setLoad({ status: 'error', message: `直播配置加载失败：${error instanceof Error ? error.message : String(error)}` });
+        if (!cancelled) setLoad({ status: 'error', title: '直播配置加载失败', detail: errorText(error) });
       },
     );
     return () => {
@@ -416,10 +490,10 @@ function LiveView({ params, focused, onExit, onReload }: { params: LiveParams; f
       const start = initialSelection(visible, routeRef.current, state.keep[home.name] ?? '');
       routeRef.current = undefined;
       const id = ++loads.current;
-      setLoad(start ? { status: 'ready', id, live, visible, hidden, start } : { status: 'empty', message: '暂无频道' });
+      setLoad(start ? { status: 'ready', id, live, visible, hidden, start } : { status: 'empty', title: '暂无频道' });
     })().catch((error: unknown) => {
       if (!controller.signal.aborted) {
-        setLoad({ status: 'error', message: `频道加载失败：${error instanceof Error ? error.message : String(error)}` });
+        setLoad({ status: 'error', title: '频道加载失败', detail: errorText(error) });
       }
     });
     return () => controller.abort();
@@ -431,17 +505,19 @@ function LiveView({ params, focused, onExit, onReload }: { params: LiveParams; f
     setHome(live);
   }, []);
 
-  if (load.status === 'loading') {
+  if (load.status !== 'ready') {
     return (
-      <View style={styles.center} testID="live-loading">
-        <Text style={styles.title}>直播</Text>
-        <ActivityIndicator color={colors.primary} />
-        <Text style={styles.statusText}>正在加载…</Text>
-      </View>
+      <LiveStatus
+        kind={load.status}
+        title={load.status === 'loading' ? undefined : load.title}
+        detail={load.status === 'error' ? load.detail : undefined}
+        lives={lives}
+        home={home?.name}
+        onRetry={load.status === 'loading' ? undefined : onReload}
+        onSelectLive={selectLive}
+      />
     );
   }
-  if (load.status === 'error') return <ErrorView testID="live-load-error" message={load.message} onRetry={onReload} hasTVPreferredFocus />;
-  if (load.status === 'empty') return <ErrorView testID="live-empty" message={load.message} onRetry={onReload} hasTVPreferredFocus />;
   return (
     <LivePlayer
       key={load.id}
@@ -453,7 +529,6 @@ function LiveView({ params, focused, onExit, onReload }: { params: LiveParams; f
       params={params}
       focused={focused}
       onSelectLive={selectLive}
-      onExit={onExit}
     />
   );
 }
@@ -484,7 +559,6 @@ export default function LiveScreen({ navigation, route }: RootStackScreenProps<'
         key={reload}
         params={route.params}
         focused={focused}
-        onExit={() => navigation.goBack()}
         onReload={() => setReload((n) => n + 1)}
       />
     </View>
@@ -501,30 +575,24 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  title: {
-    marginBottom: spacing.sm,
-    color: colors.text,
-    fontSize: fontSize.heading,
-  },
-  statusText: {
-    marginTop: spacing.sm,
-    color: colors.text,
-    fontSize: fontSize.body,
-  },
-  errorBox: {
-    backgroundColor: colors.background,
-  },
-  notice: {
-    position: 'absolute',
-    top: spacing.xl,
-    alignSelf: 'center',
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.sm,
-    borderRadius: radius.md,
-    backgroundColor: colors.remarkBackground,
-  },
-  noticeText: {
-    color: colors.text,
-    fontSize: fontSize.body,
-  },
 });
+
+const makeStyles = (s: Scaler) => {
+  const { body } = scaledText(s);
+  return {
+    page: { backgroundColor: color.bg },
+    statusText: { ...body, marginTop: s(space.sm), color: color.text },
+    notice: {
+      position: 'absolute' as const,
+      top: s(150),
+      alignSelf: 'center' as const,
+      paddingHorizontal: s(22),
+      paddingVertical: s(12),
+      borderRadius: s(12),
+      borderWidth: 1,
+      borderColor: 'rgba(255,255,255,0.1)',
+      backgroundColor: 'rgba(21,26,36,0.92)',
+    },
+    noticeText: { ...body, color: color.text },
+  };
+};

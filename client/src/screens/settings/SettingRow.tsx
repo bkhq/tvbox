@@ -1,7 +1,7 @@
 import { type ReactNode, type Ref, useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
 
-import { Badge, color, fontFamily, Icon, radii, scaledText, useScaledStyles, type Scaler } from '../../ui';
+import { color, fontFamily, Icon, radii, scaledText, useScaledStyles, type Scaler } from '../../ui';
 import { Segmented, Toggle } from './controls';
 import type { Option } from './options';
 
@@ -12,7 +12,6 @@ export interface SettingRowProps {
   note?: string;
   onPress?: () => void;
   disabled?: boolean;
-  selected?: boolean;
   /** Chevron after the value: the row opens a picker. */
   chevron?: boolean;
   /** Control at the right end (toggle, segmented, button). */
@@ -35,7 +34,6 @@ export function SettingRow({
   note,
   onPress,
   disabled,
-  selected,
   chevron,
   accessory,
   hasTVPreferredFocus,
@@ -58,7 +56,6 @@ export function SettingRow({
           </Text>
         ) : null}
       </View>
-      {selected ? <Badge label="当前" variant="accent" /> : null}
       {value !== undefined ? (
         <Text style={styles.value} numberOfLines={1}>
           {value}
@@ -80,7 +77,7 @@ export function SettingRow({
       ref={ref}
       testID={testID}
       accessibilityRole="button"
-      accessibilityState={{ disabled, selected }}
+      accessibilityState={{ disabled }}
       disabled={disabled}
       hasTVPreferredFocus={hasTVPreferredFocus}
       onPress={onPress}
@@ -98,7 +95,7 @@ export function ToggleSettingRow({
   value,
   testID,
   ...row
-}: Omit<SettingRowProps, 'value' | 'accessory' | 'chevron' | 'selected'> & { value: boolean }) {
+}: Omit<SettingRowProps, 'value' | 'accessory' | 'chevron'> & { value: boolean }) {
   return (
     <SettingRow
       {...row}

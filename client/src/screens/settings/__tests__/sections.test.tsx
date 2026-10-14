@@ -6,7 +6,7 @@ import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { type Bootstrap, BootstrapProvider, createBootstrap } from '../../../core/bootstrap';
 import { parseVodConfig } from '../../../core/config';
 import { appSettings } from '../../../core/settings';
-import { color } from '../../../ui';
+import { color, OptionRow, SectionHeader } from '../../../ui';
 import type { CheckResult, Release, UpdateState } from '../../../update';
 import { configRepositories } from '../ConfigPanel';
 import {
@@ -228,6 +228,11 @@ describe('settings sections', () => {
 
   it('toggles, switches segments and picks from a panel in the playback section', async () => {
     const renderer = await render(PlaybackSection);
+    expect(renderer.root.findByType(SectionHeader).props).toMatchObject({
+      title: '播放设置',
+      caption: '对本设备生效',
+      variant: 'h1',
+    });
     expect(byID(renderer, 'settings-playerEngine').props.hasTVPreferredFocus).toBe(true);
     expect(byID(renderer, 'settings-incognito-toggle')).toBeDefined();
     await press(renderer, 'settings-incognito');
@@ -243,6 +248,11 @@ describe('settings sections', () => {
     expect(has(renderer, 'settings-panel')).toBe(true);
     expect(byID(renderer, 'settings-playerEngine').props.hasTVPreferredFocus).toBe(false);
     expect(byID(renderer, 'settings-playerEngine-auto').props.hasTVPreferredFocus).toBe(true);
+    const options = renderer.root.findAllByType(OptionRow);
+    expect(options.map((option) => option.props.testID)).toContain('settings-playerEngine-mpv');
+    expect(options.filter((option) => option.props.selected).map((option) => option.props.testID)).toEqual([
+      'settings-playerEngine-auto',
+    ]);
     // Option rows read as rows on the surface panel; the section rows keep the surface fill.
     const fill = (testID: string) =>
       StyleSheet.flatten(

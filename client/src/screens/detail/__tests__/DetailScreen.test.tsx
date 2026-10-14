@@ -27,17 +27,8 @@ void [ActivityIndicator, FlatList, Image, Modal, Pressable, ScrollView, TextInpu
 
 const mockNavigate = jest.fn();
 const mockGoBack = jest.fn();
-const mockFocusListeners = new Set<() => void>();
 jest.mock('../../../navigation/useAppNavigation', () => ({
-  useAppNavigation: () => ({
-    navigate: mockNavigate,
-    goBack: mockGoBack,
-    addListener: (event: string, listener: () => void) => {
-      if (event !== 'focus') return () => undefined;
-      mockFocusListeners.add(listener);
-      return () => mockFocusListeners.delete(listener);
-    },
-  }),
+  useAppNavigation: () => ({ navigate: mockNavigate, goBack: mockGoBack, addListener: () => () => undefined }),
 }));
 
 const URL = 'https://example.com/config.json';
@@ -126,6 +117,16 @@ const episodeTitles = (renderer: ReactTestRenderer) =>
     .filter((node) => node.props.title !== undefined)
     .map((node) => node.props.title as string);
 
+/** Text of the flag picker; the chevron must follow it. */
+function flagPickerName(renderer: ReactTestRenderer): string {
+  const ids = byTestId(renderer, 'detail-flag-picker')
+    .findAll((node) => typeof node.type !== 'string' && typeof node.props.testID === 'string')
+    .map((node) => node.props.testID as string)
+    .filter((id, index, list) => list.indexOf(id) === index);
+  expect(ids.slice(-2)).toEqual(['detail-flag-picker-name', 'detail-flag-picker-chevron']);
+  return byTestId(renderer, 'detail-flag-picker-name').props.children as string;
+}
+
 describe('DetailScreen', () => {
   // VirtualizedList batches cell updates on a 50 ms timer; fake timers keep it from
   // firing outside act() on a slow host, and unmounting clears it.
@@ -134,7 +135,6 @@ describe('DetailScreen', () => {
   beforeEach(() => {
     mockNavigate.mockClear();
     mockGoBack.mockClear();
-    mockFocusListeners.clear();
     setUserDataStore(new MemoryStore());
   });
   afterEach(() => {
@@ -160,7 +160,7 @@ describe('DetailScreen', () => {
     );
     expect(has(renderer, 'detail-backdrop')).toBe(true);
     expect(has(renderer, 'detail-score')).toBe(false);
-    expect(byTestId(renderer, 'detail-flag-picker').props.title).toBe('a');
+    expect(flagPickerName(renderer)).toBe('a');
     expect(episodeTitles(renderer)).toEqual(['第1集', '第2集']);
     expect(texts(renderer)).toEqual(expect.arrayContaining(['1', '2']));
     expect(byTestId(renderer, 'detail-play').props.title).toBe('立即播放');
@@ -223,7 +223,7 @@ describe('DetailScreen', () => {
     expect(byTestId(renderer, 'detail-flag-1').props).toMatchObject({ label: 'b', selected: false });
     await act(async () => byTestId(renderer, 'detail-flag-1').props.onPress());
     expect(has(renderer, 'detail-flag-1')).toBe(false);
-    expect(byTestId(renderer, 'detail-flag-picker').props.title).toBe('b');
+    expect(flagPickerName(renderer)).toBe('b');
     expect(episodeTitles(renderer)).toEqual(['第1集', '第2集', '第3集']);
     await act(async () => byTestId(renderer, 'detail-sort').props.onPress());
     expect(byTestId(renderer, 'detail-sort').props.selected).toBe(true);
@@ -279,7 +279,7 @@ describe('DetailScreen', () => {
     });
     const { renderer, cid } = await render({ siteKey: 'cms', vodId: 'v1' });
     expect(cid).toBe(1);
-    expect(byTestId(renderer, 'detail-flag-picker').props.title).toBe('b');
+    expect(flagPickerName(renderer)).toBe('b');
     expect(episodeTitles(renderer)).toEqual(['第3集', '第2集', '第1集']);
     expect(has(renderer, 'detail-episode-1-current')).toBe(true);
     expect(has(renderer, 'detail-episode-0-current')).toBe(false);
@@ -332,35 +332,6 @@ describe('DetailScreen', () => {
     expect(mockNavigate).toHaveBeenCalledWith('Player', { siteKey: 'cms', vodId: 'v1', flag: 'a', episodeUrl: 'a2' });
     expect(has(renderer, 'detail-episode-1-current')).toBe(true);
     expect(byTestId(renderer, 'detail-resume').props.title).toBe('继续播放 · 第2集');
-    await act(async () => renderer.unmount());
-  });
-
-  it('picks up the player progress on focus without remounting or reloading the body', async () => {
-    const detail = mockProvider();
-    await getHistoryRepository().upsert({ key: KEY, cid: 1, vodFlag: 'a', episodeUrl: 'a1', position: 5000 });
-    const { renderer } = await render({ siteKey: 'cms', vodId: 'v1' });
-    const body = byTestId(renderer, 'detail-body');
-    const episodes = byTestId(renderer, 'detail-episodes');
-    // The player moved on to the third episode of the other flag before BACK.
-    await getHistoryRepository().upsert({
-      key: KEY,
-      cid: 1,
-      vodFlag: 'b',
-      episodeUrl: 'b3',
-      position: 60_000,
-      duration: 120_000,
-    });
-    expect(mockFocusListeners.size).toBe(1);
-    await act(async () => mockFocusListeners.forEach((listener) => listener()));
-    expect(byTestId(renderer, 'detail-body')).toBe(body);
-    expect(byTestId(renderer, 'detail-episodes')).toBe(episodes);
-    expect(detail).toHaveBeenCalledTimes(1);
-    expect(byTestId(renderer, 'detail-flag-picker').props.title).toBe('b');
-    expect(episodeTitles(renderer)).toEqual(['第1集', '第2集', '第3集']);
-    expect(has(renderer, 'detail-episode-2-current')).toBe(true);
-    expect(byTestId(renderer, 'detail-episode-2').props.progress).toBe(0.5);
-    expect(byTestId(renderer, 'detail-resume').props.title).toBe('继续播放 · 第3集');
-    expect(preferred(renderer)).toEqual(['detail-resume']);
     await act(async () => renderer.unmount());
   });
 

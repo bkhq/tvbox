@@ -42,7 +42,7 @@ function SiteRow({ site, isHome, onSelect }: { site: Site; isHome: boolean; onSe
       <Text style={[styles.siteName, focused && styles.siteNameFocused]} numberOfLines={1}>
         {site.name || site.key}
       </Text>
-      {isHome ? <Badge label="首页" variant="accent" /> : null}
+      {isHome ? <Badge testID="home-site-badge" label="首页" variant="accent" style={styles.homeBadge} /> : null}
       {site.supported ? null : <Text style={styles.unsupported}>{unsupportedText(site)}</Text>}
     </Pressable>
   );
@@ -52,6 +52,9 @@ function SiteRow({ site, isHome, onSelect }: { site: Site; isHome: boolean; onSe
  * SiteDialog: every site of the config, unsupported ones disabled. The hardware back key (Android) and the
  * Menu button (tvOS) call onRequestClose, so back closes the picker before the screen is popped.
  */
+/** Seven rows; keeps the title and the close button inside the 1080 px screen. */
+export const SITE_LIST_MAX_HEIGHT = 640;
+
 export function SitePicker({ sites, homeKey, onClose }: { sites: Site[]; homeKey?: string; onClose: () => void }) {
   const [, setHomeSiteKey] = useSetting('homeSiteKey');
   const styles = useScaledStyles(makeStyles);
@@ -65,6 +68,8 @@ export function SitePicker({ sites, homeKey, onClose }: { sites: Site[]; homeKey
         <View testID="home-site-picker" style={styles.panel}>
           <Text style={styles.title}>切换站点</Text>
           <FlatList
+            testID="home-site-list"
+            style={styles.sites}
             data={sites}
             keyExtractor={(site) => site.key}
             contentContainerStyle={styles.list}
@@ -95,6 +100,8 @@ const makeStyles = (s: Scaler) => {
       backgroundColor: color.surface,
     },
     title: { ...text.h1, color: color.text },
+    // An explicit cap: the panel's maxHeight alone lets a long list push the close button off screen.
+    sites: { maxHeight: s(SITE_LIST_MAX_HEIGHT) },
     // Room for the focus ring of the first and last row.
     list: { gap: s(space.sm), paddingVertical: s(focus.bleed), paddingHorizontal: s(focus.bleed) },
     site: {
@@ -106,6 +113,8 @@ const makeStyles = (s: Scaler) => {
       borderRadius: s(radii.button),
       backgroundColor: color.surface2,
     },
+    // Badge pins itself to flex-start; centre it in the row instead of on its top edge.
+    homeBadge: { alignSelf: 'center' as const },
     siteFocused: { backgroundColor: focus.borderColor },
     siteUnsupported: { opacity: 0.5 },
     siteName: { ...text.body, flex: 1, color: color.text },

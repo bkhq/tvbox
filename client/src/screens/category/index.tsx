@@ -1,5 +1,5 @@
 import { type ReactNode, useEffect, useMemo, useState } from 'react';
-import { BackHandler, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { BackHandler, ScrollView, Text, View } from 'react-native';
 
 import { useVodConfig } from '../../core/bootstrap';
 import { getProvider, type SiteProvider, UnsupportedSiteError } from '../../core/provider';
@@ -7,19 +7,35 @@ import type { Filter } from '../../core/types';
 // Not the navigation barrel: it imports the route table, which imports this screen.
 import { useAppNavigation } from '../../navigation/useAppNavigation';
 import type { RootStackScreenProps } from '../../navigation/types';
-import { colors, FocusableButton, fontSize, HorizontalRow, spacing } from '../../ui';
+import {
+  BackButton,
+  Button,
+  Chip,
+  Clock,
+  color,
+  focus,
+  safeArea,
+  scaledText,
+  space,
+  useScaledStyles,
+  type Scaler,
+} from '../../ui';
 import { ErrorView, LoadingView, openVod, usePagedList, useSite, VodGrid } from '../common';
 import { type FilterSelection, initialSelection, selectFilter, toExtend } from './filterState';
 
-/** Route label plus class name; TV screens have no navigation header. */
+/** Back pill, route label plus class name, and clock; TV screens have no navigation header. */
 function Header({ typeName, children }: { typeName: string; children?: ReactNode }) {
+  const navigation = useAppNavigation();
+  const styles = useScaledStyles(makeStyles);
   return (
     <View style={styles.header}>
+      <BackButton testID="category-back" onPress={() => navigation.goBack()} />
       <Text style={styles.label}>分类</Text>
       <Text style={styles.title} numberOfLines={1}>
         {typeName}
       </Text>
       {children}
+      <Clock />
     </View>
   );
 }
@@ -33,27 +49,30 @@ function FilterPanel({
   selection: FilterSelection;
   onSelect: (key: string, value: string) => void;
 }) {
+  const styles = useScaledStyles(makeStyles);
   return (
     <ScrollView style={styles.panel} testID="category-filter-panel">
       {filters.map((filter, row) => (
-        <HorizontalRow
-          key={filter.key}
-          title={filter.name}
-          data={filter.value}
-          keyExtractor={(value, index) => `${index}-${value.v}`}
-          renderItem={({ item, index }) => {
-            const selected = selection[filter.key] === item.v;
-            return (
-              <FocusableButton
-                testID={`category-filter-${filter.key}-${index}`}
-                title={item.n}
-                selected={selected}
-                hasTVPreferredFocus={row === 0 && selected}
-                onPress={() => onSelect(filter.key, item.v)}
-              />
-            );
-          }}
-        />
+        <View key={filter.key} style={styles.filterRow}>
+          <Text style={styles.filterLabel} numberOfLines={1}>
+            {filter.name}
+          </Text>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chips}>
+            {filter.value.map((item, index) => {
+              const selected = selection[filter.key] === item.v;
+              return (
+                <Chip
+                  key={`${index}-${item.v}`}
+                  testID={`category-filter-${filter.key}-${index}`}
+                  label={item.n}
+                  selected={selected}
+                  hasTVPreferredFocus={row === 0 && selected}
+                  onPress={() => onSelect(filter.key, item.v)}
+                />
+              );
+            })}
+          </ScrollView>
+        </View>
       ))}
     </ScrollView>
   );
@@ -73,6 +92,7 @@ function CategoryList({
   filters: readonly Filter[];
 }) {
   const navigation = useAppNavigation();
+  const styles = useScaledStyles(makeStyles);
   const [selection, setSelection] = useState(() => initialSelection(filters));
   const [panelOpen, setPanelOpen] = useState(false);
   const extend = useMemo(() => toExtend(selection), [selection]);
@@ -99,10 +119,11 @@ function CategoryList({
     <View style={styles.container}>
       <Header typeName={typeName}>
         {hasFilters ? (
-          <FocusableButton
+          <Button
             testID="category-filter-toggle"
             title="筛选"
-            selected={panelOpen}
+            size="md"
+            variant={panelOpen ? 'primary' : 'secondary'}
             hasTVPreferredFocus={!panelOpen && empty}
             onPress={() => setPanelOpen((open) => !open)}
           />
@@ -146,6 +167,7 @@ function CategoryContent({
   typeId: string;
   typeName: string;
 }) {
+  const styles = useScaledStyles(makeStyles);
   const [filters, setFilters] = useState<Filter[]>();
 
   // The class filters come with homeContent; without them the screen simply has no filter panel.
@@ -175,6 +197,7 @@ export default function CategoryScreen({ route }: RootStackScreenProps<'Category
   const { siteKey, typeId, typeName } = route.params;
   const { status } = useVodConfig();
   const site = useSite(siteKey);
+  const styles = useScaledStyles(makeStyles);
   const provider = useMemo(() => {
     if (!site) return undefined;
     try {
@@ -194,29 +217,29 @@ export default function CategoryScreen({ route }: RootStackScreenProps<'Category
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: colors.background,
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: spacing.xl,
-    paddingTop: spacing.lg,
-  },
-  label: {
-    marginRight: spacing.sm,
-    color: colors.textSecondary,
-    fontSize: fontSize.body,
-  },
-  title: {
-    flex: 1,
-    color: colors.text,
-    fontSize: fontSize.heading,
-  },
-  panel: {
-    flexGrow: 0,
-    maxHeight: '50%',
-  },
-});
+const makeStyles = (s: Scaler) => {
+  const { h1, label } = scaledText(s);
+  return {
+    container: { flex: 1, backgroundColor: color.bg },
+    header: {
+      flexDirection: 'row' as const,
+      alignItems: 'center' as const,
+      gap: s(space.md),
+      paddingHorizontal: s(safeArea.horizontal),
+      paddingTop: s(safeArea.vertical),
+      paddingBottom: s(space.sm),
+    },
+    label: { ...label, marginLeft: s(space.xs), color: color.text3 },
+    title: { ...h1, flex: 1, marginLeft: -s(space.xs), color: color.text },
+    panel: { flexGrow: 0, maxHeight: '50%' as const },
+    filterRow: { flexDirection: 'row' as const, alignItems: 'center' as const, paddingLeft: s(safeArea.horizontal) },
+    filterLabel: { ...label, width: s(120), color: color.text3 },
+    // Chips bleed to the right screen edge; the vertical bleed keeps the focus zoom and ring unclipped.
+    chips: {
+      gap: s(space.sm),
+      paddingVertical: s(focus.bleed),
+      paddingLeft: s(focus.bleed),
+      paddingRight: s(safeArea.horizontal),
+    },
+  };
+};

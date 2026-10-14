@@ -252,6 +252,8 @@ export interface Vod {
   vod_director: string;
   vod_actor: string;
   vod_content: string;
+  /** Only present when the source sends a non-empty score. */
+  vod_score?: string;
   vod_play_from: string;
   vod_play_url: string;
   vod_tag: string;
@@ -498,6 +500,7 @@ export function normalizeLive(json: JsonObject): Live {
 }
 
 export function normalizeVod(json: JsonObject): Vod {
+  const score = str(json.vod_score).trim();
   return {
     vod_id: str(json.vod_id).trim(),
     vod_name: str(json.vod_name).trim(),
@@ -509,6 +512,7 @@ export function normalizeVod(json: JsonObject): Vod {
     vod_director: str(json.vod_director).trim(),
     vod_actor: str(json.vod_actor).trim(),
     vod_content: str(json.vod_content).trim(),
+    ...(score ? { vod_score: score } : {}),
     vod_play_from: str(json.vod_play_from),
     vod_play_url: str(json.vod_play_url),
     vod_tag: str(json.vod_tag),

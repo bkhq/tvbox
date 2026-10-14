@@ -12,7 +12,15 @@ export type BooleanKey = { [K in SettingKey]: Settings[K] extends boolean ? K : 
 /** Free-text settings (enum-backed string settings excluded). */
 export type TextKey = { [K in SettingKey]: string extends Settings[K] ? K : never }[SettingKey];
 
-/** Settings edited by cycling through a short option list. */
+const SCALE_OPTIONS = [
+  { value: 0, label: '原始' },
+  { value: 1, label: '16:9' },
+  { value: 2, label: '4:3' },
+  { value: 3, label: '填充' },
+  { value: 4, label: '裁剪' },
+] as const;
+
+/** Settings edited by picking from a short option list. */
 export const CHOICES = {
   playerEngine: [
     { value: 'auto', label: '自动（iOS 默认 MPV，Android 默认系统播放器）' },
@@ -27,13 +35,8 @@ export const CHOICES = {
     { value: 'surface', label: 'Surface' },
     { value: 'texture', label: 'Texture' },
   ],
-  scale: [
-    { value: 0, label: '原始' },
-    { value: 1, label: '16:9' },
-    { value: 2, label: '4:3' },
-    { value: 3, label: '填充' },
-    { value: 4, label: '裁剪' },
-  ],
+  scale: SCALE_OPTIONS,
+  scaleLive: SCALE_OPTIONS,
   subtitleStyleSource: [
     { value: 'original', label: '原始' },
     { value: 'system', label: '系统' },

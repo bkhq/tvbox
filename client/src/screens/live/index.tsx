@@ -115,7 +115,9 @@ function LivePlayer({ live, lives, visible, hidden: initialHidden, start, params
     () => ({ url, title: channel.name, headers: channelHeaders(channel) }),
     [url, channel],
   );
-  const playback = usePlayback(request, { attach: false });
+  // The load watchdog takes the same line-switch path as engine errors (onEngineEvent is defined below).
+  const timeoutRef = useRef<(event: EngineEvent) => void>(() => {});
+  const playback = usePlayback(request, { attach: false, onLoadTimeout: (event) => timeoutRef.current(event) });
   const { state, source, sourceKey, engine, setEngineHandle, onEngineEvent: onPlaybackEvent, play, pause, toggle, stop, repeat, replay, seek, setSpeed } =
     playback;
 
@@ -168,6 +170,9 @@ function LivePlayer({ live, lives, visible, hidden: initialHidden, start, params
     },
     [onPlaybackEvent, select, showNotice],
   );
+  useEffect(() => {
+    timeoutRef.current = onEngineEvent;
+  }, [onEngineEvent]);
 
   // Engine fallback toast (state adjusted during render).
   const fallbackKey = state.fallbackUsed && state.engine ? `${state.token}:${state.engine}` : '';

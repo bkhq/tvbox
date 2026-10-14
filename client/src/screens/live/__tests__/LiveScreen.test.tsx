@@ -17,6 +17,7 @@ import { emptyChannel } from '../../../player/live/channel';
 import { fetchChannelEpg } from '../../../player/live/epg';
 import { loadLiveGroups, loadLiveSources, readLiveState, saveLiveHome, saveLiveKeep } from '../../../player/live/source';
 import { createMockEngine, type MockEngine } from '../../../player/testing/mockEngine';
+import { LOAD_TIMEOUT } from '../../../player/usePlayback';
 import LiveScreen, { PASS_PRESSES } from '..';
 
 void [ActivityIndicator, FlatList, Image, Modal, Pressable, ScrollView, TextInput];
@@ -78,9 +79,19 @@ const vip = (): Group => ({ name: 'VIP', pass: '8888', channel: [channel('V1', '
 
 let video: MockEngine;
 let mpv: MockEngine;
+let fakeTimers = false;
 
 async function settle() {
-  for (let i = 0; i < 5; i++) await act(async () => new Promise((resolve) => setTimeout(resolve, 0)));
+  for (let i = 0; i < 5; i++) {
+    await act(async () =>
+      fakeTimers ? jest.advanceTimersByTimeAsync(0) : new Promise((resolve) => setTimeout(resolve, 0)),
+    );
+  }
+}
+
+async function advance(ms: number) {
+  await act(async () => jest.advanceTimersByTimeAsync(ms));
+  await settle();
 }
 
 async function render(params?: RootStackParamList['Live']): Promise<ReactTestRenderer> {
@@ -250,6 +261,42 @@ describe('LiveScreen', () => {
     await emit(video, fatal('network'));
     expect(has(renderer, 'live-error')).toBe(true);
     await act(async () => renderer.unmount());
+  });
+
+  describe('load watchdog', () => {
+    beforeEach(() => {
+      jest.useFakeTimers();
+      fakeTimers = true;
+    });
+
+    afterEach(() => {
+      jest.useRealTimers();
+      fakeTimers = false;
+    });
+
+    it('switches to the next line when the engine never loads', async () => {
+      const renderer = await render();
+      await full(renderer);
+      expect(playing()).toBe('http://m/1a');
+      await advance(LOAD_TIMEOUT - 1);
+      expect(playing()).toBe('http://m/1a');
+      await advance(1);
+      expect(playing()).toBe('http://m/1b');
+      expect(texts(renderer)).toContain('播放失败，切换到线路 2');
+      await act(async () => renderer.unmount());
+    });
+
+    it('falls through to the engine fallback, then the error view, with a single line', async () => {
+      const renderer = await render({ groupIndex: 2, channelIndex: 0 });
+      await full(renderer);
+      expect(playing()).toBe('http://m/zj');
+      await advance(LOAD_TIMEOUT);
+      expect(video.props?.source.url).toBe('http://m/zj');
+      expect(texts(renderer)).toContain('已切换到 系统播放器 播放');
+      await advance(LOAD_TIMEOUT);
+      expect(has(renderer, 'live-error')).toBe(true);
+      await act(async () => renderer.unmount());
+    });
   });
 
   it('does not change source on error when `change` is off', async () => {

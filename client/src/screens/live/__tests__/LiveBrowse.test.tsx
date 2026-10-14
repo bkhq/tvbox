@@ -125,6 +125,9 @@ describe('LiveBrowse', () => {
     expect(texts(renderer)).not.toContain('切换账户');
     expect(renderer.root.findAll((node) => node.props.name === 'user')).toHaveLength(0);
 
+    // The 52 px outlined top-bar buttons.
+    expect(find(renderer, 'live-nav-control')!.props.variant).toBe('outline');
+    expect(find(renderer, 'live-nav-settings')!.props.variant).toBe('outline');
     await press(renderer, 'top-nav-search');
     await press(renderer, 'live-nav-control');
     await press(renderer, 'live-nav-settings');

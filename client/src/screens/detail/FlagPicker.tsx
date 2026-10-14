@@ -12,11 +12,22 @@ import {
   Icon,
   radii,
   scaledText,
+  space,
   useFocusAnimation,
   useScale,
   useScaledStyles,
   type Scaler,
 } from '../../ui';
+
+/** Widest flag button in design px; a longer line name is truncated. */
+const FLAG_BUTTON_MAX_WIDTH = 280;
+/**
+ * Gap to the 倒序 chip: a focused button grows by (scale - 1) / 2 of its width per side and its ring (gap + width,
+ * also scaled) sits outside that, so the chip keeps space.xs of clearance. 20 + 8 = 28.
+ */
+export const FLAG_PICKER_GAP =
+  Math.ceil(((focus.scale - 1) / 2) * FLAG_BUTTON_MAX_WIDTH + (focus.ringGap + focus.ringWidth) * focus.scale) +
+  space.xs;
 
 export interface FlagPickerProps {
   flags: readonly Flag[];
@@ -99,12 +110,13 @@ const makeStyles = (s: Scaler) => {
       justifyContent: 'center' as const,
       gap: s(12),
       height: s(64),
+      maxWidth: s(FLAG_BUTTON_MAX_WIDTH),
       paddingHorizontal: s(32),
       borderRadius: s(radii.button),
       backgroundColor: color.buttonFill,
     },
     buttonFocused: { backgroundColor: focus.borderColor },
-    buttonTitle: { fontFamily: fontFamily.semiBold, fontSize: s(26), lineHeight: s(36) },
+    buttonTitle: { flexShrink: 1, fontFamily: fontFamily.semiBold, fontSize: s(26), lineHeight: s(36) },
     scrim: {
       flex: 1,
       alignItems: 'center' as const,

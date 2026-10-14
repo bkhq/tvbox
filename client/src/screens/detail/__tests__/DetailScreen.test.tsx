@@ -20,7 +20,9 @@ import { createConfigRepository, historyKey, MemoryStore, TIME_UNSET } from '../
 import { normalizeResult, type Result } from '../../../core/types';
 import { getHistoryRepository, getKeepRepository, setUserDataStore } from '../../../core/userData';
 import type { RootStackScreenProps } from '../../../navigation/types';
-import DetailScreen from '..';
+import { card, focus, space, type } from '../../../ui';
+import DetailScreen, { EPISODES_TOP } from '..';
+import { FLAG_PICKER_GAP } from '../FlagPicker';
 
 // react-native resolves components lazily on first access; resolve the ones the
 // screen renders while the file loads so no test pays that cost inside its timeout.
@@ -141,6 +143,18 @@ function flagPickerName(renderer: ReactTestRenderer): string {
     .filter((id, index, list) => list.indexOf(id) === index);
   expect(ids.slice(-2)).toEqual(['detail-flag-picker-name', 'detail-flag-picker-chevron']);
   return byTestId(renderer, 'detail-flag-picker-name').props.children as string;
+}
+
+const flat = (renderer: ReactTestRenderer, testID: string) =>
+  StyleSheet.flatten(byTestId(renderer, testID).props.style);
+
+const tabBar = (renderer: ReactTestRenderer) =>
+  renderer.root.findAllByType(TVFocusGuideView).find((node) => node.props.testID === 'detail-tab-bar')!;
+
+/** The rendered title and the screen's scale factor, derived from it. */
+function title(renderer: ReactTestRenderer, name: string) {
+  const node = renderer.root.findAllByType(Text).find((item) => item.props.children === name)!;
+  return StyleSheet.flatten(node.props.style);
 }
 
 describe('DetailScreen', () => {
@@ -388,6 +402,85 @@ describe('DetailScreen', () => {
     expect(has(renderer, 'detail-play')).toBe(false);
     expect(has(renderer, 'detail-sort')).toBe(false);
     expect(preferred(renderer)).toEqual(['detail-collect']);
+    await act(async () => renderer.unmount());
+  });
+
+  it('lands focus entering the tab row on the selected tab and keeps left/right in the row', async () => {
+    mockProvider([VOD], [{ vod_id: 'v1', vod_name: '测试影片' }]);
+    const { renderer } = await render({ siteKey: 'cms', vodId: 'v1' });
+    const guide = () => {
+      const { destinations, trapFocusLeft, trapFocusRight, trapFocusUp, trapFocusDown } = tabBar(renderer).props;
+      // The jest View is a component instance; its testID names the tab slot.
+      const slots = (destinations as { props: { testID: string } }[] | undefined)?.map((view) => view.props.testID);
+      return { slots, trapFocusLeft, trapFocusRight, trapFocusUp, trapFocusDown };
+    };
+    expect(guide()).toMatchObject({ trapFocusLeft: true, trapFocusRight: true });
+    // Up and down still leave the row.
+    expect(guide().trapFocusUp).toBeUndefined();
+    expect(guide().trapFocusDown).toBeUndefined();
+    // D-pad down from 立即播放 lands on 剧集, not the nearest tab.
+    expect(guide().slots).toEqual(['detail-tab-slot-episodes']);
+    const inside = (parent: string | ReturnType<typeof tabBar>, testID: string) =>
+      (typeof parent === 'string' ? byTestId(renderer, parent) : parent).findAll((node) => node.props.testID === testID)
+        .length > 0;
+    expect(inside('detail-tab-slot-episodes', 'detail-tab-episodes')).toBe(true);
+    // The flag picker and 倒序 are in the trapped row too.
+    expect(inside(tabBar(renderer), 'detail-flag-picker')).toBe(true);
+    expect(inside(tabBar(renderer), 'detail-sort')).toBe(true);
+    // An empty 相似推荐 keeps the row trapped, so right from it reaches 演职员.
+    await act(async () => byTestId(renderer, 'detail-tab-similar').props.onPress());
+    expect(byTestId(renderer, 'detail-similar-status').props.children).toBe('暂无相似推荐');
+    expect(guide()).toMatchObject({ trapFocusLeft: true, trapFocusRight: true });
+    expect(guide().slots).toEqual(['detail-tab-slot-similar']);
+    expect(has(renderer, 'detail-tab-slot-cast')).toBe(true);
+    await act(async () => byTestId(renderer, 'detail-tab-cast').props.onPress());
+    expect(guide().slots).toEqual(['detail-tab-slot-cast']);
+    await act(async () => renderer.unmount());
+  });
+
+  it('gives the title room for descenders without moving the layout', async () => {
+    mockProvider([{ ...VOD, vod_name: 'Girigo' }]);
+    const short = await render({ siteKey: 'cms', vodId: 'v1' });
+    const display = title(short.renderer, 'Girigo');
+    const k = (display.fontSize as number) / type.display.fontSize;
+    expect(display.lineHeight).toBeCloseTo(101 * k, 0);
+    expect((display.lineHeight as number) + 2 * (display.marginVertical as number)).toBeCloseTo(
+      type.display.lineHeight * k,
+      0,
+    );
+    await act(async () => short.renderer.unmount());
+
+    resetProviderRegistry();
+    mockProvider([{ ...VOD, vod_name: 'Girigo Original' }]);
+    const long = await render({ siteKey: 'cms', vodId: 'v1' });
+    const small = title(long.renderer, 'Girigo Original');
+    expect(small.fontSize).toBeCloseTo(type.displaySm.fontSize * k, 0);
+    expect(small.lineHeight).toBeCloseTo(83 * k, 0);
+    expect((small.lineHeight as number) + 2 * (small.marginVertical as number)).toBeCloseTo(
+      type.displaySm.lineHeight * k,
+      0,
+    );
+    await act(async () => long.renderer.unmount());
+  });
+
+  it('keeps the focused episode and flag picker rings clear of the tabs and the sort chip', async () => {
+    mockProvider();
+    const { renderer } = await render({ siteKey: 'cms', vodId: 'v1' });
+    const k = (title(renderer, '测试影片').fontSize as number) / type.display.fontSize;
+    // Design: 8 + 24 from the tab row to the cards; the row adds the focus bleed itself.
+    expect(EPISODES_TOP).toBe(32);
+    expect(StyleSheet.flatten(tabBar(renderer).props.style).marginBottom).toBeCloseTo(
+      (EPISODES_TOP - focus.bleed) * k,
+      0,
+    );
+    const cardRise = ((focus.scale - 1) / 2) * card.wide.height + focus.borderWidth * focus.scale;
+    expect(EPISODES_TOP).toBeGreaterThanOrEqual(cardRise + space.sm);
+    // The picker's zoom and ring stay space.xs short of 倒序.
+    expect(flat(renderer, 'detail-tab-tools').gap).toBeCloseTo(FLAG_PICKER_GAP * k, 0);
+    const maxWidth = flat(renderer, 'detail-flag-picker').maxWidth as number;
+    const pickerGrowth = ((focus.scale - 1) / 2) * maxWidth + (focus.ringGap + focus.ringWidth) * focus.scale * k;
+    expect(FLAG_PICKER_GAP * k).toBeGreaterThanOrEqual(pickerGrowth + space.xs * k);
+    expect(FLAG_PICKER_GAP).toBe(28);
     await act(async () => renderer.unmount());
   });
 

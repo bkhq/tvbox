@@ -1,5 +1,5 @@
 import { type ReactNode, useCallback, useEffect, useMemo, useState } from 'react';
-import { Pressable, ScrollView, Text, View } from 'react-native';
+import { Pressable, ScrollView, Text, TVFocusGuideView, View } from 'react-native';
 
 import { useVodConfig } from '../../core/bootstrap';
 import { getProvider, type SiteProvider, UnsupportedSiteError } from '../../core/provider';
@@ -15,11 +15,13 @@ import {
   Button,
   Chip,
   color,
+  focus,
   Icon,
   safeArea,
   scaledText,
   space,
   Tab,
+  type,
   useLayout,
   useScaledStyles,
   type Scaler,
@@ -28,12 +30,17 @@ import { ErrorView, htmlToText, LoadingView, useActiveCid, useSite } from '../co
 import { Backdrop } from './Backdrop';
 import { buildHistoryInput, buildPlayerParams, resolveResume, sortEpisodes, splitPeople, tagLine } from './detailState';
 import { EpisodeList } from './EpisodeList';
-import { FlagPicker } from './FlagPicker';
+import { FLAG_PICKER_GAP, FlagPicker } from './FlagPicker';
 import { SimilarRow, useSimilar } from './Similar';
 
 type DetailParams = RootStackScreenProps<'Detail'>['route']['params'];
 
 type DetailTab = 'episodes' | 'similar' | 'cast';
+
+/** Room for Latin descenders ("g" in Girigo), as Home's hero: about 1.15x the font size. */
+const TITLE_LINE_HEIGHT = 1.15;
+/** Design: the tab section's 8 gap plus the card row's 24 top padding between the tab row and the cards. */
+export const EPISODES_TOP = 32;
 
 /** Page frame: background, optional backdrop and the back pill. `fill` stretches the content to the viewport. */
 function Page({
@@ -150,6 +157,24 @@ function Cast({ vod }: { vod: Vod }) {
   );
 }
 
+/** Host view around a tab, reported so the tab row's focus guide can target it. */
+function TabSlot({
+  name,
+  onSlot,
+  children,
+}: {
+  name: DetailTab;
+  onSlot: (name: DetailTab, node: View | null) => void;
+  children: ReactNode;
+}) {
+  const ref = useCallback((node: View | null) => onSlot(name, node), [name, onSlot]);
+  return (
+    <View ref={ref} collapsable={false} testID={`detail-tab-slot-${name}`}>
+      {children}
+    </View>
+  );
+}
+
 function DetailBody({
   site,
   siteKey,
@@ -179,6 +204,15 @@ function DetailBody({
   const [tab, setTab] = useState<DetailTab>('episodes');
   const [similar, loadSimilar] = useSimilar(siteKey, vod);
   const hasCast = Boolean(vod.vod_actor || vod.vod_director);
+  // Host views around the tabs: the tab row's focus guide sends focus entering it to the selected one.
+  const [tabSlots, setTabSlots] = useState<Partial<Record<DetailTab, View>>>({});
+  const onTabSlot = useCallback(
+    (name: DetailTab, node: View | null) =>
+      setTabSlots((slots) => (slots[name] === (node ?? undefined) ? slots : { ...slots, [name]: node ?? undefined })),
+    [],
+  );
+  const selectedSlot = tabSlots[tab];
+  const tabDestinations = useMemo(() => (selectedSlot ? [selectedSlot] : undefined), [selectedSlot]);
 
   useEffect(() => {
     if (cid === undefined) return;
@@ -283,34 +317,47 @@ function DetailBody({
           onPress={() => void toggleKeep()}
         />
       </View>
-      <View style={styles.tabBar}>
+      {/* Left/right stay in the row; up/down leave it, and entering it lands on the selected tab. */}
+      <TVFocusGuideView
+        testID="detail-tab-bar"
+        style={styles.tabBar}
+        destinations={tabDestinations}
+        trapFocusLeft
+        trapFocusRight
+      >
         <View style={styles.tabs}>
-          <Tab
-            testID="detail-tab-episodes"
-            label="剧集"
-            active={tab === 'episodes'}
-            onPress={() => setTab('episodes')}
-          />
-          <Tab
-            testID="detail-tab-similar"
-            label="相似推荐"
-            active={tab === 'similar'}
-            onPress={() => {
-              setTab('similar');
-              loadSimilar();
-            }}
-          />
+          <TabSlot name="episodes" onSlot={onTabSlot}>
+            <Tab
+              testID="detail-tab-episodes"
+              label="剧集"
+              active={tab === 'episodes'}
+              onPress={() => setTab('episodes')}
+            />
+          </TabSlot>
+          <TabSlot name="similar" onSlot={onTabSlot}>
+            <Tab
+              testID="detail-tab-similar"
+              label="相似推荐"
+              active={tab === 'similar'}
+              onPress={() => {
+                setTab('similar');
+                loadSimilar();
+              }}
+            />
+          </TabSlot>
           {hasCast ? (
-            <Tab testID="detail-tab-cast" label="演职员" active={tab === 'cast'} onPress={() => setTab('cast')} />
+            <TabSlot name="cast" onSlot={onTabSlot}>
+              <Tab testID="detail-tab-cast" label="演职员" active={tab === 'cast'} onPress={() => setTab('cast')} />
+            </TabSlot>
           ) : null}
         </View>
         {tab === 'episodes' && flag ? (
-          <View style={styles.tabTools}>
+          <View style={styles.tabTools} testID="detail-tab-tools">
             <FlagPicker flags={flags} flagIndex={flagIndex} onSelect={setFlagIndex} />
             <Chip testID="detail-sort" label="倒序" selected={revSort} onPress={toggleSort} />
           </View>
         ) : null}
-      </View>
+      </TVFocusGuideView>
       {tab === 'episodes' ? (
         flag ? (
           <EpisodeList
@@ -425,6 +472,12 @@ export default function DetailScreen({ route }: RootStackScreenProps<'Detail'>) 
   );
 }
 
+/** A display title on a ~1.15x line, its extra height taken back from the margins so the layout stays put. */
+function titleLine(s: Scaler, preset: { fontSize: number; lineHeight: number }) {
+  const lineHeight = Math.round(preset.fontSize * TITLE_LINE_HEIGHT);
+  return { lineHeight: s(lineHeight), marginVertical: -s((lineHeight - preset.lineHeight) / 2) };
+}
+
 const makeStyles = (s: Scaler) => {
   const text = scaledText(s);
   return {
@@ -435,8 +488,8 @@ const makeStyles = (s: Scaler) => {
     info: { width: s(880), marginTop: s(50), marginLeft: s(safeArea.horizontal), gap: s(20) },
     tagLine: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: s(14) },
     tags: { ...text.label, color: color.text2 },
-    title: { ...text.display, color: color.text },
-    titleSm: { ...text.displaySm, color: color.text },
+    title: { ...text.display, ...titleLine(s, type.display), color: color.text },
+    titleSm: { ...text.displaySm, ...titleLine(s, type.displaySm), color: color.text },
     paramTitle: { marginTop: s(50), marginHorizontal: s(safeArea.horizontal) },
     meta: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: s(8) },
     score: { ...text.body, fontFamily: text.h1.fontFamily, color: color.text },
@@ -458,10 +511,12 @@ const makeStyles = (s: Scaler) => {
       alignItems: 'center' as const,
       justifyContent: 'space-between' as const,
       marginTop: s(space.xl),
+      // The card row adds focus.bleed above the cards.
+      marginBottom: s(EPISODES_TOP - focus.bleed),
       paddingHorizontal: s(safeArea.horizontal),
     },
     tabs: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: s(36) },
-    tabTools: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: s(space.sm) },
+    tabTools: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: s(FLAG_PICKER_GAP) },
     empty: {
       ...text.body,
       color: color.text2,

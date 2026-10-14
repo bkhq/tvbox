@@ -1,10 +1,10 @@
 import { StatusBar } from 'expo-status-bar';
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, BackHandler, StyleSheet, Text, View } from 'react-native';
 
 import { useVodConfig } from '../../core/bootstrap';
 import { useSetting } from '../../core/settings/useSetting';
-import type { Group, Live } from '../../core/types';
+import type { Channel, Group, Live } from '../../core/types';
 import type { RootStackParamList, RootStackScreenProps } from '../../navigation/types';
 import { attachPlaybackHost, type SnapshotListener } from '../../player/controller';
 import { getEngine } from '../../player/engine/registry';
@@ -29,12 +29,14 @@ import {
 } from '../../player/live';
 import type { UrlPlayerParams } from '../../player/params';
 import { toSnapshot, usePlayback } from '../../player/usePlayback';
-import { colors, fontSize, radius, spacing, useLayout } from '../../ui';
+import { color, type Scaler, scaledText, space, useLayout, useScaledStyles } from '../../ui';
 import { ErrorView } from '../common';
 import { fallbackNotice, NOTICE_DURATION } from '../player';
 import { useBackgroundPause } from '../player/useBackgroundPause';
 import { ChannelList } from './ChannelList';
 import { InfoBar } from './InfoBar';
+import { LiveBrowse } from './LiveBrowse';
+import { toggleFavourite } from './liveFavourites';
 import { initialSelection, type LiveSelection } from './liveModel';
 import { LivePanel, PassPrompt } from './LivePanel';
 import { useLiveEpg } from './useLiveEpg';
@@ -63,11 +65,11 @@ interface LivePlayerProps {
   params: LiveParams;
   focused: boolean;
   onSelectLive(live: Live): void;
-  onExit(): void;
 }
 
-function LivePlayer({ live, lives, visible, hidden: initialHidden, start, params, focused, onSelectLive, onExit }: LivePlayerProps) {
+function LivePlayer({ live, lives, visible, hidden: initialHidden, start, params, focused, onSelectLive }: LivePlayerProps) {
   const { isTV } = useLayout();
+  const ui = useScaledStyles(makeStyles);
   const [background] = useSetting('background');
   const [scaleLive] = useSetting('scaleLive');
   const [across] = useSetting('across');
@@ -77,6 +79,8 @@ function LivePlayer({ live, lives, visible, hidden: initialHidden, start, params
   const [groups, setGroups] = useState(visible);
   const [hidden, setHidden] = useState(initialHidden);
   const [selection, setSelection] = useState(start);
+  // browse: the TV live home over the playing channel; full: the full-screen player.
+  const [mode, setMode] = useState<'browse' | 'full'>('browse');
   const [list, setList] = useState(false);
   const [panel, setPanel] = useState<'menu' | 'pass' | undefined>(undefined);
   const [info, setInfo] = useState(1);
@@ -97,7 +101,10 @@ function LivePlayer({ live, lives, visible, hidden: initialHidden, start, params
   if (paramsKey !== seenParams) {
     setSeenParams(paramsKey);
     const channel = params?.groupIndex !== undefined ? groups[params.groupIndex]?.channel[params.channelIndex ?? 0] : undefined;
-    if (channel) select({ group: params!.groupIndex!, channel: params!.channelIndex ?? 0, line: 0 });
+    if (channel) {
+      select({ group: params!.groupIndex!, channel: params!.channelIndex ?? 0, line: 0 });
+      setMode('browse');
+    }
   }
 
   const group = groups[selection.group]!;
@@ -259,16 +266,27 @@ function LivePlayer({ live, lives, visible, hidden: initialHidden, start, params
         return;
     }
   };
-  useLiveRemote(list || !!panel, onRemote);
+  useLiveRemote(mode !== 'full' || list || !!panel, onRemote);
+
+  // Back in full mode returns to browse; in browse it leaves the screen.
+  useEffect(() => {
+    if (mode !== 'full' || !focused) return;
+    const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
+      setMode('browse');
+      return true;
+    });
+    return () => subscription.remove();
+  }, [mode, focused]);
 
   const touch = useLiveGestures({
     onTap: () => setList((shown) => !shown),
     onSwipe: (direction) => step(direction === 'up' ? 1 : -1),
   });
 
-  const onGroupPress = (index: number) => {
+  const onGroupPress = (index: number | undefined) => {
     // PassDialog after repeated presses on "收藏" while groups are locked.
-    if (!isKeepGroup(groups[index]!) || hidden.length === 0) {
+    const pressed = index === undefined ? undefined : groups[index];
+    if (!pressed || !isKeepGroup(pressed) || hidden.length === 0) {
       keepPresses.current = 0;
       return;
     }
@@ -288,7 +306,30 @@ function LivePlayer({ live, lives, visible, hidden: initialHidden, start, params
     }
     setGroups(result.visible);
     setHidden(result.hidden);
-    setList(true);
+    if (mode === 'full') setList(true);
+  };
+
+  const onToggleFavourite = (target: Channel) => {
+    void toggleFavourite(latest.current.groups, target).then((result) => {
+      const { selection: at, channel: current } = latest.current;
+      setGroups(result.groups);
+      // The keep group gained or lost a channel: keep pointing at the playing one.
+      if (!isKeepGroup(result.groups[at.group]!)) return;
+      const kept = result.groups[at.group]!.channel.findIndex((item) => item.name === current.name);
+      if (kept === at.channel) return;
+      if (kept >= 0) {
+        setSelection({ ...at, channel: kept });
+        return;
+      }
+      const group = result.groups.findIndex(
+        (item) => !isKeepGroup(item) && item.channel.some((entry) => entry.name === current.name),
+      );
+      const moved =
+        group >= 0
+          ? { group, channel: result.groups[group]!.channel.findIndex((entry) => entry.name === current.name), line: 0 }
+          : initialSelection(result.groups, undefined, '');
+      if (moved) setSelection(moved);
+    });
   };
 
   const Engine = engine?.Component;
@@ -311,24 +352,42 @@ function LivePlayer({ live, lives, visible, hidden: initialHidden, start, params
           onEvent={onEngineEvent}
         />
       ) : null}
-      <View style={StyleSheet.absoluteFill} testID="live-touch" {...touch} />
+      {mode === 'full' ? <View style={StyleSheet.absoluteFill} testID="live-touch" {...touch} /> : null}
       {statusText ? (
         <View style={styles.center} pointerEvents="none" testID="live-status">
-          <ActivityIndicator color={colors.primary} />
-          <Text style={styles.statusText}>{statusText}</Text>
+          <ActivityIndicator color={color.accent} />
+          <Text style={ui.statusText}>{statusText}</Text>
         </View>
       ) : null}
-      {state.status === 'error' ? (
-        <View style={[StyleSheet.absoluteFill, styles.errorBox]}>
+      {mode === 'browse' ? (
+        <>
+          {state.status === 'error' ? (
+            <View style={styles.center} pointerEvents="none">
+              <Text style={ui.statusText} testID="live-browse-error">{`${channel.name}：${state.error ?? '播放失败'}`}</Text>
+            </View>
+          ) : null}
+          <LiveBrowse
+            groups={groups}
+            selection={selection}
+            epg={epg}
+            onGroupPress={onGroupPress}
+            onSelect={(ref) => select({ ...ref, line: 0 })}
+            onFull={() => setMode('full')}
+            onToggleFavourite={onToggleFavourite}
+          />
+        </>
+      ) : null}
+      {mode === 'full' && state.status === 'error' ? (
+        <View style={[StyleSheet.absoluteFill, ui.page]}>
           <ErrorView testID="live-error" message={`${channel.name}：${state.error ?? '播放失败'}`} onRetry={replay} hasTVPreferredFocus />
         </View>
       ) : null}
-      {info > 0 && !list ? (
+      {mode === 'full' && info > 0 && !list ? (
         <InfoBar channel={channel} line={selection.line} logo={epg.logoOf(channel)} epg={epg.epgFor(channel)} />
       ) : null}
       {notice ? (
-        <View style={styles.notice} pointerEvents="none">
-          <Text style={styles.noticeText} testID="live-notice">
+        <View style={ui.notice} pointerEvents="none">
+          <Text style={ui.noticeText} testID="live-notice">
             {notice.text}
           </Text>
         </View>
@@ -349,7 +408,14 @@ function LivePlayer({ live, lives, visible, hidden: initialHidden, start, params
             setList(false);
             setPanel('menu');
           }}
-          onBack={isTV ? undefined : onExit}
+          onBack={
+            isTV
+              ? undefined
+              : () => {
+                  setList(false);
+                  setMode('browse');
+                }
+          }
         />
       ) : null}
       {panel === 'menu' ? (
@@ -375,7 +441,8 @@ type LoadState =
   | { status: 'ready'; id: number; live: Live; visible: Group[]; hidden: Group[]; start: LiveSelection };
 
 /** Loads the live sources and the selected source's channels, then plays. */
-function LiveView({ params, focused, onExit, onReload }: { params: LiveParams; focused: boolean; onExit(): void; onReload(): void }) {
+function LiveView({ params, focused, onReload }: { params: LiveParams; focused: boolean; onReload(): void }) {
+  const ui = useScaledStyles(makeStyles);
   const vodConfig = useVodConfig();
   const vodLives = vodConfig.status === 'ready' ? vodConfig.config?.lives : undefined;
   const [lives, setLives] = useState<Live[]>([]);
@@ -433,15 +500,25 @@ function LiveView({ params, focused, onExit, onReload }: { params: LiveParams; f
 
   if (load.status === 'loading') {
     return (
-      <View style={styles.center} testID="live-loading">
-        <Text style={styles.title}>直播</Text>
-        <ActivityIndicator color={colors.primary} />
-        <Text style={styles.statusText}>正在加载…</Text>
+      <View style={[styles.center, ui.page]} testID="live-loading">
+        <Text style={ui.title}>直播</Text>
+        <ActivityIndicator color={color.accent} />
+        <Text style={ui.statusText}>正在加载…</Text>
       </View>
     );
   }
-  if (load.status === 'error') return <ErrorView testID="live-load-error" message={load.message} onRetry={onReload} hasTVPreferredFocus />;
-  if (load.status === 'empty') return <ErrorView testID="live-empty" message={load.message} onRetry={onReload} hasTVPreferredFocus />;
+  if (load.status === 'error' || load.status === 'empty') {
+    return (
+      <View style={[styles.center, ui.page]}>
+        <ErrorView
+          testID={load.status === 'error' ? 'live-load-error' : 'live-empty'}
+          message={load.message}
+          onRetry={onReload}
+          hasTVPreferredFocus
+        />
+      </View>
+    );
+  }
   return (
     <LivePlayer
       key={load.id}
@@ -453,7 +530,6 @@ function LiveView({ params, focused, onExit, onReload }: { params: LiveParams; f
       params={params}
       focused={focused}
       onSelectLive={selectLive}
-      onExit={onExit}
     />
   );
 }
@@ -484,7 +560,6 @@ export default function LiveScreen({ navigation, route }: RootStackScreenProps<'
         key={reload}
         params={route.params}
         focused={focused}
-        onExit={() => navigation.goBack()}
         onReload={() => setReload((n) => n + 1)}
       />
     </View>
@@ -501,30 +576,25 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  title: {
-    marginBottom: spacing.sm,
-    color: colors.text,
-    fontSize: fontSize.heading,
-  },
-  statusText: {
-    marginTop: spacing.sm,
-    color: colors.text,
-    fontSize: fontSize.body,
-  },
-  errorBox: {
-    backgroundColor: colors.background,
-  },
-  notice: {
-    position: 'absolute',
-    top: spacing.xl,
-    alignSelf: 'center',
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.sm,
-    borderRadius: radius.md,
-    backgroundColor: colors.remarkBackground,
-  },
-  noticeText: {
-    color: colors.text,
-    fontSize: fontSize.body,
-  },
 });
+
+const makeStyles = (s: Scaler) => {
+  const { h1, body } = scaledText(s);
+  return {
+    page: { backgroundColor: color.bg },
+    title: { ...h1, marginBottom: s(space.sm), color: color.text },
+    statusText: { ...body, marginTop: s(space.sm), color: color.text },
+    notice: {
+      position: 'absolute' as const,
+      top: s(150),
+      alignSelf: 'center' as const,
+      paddingHorizontal: s(22),
+      paddingVertical: s(12),
+      borderRadius: s(12),
+      borderWidth: 1,
+      borderColor: 'rgba(255,255,255,0.1)',
+      backgroundColor: 'rgba(21,26,36,0.92)',
+    },
+    noticeText: { ...body, color: color.text },
+  };
+};

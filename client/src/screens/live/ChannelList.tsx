@@ -1,9 +1,25 @@
 import { useState } from 'react';
-import { FlatList, Image, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
+import { FlatList, Image, Modal, Pressable, Text, View } from 'react-native';
 
 import type { Channel, Group } from '../../core/types';
-import { currentProgrammeIndex, formatEpgItem } from '../../player/live';
-import { colors, FocusableButton, fontSize, imageSource, radius, spacing } from '../../ui';
+import { currentProgrammeIndex } from '../../player/live';
+import {
+  AnimatedPressable,
+  Badge,
+  Button,
+  color,
+  focus,
+  FocusRing,
+  imageSource,
+  radii,
+  safeArea,
+  type Scaler,
+  scaledText,
+  space,
+  tabular,
+  useFocusAnimation,
+  useScaledStyles,
+} from '../../ui';
 import { type LiveSelection, nowAndNext } from './liveModel';
 import type { LiveEpg } from './useLiveEpg';
 
@@ -22,12 +38,54 @@ export interface ChannelListProps {
   onBack?: () => void;
 }
 
+type Styles = ReturnType<typeof makeStyles>;
+
+/** Group list row: name and channel count; selected = surface-2 fill, focused = inverted. */
+function GroupRow({
+  group,
+  selected,
+  styles,
+  testID,
+  onPress,
+}: {
+  group: Group;
+  selected: boolean;
+  styles: Styles;
+  testID: string;
+  onPress(): void;
+}) {
+  const { focused, animatedStyle, handlers } = useFocusAnimation();
+  return (
+    <AnimatedPressable
+      testID={testID}
+      accessibilityRole="button"
+      accessibilityLabel={group.name}
+      accessibilityState={{ selected }}
+      onPress={onPress}
+      {...handlers}
+      style={[styles.group, selected && styles.groupSelected, focused && styles.groupFocused, animatedStyle]}
+    >
+      {focused ? <FocusRing radius={styles.group.borderRadius} /> : null}
+      <Text
+        style={[styles.groupName, selected && styles.groupNameSelected, focused && styles.inverse]}
+        numberOfLines={1}
+      >
+        {group.name}
+      </Text>
+      <Text style={[styles.groupCount, selected && styles.groupCountSelected, focused && styles.inverse]}>
+        {String(group.channel.length)}
+      </Text>
+    </AnimatedPressable>
+  );
+}
+
 function ChannelRow({
   channel,
   logo,
   programme,
   playing,
   preferred,
+  styles,
   testID,
   onFocus,
   onPress,
@@ -37,38 +95,40 @@ function ChannelRow({
   programme: string;
   playing: boolean;
   preferred: boolean;
+  styles: Styles;
   testID: string;
   onFocus(): void;
   onPress(): void;
 }) {
-  const [focused, setFocused] = useState(false);
+  const { focused, animatedStyle, handlers } = useFocusAnimation({ onFocus });
   return (
-    <Pressable
+    <AnimatedPressable
       testID={testID}
       accessibilityRole="button"
       accessibilityState={{ selected: playing }}
       hasTVPreferredFocus={preferred}
-      onFocus={() => {
-        setFocused(true);
-        onFocus();
-      }}
-      onBlur={() => setFocused(false)}
       onPress={onPress}
-      style={[styles.row, playing && styles.rowPlaying, focused && styles.rowFocused]}
+      {...handlers}
+      style={[styles.row, playing && styles.rowPlaying, focused && styles.rowFocused, animatedStyle]}
     >
-      <Text style={styles.number}>{channel.number}</Text>
-      {logo !== '' ? <Image source={imageSource(logo)} style={styles.logo} resizeMode="contain" /> : <View style={styles.logo} />}
+      <Text style={[styles.number, playing && styles.numberPlaying]} numberOfLines={1}>
+        {channel.number}
+      </Text>
+      {logo !== '' ? <Image source={imageSource(logo)} style={styles.logo} resizeMode="contain" /> : null}
       <View style={styles.rowText}>
-        <Text style={styles.name} numberOfLines={1}>
-          {channel.name}
-        </Text>
+        <View style={styles.rowTitle}>
+          <Text style={styles.name} numberOfLines={1}>
+            {channel.name}
+          </Text>
+          {playing ? <Badge testID={`${testID}-playing`} variant="live" label="正在看" /> : null}
+        </View>
         {programme !== '' ? (
           <Text style={styles.programme} numberOfLines={1}>
             {programme}
           </Text>
         ) : null}
       </View>
-    </Pressable>
+    </AnimatedPressable>
   );
 }
 
@@ -77,7 +137,18 @@ function ChannelRow({
  * programme) and on TV the programme guide of the focused channel. Pressing a
  * channel plays it; back (Menu on tvOS) closes the list.
  */
-export function ChannelList({ groups, selection, epg, isTV, onGroupPress, onSelect, onClose, onMenu, onBack }: ChannelListProps) {
+export function ChannelList({
+  groups,
+  selection,
+  epg,
+  isTV,
+  onGroupPress,
+  onSelect,
+  onClose,
+  onMenu,
+  onBack,
+}: ChannelListProps) {
+  const styles = useScaledStyles(makeStyles);
   const [shownGroup, setShownGroup] = useState(selection.group);
   const [focusedChannel, setFocusedChannel] = useState(selection.channel);
   const channels = groups[shownGroup]?.channel ?? [];
@@ -92,19 +163,21 @@ export function ChannelList({ groups, selection, epg, isTV, onGroupPress, onSele
           <FlatList
             testID="live-groups"
             style={styles.groups}
+            contentContainerStyle={styles.columnContent}
             ListHeaderComponent={
-              <>
-                {onBack ? <FocusableButton testID="live-back" title="返回" onPress={onBack} /> : null}
-                <FocusableButton testID="live-menu" title="直播源" onPress={onMenu} />
-              </>
+              <View style={styles.actions}>
+                {onBack ? <Button testID="live-back" icon="back" title="返回" size="md" onPress={onBack} /> : null}
+                <Button testID="live-menu" icon="switch" title="直播源" size="md" onPress={onMenu} />
+              </View>
             }
             data={groups}
             keyExtractor={(group, index) => `${index}-${group.name}`}
             renderItem={({ item, index }) => (
-              <FocusableButton
+              <GroupRow
                 testID={`live-group-${index}`}
-                title={item.name}
+                group={item}
                 selected={index === shownGroup}
+                styles={styles}
                 onPress={() => {
                   setShownGroup(index);
                   setFocusedChannel(0);
@@ -116,6 +189,7 @@ export function ChannelList({ groups, selection, epg, isTV, onGroupPress, onSele
           <FlatList
             testID="live-channels"
             style={styles.channels}
+            contentContainerStyle={styles.columnContent}
             data={channels}
             extraData={epg}
             keyExtractor={(channel, index) => `${index}-${channel.name}`}
@@ -131,6 +205,7 @@ export function ChannelList({ groups, selection, epg, isTV, onGroupPress, onSele
                   programme={current?.title ?? ''}
                   playing={playing}
                   preferred={playing}
+                  styles={styles}
                   onFocus={() => {
                     setFocusedChannel(index);
                     epg.request(item);
@@ -144,14 +219,30 @@ export function ChannelList({ groups, selection, epg, isTV, onGroupPress, onSele
             <FlatList
               testID="live-epg"
               style={styles.guide}
+              contentContainerStyle={styles.columnContent}
+              ListHeaderComponent={
+                guideChannel ? (
+                  <Text style={styles.guideTitle} numberOfLines={1}>
+                    {guideChannel.name}
+                  </Text>
+                ) : null
+              }
               data={guideEpg?.list ?? []}
               keyExtractor={(item, index) => `${index}-${item.startTime}`}
               ListEmptyComponent={<Text style={styles.empty}>暂无节目信息</Text>}
-              renderItem={({ item, index }) => (
-                <Text style={[styles.guideItem, index === nowIndex && styles.guideNow]} numberOfLines={1}>
-                  {formatEpgItem(item)}
-                </Text>
-              )}
+              renderItem={({ item, index }) => {
+                const now = index === nowIndex;
+                return (
+                  <View style={[styles.guideItem, now && styles.guideItemNow]}>
+                    <Text style={[styles.guideTime, now && styles.guideNow]}>
+                      {item.start !== '' || item.end !== '' ? `${item.start} ~ ${item.end}` : ''}
+                    </Text>
+                    <Text style={[styles.guideName, now && styles.guideNow]} numberOfLines={1}>
+                      {item.title}
+                    </Text>
+                  </View>
+                );
+              }}
             />
           ) : null}
         </View>
@@ -161,79 +252,75 @@ export function ChannelList({ groups, selection, epg, isTV, onGroupPress, onSele
   );
 }
 
-const styles = StyleSheet.create({
-  backdrop: {
-    flex: 1,
-    flexDirection: 'row',
-  },
-  panel: {
-    flexDirection: 'row',
-    maxWidth: '90%',
-    padding: spacing.sm,
-    backgroundColor: 'rgba(0, 0, 0, 0.8)',
-  },
-  dismiss: {
-    flex: 1,
-  },
-  groups: {
-    width: 150,
-  },
-  channels: {
-    width: 280,
-  },
-  guide: {
-    width: 300,
-    paddingLeft: spacing.md,
-  },
-  row: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: spacing.sm,
-    paddingVertical: spacing.xs,
-    margin: 2,
-    borderRadius: radius.md,
-    borderWidth: 2,
-    borderColor: colors.border,
-  },
-  rowPlaying: {
-    backgroundColor: colors.surface,
-  },
-  rowFocused: {
-    borderColor: colors.focusBorder,
-    backgroundColor: colors.surfaceFocused,
-  },
-  number: {
-    width: 36,
-    color: colors.textSecondary,
-    fontSize: fontSize.caption,
-  },
-  logo: {
-    width: 48,
-    height: 28,
-    marginRight: spacing.sm,
-  },
-  rowText: {
-    flex: 1,
-  },
-  name: {
-    color: colors.text,
-    fontSize: fontSize.body,
-  },
-  programme: {
-    color: colors.textSecondary,
-    fontSize: fontSize.caption,
-  },
-  guideItem: {
-    paddingVertical: spacing.xs,
-    color: colors.textSecondary,
-    fontSize: fontSize.body,
-  },
-  guideNow: {
-    color: colors.primary,
-  },
-  empty: {
-    padding: spacing.md,
-    color: colors.textSecondary,
-    fontSize: fontSize.body,
-  },
-});
+const makeStyles = (s: Scaler) => {
+  const t = scaledText(s);
+  return {
+    backdrop: { flex: 1, flexDirection: 'row' as const },
+    panel: {
+      flexDirection: 'row' as const,
+      maxWidth: '90%' as const,
+      gap: s(space.md),
+      paddingLeft: s(safeArea.horizontal - focus.bleed),
+      paddingRight: s(space.md),
+      paddingVertical: s(safeArea.vertical - focus.bleed),
+      backgroundColor: 'rgba(11,14,20,0.94)',
+      borderRightWidth: s(1),
+      borderRightColor: color.divider,
+    },
+    dismiss: { flex: 1 },
+    columnContent: { gap: s(space.xs), padding: s(focus.bleed) },
+    groups: { width: s(240 + 2 * focus.bleed), flexGrow: 0 },
+    channels: { width: s(520 + 2 * focus.bleed), flexGrow: 0 },
+    guide: { width: s(440 + 2 * focus.bleed), flexGrow: 0 },
+    actions: { gap: s(space.sm), marginBottom: s(space.sm) },
+    group: {
+      flexDirection: 'row' as const,
+      alignItems: 'center' as const,
+      justifyContent: 'space-between' as const,
+      height: s(60),
+      paddingHorizontal: s(20),
+      borderRadius: s(12),
+    },
+    groupSelected: { backgroundColor: color.surface2 },
+    groupFocused: { backgroundColor: color.focusBorder },
+    groupName: { ...t.label, flexShrink: 1, color: color.text2 },
+    groupNameSelected: { ...t.label, fontFamily: t.h1.fontFamily, color: color.text },
+    groupCount: { ...t.caption, ...tabular, marginLeft: s(space.xs), color: color.text3 },
+    groupCountSelected: { color: color.text2 },
+    inverse: { color: color.inverseText },
+    row: {
+      flexDirection: 'row' as const,
+      alignItems: 'center' as const,
+      gap: s(space.sm),
+      minHeight: s(96),
+      paddingHorizontal: s(18),
+      paddingVertical: s(12),
+      borderRadius: s(radii.button),
+      borderWidth: s(focus.borderWidth),
+      borderColor: 'transparent',
+      backgroundColor: 'rgba(255,255,255,0.08)',
+    },
+    rowPlaying: { backgroundColor: 'rgba(255,255,255,0.14)' },
+    rowFocused: { borderColor: focus.borderColor, backgroundColor: color.surface2 },
+    number: { ...t.h2, ...tabular, width: s(72), color: color.text2 },
+    numberPlaying: { color: color.text },
+    logo: { width: s(64), height: s(36) },
+    rowText: { flex: 1, gap: s(4) },
+    rowTitle: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: s(12) },
+    name: { ...t.label, fontFamily: t.h2.fontFamily, flexShrink: 1, color: color.text },
+    programme: { ...t.caption, color: color.text3 },
+    guideTitle: { ...t.h2, marginBottom: s(space.xs), color: color.text },
+    guideItem: {
+      gap: s(2),
+      paddingVertical: s(10),
+      paddingLeft: s(space.sm),
+      borderLeftWidth: s(4),
+      borderLeftColor: 'transparent',
+    },
+    guideItemNow: { borderLeftColor: color.accent, borderRadius: s(radii.tag), backgroundColor: color.surface },
+    guideTime: { ...t.caption, ...tabular, color: color.text3 },
+    guideName: { ...t.label, color: color.text2 },
+    guideNow: { color: color.accent },
+    empty: { ...t.label, padding: s(space.md), color: color.text2 },
+  };
+};

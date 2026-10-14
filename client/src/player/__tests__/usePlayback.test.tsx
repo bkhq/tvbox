@@ -149,6 +149,32 @@ describe('usePlayback', () => {
     await act(async () => renderer.unmount());
   });
 
+  it('switches the play line keeping the episode', async () => {
+    const detail = provider.detail as jest.Mock;
+    detail.mockImplementationOnce(async () =>
+      normalizeResult({
+        list: [{ vod_id: '1', vod_name: 'Show', vod_play_from: 'a$$$b', vod_play_url: 'E1$https://a/1#E2$https://a/2$$$E0$https://b/0#E2$https://b/2' }],
+      }),
+    );
+    const key = historyKey('cms', '1');
+    await getHistoryRepository().upsert({ key, cid: 7, vodFlag: 'a', vodRemarks: 'E2', episodeUrl: 'https://a/2', position: 30_000, duration: 100_000 });
+    const renderer = await render({ siteKey: 'cms', vodId: '1' });
+    expect(captured.value!.state).toMatchObject({ flagIndex: 0, episodeIndex: 1 });
+    const token = captured.value!.state.token;
+
+    await act(async () => captured.value!.switchFlag(0));
+    await act(async () => captured.value!.switchFlag(2));
+    await act(async () => captured.value!.switchFlag(-1));
+    expect(captured.value!.state.token).toBe(token);
+
+    await act(async () => captured.value!.switchFlag(1));
+    await settle();
+    expect(captured.value!.state).toMatchObject({ flagIndex: 1, episodeIndex: 1, triedFlags: [1] });
+    expect(mpv.props?.source).toMatchObject({ url: 'https://b/2' });
+    expect(await getHistoryRepository().get(7, key)).toMatchObject({ vodFlag: 'b', vodRemarks: 'E2' });
+    await act(async () => renderer.unmount());
+  });
+
   it('serves the app-wide controller while mounted', async () => {
     const controller = getPlaybackController();
     const renderer = await render({ url: 'https://m/a.m3u8', title: 'A' });

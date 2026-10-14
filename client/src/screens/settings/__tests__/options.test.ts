@@ -1,4 +1,4 @@
-import { CHOICES, choiceOptions, cycleOption, formatBoolean, formatSpeed, formatText, optionLabel, STEPS, stepValue, vodStatusText } from '../options';
+import { CHOICES, choiceOptions, formatSpeed, formatText, optionLabel, STEPS, stepValue, vodStatusText } from '../options';
 
 describe('settings options', () => {
   it('labels choices and falls back to the raw value', () => {
@@ -9,15 +9,6 @@ describe('settings options', () => {
     expect(optionLabel(choiceOptions('decode'), 'soft')).toBe('软解');
     expect(optionLabel(choiceOptions('scale'), 3)).toBe('填充');
     expect(optionLabel<number>(choiceOptions('scale'), 9)).toBe('9');
-  });
-
-  it('cycles through the options and wraps around', () => {
-    expect(cycleOption(choiceOptions('decode'), 'hard')).toBe('soft');
-    expect(cycleOption(choiceOptions('decode'), 'soft')).toBe('hard');
-    expect(cycleOption(choiceOptions('subtitleStyleSource'), 'system')).toBe('custom');
-    expect(cycleOption<number>(choiceOptions('scale'), 4)).toBe(0);
-    expect(cycleOption<number>(choiceOptions('siteMode'), 7)).toBe(0);
-    expect(cycleOption([], 'x')).toBe('x');
   });
 
   it('offers only values the schema accepts', () => {
@@ -41,8 +32,6 @@ describe('settings options', () => {
     expect(STEPS.subtitleScale.format(1)).toBe('1.0x');
     expect(STEPS.speedLongPress.format(2.5)).toBe('2.5x');
     expect(formatSpeed(1)).toBe('1x');
-    expect(formatBoolean(true)).toBe('开');
-    expect(formatBoolean(false)).toBe('关');
     expect(formatText('')).toBe('未设置');
     expect(formatText('abc')).toBe('abc');
   });

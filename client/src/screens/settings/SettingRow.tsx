@@ -1,30 +1,9 @@
 import { type ReactNode, useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, Text, View } from 'react-native';
 
-import {
-  Badge,
-  color,
-  colors,
-  fontFamily,
-  fontSize,
-  Icon,
-  radii,
-  scaledText,
-  spacing,
-  useScaledStyles,
-  type Scaler,
-} from '../../ui';
+import { Badge, color, fontFamily, Icon, radii, scaledText, useScaledStyles, type Scaler } from '../../ui';
 import { Segmented, Toggle } from './controls';
 import type { Option } from './options';
-
-export function Section({ title, children }: { title: string; children: ReactNode }) {
-  return (
-    <View style={legacy.section}>
-      <Text style={legacy.sectionTitle}>{title}</Text>
-      {children}
-    </View>
-  );
-}
 
 export interface SettingRowProps {
   title: string;
@@ -191,8 +170,3 @@ const makeStyles = (s: Scaler) => {
     value: { ...text.label, flexShrink: 1, color: color.text2 },
   };
 };
-
-const legacy = StyleSheet.create({
-  section: { marginBottom: spacing.lg },
-  sectionTitle: { marginBottom: spacing.xs, color: colors.textSecondary, fontSize: fontSize.body },
-});

@@ -6,7 +6,7 @@ import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { type Bootstrap, BootstrapProvider, createBootstrap } from '../../../core/bootstrap';
 import { parseVodConfig } from '../../../core/config';
 import { appSettings } from '../../../core/settings';
-import type { CheckResult, UpdateState } from '../../../update';
+import type { CheckResult, Release, UpdateState } from '../../../update';
 import { configRepositories } from '../ConfigPanel';
 import {
   AboutSection,
@@ -43,6 +43,11 @@ const mockUpdate = {
   state: { checking: false, lastResult: null, release: null, installState: { phase: 'idle' } } as UpdateState,
   listeners: new Set<() => void>(),
 };
+function setUpdate(next: Pick<UpdateState, 'checking' | 'lastResult'>) {
+  mockUpdate.state = { ...mockUpdate.state, ...next };
+  mockUpdate.listeners.forEach((listener) => listener());
+}
+
 const mockController = {
   getState: () => mockUpdate.state,
   subscribe: (listener: () => void) => {
@@ -311,6 +316,7 @@ describe('settings sections', () => {
   });
 
   it('checks for updates from the about section', async () => {
+    setUpdate({ checking: false, lastResult: null });
     const renderer = await render(AboutSection);
     expect(texts(renderer)).toEqual(expect.arrayContaining(['1.2.3 (42)', '检查更新']));
     expect(byID(renderer, 'update-check').props.hasTVPreferredFocus).toBe(true);
@@ -318,6 +324,30 @@ describe('settings sections', () => {
     await press(renderer, 'update-check');
     expect(mockController.check).toHaveBeenCalledWith(true);
     expect(texts(renderer, 'update-result')).toEqual(['已是最新版本']);
+    await act(async () => renderer.unmount());
+  });
+
+  it('shows the checking state and each check result', async () => {
+    setUpdate({ checking: false, lastResult: null });
+    const renderer = await render(AboutSection);
+    // A running check hides the previous result and disables the button.
+    await act(async () => setUpdate({ checking: true, lastResult: { status: 'up-to-date' } }));
+    expect(texts(renderer, 'update-check')).toEqual(['正在检查…']);
+    expect(byID(renderer, 'update-check').props.disabled).toBe(true);
+    expect(has(renderer, 'update-result')).toBe(false);
+
+    const release = { versionName: '2.0.0' } as Release;
+    const results: [CheckResult, string][] = [
+      [{ status: 'available', release }, '发现新版本 v2.0.0'],
+      [{ status: 'up-to-date' }, '已是最新版本'],
+      [{ status: 'error', error: new Error('offline') }, '检查更新失败，请稍后重试'],
+    ];
+    for (const [lastResult, text] of results) {
+      await act(async () => setUpdate({ checking: false, lastResult }));
+      expect(texts(renderer, 'update-check')).toEqual(['检查更新']);
+      expect(byID(renderer, 'update-check').props.disabled).toBe(false);
+      expect(texts(renderer, 'update-result')).toEqual([text]);
+    }
     await act(async () => renderer.unmount());
   });
 });

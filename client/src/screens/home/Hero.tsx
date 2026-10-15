@@ -14,6 +14,7 @@ import {
   focus,
   fontFamily,
   imageSource,
+  radii,
   safeArea,
   scaledText,
   space,
@@ -32,6 +33,10 @@ const FADE_Y_TOP = 420;
 /** Titles longer than this many characters use the smaller display size. */
 const LONG_TITLE = 8;
 const BLUR_RADIUS = 30;
+/** Bottom edge of the hero buttons: the info above grows upward, so the buttons never move between items. */
+const ACTIONS_BOTTOM = 610;
+/** Sharp 2:3 poster on the right of the hero, over the blurred copy. */
+const POSTER = { width: 340, height: 510, top: 150 } as const;
 /**
  * The blur samples transparent pixels past the bitmap border, so the outer edges of a blurred image fade out and the
  * page shows through as a lighter band. The image box overshoots the clipped hero by this much on its outer edges.
@@ -81,6 +86,15 @@ function HeroBackground({ poster }: { poster: string }) {
         </Defs>
         <Rect width="100%" height="100%" fill="url(#heroFadeY)" />
       </Svg>
+      {source ? (
+        <Image
+          testID="home-hero-poster"
+          source={source}
+          resizeMode="cover"
+          resizeMethod="resize"
+          style={styles.poster}
+        />
+      ) : null}
     </View>
   );
 }
@@ -226,9 +240,23 @@ const makeStyles = (s: Scaler) => {
     },
     fadeX: { position: 'absolute' as const, top: 0, left: s(BG_LEFT), width: s(FADE_X_WIDTH), bottom: 0 },
     fadeY: { position: 'absolute' as const, top: s(FADE_Y_TOP), left: 0, right: 0, bottom: 0 },
-    content: { position: 'absolute' as const, top: s(200), left: s(safeArea.horizontal), width: s(820), gap: s(20) },
+    poster: {
+      position: 'absolute' as const,
+      top: s(POSTER.top),
+      right: s(safeArea.horizontal),
+      width: s(POSTER.width),
+      height: s(POSTER.height),
+      borderRadius: s(radii.card),
+    },
+    content: {
+      position: 'absolute' as const,
+      bottom: s(HERO_HEIGHT - ACTIONS_BOTTOM),
+      left: s(safeArea.horizontal),
+      width: s(820),
+      gap: s(20),
+    },
     tags: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: s(14) },
-    type: { ...text.caption, fontSize: s(26), lineHeight: s(34), color: color.text2 },
+    type: { ...text.caption, color: color.text2 },
     title: { ...text.display, lineHeight: s(Math.round(type.display.fontSize * TITLE_LINE_HEIGHT)), color: color.text },
     titleLong: {
       ...text.displaySm,
@@ -236,8 +264,8 @@ const makeStyles = (s: Scaler) => {
       color: color.text,
     },
     meta: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: s(18) },
-    metaText: { ...text.body, fontSize: s(30), color: color.text2 },
-    score: { ...text.body, ...tabular, fontFamily: fontFamily.bold, fontSize: s(30), color: color.text },
+    metaText: { ...text.body, color: color.text2 },
+    score: { ...text.body, ...tabular, fontFamily: fontFamily.bold, color: color.text },
     description: { ...text.body, lineHeight: s(42), maxWidth: s(720), color: color.text2 },
     actions: {
       flexDirection: 'row' as const,

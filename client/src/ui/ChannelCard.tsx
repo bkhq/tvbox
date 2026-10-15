@@ -107,8 +107,8 @@ const makeStyles = (s: Scaler) => {
       top: s(14),
       left: s(18),
       fontFamily: fontFamily.bold,
-      fontSize: s(30),
-      lineHeight: s(36),
+      fontSize: s(31),
+      lineHeight: s(38),
       color: color.text2,
     },
     // Half of the channel token box, so the logo clears the name line.

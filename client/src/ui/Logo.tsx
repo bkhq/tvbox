@@ -15,7 +15,7 @@ export function Logo({ style, testID }: LogoProps) {
   const styles = useScaledStyles(makeStyles);
   return (
     <View testID={testID} accessibilityRole="header" style={[styles.logo, style]}>
-      <Icon name="logo" size={40} color={color.accent} />
+      <Icon name="logo" size={48} color={color.accent} />
       <Text style={styles.word}>星幕</Text>
     </View>
   );
@@ -23,12 +23,12 @@ export function Logo({ style, testID }: LogoProps) {
 
 const makeStyles = (s: Scaler) => ({
   logo: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: s(12) },
-  // letter-spacing 0.06em of the 30px wordmark.
+  // letter-spacing 0.06em of the wordmark.
   word: {
     fontFamily: fontFamily.bold,
-    fontSize: s(36),
-    lineHeight: s(40),
-    letterSpacing: s(30) * 0.06,
+    fontSize: s(42),
+    lineHeight: s(48),
+    letterSpacing: s(42) * 0.06,
     color: color.text,
   },
 });

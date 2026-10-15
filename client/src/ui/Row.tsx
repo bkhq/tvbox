@@ -1,3 +1,4 @@
+import type { ReactElement } from 'react';
 import { FlatList, TVFocusGuideView, View, type ListRenderItem, type StyleProp, type ViewStyle } from 'react-native';
 
 import { useScaledStyles, type Scaler } from './scale';
@@ -11,6 +12,8 @@ export interface RowProps<T> {
   data: readonly T[];
   renderItem: ListRenderItem<T>;
   keyExtractor: (item: T, index: number) => string;
+  /** After the last card, e.g. a row action. */
+  footer?: ReactElement;
   style?: StyleProp<ViewStyle>;
   testID?: string;
 }
@@ -20,7 +23,7 @@ export interface RowProps<T> {
  * area, and the list keeps room around the cards for the focus zoom. On TV the focus guide
  * traps left/right moves at the row ends and restores the last focused item on re-entry.
  */
-export function Row<T>({ title, caption, data, renderItem, keyExtractor, style, testID }: RowProps<T>) {
+export function Row<T>({ title, caption, data, renderItem, keyExtractor, footer, style, testID }: RowProps<T>) {
   const styles = useScaledStyles(makeStyles);
   return (
     <View testID={testID} style={style}>
@@ -31,6 +34,8 @@ export function Row<T>({ title, caption, data, renderItem, keyExtractor, style, 
           data={data}
           renderItem={renderItem}
           keyExtractor={keyExtractor}
+          ListFooterComponent={footer}
+          ListFooterComponentStyle={footer ? styles.footer : undefined}
           showsHorizontalScrollIndicator={false}
           // A row only needs the cards on screen plus the next few the focus can reach.
           initialNumToRender={8}
@@ -55,5 +60,6 @@ const HEADER_GAP =
 const makeStyles = (s: Scaler) => ({
   header: { marginHorizontal: s(safeArea.horizontal), marginBottom: s(HEADER_GAP) },
   list: { overflow: 'visible' as const },
+  footer: { marginLeft: s(card.rowGap) },
   content: { paddingHorizontal: s(safeArea.horizontal), paddingVertical: s(focus.bleed), gap: s(card.rowGap) },
 });

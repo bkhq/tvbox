@@ -365,7 +365,7 @@ const makeStyles = (s: Scaler) => {
     header: { flexDirection: 'row' as const, alignItems: 'flex-end' as const, gap: s(24) },
     heading: { flex: 1, gap: s(8) },
     title: { ...text.h1, color: color.text },
-    subtitle: { ...text.caption, fontSize: s(26), lineHeight: s(34), color: color.text3 },
+    subtitle: { ...text.caption, color: color.text3 },
     actions: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: s(16) },
     hint: { ...text.caption, color: color.text2 },
     confirm: { gap: s(24), padding: s(32), borderRadius: s(16), backgroundColor: color.surface },

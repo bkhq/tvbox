@@ -57,7 +57,7 @@ function PosterCardImpl({
       style={[styles.card, { width: box.width }, style]}
       {...nextFocus}
     >
-      <Animated.View style={[box, animatedStyle]}>
+      <Animated.View style={[box, focused && styles.lifted, animatedStyle]}>
         <View style={styles.poster}>
           {source ? <Image source={source} style={StyleSheet.absoluteFill} resizeMode="cover" resizeMethod="resize" /> : null}
           {badge ? <Badge label={badge} variant={badgeVariant} style={styles.badge} /> : null}
@@ -82,6 +82,8 @@ const makeStyles = (s: Scaler) => {
   const { body, caption } = scaledText(s);
   return {
     card: { gap: s(12) },
+    // The focused card rises off the page (tvOS focus): a soft drop shadow under the zoom.
+    lifted: { borderRadius: s(radii.card), boxShadow: `0px ${s(18)}px ${s(36)}px ${color.shadow}` },
     poster: { flex: 1, borderRadius: s(radii.card), overflow: 'hidden' as const, backgroundColor: color.surface },
     badge: { position: 'absolute' as const, top: s(12), left: s(12), backgroundColor: 'rgba(11,14,20,0.7)' },
     focusBorder: {

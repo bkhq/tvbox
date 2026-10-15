@@ -19,14 +19,14 @@ describe('Logo', () => {
     await act(async () => {
       renderer = create(<Logo />);
     });
-    expect(renderer.root.findByType(Icon).props).toMatchObject({ name: 'logo', size: 40, color: color.accent });
+    expect(renderer.root.findByType(Icon).props).toMatchObject({ name: 'logo', size: 48, color: color.accent });
     const word = renderer.root.findByType(Text);
     expect(word.props.children).toBe('星幕');
     expect(StyleSheet.flatten(word.props.style)).toMatchObject({
       fontFamily: fontFamily.bold,
-      fontSize: 36,
+      fontSize: 42,
       color: color.text,
     });
-    expect(StyleSheet.flatten(word.props.style).letterSpacing).toBeCloseTo(1.8);
+    expect(StyleSheet.flatten(word.props.style).letterSpacing).toBeCloseTo(2.52);
   });
 });

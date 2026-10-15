@@ -129,7 +129,8 @@ export function Button({
           style={[
             styles.title,
             primary ? styles.titlePrimary : null,
-            { color: fg, fontSize: s(large && primary ? 32 : 30) },
+            // Headline on large buttons, Callout on the rest.
+            { color: fg, fontSize: s(large ? 38 : 31) },
           ]}
         >
           {title}

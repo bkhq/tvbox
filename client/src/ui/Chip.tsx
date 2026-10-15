@@ -72,6 +72,6 @@ const makeStyles = (s: Scaler) => ({
   selectedAccent: { backgroundColor: color.accent },
   focused: { backgroundColor: focus.borderColor },
   disabled: { opacity: 0.4 },
-  label: { fontFamily: fontFamily.semiBold, fontSize: s(30), lineHeight: s(38), color: color.text },
+  label: { fontFamily: fontFamily.semiBold, fontSize: s(31), lineHeight: s(38), color: color.text },
   labelInverse: { fontFamily: fontFamily.bold, color: color.inverseText },
 });

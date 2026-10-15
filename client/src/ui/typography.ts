@@ -31,6 +31,7 @@ export const text: Record<TextVariant, TextStyle> = {
   body: preset('body'),
   label: preset('label'),
   caption: preset('caption'),
+  caption2: preset('caption2'),
 };
 
 /** Fixed-width digits for times, counts and progress. */

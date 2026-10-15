@@ -464,7 +464,7 @@ describe('DetailScreen', () => {
     const short = await render({ siteKey: 'cms', vodId: 'v1' });
     const display = title(short.renderer, 'Girigo');
     const k = (display.fontSize as number) / type.display.fontSize;
-    expect(display.lineHeight).toBeCloseTo(101 * k, 0);
+    expect(display.lineHeight).toBeCloseTo(type.display.lineHeight * k, 0);
     expect((display.lineHeight as number) + 2 * (display.marginVertical as number)).toBeCloseTo(
       type.display.lineHeight * k,
       0,
@@ -476,7 +476,7 @@ describe('DetailScreen', () => {
     const long = await render({ siteKey: 'cms', vodId: 'v1' });
     const small = title(long.renderer, 'Girigo Original');
     expect(small.fontSize).toBeCloseTo(type.displaySm.fontSize * k, 0);
-    expect(small.lineHeight).toBeCloseTo(83 * k, 0);
+    expect(small.lineHeight).toBeCloseTo(type.displaySm.lineHeight * k, 0);
     expect((small.lineHeight as number) + 2 * (small.marginVertical as number)).toBeCloseTo(
       type.displaySm.lineHeight * k,
       0,

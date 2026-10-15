@@ -106,7 +106,7 @@ const makeStyles = (s: Scaler) => ({
     shadowOffset: { width: 0, height: s(14) },
     elevation: 12,
   },
-  label: { flex: 1, fontFamily: fontFamily.medium, fontSize: s(30), lineHeight: s(40), color: color.text2 },
+  label: { flex: 1, fontFamily: fontFamily.medium, fontSize: s(31), lineHeight: s(38), color: color.text2 },
   labelActive: { fontFamily: fontFamily.bold, color: color.text },
-  hint: { fontFamily: fontFamily.medium, fontSize: s(22), lineHeight: s(30), color: color.text3 },
+  hint: { fontFamily: fontFamily.medium, fontSize: s(23), lineHeight: s(30), color: color.text3 },
 });

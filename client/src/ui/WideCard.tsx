@@ -62,7 +62,7 @@ function WideCardImpl({
       style={[styles.card, { width: box.width }, style]}
       {...nextFocus}
     >
-      <Animated.View style={[box, animatedStyle]}>
+      <Animated.View style={[box, focused && styles.lifted, animatedStyle]}>
         <View style={styles.still}>
           {source ? <Image source={source} style={StyleSheet.absoluteFill} resizeMode="cover" resizeMethod="resize" /> : null}
           {subtitle ? (
@@ -104,6 +104,8 @@ const makeStyles = (s: Scaler) => {
   const { body, caption } = scaledText(s);
   return {
     card: { gap: s(12) },
+    // The focused card rises off the page (tvOS focus): a soft drop shadow under the zoom.
+    lifted: { borderRadius: s(radii.card), boxShadow: `0px ${s(18)}px ${s(36)}px ${color.shadow}` },
     still: { flex: 1, borderRadius: s(radii.card), overflow: 'hidden' as const, backgroundColor: color.surface },
     gradient: { position: 'absolute' as const, left: 0, right: 0, bottom: 0, height: '50%' as const },
     subtitle: {

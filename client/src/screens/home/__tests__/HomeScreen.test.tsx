@@ -356,12 +356,39 @@ describe('HomeScreen', () => {
       vodPic: 'https://img.example.com/x9.jpg',
     });
 
-    // Focusing it moves it into the hero on its own site.
-    await act(async () => card.props.onFocus());
-    await wait(HERO_FOCUS_DELAY + 50);
-    expect(texts(byTestID(renderer, 'home-hero'))).toContain('午夜列车');
-    await act(async () => byTestID(renderer, 'home-hero-detail').props.onPress());
-    expect(mockNavigate).toHaveBeenLastCalledWith('Detail', expect.objectContaining({ siteKey: 'xml', vodId: 'x9' }));
+    // History does not take over the hero: the card has no focus handler.
+    expect(card.props.onFocus).toBeUndefined();
+    expect(texts(byTestID(renderer, 'home-hero'))).not.toContain('午夜列车');
+
+    // Long press: add to 片单, then delete the record.
+    const key = historyKey('xml', 'x9');
+    await act(async () => card.props.onLongPress());
+    expect(texts(byTestID(renderer, 'home-continue-menu'))).toContain('午夜列车');
+    await act(async () => byTestID(renderer, 'home-continue-keep').props.onPress());
+    expect(await getKeepRepository().isKept(key, first.cid!)).toBe(true);
+    expect(has(renderer, 'home-continue-menu')).toBe(false);
+    await act(async () => card.props.onLongPress());
+    await act(async () => byTestID(renderer, 'home-continue-delete').props.onPress());
+    expect(await getHistoryRepository().get(first.cid!, key)).toBeUndefined();
+    expect(has(renderer, 'home-continue')).toBe(false);
+    await act(async () => renderer.unmount());
+  });
+
+  it('clears the continue-watching row after confirmation', async () => {
+    mockProviders();
+    const first = await setup({ saved: true });
+    await act(async () => first.renderer.unmount());
+    for (const id of ['x1', 'x2']) {
+      await getHistoryRepository().upsert({ key: historyKey('xml', id), cid: first.cid!, vodName: id, vodPic: '' });
+    }
+    const { renderer } = await setup({ saved: true });
+    await act(async () => byTestID(renderer, 'home-continue-clear').props.onPress());
+    await act(async () => byTestID(renderer, 'home-continue-menu-close').props.onPress());
+    expect(await getHistoryRepository().list(first.cid!)).toHaveLength(2);
+    await act(async () => byTestID(renderer, 'home-continue-clear').props.onPress());
+    await act(async () => byTestID(renderer, 'home-continue-clear-confirm').props.onPress());
+    expect(await getHistoryRepository().list(first.cid!)).toHaveLength(0);
+    expect(has(renderer, 'home-continue')).toBe(false);
     await act(async () => renderer.unmount());
   });
 

@@ -280,7 +280,8 @@ const makeStyles = (s: Scaler) => {
     },
     inputFocused: { borderColor: focus.borderColor },
     input: {
-      ...text.h2,
+      // Callout: the 10-character placeholder fits the keyboard-wide box on one line.
+      ...text.body,
       flex: 1,
       minWidth: 0,
       height: s(60),

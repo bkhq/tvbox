@@ -22,22 +22,28 @@ export const color = {
   shadow: 'rgba(0,0,0,0.55)',
 } as const;
 
-/** Font size, line height (px) and weight per text role. */
+/**
+ * Font size, line height (px) and weight per text role: the tvOS text styles of Apple's Human Interface
+ * Guidelines (1080p points = design px). display Title 1, displaySm Title 2, h1 Title 3, h2 Headline,
+ * body Callout, label Footnote, caption Caption 1, caption2 Caption 2.
+ */
 export const type = {
-  display: { fontSize: 88, lineHeight: 88, fontWeight: 700 },
-  displaySm: { fontSize: 72, lineHeight: 72, fontWeight: 700 },
-  h1: { fontSize: 44, lineHeight: 52, fontWeight: 700 },
-  h2: { fontSize: 36, lineHeight: 46, fontWeight: 600 },
-  body: { fontSize: 32, lineHeight: 44, fontWeight: 500 },
-  label: { fontSize: 28, lineHeight: 38, fontWeight: 500 },
-  caption: { fontSize: 24, lineHeight: 32, fontWeight: 400 },
+  display: { fontSize: 76, lineHeight: 96, fontWeight: 700 },
+  displaySm: { fontSize: 57, lineHeight: 66, fontWeight: 700 },
+  h1: { fontSize: 48, lineHeight: 56, fontWeight: 700 },
+  h2: { fontSize: 38, lineHeight: 46, fontWeight: 600 },
+  body: { fontSize: 31, lineHeight: 38, fontWeight: 500 },
+  label: { fontSize: 29, lineHeight: 36, fontWeight: 500 },
+  caption: { fontSize: 25, lineHeight: 32, fontWeight: 400 },
+  caption2: { fontSize: 23, lineHeight: 30, fontWeight: 400 },
 } as const;
 
 export const space = { xs: 8, sm: 16, md: 24, lg: 40, xl: 64, xxl: 96 } as const;
 
 export const radii = { tag: 6, card: 10, button: 14, round: 9999 } as const;
 
-export const safeArea = { horizontal: 96, vertical: 56 } as const;
+/** tvOS safe area is 80 x 60; the sides keep the layout's 96. */
+export const safeArea = { horizontal: 96, vertical: 60 } as const;
 
 export const focus = {
   scale: 1.08,

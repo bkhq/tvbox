@@ -2,7 +2,7 @@ import { Text, View } from 'react-native';
 
 import { AnimatedPressable, type FocusableProps } from './Button';
 import { useScaledStyles, type Scaler } from './scale';
-import { color, focus, radii } from './tokens';
+import { color, focus, radii, type } from './tokens';
 import { fontFamily, scaledText } from './typography';
 import { useFocusAnimation } from './useFocusAnimation';
 
@@ -79,7 +79,8 @@ const makeStyles = (s: Scaler) => {
     // Like the top-bar buttons: focus inverts to a white fill with dark text.
     focused: { backgroundColor: focus.borderColor },
     disabled: { opacity: 0.4 },
-    label: { ...text.body, fontSize: s(36), lineHeight: s(46), color: color.text2 },
+    // Title 3: the bar is the largest navigation text on screen.
+    label: { ...text.body, fontSize: s(type.h1.fontSize), lineHeight: s(type.h1.lineHeight), color: color.text2 },
     labelActive: { fontFamily: fontFamily.bold, color: color.text },
     labelFocused: { color: color.inverseText },
   };

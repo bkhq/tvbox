@@ -4,13 +4,14 @@ import { ScrollView, Text, View } from 'react-native';
 import { selectHome } from '../../core/config';
 import { useVodConfig } from '../../core/bootstrap';
 import { useSetting } from '../../core/settings';
-import { type Class, type History, normalizeVod, type Site } from '../../core/types';
+import { type Class, type History, type Site } from '../../core/types';
 import { useMainNav } from '../../navigation/mainNav';
 import type { RootStackScreenProps } from '../../navigation/types';
 // Not the navigation barrel: it imports the route table, which imports this screen.
 import { useAppNavigation } from '../../navigation/useAppNavigation';
 import {
   Button,
+  card,
   Chip,
   color,
   PosterCard,
@@ -25,6 +26,7 @@ import {
 } from '../../ui';
 import { displayRemarks, ErrorView, LoadingView, openVod, useActiveCid } from '../common';
 import { ConfigSetup } from './ConfigSetup';
+import { ContinueMenu, type ContinueMenuTarget } from './ContinueMenu';
 import { progressOf, siteKeyOf, subtitleOf, useContinueWatching, vodIdOf } from './continueWatching';
 import { Hero, type HeroItem } from './Hero';
 import { createSiteHomeContent, type HomeContent, type HomeRow, useHomeContent } from './homeContent';
@@ -90,10 +92,11 @@ interface HomeRowsProps {
   classes: Class[];
   siteKey: string;
   onFocusItem: (item: HeroItem) => void;
+  onHistoryMenu: (target: ContinueMenuTarget) => void;
 }
 
 // Memoized: the hero repaints on focus changes, the rows only when their data does.
-const HomeRows = memo(function HomeRows({ history, rows, classes, siteKey, onFocusItem }: HomeRowsProps) {
+const HomeRows = memo(function HomeRows({ history, rows, classes, siteKey, onFocusItem, onHistoryMenu }: HomeRowsProps) {
   const navigation = useAppNavigation();
   const styles = useScaledStyles(makeStyles);
   return (
@@ -105,6 +108,16 @@ const HomeRows = memo(function HomeRows({ history, rows, classes, siteKey, onFoc
           caption="保存在本机"
           data={history}
           keyExtractor={(item) => item.key}
+          footer={
+            <View style={styles.continueFooter}>
+              <Button
+                testID="home-continue-clear"
+                title="清空记录"
+                size="md"
+                onPress={() => onHistoryMenu({ kind: 'clear' })}
+              />
+            </View>
+          }
           renderItem={({ item }) => {
             const vodId = vodIdOf(item);
             const itemSiteKey = siteKeyOf(item);
@@ -115,17 +128,8 @@ const HomeRows = memo(function HomeRows({ history, rows, classes, siteKey, onFoc
                 subtitle={subtitleOf(item) || undefined}
                 image={item.vodPic}
                 progress={progressOf(item)}
-                onFocus={() =>
-                  onFocusItem({
-                    siteKey: itemSiteKey,
-                    vod: normalizeVod({
-                      vod_id: vodId,
-                      vod_name: item.vodName,
-                      vod_pic: item.vodPic,
-                      vod_remarks: item.vodRemarks,
-                    }),
-                  })
-                }
+                // The hero keeps the featured / last focused poster: history stills are often missing or wide.
+                onLongPress={() => onHistoryMenu({ kind: 'item', history: item })}
                 onPress={() =>
                   navigation.navigate('Detail', {
                     siteKey: itemSiteKey,
@@ -185,7 +189,8 @@ function HomeFeed({ site, content, preferFocus }: { site: Site; content: HomeCon
   const styles = useScaledStyles(makeStyles);
   const cid = useActiveCid();
   const { config } = useVodConfig();
-  const { items: history } = useContinueWatching(navigation);
+  const { items: history, refresh: refreshHistory } = useContinueWatching(navigation);
+  const [menu, setMenu] = useState<ContinueMenuTarget>();
   const [focused, setFocused] = useState<HeroItem>();
   const timer = useRef<ReturnType<typeof setTimeout>>(undefined);
   const classes = useMemo(() => remainingClasses(content.classes, resolveSections(content.classes)), [content]);
@@ -211,7 +216,26 @@ function HomeFeed({ site, content, preferFocus }: { site: Site; content: HomeCon
       ) : (
         <View style={styles.belowNav} />
       )}
-      <HomeRows history={history} rows={content.rows} classes={classes} siteKey={site.key} onFocusItem={onFocusItem} />
+      <HomeRows
+        history={history}
+        rows={content.rows}
+        classes={classes}
+        siteKey={site.key}
+        onFocusItem={onFocusItem}
+        onHistoryMenu={setMenu}
+      />
+      {menu && cid !== undefined ? (
+        <ContinueMenu
+          target={menu}
+          cid={cid}
+          siteName={
+            (menu.kind === 'item' && config?.sites.find((item) => item.key === siteKeyOf(menu.history))?.name) ||
+            site.name
+          }
+          onClose={() => setMenu(undefined)}
+          onChanged={refreshHistory}
+        />
+      ) : null}
     </ScrollView>
   );
 }
@@ -279,6 +303,8 @@ const makeStyles = (s: Scaler) => {
     belowNav: { marginTop: s(150) },
     feed: { paddingBottom: s(120) },
     rows: { gap: s(space.xs), marginTop: s(12) },
+    // As tall as the history still, so the button sits centred beside the cards.
+    continueFooter: { height: s((card.wide.width * 9) / 16), justifyContent: 'center' as const },
     note: { ...text.body, paddingHorizontal: s(safeArea.horizontal), paddingTop: s(space.lg), color: color.text2 },
   };
 };

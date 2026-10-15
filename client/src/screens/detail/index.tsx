@@ -479,9 +479,12 @@ export default function DetailScreen({ route }: RootStackScreenProps<'Detail'>) 
   );
 }
 
-/** A display title on a ~1.15x line, its extra height taken back from the margins so the layout stays put. */
+/**
+ * A display title on at least a ~1.15x line, any extra height over the preset taken back from the margins so the
+ * layout stays put.
+ */
 function titleLine(s: Scaler, preset: { fontSize: number; lineHeight: number }) {
-  const lineHeight = Math.round(preset.fontSize * TITLE_LINE_HEIGHT);
+  const lineHeight = Math.max(preset.lineHeight, Math.round(preset.fontSize * TITLE_LINE_HEIGHT));
   return { lineHeight: s(lineHeight), marginVertical: -s((lineHeight - preset.lineHeight) / 2) };
 }
 

@@ -44,7 +44,7 @@ describe('mainNav', () => {
       { key: 'series', label: '剧集', active: false },
       { key: 'movie', label: '电影', active: false },
       { key: 'live', label: '直播', active: false },
-      { key: 'profile', label: '我的', active: false },
+      { key: 'profile', label: '设置', active: false },
     ]);
     expect(mainNavTabs.map((tab) => tab.key)).toEqual(['home', 'series', 'movie', 'live', 'profile']);
   });

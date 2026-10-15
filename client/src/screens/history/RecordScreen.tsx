@@ -158,7 +158,7 @@ function EmptyCard({ text }: { text: string }) {
   );
 }
 
-// Width the cards share: the 我的 right panel, or the screen inside the safe area.
+// Width the cards share: the 设置 right panel, or the screen inside the safe area.
 const EMBEDDED_WIDTH = 1216;
 const STANDALONE_WIDTH = 1920 - safeArea.horizontal * 2;
 const EMBEDDED_COLUMNS = { wide: 4, poster: 5 } as const;
@@ -232,7 +232,7 @@ function RecordList({
       onPress: () => onPressItem(item),
     };
     return (
-      // Entering the 我的 panel lands on the first card.
+      // Entering the 设置 panel lands on the first card.
       <FocusEntry enabled={index === 0}>
         {card === 'wide' ? (
           <WideCard {...common} subtitle={item.subtitle} image={item.vodPic} progress={item.progress} />

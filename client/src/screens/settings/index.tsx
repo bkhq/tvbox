@@ -46,7 +46,7 @@ function SectionPanel({ id }: { id: SettingsSectionId }) {
   );
 }
 
-/** The 我的 tab: section menu on the left, the selected section on the right. */
+/** The 设置 tab: section menu on the left, the selected section on the right. */
 export default function SettingsScreen() {
   const navigation = useAppNavigation();
   const styles = useScaledStyles(makeStyles);

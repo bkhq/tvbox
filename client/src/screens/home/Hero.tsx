@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { type ReactNode, useEffect, useMemo, useState } from 'react';
 import { Image, Text, View } from 'react-native';
 import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg';
 
@@ -26,17 +26,19 @@ import {
 import { displayRemarks, htmlToText, openVod } from '../common';
 import { buildPlayerParams } from '../detail/detailState';
 
-export const HERO_HEIGHT = 720;
+export const HERO_HEIGHT = 900;
+/** Top of the recommendation strip along the hero's bottom: browsing it repaints the hero above it. */
+export const HERO_STRIP_TOP = 590;
 const BG_LEFT = 560;
 const FADE_X_WIDTH = 760;
-const FADE_Y_TOP = 420;
+const FADE_Y_TOP = 560;
 /** Titles longer than this many characters use the smaller display size. */
 const LONG_TITLE = 8;
 const BLUR_RADIUS = 30;
 /** Bottom edge of the hero buttons: the info above grows upward, so the buttons never move between items. */
-const ACTIONS_BOTTOM = 610;
-/** Sharp 2:3 poster on the right of the hero, over the blurred copy. */
-const POSTER = { width: 340, height: 510, top: 150 } as const;
+const ACTIONS_BOTTOM = 540;
+/** Sharp 2:3 poster on the right of the hero, over the blurred copy and clear of the strip. */
+const POSTER = { width: 272, height: 408, top: 150 } as const;
 /**
  * The blur samples transparent pixels past the bitmap border, so the outer edges of a blurred image fade out and the
  * page shows through as a lighter band. The image box overshoots the clipped hero by this much on its outer edges.
@@ -66,7 +68,14 @@ function HeroBackground({ poster }: { poster: string }) {
   return (
     <View testID="home-hero-background" pointerEvents="none" style={styles.background}>
       {source ? (
-        <Image testID="home-hero-bg" source={source} blurRadius={BLUR_RADIUS} resizeMode="cover" resizeMethod="resize" style={styles.image} />
+        <Image
+          testID="home-hero-bg"
+          source={source}
+          blurRadius={BLUR_RADIUS}
+          resizeMode="cover"
+          resizeMethod="resize"
+          style={styles.image}
+        />
       ) : null}
       <Svg style={styles.fadeX} width="100%" height="100%">
         <Defs>
@@ -121,11 +130,14 @@ export function Hero({
   siteName,
   cid,
   preferFocus,
+  strip,
 }: {
   item: HeroItem;
   siteName: string;
   cid: number | undefined;
   preferFocus: boolean;
+  /** Recommendation row along the bottom of the hero. */
+  strip?: ReactNode;
 }) {
   const { siteKey, vod } = item;
   const navigation = useAppNavigation();
@@ -193,7 +205,7 @@ export function Hero({
           </View>
         ) : null}
         {description ? (
-          <Text testID="home-hero-description" numberOfLines={2} style={styles.description}>
+          <Text testID="home-hero-description" numberOfLines={1} style={styles.description}>
             {description}
           </Text>
         ) : null}
@@ -221,6 +233,7 @@ export function Hero({
           />
         </View>
       </View>
+      {strip ? <View style={styles.strip}>{strip}</View> : null}
     </View>
   );
 }
@@ -229,6 +242,7 @@ const makeStyles = (s: Scaler) => {
   const text = scaledText(s);
   return {
     hero: { height: s(HERO_HEIGHT) },
+    strip: { position: 'absolute' as const, top: s(HERO_STRIP_TOP), left: 0, right: 0 },
     background: { position: 'absolute' as const, top: 0, left: 0, right: 0, bottom: 0, overflow: 'hidden' as const },
     // Left edge stays: the left fade covers it.
     image: {

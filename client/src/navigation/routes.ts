@@ -31,7 +31,7 @@ export const routes: { [K in RouteName]: RouteDefinition<K> } = {
   Live: { component: LiveScreen, title: '直播' },
   History: { component: HistoryScreen, title: '历史记录' },
   Collect: { component: CollectScreen, title: '收藏' },
-  Settings: { component: SettingsScreen, title: '我的' },
+  Settings: { component: SettingsScreen, title: '设置' },
   Control: { component: ControlScreen, title: '手机控制' },
 };
 

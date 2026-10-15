@@ -53,7 +53,7 @@ function MenuItem({
 }
 
 /**
- * Sidebar of the 我的 page. Focusing an entry selects it, so the focus guide's remembered child is
+ * Sidebar of the 设置 page. Focusing an entry selects it, so the focus guide's remembered child is
  * always the selected entry: coming back from the panel or the top bar lands on it.
  */
 export function ProfileMenu({

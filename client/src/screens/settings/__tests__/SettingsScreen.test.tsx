@@ -203,10 +203,10 @@ describe('SettingsScreen', () => {
     Object.defineProperty(Platform, 'isTV', { value: originalIsTV, configurable: true });
   });
 
-  it('shows the top bar with 我的 active and searches from it', async () => {
+  it('shows the top bar with 设置 active and searches from it', async () => {
     const renderer = await setup();
     const tabs = renderer.root.findAllByType(Tab).map((tab) => [tab.props.label, tab.props.active]);
-    expect(tabs).toContainEqual(['我的', true]);
+    expect(tabs).toContainEqual(['设置', true]);
     expect(tabs.filter(([, active]) => active)).toHaveLength(1);
     expect(has(renderer, 'settings-top-nav')).toBe(true);
 

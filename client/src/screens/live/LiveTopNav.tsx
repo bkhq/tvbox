@@ -20,13 +20,6 @@ export function LiveTopNav() {
             accessibilityLabel="手机控制"
             onPress={() => navigation.navigate('Control')}
           />
-          <Button
-            testID="live-nav-settings"
-            variant="outline"
-            icon="settings"
-            accessibilityLabel="设置"
-            onPress={() => navigation.navigate('Settings')}
-          />
         </>
       }
     />

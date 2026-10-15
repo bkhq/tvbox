@@ -127,10 +127,11 @@ describe('LiveBrowse', () => {
 
     // The 52 px outlined top-bar buttons.
     expect(find(renderer, 'live-nav-control')!.props.variant).toBe('outline');
-    expect(find(renderer, 'live-nav-settings')!.props.variant).toBe('outline');
+    // 设置 is a tab, not a top-bar button.
+    expect(find(renderer, 'live-nav-settings')).toBeUndefined();
     await press(renderer, 'top-nav-search');
     await press(renderer, 'live-nav-control');
-    await press(renderer, 'live-nav-settings');
+    await press(renderer, 'top-nav-profile');
     expect(mockNavigate.mock.calls).toEqual([['Search'], ['Control'], ['Settings']]);
     await act(async () => renderer.unmount());
   });

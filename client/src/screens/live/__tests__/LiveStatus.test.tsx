@@ -66,10 +66,10 @@ describe('LiveStatus', () => {
     expect(tab.props.active).toBe(true);
     expect(has('top-nav-search')).toBe(true);
     expect(has('live-nav-control')).toBe(true);
-    expect(has('live-nav-settings')).toBe(true);
+    expect(has('live-nav-settings')).toBe(false);
     expect(find('live-nav-control')[0]!.props.variant).toBe('outline');
     await press('live-nav-control');
-    await press('live-nav-settings');
+    await press('top-nav-profile');
     expect(mockNavigate.mock.calls).toEqual([['Control'], ['Settings']]);
     expect(renderer!.root.findAllByType(ActivityIndicator)).toHaveLength(1);
     expect(texts()).toContain('正在加载…');

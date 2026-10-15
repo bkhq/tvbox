@@ -45,6 +45,6 @@ export function useHistoryCount(): number | undefined {
 }
 
 export default function HistoryScreen() {
-  // The route keeps its registered title; the 我的 panel shows the design one.
+  // The route keeps its registered title; the 设置 panel shows the design one.
   return <RecordScreen {...historyProps} title="历史记录" />;
 }

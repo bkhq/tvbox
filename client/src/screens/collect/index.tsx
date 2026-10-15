@@ -35,6 +35,6 @@ export function useCollectCount(): number | undefined {
 }
 
 export default function CollectScreen() {
-  // The route keeps its registered title; the 我的 panel shows the design one.
+  // The route keeps its registered title; the 设置 panel shows the design one.
   return <RecordScreen {...collectProps} title="收藏" />;
 }

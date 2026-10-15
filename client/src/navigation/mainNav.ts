@@ -23,7 +23,7 @@ export const mainNavTabs: readonly MainNavTab[] = [
   { key: 'series', label: '剧集', route: 'Home', params: { section: 'series' } },
   { key: 'movie', label: '电影', route: 'Home', params: { section: 'movie' } },
   { key: 'live', label: '直播', route: 'Live' },
-  { key: 'profile', label: '我的', route: 'Settings' },
+  { key: 'profile', label: '设置', route: 'Settings' },
 ];
 
 /** Which optional tabs the home site supports; both are shown until the browse workstream knows better. */

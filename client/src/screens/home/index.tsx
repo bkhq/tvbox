@@ -50,13 +50,6 @@ function HeaderActions({ onSwitch }: { onSwitch?: () => void }) {
         accessibilityLabel="手机控制"
         onPress={() => navigation.navigate('Control')}
       />
-      <Button
-        testID="home-settings"
-        variant="outline"
-        icon="settings"
-        accessibilityLabel="设置"
-        onPress={() => navigation.navigate('Settings')}
-      />
       {onSwitch ? (
         <Button
           testID="home-switch-site"
@@ -91,12 +84,46 @@ interface HomeRowsProps {
   rows: HomeRow[];
   classes: Class[];
   siteKey: string;
-  onFocusItem: (item: HeroItem) => void;
   onHistoryMenu: (target: ContinueMenuTarget) => void;
 }
 
+/** Width of a strip poster in design px: small enough that the strip fits under the hero info. */
+const STRIP_POSTER_WIDTH = 150;
+
+/**
+ * The first row (热门推荐) as an untitled strip along the hero's bottom: focusing a poster makes it the hero, and
+ * both stay on screen. Memoized like HomeRows so hero repaints do not re-render it.
+ */
+const HeroStrip = memo(function HeroStrip({
+  row,
+  onFocusItem,
+}: {
+  row: HomeRow;
+  onFocusItem: (item: HeroItem) => void;
+}) {
+  const navigation = useAppNavigation();
+  return (
+    <Row
+      testID={`home-row-${row.key}`}
+      data={row.items}
+      keyExtractor={(vod, index) => `${vod.vod_id}-${index}`}
+      renderItem={({ item }) => (
+        <PosterCard
+          testID={`home-card-${row.key}-${item.vod_id}`}
+          title={item.vod_name}
+          poster={item.vod_pic}
+          width={STRIP_POSTER_WIDTH}
+          badge={displayRemarks(item.vod_remarks) || undefined}
+          onFocus={() => onFocusItem({ siteKey: row.siteKey, vod: item })}
+          onPress={() => openVod(navigation, row.siteKey, item)}
+        />
+      )}
+    />
+  );
+});
+
 // Memoized: the hero repaints on focus changes, the rows only when their data does.
-const HomeRows = memo(function HomeRows({ history, rows, classes, siteKey, onFocusItem, onHistoryMenu }: HomeRowsProps) {
+const HomeRows = memo(function HomeRows({ history, rows, classes, siteKey, onHistoryMenu }: HomeRowsProps) {
   const navigation = useAppNavigation();
   const styles = useScaledStyles(makeStyles);
   return (
@@ -157,7 +184,6 @@ const HomeRows = memo(function HomeRows({ history, rows, classes, siteKey, onFoc
               poster={item.vod_pic}
               meta={item.vod_year || displayRemarks(item.vod_remarks)}
               badge={item.vod_year ? displayRemarks(item.vod_remarks) : undefined}
-              onFocus={() => onFocusItem({ siteKey: row.siteKey, vod: item })}
               onPress={() => openVod(navigation, row.siteKey, item)}
             />
           )}
@@ -195,7 +221,10 @@ function HomeFeed({ site, content, preferFocus }: { site: Site; content: HomeCon
   const timer = useRef<ReturnType<typeof setTimeout>>(undefined);
   const classes = useMemo(() => remainingClasses(content.classes, resolveSections(content.classes)), [content]);
 
+  const scroll = useRef<ScrollView>(null);
   const onFocusItem = useCallback((item: HeroItem) => {
+    // Coming back up from the rows: bring the whole hero back into view.
+    scroll.current?.scrollTo({ y: 0, animated: true });
     clearTimeout(timer.current);
     timer.current = setTimeout(() => setFocused(item), HERO_FOCUS_DELAY);
   }, []);
@@ -205,23 +234,34 @@ function HomeFeed({ site, content, preferFocus }: { site: Site; content: HomeCon
   // The last focused card stays the hero while the focus is on the hero buttons, so 立即播放 plays what is shown.
   const hero = focused ?? (first ? { siteKey: content.featuredSiteKey, vod: first } : undefined);
   const heroSite = hero && config?.sites.find((item) => item.key === hero.siteKey);
+  const [strip, ...rows] = content.rows;
 
   if (!hero && history.length === 0 && content.rows.length === 0 && classes.length === 0) {
     return <Text style={[styles.note, styles.belowNav]}>暂无内容</Text>;
   }
   return (
-    <ScrollView testID="home-feed" contentContainerStyle={styles.feed} showsVerticalScrollIndicator={false}>
+    <ScrollView
+      ref={scroll}
+      testID="home-feed"
+      contentContainerStyle={styles.feed}
+      showsVerticalScrollIndicator={false}
+    >
       {hero ? (
-        <Hero item={hero} siteName={heroSite?.name ?? site.name} cid={cid} preferFocus={preferFocus} />
+        <Hero
+          item={hero}
+          siteName={heroSite?.name ?? site.name}
+          cid={cid}
+          preferFocus={preferFocus}
+          strip={strip ? <HeroStrip row={strip} onFocusItem={onFocusItem} /> : undefined}
+        />
       ) : (
         <View style={styles.belowNav} />
       )}
       <HomeRows
         history={history}
-        rows={content.rows}
+        rows={hero ? rows : content.rows}
         classes={classes}
         siteKey={site.key}
-        onFocusItem={onFocusItem}
         onHistoryMenu={setMenu}
       />
       {menu && cid !== undefined ? (

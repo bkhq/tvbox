@@ -68,7 +68,12 @@ export function ContinueMenu({
           <View style={styles.actions}>
             {history ? (
               <>
-                <Button testID="home-continue-delete" title="删除记录" hasTVPreferredFocus onPress={() => void remove()} />
+                <Button
+                  testID="home-continue-delete"
+                  title="删除记录"
+                  hasTVPreferredFocus
+                  onPress={() => void remove()}
+                />
                 <Button
                   testID="home-continue-keep"
                   title={kept ? '移出片单' : '加入片单'}

@@ -192,7 +192,7 @@ describe('HomeScreen', () => {
   it('shows the top navigation and its actions', async () => {
     mockProviders();
     const { renderer } = await setup({ saved: true });
-    expect(texts(renderer)).toEqual(expect.arrayContaining(['首页', '剧集', '电影', '直播', '我的']));
+    expect(texts(renderer)).toEqual(expect.arrayContaining(['首页', '剧集', '电影', '直播', '设置']));
 
     await act(async () => byTestID(renderer, 'top-nav-series').props.onPress());
     expect(mockNavigate).toHaveBeenLastCalledWith('Home', { section: 'series' });
@@ -200,13 +200,16 @@ describe('HomeScreen', () => {
     expect(mockNavigate).toHaveBeenLastCalledWith('Live');
     await act(async () => byTestID(renderer, 'top-nav-search').props.onPress());
     expect(mockNavigate).toHaveBeenLastCalledWith('Search');
-    expect(
-      ['home-control', 'home-settings', 'home-switch-site'].map((id) => byTestID(renderer, id).props.variant),
-    ).toEqual(['outline', 'outline', 'outline']);
+    expect(['home-control', 'home-switch-site'].map((id) => byTestID(renderer, id).props.variant)).toEqual([
+      'outline',
+      'outline',
+    ]);
+    // 设置 is a tab now; the header has no settings button.
+    expect(has(renderer, 'home-settings')).toBe(false);
+    await act(async () => byTestID(renderer, 'top-nav-profile').props.onPress());
+    expect(mockNavigate).toHaveBeenLastCalledWith('Settings');
     await act(async () => byTestID(renderer, 'home-control').props.onPress());
     expect(mockNavigate).toHaveBeenLastCalledWith('Control');
-    await act(async () => byTestID(renderer, 'home-settings').props.onPress());
-    expect(mockNavigate).toHaveBeenLastCalledWith('Settings');
 
     // The removed old buttons stay gone.
     expect(texts(renderer)).not.toEqual(expect.arrayContaining(['历史记录']));
@@ -271,8 +274,8 @@ describe('HomeScreen', () => {
     expect(has(renderer, 'home-hero-remarks')).toBe(false);
     expect(texts(byTestID(renderer, 'home-hero'))).toContain('剧情');
     expect(texts(renderer)).not.toContain('评分：0');
-    expect(byTestID(renderer, 'home-card-recommend-z1').props).toMatchObject({ meta: undefined, badge: undefined });
-    expect(byTestID(renderer, 'home-card-recommend-z2').props).toMatchObject({ meta: '2025', badge: undefined });
+    expect(byTestID(renderer, 'home-card-recommend-z1').props.badge).toBeUndefined();
+    expect(byTestID(renderer, 'home-card-recommend-z2').props.badge).toBeUndefined();
     await act(async () => renderer.unmount());
   });
 
@@ -396,9 +399,16 @@ describe('HomeScreen', () => {
     mockProviders();
     const { renderer } = await setup({ saved: true });
     const card = byTestID(renderer, 'home-card-recommend-cms-1');
-    expect(card.props).toMatchObject({ meta: '2026', badge: '更新至1集' });
-    expect(byTestID(renderer, 'home-card-recommend-cms-2').props).toMatchObject({ meta: undefined, badge: undefined });
-    expect(texts(byTestID(renderer, 'home-row-recommend'))).toContain('热门推荐');
+    expect(card.props.badge).toBe('更新至1集');
+    expect(byTestID(renderer, 'home-card-recommend-cms-2').props.badge).toBeUndefined();
+    // The recommendations are an untitled strip inside the hero, and focusing one makes it the hero.
+    expect(
+      byTestID(renderer, 'home-hero').findAll((node) => node.props.testID === 'home-row-recommend'),
+    ).not.toHaveLength(0);
+    expect(texts(renderer)).not.toContain('热门推荐');
+    await act(async () => byTestID(renderer, 'home-card-recommend-cms-2').props.onFocus());
+    await wait(HERO_FOCUS_DELAY + 50);
+    expect(byTestID(renderer, 'home-hero-title').props.children).toBe('cms 影片 2');
     await act(async () => card.props.onPress());
     expect(mockNavigate).toHaveBeenLastCalledWith(
       'Detail',
@@ -466,14 +476,7 @@ describe('HomeScreen', () => {
     await act(async () => byTestID(renderer, 'home-switch-site').props.onPress());
     const picker = byTestID(renderer, 'home-site-picker');
     expect(texts(picker)).toEqual(
-      expect.arrayContaining([
-        'Jar 站',
-        'CMS 站',
-        'XML 站',
-        'Py 站',
-        '不支持：JAR 爬虫',
-        '不支持：Python 爬虫',
-      ]),
+      expect.arrayContaining(['Jar 站', 'CMS 站', 'XML 站', 'Py 站', '不支持：JAR 爬虫', '不支持：Python 爬虫']),
     );
     expect(byTestID(renderer, 'home-site-cms').props.selected).toBe(true);
     expect(byTestID(renderer, 'home-site-xml').props.selected).toBe(false);
@@ -548,7 +551,7 @@ describe('HomeScreen', () => {
     expect(loadConfig).not.toHaveBeenCalled();
     expect(preferred(renderer)).toEqual(['home-config-input']);
     expect(has(renderer, 'home-switch-site')).toBe(false);
-    await act(async () => byTestID(renderer, 'home-settings').props.onPress());
+    await act(async () => byTestID(renderer, 'top-nav-profile').props.onPress());
     expect(mockNavigate).toHaveBeenLastCalledWith('Settings');
 
     await act(async () => byTestID(renderer, 'home-config-input').props.onChangeText(` ${URL} `));

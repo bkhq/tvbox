@@ -2,8 +2,8 @@ import { createContext, type ReactNode, type Ref, useContext } from 'react';
 import { View } from 'react-native';
 
 /**
- * Receives the element that D-pad focus entering the 我的 panel from the menu lands on. Set by the
- * first focusable element of the shown section; undefined outside the 我的 panel.
+ * Receives the element that D-pad focus entering the 设置 panel from the menu lands on. Set by the
+ * first focusable element of the shown section; undefined outside the 设置 panel.
  */
 export const EntryFocusContext = createContext<Ref<View> | undefined>(undefined);
 

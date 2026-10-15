@@ -30,7 +30,7 @@ import { SegmentedSettingRow, SettingRow, ToggleSettingRow } from './SettingRow'
 
 export type SettingsSectionId = 'collect' | 'history' | 'play' | 'subaudio' | 'live' | 'net' | 'sources' | 'about';
 
-/** Sidebar entries of the 我的 page, in display order. */
+/** Sidebar entries of the 设置 page, in display order. */
 export const settingsSections: readonly { id: SettingsSectionId; label: string; title: string; subtitle: string }[] = [
   { id: 'collect', label: '我的片单', title: '我的片单', subtitle: '收藏的影片' },
   { id: 'history', label: '观看历史', title: '观看历史', subtitle: '最近观看' },
@@ -211,7 +211,7 @@ function PanelView({ panel, onClose }: { panel: PanelState; onClose: () => void 
 interface RowProps {
   title: string;
   hasTVPreferredFocus?: boolean;
-  /** Set on the first row of a section: the 我的 panel entry. */
+  /** Set on the first row of a section: the 设置 panel entry. */
   ref?: Ref<View>;
 }
 

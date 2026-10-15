@@ -89,6 +89,40 @@ describe('createSiteHomeContent', () => {
   });
 });
 
+describe('createSiteHomeContent for the recommendation home', () => {
+  const HOME = parseSite({ key: 'bk_home', name: '推荐', type: 1, api: 'https://worker.example/s/t/media/home' });
+  const charts = [
+    { type_id: 'hot', type_name: '实时热门' },
+    { type_id: 'tv', type_name: '热门剧集' },
+    { type_id: 'down', type_name: '坏榜单' },
+    { type_id: 'none', type_name: '空榜单' },
+  ];
+
+  it('shows the home list and each chart as rows, leaving out failed and empty ones', async () => {
+    const category = jest.fn(async (tid: string) => {
+      if (tid === 'down') throw new Error('offline');
+      return normalizeResult({ list: tid === 'tv' ? [{ vod_id: 'msearch:db:2', vod_pic: 'p' }] : [] });
+    });
+    registerProvider({
+      id: 'test',
+      match: (site) => site.key === 'bk_home',
+      create: (site) =>
+        ({
+          site,
+          home: async () => normalizeResult({ class: charts, list: [{ vod_id: 'msearch:db:1', vod_pic: 'p' }] }),
+          category,
+        }) as unknown as SiteProvider,
+    });
+    const content = await createSiteHomeContent(HOME).load();
+    expect(content.rows.map((row) => [row.key, row.title, row.items.map((item) => item.vod_id)])).toEqual([
+      ['hot', '实时热门', ['msearch:db:1']],
+      ['tv', '热门剧集', ['msearch:db:2']],
+    ]);
+    expect(content.featured.map((item) => item.vod_id)).toEqual(['msearch:db:1']);
+    expect(category.mock.calls.map(([tid]) => tid)).toEqual(['tv', 'down', 'none']);
+  });
+});
+
 const CONTENT: HomeContent = { classes: [], featured: [], featuredSiteKey: 'cms', rows: [] };
 
 function deferred() {

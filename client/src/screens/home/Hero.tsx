@@ -24,7 +24,7 @@ import {
   useScaledStyles,
   type Scaler,
 } from '../../ui';
-import { displayRemarks, htmlToText, openVod } from '../common';
+import { displayRemarks, htmlToText, isSearchVod, openVod } from '../common';
 import { buildPlayerParams } from '../detail/detailState';
 
 export const HERO_HEIGHT = 900;
@@ -282,27 +282,41 @@ export function Hero({
           ) : null}
         </HeroInfo>
         <View testID="home-hero-actions" style={styles.actions}>
-          <Button
-            testID="home-hero-play"
-            title="立即播放"
-            icon="play"
-            variant="primary"
-            hasTVPreferredFocus={preferFocus}
-            onPress={() => void play()}
-          />
-          <Button
-            testID="home-hero-keep"
-            title={kept ? '已在片单' : '加入片单'}
-            icon={kept ? 'check' : 'plus'}
-            disabled={kept === null}
-            onPress={() => void toggleKeep()}
-          />
-          <Button
-            testID="home-hero-detail"
-            title="详情"
-            icon="info"
-            onPress={() => openVod(navigation, siteKey, vod)}
-          />
+          {/* A chart entry has no site of its own: it is only searched for. */}
+          {isSearchVod(vod) ? (
+            <Button
+              testID="home-hero-search"
+              title="搜索片源"
+              icon="search"
+              variant="primary"
+              hasTVPreferredFocus={preferFocus}
+              onPress={() => openVod(navigation, siteKey, vod)}
+            />
+          ) : (
+            <>
+              <Button
+                testID="home-hero-play"
+                title="立即播放"
+                icon="play"
+                variant="primary"
+                hasTVPreferredFocus={preferFocus}
+                onPress={() => void play()}
+              />
+              <Button
+                testID="home-hero-keep"
+                title={kept ? '已在片单' : '加入片单'}
+                icon={kept ? 'check' : 'plus'}
+                disabled={kept === null}
+                onPress={() => void toggleKeep()}
+              />
+              <Button
+                testID="home-hero-detail"
+                title="详情"
+                icon="info"
+                onPress={() => openVod(navigation, siteKey, vod)}
+              />
+            </>
+          )}
         </View>
       </View>
       {strip ? <View style={styles.strip}>{strip}</View> : null}

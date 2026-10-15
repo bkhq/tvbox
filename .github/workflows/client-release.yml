@@ -1,8 +1,13 @@
 name: Client Release
 
-# Builds the React Native app (client/) for Android, iOS and tvOS. Pushes to main
-# only build; vX.Y.Z tags also publish to GitHub releases, the worker bucket
-# and the update manifests. Path filters do not apply to tags.
+# Builds the React Native app (client/). Pushes to main only build; vX.Y.Z
+# tags also publish to GitHub releases, the worker bucket and the update
+# manifests. Path filters do not apply to tags.
+#
+# Platforms are released separately. Pushes and tags build Android only; iOS
+# and tvOS run when started by hand (Actions -> Client Release -> Run workflow,
+# or `gh workflow run client-release.yml --ref vX.Y.Z -f platforms=apple`),
+# and publish then only releases the platforms that ran.
 on:
   push:
     branches: [main]
@@ -11,12 +16,18 @@ on:
       - "client/**"
       - ".github/workflows/client-release.yml"
   workflow_dispatch:
+    inputs:
+      platforms:
+        description: Platforms to build (and publish, on a vX.Y.Z tag)
+        type: choice
+        options: [android, apple, all]
+        default: android
 
 permissions:
   contents: read
 
 concurrency:
-  group: client-release-${{ github.ref }}
+  group: client-release-${{ github.ref }}-${{ inputs.platforms || 'android' }}
   cancel-in-progress: true
 
 env:
@@ -59,6 +70,7 @@ jobs:
 
   android:
     needs: version
+    if: (inputs.platforms || 'android') != 'apple'
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -192,6 +204,7 @@ jobs:
 
   apple:
     needs: version
+    if: (inputs.platforms || 'android') != 'android'
     runs-on: macos-latest
     permissions:
       contents: write
@@ -383,7 +396,10 @@ jobs:
   # "tvbox" channel, the ipas on the rn channel.
   publish:
     needs: [version, android, apple]
-    if: startsWith(github.ref, 'refs/tags/v')
+    # A skipped platform does not block the release; a failed one does.
+    if: >-
+      !cancelled() && startsWith(github.ref, 'refs/tags/v') && needs.version.result == 'success' &&
+      needs.android.result != 'failure' && needs.apple.result != 'failure'
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -396,20 +412,35 @@ jobs:
       - name: Download from the draft release
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release download "$GITHUB_REF_NAME" --dir dist
+          ANDROID: ${{ needs.android.result == 'success' }}
+          APPLE: ${{ needs.apple.result == 'success' }}
+        # Only this run's platforms: an Apple-only run must not re-register the APKs.
+        run: |
+          patterns=()
+          [ "$ANDROID" = true ] && patterns+=(--pattern '*.apk')
+          [ "$APPLE" = true ] && patterns+=(--pattern '*.ipa')
+          mkdir -p dist
+          [ "${#patterns[@]}" -eq 0 ] || gh release download "$GITHUB_REF_NAME" --dir dist --skip-existing "${patterns[@]}" || true
 
       - name: Collect
+        env:
+          ANDROID: ${{ needs.android.result == 'success' }}
+          APPLE: ${{ needs.apple.result == 'success' }}
         run: |
           ls -l dist
-          for abi in arm64_v8a armeabi_v7a; do
-            if [ ! -f "dist/leanback-$abi.apk" ]; then
-              echo "::error::leanback-$abi.apk is missing"
-              exit 1
-            fi
-          done
-          for target in ios tvos; do
-            [ -f "dist/$target-universal.ipa" ] || echo "::warning::$target-universal.ipa was not built (unsigned); it is not published"
-          done
+          if [ "$ANDROID" = true ]; then
+            for abi in arm64_v8a armeabi_v7a; do
+              if [ ! -f "dist/leanback-$abi.apk" ]; then
+                echo "::error::leanback-$abi.apk is missing"
+                exit 1
+              fi
+            done
+          fi
+          if [ "$APPLE" = true ]; then
+            for target in ios tvos; do
+              [ -f "dist/$target-universal.ipa" ] || echo "::warning::$target-universal.ipa was not built (unsigned); it is not published"
+            done
+          fi
 
       - name: Release notes from the tag
         run: |
@@ -466,8 +497,11 @@ jobs:
             curl --fail-with-body -sS -X POST "${WORKER_URL%/}/mg/api/raw/releases" \
               -H "Authorization: Bearer $SERVICE_TOKEN_RELEASE" -H "Content-Type: application/json" --data @"$RUNNER_TEMP/release.json"
           }
-          register "" dist/*.apk
           shopt -s nullglob
+          apks=(dist/*.apk)
+          if [ "${#apks[@]}" -gt 0 ]; then
+            register "" "${apks[@]}"
+          fi
           ipas=(dist/*.ipa)
           if [ "${#ipas[@]}" -gt 0 ]; then
             register rn "${ipas[@]}"

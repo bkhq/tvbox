@@ -1,5 +1,5 @@
 import { type ReactNode, useEffect, useMemo, useState } from 'react';
-import { Image, Text, View } from 'react-native';
+import { Animated, Easing, Image, Text, View } from 'react-native';
 import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg';
 
 import { historyKey } from '../../core/storage';
@@ -20,6 +20,7 @@ import {
   space,
   tabular,
   type,
+  useScale,
   useScaledStyles,
   type Scaler,
 } from '../../ui';
@@ -35,6 +36,9 @@ const FADE_Y_TOP = 560;
 /** Titles longer than this many characters use the smaller display size. */
 const LONG_TITLE = 8;
 const BLUR_RADIUS = 30;
+/** Cross-fade between hero items: posters, and the info sliding up into place. */
+const HERO_FADE_MS = 280;
+const INFO_RISE = 16;
 /** Bottom edge of the hero buttons: the info above grows upward, so the buttons never move between items. */
 const ACTIONS_BOTTOM = 540;
 /** Sharp 2:3 poster on the right of the hero, over the blurred copy and clear of the strip. */
@@ -61,22 +65,60 @@ export interface HeroItem {
   vod: Vod;
 }
 
+/**
+ * The poster urls on screen: the previous one stays under the current one while that fades in. Keyed by url, so the
+ * outgoing image keeps its view (no reload) when it moves underneath.
+ */
+function usePosterLayers(poster: string): string[] {
+  const [layers, setLayers] = useState([poster]);
+  const current = layers[layers.length - 1];
+  if (current !== poster) setLayers([current!, poster]);
+  return current === poster ? layers : [current!, poster];
+}
+
+/** One poster layer; a layer added over another fades in. */
+function FadeLayer({ fadeIn, style, children }: { fadeIn: boolean; style?: object; children: ReactNode }) {
+  const [opacity] = useState(() => new Animated.Value(fadeIn ? 0 : 1));
+  useEffect(() => {
+    const animation = Animated.timing(opacity, {
+      toValue: 1,
+      duration: HERO_FADE_MS,
+      easing: Easing.out(Easing.quad),
+      useNativeDriver: true,
+    });
+    animation.start();
+    return () => animation.stop();
+  }, [opacity]);
+  return <Animated.View style={[style, { opacity }]}>{children}</Animated.View>;
+}
+
 /** Blurred poster over the right of the hero, faded into the page from the left and the bottom. */
 function HeroBackground({ poster }: { poster: string }) {
   const styles = useScaledStyles(makeStyles);
-  const source = useMemo(() => imageSource(poster), [poster]);
+  const layers = usePosterLayers(poster);
+  // Stable source objects: a new one on every render would make the image view reload.
+  const key = layers.join('\n');
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const sources = useMemo(() => layers.map((url) => imageSource(url)), [key]);
+  const fill = { position: 'absolute' as const, top: 0, left: 0, right: 0, bottom: 0 };
   return (
     <View testID="home-hero-background" pointerEvents="none" style={styles.background}>
-      {source ? (
-        <Image
-          testID="home-hero-bg"
-          source={source}
-          blurRadius={BLUR_RADIUS}
-          resizeMode="cover"
-          resizeMethod="resize"
-          style={styles.image}
-        />
-      ) : null}
+      {layers.map((url, index) => {
+        const source = sources[index];
+        const current = index === layers.length - 1;
+        return source ? (
+          <FadeLayer key={url} fadeIn={layers.length > 1} style={fill}>
+            <Image
+              testID={current ? 'home-hero-bg' : undefined}
+              source={source}
+              blurRadius={BLUR_RADIUS}
+              resizeMode="cover"
+              resizeMethod="resize"
+              style={styles.image}
+            />
+          </FadeLayer>
+        ) : null;
+      })}
       <Svg style={styles.fadeX} width="100%" height="100%">
         <Defs>
           <LinearGradient id="heroFadeX" x1="0" y1="0" x2="1" y2="0">
@@ -95,16 +137,44 @@ function HeroBackground({ poster }: { poster: string }) {
         </Defs>
         <Rect width="100%" height="100%" fill="url(#heroFadeY)" />
       </Svg>
-      {source ? (
-        <Image
-          testID="home-hero-poster"
-          source={source}
-          resizeMode="cover"
-          resizeMethod="resize"
-          style={styles.poster}
-        />
-      ) : null}
+      {layers.map((url, index) => {
+        const source = sources[index];
+        const current = index === layers.length - 1;
+        return source ? (
+          <FadeLayer key={url} fadeIn={layers.length > 1} style={styles.poster}>
+            <Image
+              testID={current ? 'home-hero-poster' : undefined}
+              source={source}
+              resizeMode="cover"
+              resizeMethod="resize"
+              style={styles.posterImage}
+            />
+          </FadeLayer>
+        ) : null;
+      })}
     </View>
+  );
+}
+
+/** Tags, title, meta and description of the hero: each new item fades and rises into place. */
+function HeroInfo({ itemKey, children }: { itemKey: string; children: ReactNode }) {
+  const styles = useScaledStyles(makeStyles);
+  const { s } = useScale();
+  const [progress] = useState(() => new Animated.Value(1));
+  useEffect(() => {
+    progress.setValue(0);
+    const animation = Animated.timing(progress, {
+      toValue: 1,
+      duration: HERO_FADE_MS,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: true,
+    });
+    animation.start();
+    return () => animation.stop();
+  }, [progress, itemKey]);
+  const translateY = progress.interpolate({ inputRange: [0, 1], outputRange: [s(INFO_RISE), 0] });
+  return (
+    <Animated.View style={[styles.info, { opacity: progress, transform: [{ translateY }] }]}>{children}</Animated.View>
   );
 }
 
@@ -177,38 +247,40 @@ export function Hero({
     <View testID="home-hero" style={styles.hero}>
       <HeroBackground poster={vod.vod_pic} />
       <View style={styles.content}>
-        {remarks || vod.type_name ? (
-          <View style={styles.tags}>
-            {remarks ? <Badge testID="home-hero-remarks" label={remarks} variant="accent" /> : null}
-            {vod.type_name ? <Text style={styles.type}>{vod.type_name}</Text> : null}
-          </View>
-        ) : null}
-        <Text
-          testID="home-hero-title"
-          numberOfLines={1}
-          style={vod.vod_name.length > LONG_TITLE ? styles.titleLong : styles.title}
-        >
-          {vod.vod_name}
-        </Text>
-        {vod.vod_score || meta.length > 0 ? (
-          <View style={styles.meta}>
-            {vod.vod_score ? (
-              <Text testID="home-hero-score" style={styles.score}>
-                {vod.vod_score}
-              </Text>
-            ) : null}
-            {meta.map((value) => (
-              <Text key={value} style={styles.metaText}>
-                {value}
-              </Text>
-            ))}
-          </View>
-        ) : null}
-        {description ? (
-          <Text testID="home-hero-description" numberOfLines={1} style={styles.description}>
-            {description}
+        <HeroInfo itemKey={key}>
+          {remarks || vod.type_name ? (
+            <View style={styles.tags}>
+              {remarks ? <Badge testID="home-hero-remarks" label={remarks} variant="accent" /> : null}
+              {vod.type_name ? <Text style={styles.type}>{vod.type_name}</Text> : null}
+            </View>
+          ) : null}
+          <Text
+            testID="home-hero-title"
+            numberOfLines={1}
+            style={vod.vod_name.length > LONG_TITLE ? styles.titleLong : styles.title}
+          >
+            {vod.vod_name}
           </Text>
-        ) : null}
+          {vod.vod_score || meta.length > 0 ? (
+            <View style={styles.meta}>
+              {vod.vod_score ? (
+                <Text testID="home-hero-score" style={styles.score}>
+                  {vod.vod_score}
+                </Text>
+              ) : null}
+              {meta.map((value) => (
+                <Text key={value} style={styles.metaText}>
+                  {value}
+                </Text>
+              ))}
+            </View>
+          ) : null}
+          {description ? (
+            <Text testID="home-hero-description" numberOfLines={1} style={styles.description}>
+              {description}
+            </Text>
+          ) : null}
+        </HeroInfo>
         <View testID="home-hero-actions" style={styles.actions}>
           <Button
             testID="home-hero-play"
@@ -261,7 +333,9 @@ const makeStyles = (s: Scaler) => {
       width: s(POSTER.width),
       height: s(POSTER.height),
       borderRadius: s(radii.card),
+      overflow: 'hidden' as const,
     },
+    posterImage: { width: '100%' as const, height: '100%' as const },
     content: {
       position: 'absolute' as const,
       bottom: s(HERO_HEIGHT - ACTIONS_BOTTOM),
@@ -269,6 +343,7 @@ const makeStyles = (s: Scaler) => {
       width: s(820),
       gap: s(20),
     },
+    info: { gap: s(20) },
     tags: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: s(14) },
     type: { ...text.caption, color: color.text2 },
     title: { ...text.display, lineHeight: s(Math.round(type.display.fontSize * TITLE_LINE_HEIGHT)), color: color.text },

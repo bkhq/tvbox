@@ -17,7 +17,7 @@ export interface TopNavProps {
   items: readonly MainNavItem[];
   onSelect: (key: MainNavKey) => void;
   onSearch?: () => void;
-  /** Icon buttons right of the clock, e.g. site switch and phone control. */
+  /** Icon buttons left of the clock, e.g. site switch and phone control. */
   right?: ReactNode;
   style?: StyleProp<ViewStyle>;
   testID?: string;
@@ -62,9 +62,10 @@ export function TopNav({ items, onSelect, onSearch, right, style, testID }: TopN
             ))}
           </View>
         </View>
+        {/* The clock keeps the right edge, so the bar does not shift between screens with different buttons. */}
         <View style={styles.right}>
-          <Clock style={styles.clock} />
           {right}
+          <Clock style={styles.clock} />
         </View>
       </TVFocusGuideView>
     </View>
@@ -104,7 +105,7 @@ const makeStyles = (s: Scaler) => ({
   left: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: s(44) },
   nav: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: s(40), marginLeft: s(16) },
   right: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: s(20) },
-  clock: { marginRight: s(8) },
+  clock: { marginLeft: s(8) },
   search: {
     width: s(SEARCH_SIZE),
     height: s(SEARCH_SIZE),

@@ -1,11 +1,14 @@
 import type * as ExpoFileSystem from 'expo-file-system';
+import type * as LegacyFileSystem from 'expo-file-system/legacy';
 
 /** Size and cleanup of the app cache directory; expo-file-system loads on first use. */
 
 type FileSystem = Pick<typeof ExpoFileSystem, 'Directory' | 'Paths'>;
-type Directory = InstanceType<FileSystem['Directory']>;
+
+type InfoFileSystem = Pick<typeof LegacyFileSystem, 'cacheDirectory' | 'getInfoAsync'>;
 
 const loadFileSystem = (): Promise<FileSystem> => import('expo-file-system');
+const loadInfoFileSystem = (): Promise<InfoFileSystem> => import('expo-file-system/legacy');
 
 const UNITS = ['B', 'KB', 'MB', 'GB', 'TB'];
 
@@ -21,16 +24,15 @@ export function formatBytes(bytes: number): string {
   return `${rounded} ${UNITS[unit]}`;
 }
 
-function directorySize(dir: Directory, fs: FileSystem): number {
-  let total = 0;
-  for (const item of dir.list()) total += item instanceof fs.Directory ? directorySize(item, fs) : (item.size ?? 0);
-  return total;
-}
-
-/** Total bytes of the files under Paths.cache, recursively. */
-export async function getCacheSize(load = loadFileSystem): Promise<number> {
-  const fs = await load();
-  return directorySize(fs.Paths.cache, fs);
+/**
+ * Total bytes of the files under the cache directory, recursively. The native side walks the tree off the JS
+ * thread: walking it from JS took seconds with a full image cache and stalled opening 设置.
+ */
+export async function getCacheSize(load = loadInfoFileSystem): Promise<number> {
+  const { cacheDirectory, getInfoAsync } = await load();
+  if (!cacheDirectory) return 0;
+  const info = await getInfoAsync(cacheDirectory);
+  return info.exists ? info.size : 0;
 }
 
 /** Deletes everything inside Paths.cache, keeping the directory itself. */

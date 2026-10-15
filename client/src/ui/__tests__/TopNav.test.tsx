@@ -1,3 +1,4 @@
+import type { ReactElement } from 'react';
 import { StyleSheet, Text, TVFocusGuideView } from 'react-native';
 import { act, create, type ReactTestInstance, type ReactTestRenderer } from 'react-test-renderer';
 
@@ -48,6 +49,11 @@ describe('TopNav', () => {
       ['直播', false],
     ]);
     expect(renderer.root.findAll((n) => n.props.testID === 'slot').length).toBeGreaterThan(0);
+    // The clock keeps the right edge whatever the slot holds.
+    const [right] = renderer.root.findAll(
+      (n) => Array.isArray(n.props.children) && n.props.children.some((child: ReactElement) => child?.type === Clock),
+    );
+    expect(right?.props.children.at(-1).type).toBe(Clock);
   });
 
   it('is a focus guide that traps left/right inside the bar', async () => {

@@ -212,6 +212,8 @@ describe('SettingsScreen', () => {
 
     await press(renderer, 'top-nav-search');
     expect(mockNavigate).toHaveBeenCalledWith('Search');
+    await press(renderer, 'settings-nav-control');
+    expect(mockNavigate).toHaveBeenCalledWith('Control');
     await press(renderer, 'top-nav-home');
     expect(mockNavigate).toHaveBeenCalledWith('Home', {});
     await act(async () => renderer.unmount());

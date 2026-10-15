@@ -30,15 +30,32 @@ describe('formatBytes', () => {
   });
 });
 
+/** Stand-in for expo-file-system/legacy, whose getInfoAsync sizes a directory natively. */
+function infoFileSystem(cacheDirectory: string | null, info: { exists: boolean; size?: number }) {
+  const getInfoAsync = jest.fn(async () => info);
+  return { getInfoAsync, load: async () => ({ cacheDirectory, getInfoAsync }) as never };
+}
+
+describe('cache size', () => {
+  it('asks the native side for the size of the cache directory', async () => {
+    const fs = infoFileSystem('file:///cache/', { exists: true, size: 1024 });
+    await expect(getCacheSize(fs.load)).resolves.toBe(1024);
+    expect(fs.getInfoAsync).toHaveBeenCalledWith('file:///cache/');
+  });
+
+  it('is 0 without a cache directory', async () => {
+    await expect(getCacheSize(infoFileSystem(null, { exists: false }).load)).resolves.toBe(0);
+    await expect(getCacheSize(infoFileSystem('file:///cache/', { exists: false }).load)).resolves.toBe(0);
+  });
+});
+
 describe('cache directory', () => {
-  it('sums file sizes recursively and clears the contents only', async () => {
+  it('clears the contents only', async () => {
     const a = new File(1000);
     const b = new File(null);
     const c = new File(24);
     const nested = new Directory([c, new Directory([])]);
     const root = new Directory([a, b, nested]);
-
-    await expect(getCacheSize(fileSystem(root))).resolves.toBe(1024);
 
     await clearCache(fileSystem(root));
     expect(a.delete).toHaveBeenCalled();

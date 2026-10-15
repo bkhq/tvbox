@@ -172,7 +172,8 @@ const makeStyles = (s: Scaler) => {
     },
     rowDisabled: { opacity: 0.45 },
     titleBox: { flex: 1, gap: s(6) },
-    title: { fontFamily: fontFamily.semiBold, fontSize: s(38), lineHeight: s(46), color: color.text },
+    // Callout like the sidebar and the home card titles.
+    title: { ...text.body, fontFamily: fontFamily.semiBold, color: color.text },
     note: { ...text.caption, color: color.text3 },
     value: { ...text.label, flexShrink: 1, color: color.text2 },
   };

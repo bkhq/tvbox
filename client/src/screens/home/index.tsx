@@ -43,13 +43,7 @@ function HeaderActions({ onSwitch }: { onSwitch?: () => void }) {
   const navigation = useAppNavigation();
   return (
     <>
-      <Button
-        testID="home-control"
-        variant="outline"
-        icon="phone"
-        accessibilityLabel="手机控制"
-        onPress={() => navigation.navigate('Control')}
-      />
+      {/* 手机控制 sits beside the clock on every main screen; the site switch goes before it. */}
       {onSwitch ? (
         <Button
           testID="home-switch-site"
@@ -59,6 +53,13 @@ function HeaderActions({ onSwitch }: { onSwitch?: () => void }) {
           onPress={onSwitch}
         />
       ) : null}
+      <Button
+        testID="home-control"
+        variant="outline"
+        icon="phone"
+        accessibilityLabel="手机控制"
+        onPress={() => navigation.navigate('Control')}
+      />
     </>
   );
 }

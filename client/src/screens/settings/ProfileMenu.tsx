@@ -108,5 +108,5 @@ const makeStyles = (s: Scaler) => ({
   },
   label: { flex: 1, fontFamily: fontFamily.medium, fontSize: s(31), lineHeight: s(38), color: color.text2 },
   labelActive: { fontFamily: fontFamily.bold, color: color.text },
-  hint: { fontFamily: fontFamily.medium, fontSize: s(23), lineHeight: s(30), color: color.text3 },
+  hint: { fontFamily: fontFamily.medium, fontSize: s(25), lineHeight: s(32), color: color.text3 },
 });

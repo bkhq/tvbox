@@ -3,7 +3,7 @@ import { ScrollView, TVFocusGuideView, View } from 'react-native';
 
 import { useMainNav } from '../../navigation/mainNav';
 import { useAppNavigation } from '../../navigation/useAppNavigation';
-import { color, safeArea, TopNav, useScaledStyles, type Scaler } from '../../ui';
+import { Button, color, safeArea, TopNav, useScaledStyles, type Scaler } from '../../ui';
 import { CollectView } from '../collect';
 import { HistoryView } from '../history';
 import { EntryFocusContext } from './entryFocus';
@@ -74,6 +74,15 @@ export default function SettingsScreen() {
         items={nav.items}
         onSelect={nav.select}
         onSearch={() => navigation.navigate('Search')}
+        right={
+          <Button
+            testID="settings-nav-control"
+            variant="outline"
+            icon="phone"
+            accessibilityLabel="手机控制"
+            onPress={() => navigation.navigate('Control')}
+          />
+        }
       />
       <View style={styles.content}>
         <ProfileMenu selected={selected} onSelect={setSelected} hasTVPreferredFocus />

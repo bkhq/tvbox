@@ -264,7 +264,7 @@ const cases: Case[] = [
     },
   },
   {
-    name: "a device on no upstream gets only the common entries",
+    name: "a device on no upstream gets the recommendation home and the common entries",
     async run() {
       const common = await call(`${BASE_PATH}/api/tvbox/entries`, {
         method: "POST",
@@ -292,7 +292,11 @@ const cases: Case[] = [
       assert(res.status === 200, `the common-only device returned ${res.status}`);
       const config = await json<{ sites?: { key: string }[] }>(res);
       const keys = (config.sites ?? []).map(s => s.key);
-      assert(keys.length === 1 && keys[0] === "smoke-common", `the common-only device got ${keys.length} sites`);
+      assert(keys.join() === "bk_home,smoke-common", `the common-only device got ${keys.join()}`);
+      // The recommendation home leading the config answers without reaching any chart.
+      const home = await fetch(`${baseUrl}/s/${device.data.token}/media/home?wd=x`);
+      assert(home.status === 200, `the recommendation home returned ${home.status}`);
+      await home.text();
     },
   },
   {

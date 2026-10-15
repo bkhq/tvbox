@@ -44,6 +44,7 @@ project needs and to the Workers runtime only.
 | `/` | public download page: the APKs of the newest stable release |
 | `/mg/` | admin console (`BASE_PATH`); its API is `/mg/api`, the raw API `/mg/api/raw` |
 | `/s/<token>/` | a device's subscription |
+| `/s/<token>/media/home` | the recommendation home: Douban, iQiyi and Netflix charts as a CMS site, first in every config (`apps/api/src/workers/home.ts`) |
 | `POST /api/raw/tvbox/enroll` | the app's Server link endpoint; the only API path at the root (see `docs/SERVER-LINK.md`) |
 | `/u/<channel>/<mode>-<abi>.json`, `/u/apk/…` | app updates |
 | `/dns-query` | DNS-over-HTTPS, forwarded to Cloudflare |
@@ -100,6 +101,7 @@ settings. Login is OpenID Connect; secrets ship with each deploy
 | secret | `CLOUDFLARE_ACCOUNT_ID` | the account the Worker lives in |
 | secret | `OAUTH_CLIENT_SECRET` | the OIDC client's secret; leave empty for a public client (PKCE) |
 | secret | `SERVICE_TOKEN_RELEASE` | `openssl rand -hex 32`; android.yml registers releases with it |
+| secret | `TMDB_TOKEN` | TMDB v3 API key or v4 read access token; names the Netflix Top 10 on the recommendation home (optional: without it those rows are left out) |
 | variable | `WORKER_URL` | the deployed origin, `https://tv.bk.io`; becomes `APP_URL` and `CORS_ORIGIN` |
 | variable | `OAUTH_ISSUER` | the provider's issuer URL (discovery fills the endpoints) |
 | variable | `OAUTH_CLIENT_ID` | the OIDC client id |

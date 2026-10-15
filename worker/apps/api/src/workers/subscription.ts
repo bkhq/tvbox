@@ -4,6 +4,7 @@ import type { DevicesFile } from "@/modules/tvbox/storage";
 import { deriveStorageKey } from "@/modules/file/storage/key";
 import { composeForDevice } from "@/modules/tvbox/compose";
 import { DEVICES_KEY, PUBLISHED_KEY } from "@/modules/tvbox/storage";
+import { handleHome } from "./home";
 import { handleMedia } from "./media";
 
 /**
@@ -16,6 +17,7 @@ import { handleMedia } from "./media";
  *                                        the published snapshot and the
  *                                        device's upstreams
  *   /s/<token>/a/<sha256>/<name>         a mirrored file, by content hash
+ *   /s/<token>/media/home                the recommendation home (./home)
  *   /s/<token>/media/…                   the media library, from the D1
  *                                        read model (./media)
  *
@@ -28,6 +30,9 @@ import { handleMedia } from "./media";
  * The config references its files as `./a/...`, which TVBox resolves under
  * the same prefix, and the media library as `@media/...`, made absolute here
  * because a site's `api` is not resolved against the config's url.
+ *
+ * Every config leads with the recommendation home (HOME_SITE), so the app
+ * opens it until the user picks another site.
  */
 
 /** The slice of an R2 bucket this needs, so tests can pass a fake. */
@@ -37,6 +42,7 @@ export interface SubscriptionBucket {
     options?: { range?: { offset: number; length: number } },
   ) => Promise<{ readonly body: ReadableStream | null; readonly size?: number; text: () => Promise<string> } | null>;
   head?: (key: string) => Promise<{ readonly size: number } | null>;
+  put?: (key: string, value: string) => Promise<unknown>;
 }
 
 /** The media read model: a D1 binding, whose sessions read from the nearest replica. */
@@ -47,11 +53,22 @@ export interface MediaDatabase extends ReadModelDb {
 export interface SubscriptionEnv {
   readonly FILES?: SubscriptionBucket | undefined;
   readonly MEDIA?: MediaDatabase | undefined;
+  readonly TMDB_TOKEN?: string | undefined;
 }
 
 export const SUBSCRIPTION_PREFIX = "/s/";
 /** Stands for `<origin>/s/<token>/media/` in a published entry. */
 export const MEDIA_PLACEHOLDER = "@media/";
+/** The recommendation home, first in every config. */
+export const HOME_SITE = {
+  key: "bk_home",
+  name: "推荐 • 首页",
+  type: 1,
+  api: `${MEDIA_PLACEHOLDER}home`,
+  searchable: 0,
+  quickSearch: 0,
+  changeable: 0,
+};
 
 // Per isolate and per bucket: a device change or a publish shows within this.
 const CACHE_TTL_MS = 30_000;
@@ -135,12 +152,17 @@ export async function handleSubscription(request: Request, env: SubscriptionEnv)
     if (!state.snapshot || !(await isBoundApp(request, device)))
       return notFound();
     // `@media/…` (a site's `api`, a live source's `url`) names this device's media library.
-    const config = JSON.stringify(composeForDevice(state.snapshot, device.upstreams))
+    const composed = composeForDevice(state.snapshot, device.upstreams);
+    const sites = Array.isArray(composed.sites) ? composed.sites : [];
+    const config = JSON.stringify({ ...composed, sites: [HOME_SITE, ...sites] })
       .replaceAll(`"${MEDIA_PLACEHOLDER}`, `"${new URL(request.url).origin}${SUBSCRIPTION_PREFIX}${token}/media/`);
     return new Response(config, {
       headers: { "content-type": CONTENT_TYPES.json!, "cache-control": "private, max-age=60" },
     });
   }
+
+  if (path === "/media/home")
+    return handleHome(request, { FILES: bucket, TMDB_TOKEN: env.TMDB_TOKEN });
 
   if (path.startsWith("/media/")) {
     if (!env.MEDIA)

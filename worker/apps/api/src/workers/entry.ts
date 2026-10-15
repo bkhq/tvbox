@@ -36,6 +36,8 @@ export interface WorkerEnv {
   ASSETS: Fetcher;
   /** Prefix of the console and its API, e.g. "/mg". */
   BASE_PATH?: string;
+  /** TMDB key for the recommendation home's Netflix rows (./home.ts). */
+  TMDB_TOKEN?: string;
   [key: string]: unknown;
 }
 
@@ -159,7 +161,7 @@ export default {
       case "landing":
         return handleLanding(request, files);
       case "subscription":
-        return handleSubscription(request, { ...files, MEDIA: env.MEDIA });
+        return handleSubscription(request, { ...files, MEDIA: env.MEDIA, TMDB_TOKEN: env.TMDB_TOKEN });
       case "updates":
         return handleUpdates(request, files);
       case "doh":

@@ -179,7 +179,7 @@ describe("the subscription names the media library per device", () => {
     const res = await handleSubscription(new Request(`https://worker.example/s/${TOKEN}/api.json`), { FILES: files });
     const config = await res.json() as { sites: Record<string, string>[]; lives: Record<string, string>[] };
     const base = `https://worker.example/s/${TOKEN}/media`;
-    expect(config.sites[0]).toMatchObject({ api: `${base}/cms`, mediaApi: `${base}/v1` });
+    expect(config.sites[1]).toMatchObject({ api: `${base}/cms`, mediaApi: `${base}/v1` });
     expect(config.lives[0]!.url).toBe(`${base}/live.m3u`);
   });
 });

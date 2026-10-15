@@ -99,10 +99,21 @@ describe("subscription content", () => {
     const all = await handleSubscription(get(`/s/${ALL}/api.json`), { FILES: published() });
     expect(all.status).toBe(200);
     expect(all.headers.get("content-type")).toBe("application/json; charset=utf-8");
-    expect(await siteKeys(all)).toEqual(["a", "b", "common"]);
+    expect(await siteKeys(all)).toEqual(["bk_home", "a", "b", "common"]);
 
     const onlyB = await handleSubscription(get(`/s/${ONLY_B}/`), { FILES: published() });
-    expect(await siteKeys(onlyB)).toEqual(["b", "common"]);
+    expect(await siteKeys(onlyB)).toEqual(["bk_home", "b", "common"]);
+  });
+
+  test("the recommendation home leads every config and is served without the media library", async () => {
+    const res = await handleSubscription(get(`/s/${ALL}/api.json`), { FILES: published() });
+    const home = ((await res.json()) as { sites: { key: string; api: string; searchable: number }[] }).sites[0]!;
+    expect(home).toMatchObject({ key: "bk_home", api: `https://worker.example/s/${ALL}/media/home`, searchable: 0 });
+
+    const answer = await handleSubscription(get(`/s/${ALL}/media/home?wd=x`), { FILES: published() });
+    expect(answer.status).toBe(200);
+    expect(await answer.json()).toMatchObject({ list: [] });
+    expect((await handleSubscription(get(`/s/nope/media/home`), { FILES: published() })).status).toBe(404);
   });
 
   test("nothing published yet is missing", async () => {

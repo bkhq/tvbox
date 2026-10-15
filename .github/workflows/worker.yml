@@ -182,14 +182,15 @@ jobs:
         env:
           OAUTH_CLIENT_SECRET: ${{ secrets.OAUTH_CLIENT_SECRET }}
           SERVICE_TOKEN_RELEASE: ${{ secrets.SERVICE_TOKEN_RELEASE }}
+          TMDB_TOKEN: ${{ secrets.TMDB_TOKEN }}
           OAUTH_ISSUER: ${{ vars.OAUTH_ISSUER }}
           OAUTH_CLIENT_ID: ${{ vars.OAUTH_CLIENT_ID }}
           DEFAULT_ADMIN: ${{ vars.DEFAULT_ADMIN }}
           WORKER_URL: ${{ vars.WORKER_URL }}
         run: |
           umask 077
-          jq -n --arg client "$OAUTH_CLIENT_SECRET" --arg release "$SERVICE_TOKEN_RELEASE" \
-            '{OAUTH_CLIENT_SECRET: $client, SERVICE_TOKEN_RELEASE: $release} | with_entries(select(.value != ""))' \
+          jq -n --arg client "$OAUTH_CLIENT_SECRET" --arg release "$SERVICE_TOKEN_RELEASE" --arg tmdb "$TMDB_TOKEN" \
+            '{OAUTH_CLIENT_SECRET: $client, SERVICE_TOKEN_RELEASE: $release, TMDB_TOKEN: $tmdb} | with_entries(select(.value != ""))' \
             > "$RUNNER_TEMP/secrets.json"
           origin="${WORKER_URL%/}"
           args=(

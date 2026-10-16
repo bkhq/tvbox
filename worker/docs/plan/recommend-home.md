@@ -1,6 +1,6 @@
 # Plan: recommendation home built by the worker
 
-Status: implemented (2026-10-15), not yet deployed; emulator check pending.
+Status: implemented and deployed (2026-10-16); verified on tv.bk.io and on the emulator.
 
 ## Goal
 
@@ -67,12 +67,14 @@ deploy workflow like the other secrets.
 - `createSiteHomeContent` for `bk_home`: one row per class (the home list is
   the first; the rest load page 1 in parallel; failed or empty rows dropped).
 
-## Remaining
+## Verified (2026-10-16)
 
-- Deploy (the `TMDB_TOKEN` repository secret exists) and confirm Douban,
-  iQiyi and Netflix answer from the Cloudflare edge. If Douban blocks the
-  edge, move the fetch to the "TVBox sources" workflow and upload to R2.
-- Release x86 build on the emulator: rows render, a title opens the search.
+- tv.bk.io: every row answers from the Cloudflare edge (Netflix named
+  through TMDB); a cached answer takes ~0.1-0.3 s against ~3 s cold; Douban,
+  iQiyi and TMDB posters load.
+- Emulator (release x86): the home shows the strip and one row per chart;
+  opening a Netflix title searches every site for its Chinese name.
+- An app that saved another home site keeps it until the user switches.
 
 ## Out of scope
 

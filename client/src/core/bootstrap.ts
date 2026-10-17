@@ -2,6 +2,7 @@ import { createContext, createElement, type ReactNode, useContext, useSyncExtern
 
 import { getAppConfig } from './appConfig';
 import { loadVodConfig, type VodConfig, type VodConfigPrefs } from './config';
+import { resetHomeSiteOnce } from './homeReset';
 import { runMigration } from './migration';
 import { clearProviders } from './provider';
 import { createServerLink, defaultDeviceInfo, type ServerLink, setServerLink } from './serverLink';
@@ -51,6 +52,8 @@ export interface BootstrapDeps {
   createServerLink?: (loadConfig: (url: string) => Promise<unknown>) => ServerLink;
   /** One-time import of the Java app's data; awaited before anything is read. Must not reject. */
   migrate?: () => Promise<unknown>;
+  /** One-time reset of the saved home site, run once the settings are loaded. */
+  resetHome?: () => Promise<unknown>;
 }
 
 function toError(error: unknown): Error {
@@ -123,6 +126,7 @@ export function createBootstrap(deps: BootstrapDeps): Bootstrap {
         await deps.migrate?.();
         try {
           await settings.loadSettings();
+          await deps.resetHome?.();
           if (deps.createServerLink) {
             link = deps.createServerLink(load);
             // Installs the device headers before the subscription URL is fetched.
@@ -170,6 +174,7 @@ export function getBootstrap(): Bootstrap {
       configs,
       settings: appSettings,
       migrate: () => runMigration(),
+      resetHome: () => resetHomeSiteOnce(asyncStorageStore, appSettings),
       createServerLink: workerUrl
         ? (loadConfig) => {
             const link = createServerLink({

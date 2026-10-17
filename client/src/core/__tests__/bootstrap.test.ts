@@ -161,3 +161,21 @@ it('can activate another config after a failed persistence operation', async () 
   await bootstrap.reload();
   expect(bootstrap.getSnapshot()).toMatchObject({ status: 'ready', config: { url: B } });
 });
+
+it('resets the home site before the config loads', async () => {
+  const store = new MemoryStore();
+  const configs = createConfigRepository(store, 'vod');
+  await configs.add({ url: A });
+  await configs.setActive(A);
+  const settings = createSettingsStore(store);
+  const order: string[] = [];
+  const loadConfig = jest.fn(async (url: string) => {
+    order.push('load');
+    return parseVodConfig(JSON.stringify({ sites: [] }), url);
+  });
+  const resetHome = jest.fn(async () => {
+    order.push('reset');
+  });
+  await createBootstrap({ configs, settings, loadConfig, resetHome }).start();
+  expect(order).toEqual(['reset', 'load']);
+});

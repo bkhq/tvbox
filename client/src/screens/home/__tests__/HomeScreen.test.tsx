@@ -263,6 +263,18 @@ describe('HomeScreen', () => {
     await act(async () => renderer.unmount());
   });
 
+  it('limits the recommendation strip to 10 posters', async () => {
+    mockProviders({
+      videos: Array.from({ length: 14 }, (_, i) => ({ vod_id: `r${i + 1}`, vod_name: `推荐 ${i + 1}`, vod_pic: '' })),
+    });
+    const { renderer } = await setup({ saved: true });
+    const [strip] = renderer.root.findAll((node) => node.props.testID === 'home-row-recommend' && node.props.data);
+    expect(strip?.props.data.map((vod: { vod_id: string }) => vod.vod_id)).toEqual(
+      Array.from({ length: 10 }, (_, i) => `r${i + 1}`),
+    );
+    await act(async () => renderer.unmount());
+  });
+
   it('hides a zero score in vod_remarks on the hero and the cards', async () => {
     mockProviders({
       videos: [

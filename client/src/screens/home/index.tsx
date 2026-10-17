@@ -90,6 +90,8 @@ interface HomeRowsProps {
 
 /** Width of a strip poster in design px: small enough that the strip fits under the hero info. */
 const STRIP_POSTER_WIDTH = 150;
+/** Posters in the strip: enough to browse, few enough to stay a short pick. */
+const STRIP_LIMIT = 10;
 
 /**
  * The first row (热门推荐) as an untitled strip along the hero's bottom: focusing a poster makes it the hero, and
@@ -103,10 +105,11 @@ const HeroStrip = memo(function HeroStrip({
   onFocusItem: (item: HeroItem) => void;
 }) {
   const navigation = useAppNavigation();
+  const items = useMemo(() => row.items.slice(0, STRIP_LIMIT), [row.items]);
   return (
     <Row
       testID={`home-row-${row.key}`}
-      data={row.items}
+      data={items}
       keyExtractor={(vod, index) => `${vod.vod_id}-${index}`}
       renderItem={({ item }) => (
         <PosterCard

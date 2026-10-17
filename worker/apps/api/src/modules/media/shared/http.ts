@@ -34,8 +34,6 @@ export async function record(
   });
 }
 
-export const intId = z.coerce.number().int().positive();
-export const intParam = z.object({ id: intId });
 export const idParam = z.object({ id: z.string().min(1).max(64) });
 export const httpUrl = z.string().max(2000).url().refine(u => /^https?:\/\//.test(u), "must be an http(s) URL");
 export const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "must be YYYY-MM-DD");

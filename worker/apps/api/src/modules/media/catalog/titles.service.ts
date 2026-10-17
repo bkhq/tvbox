@@ -1,17 +1,18 @@
 import type { SQL } from "drizzle-orm";
-import type { TxOrDb } from "../shared/db";
+import type { MediaDb, Statement } from "../db";
 import type { TitleKind } from "../taxonomy/taxonomy.service";
-import type { AppDatabase } from "@/db";
 import { and, count, desc, eq, inArray, like, or, sql } from "drizzle-orm";
 import { chunked } from "@/shared/lib/chunk";
 import { AppError, NotFoundError } from "@/shared/lib/errors";
-import { ulid } from "@/shared/lib/id";
-import { mediaCollections, mediaEpisodes, mediaGenres, mediaSeasons, mediaTitleAliases, mediaTitleGenres, mediaTitles } from "../schema";
+import { mediaId, ulid } from "@/shared/lib/id";
+import { insertRows, runBatch } from "../db";
+import { mediaCollections, mediaEpisodes, mediaGenres, mediaSeasons, mediaTitleAliases, mediaTitleGenres, mediaTitles, mediaTitleTranslations } from "../schema";
 import { deleteOwned, deleteSeasonOwned } from "../shared/owners";
 import { getCategory } from "../taxonomy/taxonomy.service";
 
 type TitleRow = typeof mediaTitles.$inferSelect;
 type AliasRow = typeof mediaTitleAliases.$inferSelect;
+type TranslationRow = typeof mediaTitleTranslations.$inferSelect;
 export type TitleStatus = TitleRow["status"];
 export type PublishState = TitleRow["publishState"];
 
@@ -25,6 +26,7 @@ export interface TitleView extends Omit<TitleRow, "originCountries"> {
   readonly originCountries: string[];
   readonly genreIds: string[];
   readonly aliases: Omit<AliasRow, "titleId">[];
+  readonly translations: Omit<TranslationRow, "titleId">[];
   readonly seasonCount: number;
 }
 
@@ -59,14 +61,16 @@ export interface CreateTitleInput extends TitleInput {
   readonly kind: TitleKind;
 }
 
-async function viewsOf(db: AppDatabase, rows: readonly TitleRow[]): Promise<TitleView[]> {
+async function viewsOf(db: MediaDb, rows: readonly TitleRow[]): Promise<TitleView[]> {
   const ids = rows.map(r => r.id);
-  const genres: { titleId: number; genreId: string }[] = [];
+  const genres: { titleId: string; genreId: string }[] = [];
   const aliases: AliasRow[] = [];
-  const seasons: { titleId: number; n: number }[] = [];
+  const translations: TranslationRow[] = [];
+  const seasons: { titleId: string; n: number }[] = [];
   for (const part of chunked(ids)) {
     genres.push(...await db.select().from(mediaTitleGenres).where(inArray(mediaTitleGenres.titleId, part)).all());
     aliases.push(...await db.select().from(mediaTitleAliases).where(inArray(mediaTitleAliases.titleId, part)).orderBy(mediaTitleAliases.id).all());
+    translations.push(...await db.select().from(mediaTitleTranslations).where(inArray(mediaTitleTranslations.titleId, part)).orderBy(mediaTitleTranslations.locale).all());
     seasons.push(...await db.select({ titleId: mediaSeasons.titleId, n: count() }).from(mediaSeasons).where(inArray(mediaSeasons.titleId, part)).groupBy(mediaSeasons.titleId).all());
   }
   return rows.map(r => ({
@@ -74,14 +78,15 @@ async function viewsOf(db: AppDatabase, rows: readonly TitleRow[]): Promise<Titl
     originCountries: JSON.parse(r.originCountries) as string[],
     genreIds: genres.filter(g => g.titleId === r.id).map(g => g.genreId),
     aliases: aliases.filter(a => a.titleId === r.id).map(({ titleId: _, ...a }) => a),
+    translations: translations.filter(x => x.titleId === r.id).map(({ titleId: _, ...x }) => x),
     seasonCount: seasons.find(s => s.titleId === r.id)?.n ?? 0,
   }));
 }
 
-export async function getTitle(db: AppDatabase, id: number): Promise<TitleView> {
+export async function getTitle(db: MediaDb, id: string): Promise<TitleView> {
   const row = await db.select().from(mediaTitles).where(eq(mediaTitles.id, id)).get();
   if (!row)
-    throw new NotFoundError("Title", String(id));
+    throw new NotFoundError("Title", id);
   return (await viewsOf(db, [row]))[0]!;
 }
 
@@ -97,7 +102,7 @@ export interface TitleQuery {
 }
 
 /** Newest first. `q` matches the title, the original title and aliases. */
-export async function listTitles(db: AppDatabase, query: TitleQuery): Promise<{ items: TitleView[]; total: number }> {
+export async function listTitles(db: MediaDb, query: TitleQuery): Promise<{ items: TitleView[]; total: number }> {
   const where: SQL[] = [];
   if (query.categoryId)
     where.push(eq(mediaTitles.categoryId, query.categoryId));
@@ -123,13 +128,13 @@ export async function listTitles(db: AppDatabase, query: TitleQuery): Promise<{ 
   return { items: await viewsOf(db, rows), total };
 }
 
-async function assertCategoryAccepts(db: AppDatabase, categoryId: string, kind: TitleKind): Promise<void> {
+export async function assertCategoryAccepts(db: MediaDb, categoryId: string, kind: TitleKind): Promise<void> {
   const category = await getCategory(db, categoryId);
   if (!category.kinds.includes(kind))
     throw new AppError(`Category "${category.name}" does not take ${kind} titles`, 422, "CATEGORY_KIND_MISMATCH");
 }
 
-async function assertGenres(db: AppDatabase, ids: readonly string[]): Promise<void> {
+export async function assertGenres(db: MediaDb, ids: readonly string[]): Promise<void> {
   const unique = [...new Set(ids)];
   for (const part of chunked(unique)) {
     const found = await db.select({ id: mediaGenres.id }).from(mediaGenres).where(inArray(mediaGenres.id, part)).all();
@@ -139,7 +144,7 @@ async function assertGenres(db: AppDatabase, ids: readonly string[]): Promise<vo
   }
 }
 
-async function assertCollection(db: AppDatabase, id: string | null | undefined): Promise<void> {
+async function assertCollection(db: MediaDb, id: string | null | undefined): Promise<void> {
   if (!id)
     return;
   const found = await db.select({ id: mediaCollections.id }).from(mediaCollections).where(eq(mediaCollections.id, id)).get();
@@ -173,72 +178,71 @@ function columns(input: TitlePatch) {
   } as Partial<typeof mediaTitles.$inferInsert>;
 }
 
-async function writeRelations(db: TxOrDb, id: number, input: TitlePatch): Promise<void> {
+function writeRelations(db: MediaDb, id: string, input: TitlePatch): Statement[] {
+  const out: Statement[] = [];
   if (input.genreIds !== undefined) {
-    await db.delete(mediaTitleGenres).where(eq(mediaTitleGenres.titleId, id)).run();
-    const genreIds = [...new Set(input.genreIds)];
-    if (genreIds.length > 0)
-      await db.insert(mediaTitleGenres).values(genreIds.map(genreId => ({ titleId: id, genreId }))).run();
+    out.push(db.delete(mediaTitleGenres).where(eq(mediaTitleGenres.titleId, id)));
+    out.push(...insertRows(db, mediaTitleGenres, [...new Set(input.genreIds)].map(genreId => ({ titleId: id, genreId }))));
   }
   if (input.aliases !== undefined) {
-    await db.delete(mediaTitleAliases).where(eq(mediaTitleAliases.titleId, id)).run();
-    for (const alias of input.aliases)
-      await db.insert(mediaTitleAliases).values({ id: ulid(), titleId: id, name: alias.name, locale: alias.locale ?? null, kind: alias.kind ?? "alias" }).run();
+    out.push(db.delete(mediaTitleAliases).where(eq(mediaTitleAliases.titleId, id)));
+    out.push(...insertRows(db, mediaTitleAliases, input.aliases.map(alias => ({ id: ulid(), titleId: id, name: alias.name, locale: alias.locale ?? null, kind: alias.kind ?? "alias" }))));
   }
+  return out;
 }
 
 /** A series starts with an empty season 1: every episode belongs to a season. */
-export async function createTitle(db: AppDatabase, input: CreateTitleInput): Promise<TitleView> {
+export async function createTitle(db: MediaDb, input: CreateTitleInput): Promise<TitleView> {
   await assertCategoryAccepts(db, input.categoryId, input.kind);
   if (input.genreIds)
     await assertGenres(db, input.genreIds);
   await assertCollection(db, input.collectionId);
-  const id = await db.transaction(async (tx) => {
-    const [row] = await tx.insert(mediaTitles).values({
+  const id = mediaId();
+  await runBatch(db, [
+    db.insert(mediaTitles).values({
       ...columns(input),
+      id,
       kind: input.kind,
       categoryId: input.categoryId,
       title: input.title,
       status: input.status ?? (input.kind === "series" ? "returning" : "released"),
-    } as typeof mediaTitles.$inferInsert).returning({ id: mediaTitles.id }).all();
-    await writeRelations(tx, row!.id, input);
-    if (input.kind === "series")
-      await tx.insert(mediaSeasons).values({ titleId: row!.id, seasonNumber: 1, sort: 1 }).run();
-    return row!.id;
-  });
+    } as typeof mediaTitles.$inferInsert),
+    ...writeRelations(db, id, input),
+    ...(input.kind === "series" ? [db.insert(mediaSeasons).values({ id: mediaId(), titleId: id, seasonNumber: 1, sort: 1 })] : []),
+  ]);
   return await getTitle(db, id);
 }
 
-export async function updateTitle(db: AppDatabase, id: number, input: TitlePatch): Promise<TitleView> {
+export async function updateTitle(db: MediaDb, id: string, input: TitlePatch): Promise<TitleView> {
   const current = await getTitle(db, id);
   if (input.categoryId !== undefined && input.categoryId !== current.categoryId)
     await assertCategoryAccepts(db, input.categoryId, current.kind);
   if (input.genreIds)
     await assertGenres(db, input.genreIds);
   await assertCollection(db, input.collectionId);
-  await db.transaction(async (tx) => {
-    await tx.update(mediaTitles).set({ ...columns(input), updatedAt: new Date().toISOString() }).where(eq(mediaTitles.id, id)).run();
-    await writeRelations(tx, id, input);
-  });
+  await runBatch(db, [
+    db.update(mediaTitles).set({ ...columns(input), updatedAt: new Date().toISOString() }).where(eq(mediaTitles.id, id)),
+    ...writeRelations(db, id, input),
+  ]);
   if (current.kind === "series" && input.statusLocked === false)
     await refreshSeriesStatus(db, id);
   return await getTitle(db, id);
 }
 
 /** Seasons, episodes, sources, credits go with it (foreign keys); images and external ids here. */
-export async function deleteTitle(db: AppDatabase, id: number): Promise<TitleView> {
+export async function deleteTitle(db: MediaDb, id: string): Promise<TitleView> {
   const current = await getTitle(db, id);
   const seasons = await db.select({ id: mediaSeasons.id }).from(mediaSeasons).where(eq(mediaSeasons.titleId, id)).all();
-  await db.transaction(async (tx) => {
-    await deleteSeasonOwned(tx, seasons.map(s => s.id));
-    await deleteOwned(tx, "title", [id]);
-    await tx.delete(mediaTitles).where(eq(mediaTitles.id, id)).run();
-  });
+  await runBatch(db, [
+    ...await deleteSeasonOwned(db, seasons.map(s => s.id)),
+    ...deleteOwned(db, "title", [id]),
+    db.delete(mediaTitles).where(eq(mediaTitles.id, id)),
+  ]);
   return current;
 }
 
 /** Touch the title so "recently updated" ordering sees changes below it (a new episode, …). */
-export async function touchTitle(db: AppDatabase, id: number): Promise<void> {
+export async function touchTitle(db: MediaDb, id: string): Promise<void> {
   await db.update(mediaTitles).set({ updatedAt: new Date().toISOString() }).where(eq(mediaTitles.id, id)).run();
 }
 
@@ -247,7 +251,7 @@ export async function touchTitle(db: AppDatabase, id: number): Promise<void> {
  * nothing aired yet → upcoming, all ended → ended, otherwise (airing, or a
  * new season announced) → returning.
  */
-export async function refreshSeriesStatus(db: AppDatabase, titleId: number): Promise<void> {
+export async function refreshSeriesStatus(db: MediaDb, titleId: string): Promise<void> {
   const title = await db.select({ kind: mediaTitles.kind, locked: mediaTitles.statusLocked, status: mediaTitles.status }).from(mediaTitles).where(eq(mediaTitles.id, titleId)).get();
   if (!title || title.kind !== "series" || title.locked || title.status === "canceled")
     return;
@@ -260,8 +264,8 @@ export async function refreshSeriesStatus(db: AppDatabase, titleId: number): Pro
 }
 
 /** Episode counts per season of a title, for the admin list. */
-export async function episodeCounts(db: AppDatabase, seasonIds: readonly number[]): Promise<Map<number, { total: number; published: number }>> {
-  const out = new Map<number, { total: number; published: number }>();
+export async function episodeCounts(db: MediaDb, seasonIds: readonly string[]): Promise<Map<string, { total: number; published: number }>> {
+  const out = new Map<string, { total: number; published: number }>();
   for (const part of chunked(seasonIds)) {
     const rows = await db.select({ seasonId: mediaEpisodes.seasonId, state: mediaEpisodes.publishState, n: count() })
       .from(mediaEpisodes)

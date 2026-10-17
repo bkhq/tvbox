@@ -77,13 +77,13 @@ export async function browse(
 ): Promise<{ cards: string[]; cursor: string | null }> {
   const { column, desc } = SORT_COLUMNS[sort];
   const where = whereOf(filter);
-  const after = decodeCursor<[string | number, number]>(cursor);
+  const after = decodeCursor<[string | number, string]>(cursor);
   if (after) {
     where.sql.push(`(t.${column} ${desc ? "<" : ">"} ? OR (t.${column} = ? AND t.id < ?))`);
     where.params.push(after[0], after[0], after[1]);
   }
   const sql = `SELECT t.id, t.${column} AS k, t.card_json FROM rm_titles t${where.sql.length ? ` WHERE ${where.sql.join(" AND ")}` : ""} ORDER BY t.${column} ${desc ? "DESC" : "ASC"}, t.id DESC LIMIT ?`;
-  const { results } = await rm.prepare(sql).bind(...where.params, limit + 1).all<{ id: number; k: string | number; card_json: string }>();
+  const { results } = await rm.prepare(sql).bind(...where.params, limit + 1).all<{ id: string; k: string | number; card_json: string }>();
   const page = results.slice(0, limit);
   const last = page.at(-1);
   return { cards: page.map(r => r.card_json), cursor: results.length > limit && last ? encodeCursor([last.k, last.id]) : null };
@@ -111,7 +111,7 @@ export async function meta<T>(rm: ReadModelDb, key: string): Promise<T | null> {
 }
 
 /** The stored JSON of one document, or null. */
-export async function document(rm: ReadModelDb, table: "titles" | "seasons" | "playback" | "people" | "collections", id: string | number): Promise<string | null> {
+export async function document(rm: ReadModelDb, table: "titles" | "seasons" | "playback" | "people" | "collections", id: string): Promise<string | null> {
   const column = table === "titles" || table === "seasons" ? "detail_json" : "json";
   const row = await rm.prepare(`SELECT ${column} AS doc FROM rm_${table} WHERE id = ?`).bind(id).first<{ doc: string }>();
   return row?.doc ?? null;
@@ -135,23 +135,28 @@ function likePattern(q: string): string {
   return `%${q.replace(/[\\%_]/g, m => `\\${m}`)}%`;
 }
 
+export interface SearchRef {
+  readonly ref: string;
+  readonly type: "title" | "person";
+}
+
 /**
  * Title and person refs matching `q`, best first. The trigram index needs
  * three characters; shorter queries (common in Chinese) scan by LIKE.
  */
-export async function searchRefs(rm: ReadModelDb, q: string, offset: number, limit: number, only?: "t" | "p"): Promise<string[]> {
-  const kind = only ? ` AND ref LIKE '${only}%'` : "";
+export async function searchRefs(rm: ReadModelDb, q: string, offset: number, limit: number, only?: SearchRef["type"]): Promise<SearchRef[]> {
+  const kind = only ? ` AND type = '${only}'` : "";
   const stmt = [...q].length >= 3
-    ? rm.prepare(`SELECT ref FROM rm_search WHERE rm_search MATCH ?${kind} ORDER BY rank LIMIT ? OFFSET ?`).bind(`"${q.replace(/"/g, "\"\"")}"`, limit, offset)
-    : rm.prepare(`SELECT ref FROM rm_search WHERE text LIKE ? ESCAPE '\\'${kind} ORDER BY ref LIMIT ? OFFSET ?`).bind(likePattern(q), limit, offset);
-  return (await stmt.all<{ ref: string }>()).results.map(r => r.ref);
+    ? rm.prepare(`SELECT ref, type FROM rm_search WHERE rm_search MATCH ?${kind} ORDER BY rank LIMIT ? OFFSET ?`).bind(`"${q.replace(/"/g, "\"\"")}"`, limit, offset)
+    : rm.prepare(`SELECT ref, type FROM rm_search WHERE text LIKE ? ESCAPE '\\'${kind} ORDER BY ref LIMIT ? OFFSET ?`).bind(likePattern(q), limit, offset);
+  return (await stmt.all<SearchRef>()).results;
 }
 
 /** Documents by id, in the order asked for. */
-export async function documentsByIds(rm: ReadModelDb, table: "titles" | "people", ids: readonly number[], column: "card_json" | "json"): Promise<string[]> {
+export async function documentsByIds(rm: ReadModelDb, table: "titles" | "people", ids: readonly string[], column: "card_json" | "json"): Promise<string[]> {
   if (ids.length === 0)
     return [];
-  const { results } = await rm.prepare(`SELECT id, ${column} AS doc FROM rm_${table} WHERE id IN (${ids.map(() => "?").join(", ")})`).bind(...ids).all<{ id: number; doc: string }>();
+  const { results } = await rm.prepare(`SELECT id, ${column} AS doc FROM rm_${table} WHERE id IN (${ids.map(() => "?").join(", ")})`).bind(...ids).all<{ id: string; doc: string }>();
   const byId = new Map(results.map(r => [r.id, r.doc]));
   return ids.map(id => byId.get(id)).filter((d): d is string => d !== undefined);
 }

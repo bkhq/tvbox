@@ -85,6 +85,20 @@
       "when": 1791847658652,
       "tag": "0011_media",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "6",
+      "when": 1792200279360,
+      "tag": "0012_media_title_translations",
+      "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "6",
+      "when": 1792203484574,
+      "tag": "0013_drop_media",
+      "breakpoints": true
     }
   ]
 }

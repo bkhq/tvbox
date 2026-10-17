@@ -5,7 +5,7 @@
 > [`api.md`](api.md); this file is the flat per-route index that CI
 > verifies is up to date.
 
-> 176 routes total.
+> 180 routes total.
 
 | Method | Path |
 |---|---|
@@ -83,6 +83,7 @@
 | DELETE | `/api/media/images/:id` |
 | PATCH | `/api/media/images/:id` |
 | POST | `/api/media/images/upload` |
+| POST | `/api/media/import` |
 | POST | `/api/media/live/channels` |
 | DELETE | `/api/media/live/channels/:id` |
 | PATCH | `/api/media/live/channels/:id` |
@@ -138,6 +139,9 @@
 | POST | `/api/media/titles/:id/seasons` |
 | GET | `/api/media/titles/:id/sources` |
 | POST | `/api/media/titles/:id/sources` |
+| GET | `/api/media/titles/:id/translations` |
+| DELETE | `/api/media/titles/:id/translations/:locale` |
+| PUT | `/api/media/titles/:id/translations/:locale` |
 | GET | `/api/metrics` |
 | GET | `/api/raw/health` |
 | POST | `/api/raw/releases` |

@@ -11,13 +11,13 @@ import { useMediaMutation } from "./-media-hooks";
 import { EnumSelect } from "./-media-shared";
 
 /** An owner's images by kind: add by URL or upload, pick the primary one. */
-export function ImagesPanel({ ownerType, ownerId, kinds }: { ownerType: ImageOwner; ownerId: number; kinds: readonly ImageKind[] }) {
+export function ImagesPanel({ ownerType, ownerId, kinds }: { ownerType: ImageOwner; ownerId: string; kinds: readonly ImageKind[] }) {
   const { t } = useTranslation(["common", "media"]);
   const images = useQuery({ queryKey: mediaKeys.images(ownerType, ownerId), queryFn: () => mediaApi.images(ownerType, ownerId) });
   const [kind, setKind] = useState<ImageKind>(kinds[0]!);
   const [url, setUrl] = useState("");
   const fileRef = useRef<HTMLInputElement>(null);
-  const owner = { ownerType, ownerId: String(ownerId) };
+  const owner = { ownerType, ownerId };
 
   const add = useMediaMutation(() => mediaApi.addImage({ ...owner, kind, url: url.trim() }), () => setUrl(""));
   const upload = useMediaMutation(async (f: File) => {

@@ -1,9 +1,9 @@
+import type { MediaDb } from "../db";
 import type { TITLE_KINDS } from "../schema";
-import type { AppDatabase } from "@/db";
 import { count, eq, max } from "drizzle-orm";
-import { chunked } from "@/shared/lib/chunk";
 import { AppError, isUniqueViolation, NotFoundError } from "@/shared/lib/errors";
 import { ulid } from "@/shared/lib/id";
+import { insertRows, runBatch } from "../db";
 import { mediaCategories, mediaGenres, mediaTitleGenres, mediaTitles } from "../schema";
 
 export const FACETS = ["genre", "year", "country"] as const;
@@ -62,7 +62,7 @@ const TMDB_GENRES: [number, string][] = [
 ];
 
 /** First boot: the default categories and TMDB's genres. Later boots leave the tables alone. */
-export async function seedTaxonomy(db: AppDatabase): Promise<void> {
+export async function seedTaxonomy(db: MediaDb): Promise<void> {
   const categories = await db.select({ n: count() }).from(mediaCategories).get();
   if (!categories?.n) {
     await db.insert(mediaCategories).values(DEFAULT_CATEGORIES.map((c, i) => ({
@@ -74,9 +74,7 @@ export async function seedTaxonomy(db: AppDatabase): Promise<void> {
   }
   const genres = await db.select({ n: count() }).from(mediaGenres).get();
   if (!genres?.n) {
-    // Durable Object SQLite binds at most 100 parameters per statement.
-    for (const part of chunked(TMDB_GENRES.map(([tmdbId, name], i) => ({ id: `g${tmdbId}`, name, tmdbId, sort: i })), 20))
-      await db.insert(mediaGenres).values(part).run();
+    await runBatch(db, insertRows(db, mediaGenres, TMDB_GENRES.map(([tmdbId, name], i) => ({ id: `g${tmdbId}`, name, tmdbId, sort: i }))));
   }
 }
 
@@ -91,13 +89,13 @@ function categoryView(row: CategoryRow, titleCount: number): CategoryView {
   };
 }
 
-export async function listCategories(db: AppDatabase): Promise<CategoryView[]> {
+export async function listCategories(db: MediaDb): Promise<CategoryView[]> {
   const rows = await db.select().from(mediaCategories).orderBy(mediaCategories.sort, mediaCategories.id).all();
   const counts = await db.select({ id: mediaTitles.categoryId, n: count() }).from(mediaTitles).groupBy(mediaTitles.categoryId).all();
   return rows.map(r => categoryView(r, counts.find(c => c.id === r.id)?.n ?? 0));
 }
 
-export async function getCategory(db: AppDatabase, id: string): Promise<CategoryView> {
+export async function getCategory(db: MediaDb, id: string): Promise<CategoryView> {
   const row = await db.select().from(mediaCategories).where(eq(mediaCategories.id, id)).get();
   if (!row)
     throw new NotFoundError("Category", id);
@@ -112,7 +110,7 @@ export interface CategoryInput {
   readonly filters?: readonly Facet[] | undefined;
 }
 
-export async function createCategory(db: AppDatabase, input: CategoryInput): Promise<CategoryView> {
+export async function createCategory(db: MediaDb, input: CategoryInput): Promise<CategoryView> {
   const last = await db.select({ sort: max(mediaCategories.sort) }).from(mediaCategories).get();
   try {
     await db.insert(mediaCategories).values({
@@ -132,7 +130,7 @@ export async function createCategory(db: AppDatabase, input: CategoryInput): Pro
 }
 
 export async function updateCategory(
-  db: AppDatabase,
+  db: MediaDb,
   id: string,
   patch: { name?: string | undefined; kinds?: readonly TitleKind[] | undefined; filters?: readonly Facet[] | undefined },
 ): Promise<CategoryView> {
@@ -153,7 +151,7 @@ export async function updateCategory(
   return await getCategory(db, id);
 }
 
-export async function deleteCategory(db: AppDatabase, id: string): Promise<CategoryView> {
+export async function deleteCategory(db: MediaDb, id: string): Promise<CategoryView> {
   const current = await getCategory(db, id);
   if (current.titleCount > 0)
     throw new AppError("The category still has titles", 409, "CATEGORY_IN_USE");
@@ -161,20 +159,17 @@ export async function deleteCategory(db: AppDatabase, id: string): Promise<Categ
   return current;
 }
 
-export async function reorderCategories(db: AppDatabase, ids: readonly string[]): Promise<void> {
-  await db.transaction(async (tx) => {
-    for (const [i, id] of ids.entries())
-      await tx.update(mediaCategories).set({ sort: i }).where(eq(mediaCategories.id, id)).run();
-  });
+export async function reorderCategories(db: MediaDb, ids: readonly string[]): Promise<void> {
+  await runBatch(db, ids.map((id, i) => db.update(mediaCategories).set({ sort: i }).where(eq(mediaCategories.id, id))));
 }
 
 // ─── Genres ───
 
-export async function listGenres(db: AppDatabase): Promise<GenreRow[]> {
+export async function listGenres(db: MediaDb): Promise<GenreRow[]> {
   return await db.select().from(mediaGenres).orderBy(mediaGenres.sort, mediaGenres.id).all();
 }
 
-async function getGenre(db: AppDatabase, id: string): Promise<GenreRow> {
+async function getGenre(db: MediaDb, id: string): Promise<GenreRow> {
   const row = await db.select().from(mediaGenres).where(eq(mediaGenres.id, id)).get();
   if (!row)
     throw new NotFoundError("Genre", id);
@@ -192,14 +187,14 @@ async function guardGenreName<T>(fn: () => Promise<T>): Promise<T> {
   }
 }
 
-export async function createGenre(db: AppDatabase, input: { name: string; tmdbId?: number | null | undefined }): Promise<GenreRow> {
+export async function createGenre(db: MediaDb, input: { name: string; tmdbId?: number | null | undefined }): Promise<GenreRow> {
   const id = input.tmdbId ? `g${input.tmdbId}` : `g${ulid()}`;
   const last = await db.select({ sort: max(mediaGenres.sort) }).from(mediaGenres).get();
   await guardGenreName(() => db.insert(mediaGenres).values({ id, name: input.name, tmdbId: input.tmdbId ?? null, sort: (last?.sort ?? -1) + 1 }).run());
   return await getGenre(db, id);
 }
 
-export async function updateGenre(db: AppDatabase, id: string, patch: { name?: string | undefined }): Promise<GenreRow> {
+export async function updateGenre(db: MediaDb, id: string, patch: { name?: string | undefined }): Promise<GenreRow> {
   await getGenre(db, id);
   if (patch.name !== undefined)
     await guardGenreName(() => db.update(mediaGenres).set({ name: patch.name! }).where(eq(mediaGenres.id, id)).run());
@@ -207,16 +202,13 @@ export async function updateGenre(db: AppDatabase, id: string, patch: { name?: s
 }
 
 /** Titles lose the genre. */
-export async function deleteGenre(db: AppDatabase, id: string): Promise<GenreRow> {
+export async function deleteGenre(db: MediaDb, id: string): Promise<GenreRow> {
   const row = await getGenre(db, id);
   await db.delete(mediaTitleGenres).where(eq(mediaTitleGenres.genreId, id)).run();
   await db.delete(mediaGenres).where(eq(mediaGenres.id, id)).run();
   return row;
 }
 
-export async function reorderGenres(db: AppDatabase, ids: readonly string[]): Promise<void> {
-  await db.transaction(async (tx) => {
-    for (const [i, id] of ids.entries())
-      await tx.update(mediaGenres).set({ sort: i }).where(eq(mediaGenres.id, id)).run();
-  });
+export async function reorderGenres(db: MediaDb, ids: readonly string[]): Promise<void> {
+  await runBatch(db, ids.map((id, i) => db.update(mediaGenres).set({ sort: i }).where(eq(mediaGenres.id, id))));
 }

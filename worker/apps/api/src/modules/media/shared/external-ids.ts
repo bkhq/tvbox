@@ -1,5 +1,5 @@
+import type { MediaDb } from "../db";
 import type { EXTERNAL_OWNER_TYPES } from "../schema";
-import type { AppDatabase } from "@/db";
 import { and, asc, eq } from "drizzle-orm";
 import { AppError, isUniqueViolation, NotFoundError } from "@/shared/lib/errors";
 import { ulid } from "@/shared/lib/id";
@@ -9,13 +9,13 @@ import { assertOwner } from "./owners";
 export type ExternalIdRow = typeof mediaExternalIds.$inferSelect;
 export type ExternalOwnerType = typeof EXTERNAL_OWNER_TYPES[number];
 
-export async function listExternalIds(db: AppDatabase, ownerType: ExternalOwnerType, ownerId: string): Promise<ExternalIdRow[]> {
+export async function listExternalIds(db: MediaDb, ownerType: ExternalOwnerType, ownerId: string): Promise<ExternalIdRow[]> {
   return await db.select().from(mediaExternalIds).where(and(eq(mediaExternalIds.ownerType, ownerType), eq(mediaExternalIds.ownerId, ownerId))).orderBy(asc(mediaExternalIds.source)).all();
 }
 
 /** One external id points at one owner: a second owner claiming it is a conflict. */
 export async function addExternalId(
-  db: AppDatabase,
+  db: MediaDb,
   ownerType: ExternalOwnerType,
   ownerId: string,
   input: { source: ExternalIdRow["source"]; externalId: string },
@@ -33,7 +33,7 @@ export async function addExternalId(
   return (await db.select().from(mediaExternalIds).where(eq(mediaExternalIds.id, id)).get())!;
 }
 
-export async function deleteExternalId(db: AppDatabase, id: string): Promise<ExternalIdRow> {
+export async function deleteExternalId(db: MediaDb, id: string): Promise<ExternalIdRow> {
   const row = await db.select().from(mediaExternalIds).where(eq(mediaExternalIds.id, id)).get();
   if (!row)
     throw new NotFoundError("External id", id);
@@ -43,7 +43,7 @@ export async function deleteExternalId(db: AppDatabase, id: string): Promise<Ext
 
 /** Which owner an external id belongs to, if any: the lookup scrapers and collectors dedupe by. */
 export async function findByExternalId(
-  db: AppDatabase,
+  db: MediaDb,
   ownerType: ExternalOwnerType,
   source: ExternalIdRow["source"],
   externalId: string,

@@ -26,7 +26,7 @@ export function TitlesTab() {
   const [q, setQ] = useState("");
   const [page, setPage] = useState(1);
   const [adding, setAdding] = useState(false);
-  const [editing, setEditing] = useState<number | null>(null);
+  const [editing, setEditing] = useState<string | null>(null);
   const [deleting, setDeleting] = useState<Title | null>(null);
 
   const categories = useQuery({ queryKey: mediaKeys.categories, queryFn: mediaApi.categories });
@@ -39,7 +39,7 @@ export function TitlesTab() {
     limit: PAGE,
   };
   const titles = useQuery({ queryKey: mediaKeys.titles(params), queryFn: () => mediaApi.titles(params) });
-  const remove = useMediaMutation((id: number) => mediaApi.deleteTitle(id), () => setDeleting(null));
+  const remove = useMediaMutation((id: string) => mediaApi.deleteTitle(id), () => setDeleting(null));
   const categoryName = (id: string) => categories.data?.find(c => c.id === id)?.name ?? id;
   const pages = Math.max(1, Math.ceil((titles.data?.total ?? 0) / PAGE));
   const filter = (fn: () => void) => {
@@ -147,7 +147,7 @@ export function TitlesTab() {
   );
 }
 
-function AddTitleDialog({ open, onOpenChange, onCreated }: { open: boolean; onOpenChange: (open: boolean) => void; onCreated: (id: number) => void }) {
+function AddTitleDialog({ open, onOpenChange, onCreated }: { open: boolean; onOpenChange: (open: boolean) => void; onCreated: (id: string) => void }) {
   const { t } = useTranslation(["common", "media"]);
   const categories = useQuery({ queryKey: mediaKeys.categories, queryFn: mediaApi.categories });
   const [kind, setKind] = useState<TitleKind>("movie");

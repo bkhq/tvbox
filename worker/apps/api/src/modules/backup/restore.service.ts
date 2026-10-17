@@ -17,6 +17,7 @@
  */
 import type { SQLiteTable } from "drizzle-orm/sqlite-core";
 import type { BackupData } from "./export.service";
+import type { ExternalBackupDb } from "./registry";
 import type { AppDatabase } from "@/db";
 import type { Logger } from "@/shared/lib/logger";
 import { getTableColumns, getTableName, sql } from "drizzle-orm";
@@ -224,12 +225,28 @@ export function validateFileSize(size: number): void {
   }
 }
 
+/** Modules of the Durable Object's database, and those kept elsewhere with where. */
+function splitModules(modules: string[]): { local: string[]; external: { name: string; db: ExternalBackupDb | null }[] } {
+  const registry = getDataModules();
+  const local: string[] = [];
+  const external: { name: string; db: ExternalBackupDb | null }[] = [];
+  for (const name of resolveModulesWithDeps(modules)) {
+    const mod = registry[name];
+    if (!mod)
+      continue;
+    if (mod.db)
+      external.push({ name, db: mod.db() });
+    else
+      local.push(name);
+  }
+  return { local, external };
+}
+
 function getDeleteOrder(modules: string[]): SQLiteTable[] {
   const tables: SQLiteTable[] = [];
-  const resolved = resolveModulesWithDeps(modules);
   const registry = getDataModules();
 
-  for (const modName of [...resolved].reverse()) {
+  for (const modName of [...modules].reverse()) {
     const mod = registry[modName];
     if (!mod)
       continue;
@@ -243,10 +260,9 @@ function getDeleteOrder(modules: string[]): SQLiteTable[] {
 
 function getInsertOrder(modules: string[]): SQLiteTable[] {
   const tables: SQLiteTable[] = [];
-  const resolved = resolveModulesWithDeps(modules);
   const registry = getDataModules();
 
-  for (const modName of resolved) {
+  for (const modName of modules) {
     const mod = registry[modName];
     if (!mod)
       continue;
@@ -348,10 +364,63 @@ export async function reconcileRestoredFiles(db: AppDatabase, logger?: Logger): 
   return { checked: rows.length, quarantined };
 }
 
+/** Bound parameters a D1 statement may carry; multi-row inserts are sized by it. */
+const EXTERNAL_PARAMS_PER_STATEMENT = 90;
+const EXTERNAL_STATEMENTS_PER_BATCH = 200;
+
+/**
+ * Restore one module kept outside the Durable Object's database. That
+ * database has no interactive transactions, so the tables are emptied in
+ * one batch and refilled in batches of a few hundred statements: a failure
+ * part-way leaves the module partly restored, and the same backup can be
+ * restored again.
+ */
+async function importExternalModule(external: ExternalBackupDb, name: string, data: BackupData): Promise<{ tablesImported: number; rowsImported: number }> {
+  let tablesImported = 0;
+  let rowsImported = 0;
+  type Statement = Parameters<ExternalBackupDb["batch"]>[0][number];
+  const run = async (statements: Statement[]) => {
+    if (statements.length > 0)
+      await external.batch(statements as [Statement, ...Statement[]]);
+  };
+  await run(getDeleteOrder([name]).map(table => external.delete(table)));
+  for (const table of getInsertOrder([name])) {
+    const tableName = getTableName(table);
+    const rows = data.tables[tableName];
+    if (!rows || rows.length === 0)
+      continue;
+    tablesImported++;
+    const sanitized: Record<string, unknown>[] = rows.map((raw) => {
+      const row = { ...raw };
+      validateRowShape(table, tableName, row);
+      assertIdShape(row);
+      return row;
+    });
+    const perStatement = Math.max(1, Math.floor(EXTERNAL_PARAMS_PER_STATEMENT / Object.keys(getTableColumns(table)).length));
+    const statements: Statement[] = [];
+    for (let i = 0; i < sanitized.length; i += perStatement)
+      statements.push(external.insert(table).values(sanitized.slice(i, i + perStatement)));
+    for (let i = 0; i < statements.length; i += EXTERNAL_STATEMENTS_PER_BATCH) {
+      try {
+        await run(statements.slice(i, i + EXTERNAL_STATEMENTS_PER_BATCH));
+      }
+      catch (err) {
+        throw new AppError(
+          `Failed to insert into ${tableName}: ${err instanceof Error ? err.message : String(err)}`,
+          400,
+          "INVALID_BACKUP_ROW",
+        );
+      }
+    }
+    rowsImported += sanitized.length;
+  }
+  return { tablesImported, rowsImported };
+}
+
 export async function importJsonBackup(db: AppDatabase, data: BackupData, logger?: Logger): Promise<{ tablesImported: number; rowsImported: number }> {
-  const modules = data.modules;
-  const deleteOrder = getDeleteOrder(modules);
-  const insertOrder = getInsertOrder(modules);
+  const { local, external } = splitModules(data.modules);
+  const deleteOrder = getDeleteOrder(local);
+  const insertOrder = getInsertOrder(local);
   const restoredFilesTable = insertOrder.some(t => getTableName(t) === "files");
 
   let tablesImported = 0;
@@ -427,6 +496,18 @@ export async function importJsonBackup(db: AppDatabase, data: BackupData, logger
   // quarantine writes are small, idempotent, and part of this same flow.
   if (restoredFilesTable)
     await reconcileRestoredFiles(db, logger);
+
+  // Modules kept elsewhere go after the Durable Object's commit; one that has
+  // no database here is skipped.
+  for (const mod of external) {
+    if (!mod.db) {
+      logger?.warn({ module: mod.name }, "restore: module has no database in this deployment; skipped");
+      continue;
+    }
+    const result = await importExternalModule(mod.db, mod.name, data);
+    tablesImported += result.tablesImported;
+    rowsImported += result.rowsImported;
+  }
 
   return { tablesImported, rowsImported };
 }

@@ -427,19 +427,19 @@ const cases: Case[] = [
       assert(m.categories.find(c => c.id === "movie")?.count === 1, "the manifest does not count the movie");
 
       const page = await json<{ items: { id: string }[] }>(await media("/browse?category=movie&sort=release"));
-      assert(page.items.length === 1 && page.items[0]!.id === `t${movie.id}`, "browse did not list the movie");
+      assert(page.items.length === 1 && page.items[0]!.id === movie.id, "browse did not list the movie");
       // Three characters go through the FTS5 trigram index, two through LIKE.
       for (const q of ["冒烟测试", "电影"]) {
         const found = await json<{ titles: { id: string }[] }>(await media(`/search?q=${encodeURIComponent(q)}`));
-        assert(found.titles.some(t => t.id === `t${movie.id}`), `searching ${q} did not find the movie`);
+        assert(found.titles.some(t => t.id === movie.id), `searching ${q} did not find the movie`);
       }
 
-      const title = await media(`/titles/t${movie.id}`);
+      const title = await media(`/titles/${movie.id}`);
       assert(title.status === 200, `the title returned ${title.status}`);
       const etag = title.headers.get("etag");
       assert(etag === `"${m.generation}"`, `the title's ETag ${etag} is not the generation`);
       await title.text();
-      const again = await media(`/titles/t${movie.id}`, { headers: { "If-None-Match": etag } });
+      const again = await media(`/titles/${movie.id}`, { headers: { "If-None-Match": etag } });
       assert(again.status === 304, `a matching ETag returned ${again.status}`);
       await again.text();
 
@@ -455,12 +455,12 @@ const cases: Case[] = [
       // Locally `wrangler dev` presents requests under the route's host, so only the path is compared.
       const api = site ? new URL(site.api).pathname : "";
       assert(api === `/s/${subscriptionToken}/media/cms`, `the media site's api is ${site?.api}`);
-      const cms = await json<{ list: { vod_id: string; vod_play_url: string }[] }>(await fetch(`${baseUrl}${api}?ac=detail&ids=m${movie.id}`));
+      const cms = await json<{ list: { vod_id: string; vod_play_url: string }[] }>(await fetch(`${baseUrl}${api}?ac=detail&ids=${movie.id}`));
       assert(cms.list[0]?.vod_play_url === "正片$https://example.com/smoke.m3u8", `the CMS detail plays ${cms.list[0]?.vod_play_url}`);
       const m3u = await (await fetch(`${baseUrl}/s/${subscriptionToken}/media/live.m3u`)).text();
       assert(m3u.includes("https://example.com/live.m3u8"), "the live playlist lacks the imported channel");
 
-      const playback = await media(`/playback/t${movie.id}`);
+      const playback = await media(`/playback/${movie.id}`);
       assert(playback.headers.get("cache-control") === "no-store", "playback is cacheable");
       const play = await json<{ sources: { streams: { url: string }[] }[] }>(playback);
       assert(play.sources[0]?.streams[0]?.url === "https://example.com/smoke.m3u8", "playback lost the stream");

@@ -1,10 +1,10 @@
-import type { AppDatabase } from "@/db";
+import type { MediaDb } from "../db";
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { openTestDb } from "../test-db";
 import { createChannel, createGroup, deleteGroup, exportM3u, getEpg, importM3u, listChannels, listGroups, updateChannel } from "./live.service";
 import { parseM3u } from "./m3u";
 
-let db: AppDatabase;
+let db: MediaDb;
 let dispose: () => void;
 
 beforeEach(async () => {

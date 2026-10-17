@@ -1,6 +1,7 @@
 import type { DurableObjectNamespace, DurableObjectState, Fetcher, R2Bucket } from "@cloudflare/workers-types";
 import type { MediaDatabase, SubscriptionBucket } from "./subscription";
 import { bootstrap } from "@/app";
+import { createMediaDb, setMediaDb } from "@/modules/media/db";
 import { setReadModelDb } from "@/modules/media/readmodel/store";
 import { setPlatform } from "@/platform";
 import { handleDoh } from "./doh";
@@ -87,6 +88,7 @@ export class AppDurableObject {
         registerR2Driver(env.FILES);
       }
       setReadModelDb(env.MEDIA ?? null);
+      setMediaDb(env.MEDIA ? createMediaDb(env.MEDIA) : null);
       this.#configVersion = await envFingerprint(env as Record<string, unknown>);
       const app = await bootstrap();
       this.#fetchApp = app.fetch;

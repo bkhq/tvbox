@@ -1,4 +1,4 @@
-import type { AppDatabase } from "@/db";
+import type { MediaDb } from "@/modules/media/db";
 import type { PublishedSnapshot } from "@/modules/tvbox/compose";
 import type { DevicesFile } from "@/modules/tvbox/storage";
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
@@ -22,7 +22,7 @@ const TOKEN = "0123456789abcdef0123456789abcdef";
 const SHA = "d".repeat(64);
 const ASSET_BASE = `https://worker.example/s/${TOKEN}/a/`;
 
-let db: AppDatabase;
+let db: MediaDb;
 let dispose: () => void;
 let rm: ReturnType<typeof createSqliteReadModel>;
 
@@ -101,7 +101,7 @@ describe("cms", () => {
     expect(movieFilters.map(f => f.key)).toEqual(["genre", "year", "country"]);
     expect(movieFilters[0]!.value[0]).toEqual({ n: "全部", v: "" });
     expect(movieFilters[2]!.value).toContainEqual({ n: "美国", v: "US" });
-    expect(home.list.map(v => v.vod_id)).toEqual([`s${s2.id}`, `m${a.id}`]);
+    expect(home.list.map(v => v.vod_id)).toEqual([s2.id, a.id]);
     expect(home.list[1]!.vod_pic).toBe(`${ASSET_BASE}${SHA}/poster.jpg`);
     expect(home.list[1]!.vod_play_url).toBeUndefined();
   });
@@ -118,8 +118,8 @@ describe("cms", () => {
 
   test("details carry the play lists, one flag per source", async () => {
     const { a, s1 } = await library();
-    const { list } = await cms({ ac: "detail", ids: `m${a.id},s${s1.id},nope` });
-    expect(list.map(v => v.vod_id)).toEqual([`m${a.id}`, `s${s1.id}`]);
+    const { list } = await cms({ ac: "detail", ids: `${a.id},${s1.id},nope` });
+    expect(list.map(v => v.vod_id)).toEqual([a.id, s1.id]);
     expect(list[0]).toMatchObject({
       vod_name: "流浪地球",
       type_name: "电影",
@@ -141,7 +141,7 @@ describe("cms", () => {
   test("search lists every season of a matching series", async () => {
     const { s1, s2 } = await library();
     const found = await cms({ wd: "漫长的季节" });
-    expect(found.list.map(v => v.vod_id)).toEqual([`s${s1.id}`, `s${s2.id}`]);
+    expect(found.list.map(v => v.vod_id)).toEqual([s1.id, s2.id]);
     expect((await cms({ wd: "流浪" })).list.length).toBe(2);
     expect((await cms({ wd: "没有这部" })).list).toEqual([]);
   });

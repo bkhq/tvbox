@@ -10,6 +10,9 @@ const randomChars = customAlphabet(ENCODING, RANDOM_LEN);
 
 export const nanoid = customAlphabet(NANOID_ALPHABET, 8);
 
+/** Ids clients see for media titles, seasons and people: random, so the catalogue cannot be counted up. */
+export const mediaId = customAlphabet(NANOID_ALPHABET, 12);
+
 function encodeTime(now: number): string {
   let time = now;
   const chars: string[] = [];

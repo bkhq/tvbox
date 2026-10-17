@@ -1,8 +1,8 @@
-import type { AppDatabase } from "@/db";
+import type { MediaDb } from "../db";
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { eq } from "drizzle-orm";
 import { addImage, listImages, updateImage } from "../artwork/images.service";
-import { mediaEpisodes, mediaExternalIds, mediaImages, mediaSeasons } from "../schema";
+import { mediaEpisodes, mediaExternalIds, mediaImages, mediaSeasons, mediaTitleTranslations } from "../schema";
 import { addExternalId, findByExternalId } from "../shared/external-ids";
 import { createCategory, deleteCategory, deleteGenre, listCategories, listGenres, updateCategory } from "../taxonomy/taxonomy.service";
 import { openTestDb } from "../test-db";
@@ -20,8 +20,9 @@ import {
   updateSeason,
 } from "./seasons.service";
 import { createTitle, deleteTitle, getTitle, listTitles, updateTitle } from "./titles.service";
+import { deleteTranslation, listTranslations, putTranslation } from "./translations.service";
 
-let db: AppDatabase;
+let db: MediaDb;
 let dispose: () => void;
 
 beforeEach(async () => {
@@ -126,11 +127,13 @@ describe("titles", () => {
     expect(await db.select().from(mediaExternalIds).all()).toEqual([]);
   });
 
-  test("ids are never reused", async () => {
+  test("ids are random, so the catalogue cannot be counted up", async () => {
     const a = await createTitle(db, { kind: "movie", categoryId: "movie", title: "a" });
     await deleteTitle(db, a.id);
     const b = await createTitle(db, { kind: "movie", categoryId: "movie", title: "b" });
-    expect(b.id).toBeGreaterThan(a.id);
+    expect(a.id).toMatch(/^[0-9a-z]{12}$/);
+    expect(b.id).toMatch(/^[0-9a-z]{12}$/);
+    expect(b.id).not.toBe(a.id);
   });
 
   test("deleting a collection keeps its titles", async () => {
@@ -258,5 +261,26 @@ describe("images and external ids", () => {
     await addExternalId(db, "title", String(a.id), { source: "tmdb", externalId: "550" });
     await expect(addExternalId(db, "title", String(b.id), { source: "tmdb", externalId: "550" })).rejects.toMatchObject({ code: "EXTERNAL_ID_TAKEN" });
     expect(await findByExternalId(db, "title", "tmdb", "550")).toBe(String(a.id));
+  });
+});
+
+describe("translations", () => {
+  test("one row per locale, replaced on a second put and gone with the title", async () => {
+    const t = await createTitle(db, { kind: "movie", categoryId: "movie", title: "盗梦空间" });
+    await putTranslation(db, t.id, "en-US", { title: "Inception", overview: "A thief…", tagline: null });
+    await putTranslation(db, t.id, "zh-TW", { title: "全面啟動", overview: null, tagline: null });
+    await putTranslation(db, t.id, "en-US", { title: "Inception", overview: "A thief who steals secrets", tagline: "Your mind is the scene of the crime" });
+
+    const list = await listTranslations(db, t.id);
+    expect(list.map(x => x.locale)).toEqual(["en-US", "zh-TW"]);
+    expect(list[0]).toMatchObject({ overview: "A thief who steals secrets", tagline: "Your mind is the scene of the crime" });
+    expect((await getTitle(db, t.id)).translations.map(x => x.locale)).toEqual(["en-US", "zh-TW"]);
+
+    await deleteTranslation(db, t.id, "zh-TW");
+    expect((await listTranslations(db, t.id)).map(x => x.locale)).toEqual(["en-US"]);
+    await expect(deleteTranslation(db, t.id, "zh-TW")).rejects.toMatchObject({ code: "NOT_FOUND" });
+
+    await deleteTitle(db, t.id);
+    expect(await db.select().from(mediaTitleTranslations).all()).toEqual([]);
   });
 });

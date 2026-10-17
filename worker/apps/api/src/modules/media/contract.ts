@@ -86,6 +86,8 @@ export const titleDetailSchema = cardSchema.extend({
   credits: creditsSchema,
   collection: z.object({ id: z.string(), name: z.string() }).nullable(),
   externalIds: z.record(z.string(), z.string()),
+  /** Title, overview and tagline per locale (`zh-CN`, `en-US`, …) where known. */
+  translations: z.record(z.string(), z.object({ title: z.string().nullable(), overview: z.string().nullable(), tagline: z.string().nullable() })),
   seasons: z.array(seasonSummarySchema),
   /** The season a client opens first: the newest with something to play. */
   defaultSeason: z.string().nullable(),

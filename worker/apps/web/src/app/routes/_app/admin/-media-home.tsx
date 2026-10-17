@@ -22,7 +22,7 @@ export function HomeTab() {
   const rows = useQuery({ queryKey: mediaKeys.rows, queryFn: mediaApi.rows });
   const hero = useQuery({ queryKey: mediaKeys.hero, queryFn: mediaApi.hero });
   const [editing, setEditing] = useState<Row | "new" | null>(null);
-  const setHero = useMediaMutation((ids: number[]) => mediaApi.setHero(ids));
+  const setHero = useMediaMutation((ids: string[]) => mediaApi.setHero(ids));
   const update = useMediaMutation(({ id, onHome }: { id: string; onHome: boolean }) => mediaApi.updateRow(id, { onHome }));
   const reorder = useMediaMutation((ids: string[]) => mediaApi.reorderRows(ids));
   const remove = useMediaMutation((id: string) => mediaApi.deleteRow(id));

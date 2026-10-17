@@ -1,8 +1,9 @@
 import type { SQL } from "drizzle-orm";
-import type { AppDatabase } from "@/db";
+import type { MediaDb } from "../db";
 import { and, asc, count, desc, eq, isNull, like, or } from "drizzle-orm";
 import { AppError, NotFoundError } from "@/shared/lib/errors";
-import { ulid } from "@/shared/lib/id";
+import { mediaId, ulid } from "@/shared/lib/id";
+import { runBatch } from "../db";
 import { mediaCredits, mediaPeople, mediaSeasons, mediaTitles } from "../schema";
 import { deleteOwned } from "../shared/owners";
 
@@ -19,8 +20,8 @@ export interface PersonInput {
 }
 
 export interface CreditInput {
-  readonly personId?: number | undefined;
-  readonly seasonId?: number | null | undefined;
+  readonly personId?: string | undefined;
+  readonly seasonId?: string | null | undefined;
   readonly role?: CreditRow["role"] | undefined;
   readonly character?: string | null | undefined;
   readonly department?: string | null | undefined;
@@ -38,14 +39,14 @@ function defined<T extends object>(input: T): Partial<T> {
 
 // ─── People ───
 
-export async function getPerson(db: AppDatabase, id: number): Promise<PersonRow> {
+export async function getPerson(db: MediaDb, id: string): Promise<PersonRow> {
   const row = await db.select().from(mediaPeople).where(eq(mediaPeople.id, id)).get();
   if (!row)
-    throw new NotFoundError("Person", String(id));
+    throw new NotFoundError("Person", id);
   return row;
 }
 
-export async function listPeople(db: AppDatabase, query: { q?: string | undefined; page: number; limit: number }): Promise<{ items: PersonRow[]; total: number }> {
+export async function listPeople(db: MediaDb, query: { q?: string | undefined; page: number; limit: number }): Promise<{ items: PersonRow[]; total: number }> {
   let condition: SQL | undefined;
   if (query.q) {
     const pattern = `%${query.q}%`;
@@ -56,29 +57,27 @@ export async function listPeople(db: AppDatabase, query: { q?: string | undefine
   return { items, total };
 }
 
-export async function createPerson(db: AppDatabase, input: PersonInput & { name: string }): Promise<PersonRow> {
-  const [row] = await db.insert(mediaPeople).values({ ...defined(input), name: input.name }).returning({ id: mediaPeople.id }).all();
-  return await getPerson(db, row!.id);
+export async function createPerson(db: MediaDb, input: PersonInput & { name: string }): Promise<PersonRow> {
+  const id = mediaId();
+  await db.insert(mediaPeople).values({ ...defined(input), id, name: input.name }).run();
+  return await getPerson(db, id);
 }
 
-export async function updatePerson(db: AppDatabase, id: number, input: PersonInput): Promise<PersonRow> {
+export async function updatePerson(db: MediaDb, id: string, input: PersonInput): Promise<PersonRow> {
   await getPerson(db, id);
   await db.update(mediaPeople).set({ ...defined(input), updatedAt: new Date().toISOString() }).where(eq(mediaPeople.id, id)).run();
   return await getPerson(db, id);
 }
 
 /** Their credits go with them. */
-export async function deletePerson(db: AppDatabase, id: number): Promise<PersonRow> {
+export async function deletePerson(db: MediaDb, id: string): Promise<PersonRow> {
   const row = await getPerson(db, id);
-  await db.transaction(async (tx) => {
-    await deleteOwned(tx, "person", [id]);
-    await tx.delete(mediaPeople).where(eq(mediaPeople.id, id)).run();
-  });
+  await runBatch(db, [...deleteOwned(db, "person", [id]), db.delete(mediaPeople).where(eq(mediaPeople.id, id))]);
   return row;
 }
 
 /** A person's titles, newest first: what the native API's person page lists. */
-export async function personCredits(db: AppDatabase, id: number): Promise<(CreditRow & { title: string })[]> {
+export async function personCredits(db: MediaDb, id: string): Promise<(CreditRow & { title: string })[]> {
   await getPerson(db, id);
   return await db.select({ credit: mediaCredits, title: mediaTitles.title })
     .from(mediaCredits)
@@ -91,7 +90,7 @@ export async function personCredits(db: AppDatabase, id: number): Promise<(Credi
 
 // ─── Credits ───
 
-async function getCredit(db: AppDatabase, id: string): Promise<CreditView> {
+async function getCredit(db: MediaDb, id: string): Promise<CreditView> {
   const row = await db.select({ credit: mediaCredits, personName: mediaPeople.name })
     .from(mediaCredits)
     .innerJoin(mediaPeople, eq(mediaPeople.id, mediaCredits.personId))
@@ -102,8 +101,8 @@ async function getCredit(db: AppDatabase, id: string): Promise<CreditView> {
   return { ...row.credit, personName: row.personName };
 }
 
-/** `seasonId` undefined: every credit of the title; null: the title-wide ones; a number: that season's. */
-export async function listCredits(db: AppDatabase, titleId: number, seasonId?: number | null): Promise<CreditView[]> {
+/** `seasonId` undefined: every credit of the title; null: the title-wide ones; an id: that season's. */
+export async function listCredits(db: MediaDb, titleId: string, seasonId?: string | null): Promise<CreditView[]> {
   const where = [eq(mediaCredits.titleId, titleId)];
   if (seasonId === null)
     where.push(isNull(mediaCredits.seasonId));
@@ -118,7 +117,7 @@ export async function listCredits(db: AppDatabase, titleId: number, seasonId?: n
   return rows.map(r => ({ ...r.credit, personName: r.personName }));
 }
 
-async function assertSeasonOf(db: AppDatabase, titleId: number, seasonId: number | null | undefined): Promise<void> {
+async function assertSeasonOf(db: MediaDb, titleId: string, seasonId: string | null | undefined): Promise<void> {
   if (seasonId == null)
     return;
   const season = await db.select({ titleId: mediaSeasons.titleId }).from(mediaSeasons).where(eq(mediaSeasons.id, seasonId)).get();
@@ -126,10 +125,10 @@ async function assertSeasonOf(db: AppDatabase, titleId: number, seasonId: number
     throw new AppError("The season is not one of this title's", 422, "SEASON_MISMATCH");
 }
 
-export async function addCredit(db: AppDatabase, titleId: number, input: CreditInput & { personId: number; role: CreditRow["role"] }): Promise<CreditView> {
+export async function addCredit(db: MediaDb, titleId: string, input: CreditInput & { personId: string; role: CreditRow["role"] }): Promise<CreditView> {
   const title = await db.select({ id: mediaTitles.id }).from(mediaTitles).where(eq(mediaTitles.id, titleId)).get();
   if (!title)
-    throw new NotFoundError("Title", String(titleId));
+    throw new NotFoundError("Title", titleId);
   await getPerson(db, input.personId);
   await assertSeasonOf(db, titleId, input.seasonId);
   const id = ulid();
@@ -137,7 +136,7 @@ export async function addCredit(db: AppDatabase, titleId: number, input: CreditI
   return await getCredit(db, id);
 }
 
-export async function updateCredit(db: AppDatabase, id: string, input: CreditInput): Promise<CreditView> {
+export async function updateCredit(db: MediaDb, id: string, input: CreditInput): Promise<CreditView> {
   const current = await getCredit(db, id);
   if (input.personId !== undefined)
     await getPerson(db, input.personId);
@@ -146,15 +145,12 @@ export async function updateCredit(db: AppDatabase, id: string, input: CreditInp
   return await getCredit(db, id);
 }
 
-export async function deleteCredit(db: AppDatabase, id: string): Promise<CreditView> {
+export async function deleteCredit(db: MediaDb, id: string): Promise<CreditView> {
   const current = await getCredit(db, id);
   await db.delete(mediaCredits).where(eq(mediaCredits.id, id)).run();
   return current;
 }
 
-export async function reorderCredits(db: AppDatabase, ids: readonly string[]): Promise<void> {
-  await db.transaction(async (tx) => {
-    for (const [i, id] of ids.entries())
-      await tx.update(mediaCredits).set({ sort: i }).where(eq(mediaCredits.id, id)).run();
-  });
+export async function reorderCredits(db: MediaDb, ids: readonly string[]): Promise<void> {
+  await runBatch(db, ids.map((id, i) => db.update(mediaCredits).set({ sort: i }).where(eq(mediaCredits.id, id))));
 }

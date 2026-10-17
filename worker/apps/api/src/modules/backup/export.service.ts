@@ -60,6 +60,7 @@ export function streamJsonBackup(db: AppDatabase, selectedModules: string[]): {
           const mod = registry[modName];
           if (!mod)
             continue;
+          const source = mod.db ? mod.db() : db;
 
           for (const table of mod.tables) {
             const tableName = getTableName(table);
@@ -79,7 +80,10 @@ export function streamJsonBackup(db: AppDatabase, selectedModules: string[]): {
             const columns = getTableColumns(table) as Record<string, AnyColumn>;
             const idColumn: AnyColumn | undefined = columns.id;
             let firstRow = true;
-            if (idColumn) {
+            if (!source) {
+              // No database for this module here: its tables go out empty.
+            }
+            else if (idColumn) {
               let cursor: string | undefined;
               while (true) {
                 // `$dynamic()` opts the builder out of compile-time
@@ -87,7 +91,7 @@ export function streamJsonBackup(db: AppDatabase, selectedModules: string[]): {
                 // conditionally without re-inferring the row type at
                 // each branch. The result still type-checks at the
                 // `.all()` call, which we narrow to a record map.
-                const baseQuery = db.select().from(table).$dynamic();
+                const baseQuery = source.select().from(table).$dynamic();
 
                 const filtered = cursor === undefined ? baseQuery : baseQuery.where(gt(idColumn, cursor));
                 const rows = await filtered.orderBy(asc(idColumn)).limit(STREAM_BATCH_SIZE).all() as Record<string, unknown>[];
@@ -109,7 +113,7 @@ export function streamJsonBackup(db: AppDatabase, selectedModules: string[]): {
               // O(n²) cost is irrelevant.
               let offset = 0;
               while (true) {
-                const rows = await db.select().from(table).limit(STREAM_BATCH_SIZE).offset(offset).all();
+                const rows = await source.select().from(table).limit(STREAM_BATCH_SIZE).offset(offset).all();
                 if (rows.length === 0)
                   break;
                 for (const row of rows) {

@@ -2,6 +2,7 @@ import type { AppEnv } from "@/shared/lib/types";
 import { Hono } from "hono";
 import { z } from "zod";
 import { jsonCreated, jsonOk, validator } from "@/shared/lib/openapi";
+import { requireMediaDb } from "../db";
 import { doc, httpUrl, idParam, nameText, nullableText, record, reorderBody } from "../shared/http";
 import {
   createChannel,
@@ -67,55 +68,55 @@ export function liveRoutes() {
   const router = new Hono<AppEnv>();
 
   router.get("/media/live/groups", doc("List live channel groups", jsonOk(z.array(groupSchema))), async c =>
-    c.json({ success: true, data: await listGroups(c.get("db")) }));
+    c.json({ success: true, data: await listGroups(requireMediaDb()) }));
 
   router.post("/media/live/groups", doc("Add a live channel group", jsonCreated(groupSchema)), validator("json", z.object({ name: nameText })), async (c) => {
-    const row = await createGroup(c.get("db"), c.req.valid("json").name);
+    const row = await createGroup(requireMediaDb(), c.req.valid("json").name);
     await record(c, "media.live.group.created", { type: "media_live_group", id: row.id, name: row.name });
     return c.json({ success: true, data: row }, 201);
   });
 
   router.post("/media/live/groups/reorder", doc("Reorder live channel groups", jsonOk(z.object({ count: z.number() }))), validator("json", reorderBody), async (c) => {
     const { ids } = c.req.valid("json");
-    await reorderGroups(c.get("db"), ids);
+    await reorderGroups(requireMediaDb(), ids);
     return c.json({ success: true, data: { count: ids.length } });
   });
 
   router.patch("/media/live/groups/:id", doc("Rename a live channel group", jsonOk(groupSchema)), validator("param", idParam), validator("json", z.object({ name: nameText })), async (c) => {
-    const row = await updateGroup(c.get("db"), c.req.valid("param").id, c.req.valid("json").name);
+    const row = await updateGroup(requireMediaDb(), c.req.valid("param").id, c.req.valid("json").name);
     await record(c, "media.live.group.updated", { type: "media_live_group", id: row.id, name: row.name });
     return c.json({ success: true, data: row });
   });
 
   router.delete("/media/live/groups/:id", doc("Delete a live channel group with its channels", jsonOk(groupSchema)), validator("param", idParam), async (c) => {
-    const row = await deleteGroup(c.get("db"), c.req.valid("param").id);
+    const row = await deleteGroup(requireMediaDb(), c.req.valid("param").id);
     await record(c, "media.live.group.deleted", { type: "media_live_group", id: row.id, name: row.name });
     return c.json({ success: true, data: row });
   });
 
   router.get("/media/live/groups/:id/channels", doc("A group's channels with their streams", jsonOk(z.array(channelSchema))), validator("param", idParam), async c =>
-    c.json({ success: true, data: await listChannels(c.get("db"), c.req.valid("param").id) }));
+    c.json({ success: true, data: await listChannels(requireMediaDb(), c.req.valid("param").id) }));
 
   router.post("/media/live/channels", doc("Add a live channel", jsonCreated(channelSchema)), validator("json", channelFields), async (c) => {
-    const row = await createChannel(c.get("db"), c.req.valid("json"));
+    const row = await createChannel(requireMediaDb(), c.req.valid("json"));
     await record(c, "media.live.channel.created", { type: "media_live_channel", id: row.id, name: row.name });
     return c.json({ success: true, data: row }, 201);
   });
 
   router.post("/media/live/channels/reorder", doc("Reorder live channels", jsonOk(z.object({ count: z.number() }))), validator("json", reorderBody), async (c) => {
     const { ids } = c.req.valid("json");
-    await reorderChannels(c.get("db"), ids);
+    await reorderChannels(requireMediaDb(), ids);
     return c.json({ success: true, data: { count: ids.length } });
   });
 
   router.patch("/media/live/channels/:id", doc("Update a live channel; `streams` replaces its streams", jsonOk(channelSchema)), validator("param", idParam), validator("json", channelFields.partial()), async (c) => {
-    const row = await updateChannel(c.get("db"), c.req.valid("param").id, c.req.valid("json"));
+    const row = await updateChannel(requireMediaDb(), c.req.valid("param").id, c.req.valid("json"));
     await record(c, "media.live.channel.updated", { type: "media_live_channel", id: row.id, name: row.name });
     return c.json({ success: true, data: row });
   });
 
   router.delete("/media/live/channels/:id", doc("Delete a live channel", jsonOk(channelSchema)), validator("param", idParam), async (c) => {
-    const row = await deleteChannel(c.get("db"), c.req.valid("param").id);
+    const row = await deleteChannel(requireMediaDb(), c.req.valid("param").id);
     await record(c, "media.live.channel.deleted", { type: "media_live_channel", id: row.id, name: row.name });
     return c.json({ success: true, data: row });
   });
@@ -126,7 +127,7 @@ export function liveRoutes() {
     validator("json", z.object({ text: z.string().min(1).max(2_000_000), replace: z.boolean().optional(), dryRun: z.boolean().optional() })),
     async (c) => {
       const { text, ...options } = c.req.valid("json");
-      const result = await importM3u(c.get("db"), text, options);
+      const result = await importM3u(requireMediaDb(), text, options);
       if (!options.dryRun)
         await record(c, "media.live.imported", { type: "media_live", id: "playlist", name: `${result.channels} channels` }, { ...result, replace: options.replace ?? false });
       return c.json({ success: true, data: result });
@@ -134,13 +135,13 @@ export function liveRoutes() {
   );
 
   router.get("/media/live/export", doc("The enabled channels as M3U", jsonOk(z.object({ text: z.string() }))), async c =>
-    c.json({ success: true, data: { text: await exportM3u(c.get("db")) } }));
+    c.json({ success: true, data: { text: await exportM3u(requireMediaDb()) } }));
 
   router.get("/media/live/epg", doc("EPG (XMLTV) urls passed on to players", jsonOk(z.array(z.string()))), async c =>
-    c.json({ success: true, data: await getEpg(c.get("db")) }));
+    c.json({ success: true, data: await getEpg(requireMediaDb()) }));
 
   router.put("/media/live/epg", doc("Set the EPG (XMLTV) urls", jsonOk(z.array(z.string()))), validator("json", z.object({ urls: z.array(httpUrl).max(10) })), async (c) => {
-    const urls = await setEpg(c.get("db"), c.req.valid("json").urls);
+    const urls = await setEpg(requireMediaDb(), c.req.valid("json").urls);
     await record(c, "media.live.epg.updated", { type: "media_live", id: "epg", name: "EPG" }, { urls });
     return c.json({ success: true, data: urls });
   });

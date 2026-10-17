@@ -15,15 +15,15 @@ import { ImagesPanel } from "./-media-images";
 import { EnumSelect, Field } from "./-media-shared";
 import { SourcesPanel } from "./-media-sources";
 
-export function SeasonsPanel({ titleId }: { titleId: number }) {
+export function SeasonsPanel({ titleId }: { titleId: string }) {
   const { t } = useTranslation(["common", "media"]);
   const seasons = useQuery({ queryKey: mediaKeys.seasons(titleId), queryFn: () => mediaApi.seasons(titleId) });
-  const [selected, setSelected] = useState<number | null>(null);
+  const [selected, setSelected] = useState<string | null>(null);
   const [deleting, setDeleting] = useState<Season | null>(null);
   const current = seasons.data?.find(s => s.id === selected) ?? seasons.data?.[0];
   const next = Math.max(0, ...(seasons.data ?? []).map(s => s.seasonNumber)) + 1;
   const add = useMediaMutation(() => mediaApi.createSeason(titleId, { seasonNumber: next }), s => setSelected(s.id));
-  const remove = useMediaMutation((id: number) => mediaApi.deleteSeason(id), () => {
+  const remove = useMediaMutation((id: string) => mediaApi.deleteSeason(id), () => {
     setDeleting(null);
     setSelected(null);
   });
@@ -122,7 +122,7 @@ function SeasonDetail({ season, onDelete }: { season: Season; onDelete: () => vo
   );
 }
 
-function Episodes({ seasonId }: { seasonId: number }) {
+function Episodes({ seasonId }: { seasonId: string }) {
   const { t } = useTranslation(["common", "media"]);
   const episodes = useQuery({ queryKey: mediaKeys.episodes(seasonId), queryFn: () => mediaApi.episodes(seasonId) });
   const [range, setRange] = useState({ from: "1", to: "" });

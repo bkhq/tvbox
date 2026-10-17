@@ -70,6 +70,7 @@
     "sources": "播放源",
     "credits": "演职员",
     "images": "图片",
+    "translations": "翻译",
     "external": "外部 ID"
   },
   "info": {
@@ -182,6 +183,10 @@
       "still": "横版 16:9，建议 1280×720",
       "profile": "竖版 2:3，建议 300×450"
     }
+  },
+  "translations": {
+      "empty": "还没有翻译。导入会按语言写入；也可以在这里手动添加。",
+      "locale": "语言（如 en-US）"
   },
   "external": {
     "empty": "还没有外部 ID。"

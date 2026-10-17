@@ -35,6 +35,7 @@ import type {
   mediaStreams,
   mediaTitleAliases,
   mediaTitles,
+  mediaTitleTranslations,
 } from "../schema";
 import type { RowRule } from "../taxonomy/rows.service";
 import type { CmsItemDoc } from "./cms";
@@ -57,7 +58,8 @@ export interface Library {
   readonly collections: Row<typeof mediaCollections>[];
   readonly titles: Row<typeof mediaTitles>[];
   readonly aliases: Row<typeof mediaTitleAliases>[];
-  readonly titleGenres: { titleId: number; genreId: string }[];
+  readonly translations: Row<typeof mediaTitleTranslations>[];
+  readonly titleGenres: { titleId: string; genreId: string }[];
   readonly seasons: Row<typeof mediaSeasons>[];
   readonly episodes: Row<typeof mediaEpisodes>[];
   readonly people: Row<typeof mediaPeople>[];
@@ -68,7 +70,7 @@ export interface Library {
   readonly streams: Row<typeof mediaStreams>[];
   readonly rows: Row<typeof mediaRows>[];
   readonly rowItems: Row<typeof mediaRowItems>[];
-  readonly hero: number[];
+  readonly hero: string[];
   readonly liveGroups: Row<typeof mediaLiveGroups>[];
   readonly liveChannels: Row<typeof mediaLiveChannels>[];
   readonly liveStreams: Row<typeof mediaLiveStreams>[];
@@ -76,7 +78,7 @@ export interface Library {
 }
 
 export interface TitleDoc {
-  readonly id: number;
+  readonly id: string;
   readonly type: "movie" | "series";
   readonly categoryId: string;
   readonly year: number | null;
@@ -93,16 +95,16 @@ export interface TitleDoc {
 }
 
 export interface SeasonDoc {
-  readonly id: number;
-  readonly titleId: number;
+  readonly id: string;
+  readonly titleId: string;
   readonly number: number;
   readonly detail: SeasonDetail;
 }
 
 export interface PlaybackDoc {
   readonly id: string;
-  readonly titleId: number;
-  readonly seasonId: number | null;
+  readonly titleId: string;
+  readonly seasonId: string | null;
   readonly episodeNumber: number | null;
   readonly doc: Playback;
 }
@@ -111,17 +113,17 @@ export interface RowDoc {
   readonly id: string;
   readonly name: string;
   readonly sort: number;
-  readonly titleIds: number[];
+  readonly titleIds: string[];
 }
 
 export interface ReadModel {
   readonly titles: TitleDoc[];
   readonly seasons: SeasonDoc[];
   readonly playback: PlaybackDoc[];
-  readonly people: { id: number; doc: Person }[];
+  readonly people: { id: string; doc: Person }[];
   readonly collections: { id: string; doc: Collection }[];
   readonly rows: RowDoc[];
-  readonly search: { ref: string; text: string }[];
+  readonly search: { ref: string; type: "title" | "person"; text: string }[];
   readonly cmsItems: CmsItemDoc[];
   /** rm_meta: manifest, home, facets:<category>, live. */
   readonly meta: Record<string, unknown>;
@@ -155,8 +157,9 @@ export function buildReadModel(lib: Library, today: string): ReadModel {
   const categories = new Map(lib.categories.map(c => [c.id, c]));
   const imagesByOwner = groupBy(lib.images, i => `${i.ownerType}:${i.ownerId}`);
   const aliasesByTitle = groupBy(lib.aliases, a => a.titleId);
+  const translationsByTitle = groupBy(lib.translations, t => t.titleId);
   const genresByTitle = groupBy(lib.titleGenres, g => g.titleId);
-  const externalByTitle = groupBy(lib.externalIds.filter(e => e.ownerType === "title"), e => Number(e.ownerId));
+  const externalByTitle = groupBy(lib.externalIds.filter(e => e.ownerType === "title"), e => e.ownerId);
   const people = new Map(lib.people.map(p => [p.id, p]));
   const creditsByTitle = groupBy(lib.credits, c => c.titleId);
   const enabledSources = lib.sources.filter(s => s.enabled);
@@ -183,13 +186,13 @@ export function buildReadModel(lib: Library, today: string): ReadModel {
     ...(s.referer ? { Referer: s.referer } : {}),
   });
 
-  const credits = (titleId: number, seasonId: number | null): Credits => {
+  const credits = (titleId: string, seasonId: string | null): Credits => {
     const all = creditsByTitle.get(titleId) ?? [];
     const own = seasonId === null ? [] : all.filter(c => c.seasonId === seasonId);
     const picked = (own.length > 0 ? own : all.filter(c => c.seasonId === null)).sort((a, b) => a.sort - b.sort || a.id.localeCompare(b.id));
     const ref = (c: typeof picked[number]): PersonRef => {
       const p = people.get(c.personId)!;
-      return { id: `p${p.id}`, name: p.name, character: c.character, job: c.job, images: images("person", p.id, ["profile"]) };
+      return { id: p.id, name: p.name, character: c.character, job: c.job, images: images("person", p.id, ["profile"]) };
     };
     const crew = picked.filter(c => c.role === "crew");
     return {
@@ -209,7 +212,7 @@ export function buildReadModel(lib: Library, today: string): ReadModel {
 
   const playback: PlaybackDoc[] = [];
   const seasonDocs: SeasonDoc[] = [];
-  const seasonWork = new Map<number, SeasonWork[]>();
+  const seasonWork = new Map<string, SeasonWork[]>();
 
   const seasonName = (s: Row<typeof mediaSeasons>) => s.name ?? (s.seasonNumber === 0 ? "特别篇" : `第 ${s.seasonNumber} 季`);
   const episodeName = (e: Row<typeof mediaEpisodes>) => e.name ?? (e.episodeType === "special" ? `特别篇 ${e.episodeNumber}` : `第 ${e.episodeNumber} 集`);
@@ -230,7 +233,7 @@ export function buildReadModel(lib: Library, today: string): ReadModel {
         row,
         episodes,
         summary: {
-          id: `s${row.id}`,
+          id: row.id,
           number: row.seasonNumber,
           name: seasonName(row),
           status: row.status,
@@ -252,7 +255,7 @@ export function buildReadModel(lib: Library, today: string): ReadModel {
   // ─── Titles ───
 
   const titleDocs: TitleDoc[] = [];
-  const included = new Map<number, TitleDoc>();
+  const included = new Map<string, TitleDoc>();
 
   for (const title of lib.titles) {
     if (title.publishState !== "published" || !categories.has(title.categoryId))
@@ -290,7 +293,7 @@ export function buildReadModel(lib: Library, today: string): ReadModel {
     }
 
     const card: Card = {
-      id: `t${title.id}`,
+      id: title.id,
       type: title.kind,
       category: title.categoryId,
       title: title.title,
@@ -317,8 +320,9 @@ export function buildReadModel(lib: Library, today: string): ReadModel {
       runtime: title.runtime,
       voteCount: title.voteCount,
       credits: credits(title.id, null),
-      collection: collection ? { id: `c${collection.id}`, name: collection.name } : null,
+      collection: collection ? { id: collection.id, name: collection.name } : null,
       externalIds: Object.fromEntries((externalByTitle.get(title.id) ?? []).map(e => [e.source, e.externalId])),
+      translations: Object.fromEntries((translationsByTitle.get(title.id) ?? []).map(x => [x.locale, { title: x.title, overview: x.overview, tagline: x.tagline }])),
       seasons: works.map(w => w.summary),
       defaultSeason: current ? current.summary.id : works[0] ? works[0].summary.id : null,
       available: title.kind === "movie" ? movieAvailable : !!current,
@@ -345,13 +349,13 @@ export function buildReadModel(lib: Library, today: string): ReadModel {
 
     if (title.kind === "movie" && movieAvailable) {
       playback.push({
-        id: `t${title.id}`,
+        id: title.id,
         titleId: title.id,
         seasonId: null,
         episodeNumber: null,
         doc: {
-          id: `t${title.id}`,
-          titleId: `t${title.id}`,
+          id: title.id,
+          titleId: title.id,
           seasonId: null,
           episode: null,
           sources: movieStreams.map(x => ({
@@ -374,7 +378,7 @@ export function buildReadModel(lib: Library, today: string): ReadModel {
       const sources = (sourcesBySeason.get(work.row.id) ?? []).sort((a, b) => a.sort - b.sort);
       const available = work.episodes.filter(e => e.available);
       const episodes: Episode[] = work.episodes.map(e => ({
-        id: `e${e.id}`,
+        id: e.id,
         number: e.episodeNumber,
         type: e.episodeType,
         name: episodeName(e),
@@ -390,7 +394,7 @@ export function buildReadModel(lib: Library, today: string): ReadModel {
         number: work.row.seasonNumber,
         detail: {
           ...work.summary,
-          titleId: `t${title.id}`,
+          titleId: title.id,
           title: title.title,
           overview: work.row.overview ?? title.overview,
           endDate: work.row.endDate,
@@ -406,14 +410,14 @@ export function buildReadModel(lib: Library, today: string): ReadModel {
         const following = available[i + 1] ?? nextSeason?.episodes.find(x => x.available);
         const followingSeason = available[i + 1] ? work : nextSeason;
         playback.push({
-          id: `e${e.id}`,
+          id: e.id,
           titleId: title.id,
           seasonId: work.row.id,
           episodeNumber: e.episodeNumber,
           doc: {
-            id: `e${e.id}`,
-            titleId: `t${title.id}`,
-            seasonId: `s${work.row.id}`,
+            id: e.id,
+            titleId: title.id,
+            seasonId: work.row.id,
             episode: { number: e.episodeNumber, name: episodeName(e) },
             sources: sources.map(s => ({
               id: s.id,
@@ -421,7 +425,7 @@ export function buildReadModel(lib: Library, today: string): ReadModel {
               quality: s.quality,
               streams: (streamsBySource.get(s.id) ?? []).filter(st => st.episodeId === e.id).sort((a, b) => a.sort - b.sort).map(st => ({ url: st.url, format: st.format, resolution: st.resolution, audio: st.audioLocale, headers: headersOf(st) })),
             })).filter(s => s.streams.length > 0),
-            next: following && followingSeason ? { id: `e${following.id}`, seasonId: `s${followingSeason.row.id}`, number: following.episodeNumber } : null,
+            next: following && followingSeason ? { id: following.id, seasonId: followingSeason.row.id, number: following.episodeNumber } : null,
             subtitles: [],
             markers: null,
             expiresAt: null,
@@ -434,7 +438,7 @@ export function buildReadModel(lib: Library, today: string): ReadModel {
   // ─── People, collections ───
 
   const creditsByPerson = groupBy(lib.credits.filter(c => included.has(c.titleId)), c => c.personId);
-  const peopleDocs: { id: number; doc: Person }[] = [];
+  const peopleDocs: { id: string; doc: Person }[] = [];
   for (const [personId, list] of creditsByPerson) {
     const p = people.get(personId);
     if (!p)
@@ -442,7 +446,7 @@ export function buildReadModel(lib: Library, today: string): ReadModel {
     const seen = new Set<string>();
     const entries = list
       .map(c => ({ c, t: included.get(c.titleId)! }))
-      .sort((a, b) => b.t.releaseKey.localeCompare(a.t.releaseKey) || b.t.id - a.t.id)
+      .sort((a, b) => b.t.releaseKey.localeCompare(a.t.releaseKey) || a.t.id.localeCompare(b.t.id))
       .filter(({ c }) => {
         const key = `${c.titleId}:${c.role}:${c.job ?? ""}`;
         if (seen.has(key))
@@ -453,7 +457,7 @@ export function buildReadModel(lib: Library, today: string): ReadModel {
     peopleDocs.push({
       id: p.id,
       doc: {
-        id: `p${p.id}`,
+        id: p.id,
         name: p.name,
         originalName: p.originalName,
         gender: p.gender,
@@ -470,23 +474,23 @@ export function buildReadModel(lib: Library, today: string): ReadModel {
   const collectionDocs: { id: string; doc: Collection }[] = [];
   for (const c of lib.collections) {
     const members = titleDocs.filter(t => collectionOf.get(t.id) === c.id)
-      .sort((a, b) => a.releaseKey.localeCompare(b.releaseKey) || a.id - b.id);
+      .sort((a, b) => a.releaseKey.localeCompare(b.releaseKey) || a.id.localeCompare(b.id));
     if (members.length === 0)
       continue;
-    collectionDocs.push({ id: c.id, doc: { id: `c${c.id}`, name: c.name, overview: c.overview, images: images("collection", c.id, ["poster", "backdrop"]), titles: members.map(m => m.card) } });
+    collectionDocs.push({ id: c.id, doc: { id: c.id, name: c.name, overview: c.overview, images: images("collection", c.id, ["poster", "backdrop"]), titles: members.map(m => m.card) } });
   }
 
   // ─── Rows and home ───
 
   const sorters: Record<RowRule["sort"], (a: TitleDoc, b: TitleDoc) => number> = {
-    updated: (a, b) => b.updatedAt.localeCompare(a.updatedAt) || b.id - a.id,
-    popular: (a, b) => b.popularity - a.popularity || b.id - a.id,
-    release: (a, b) => b.releaseKey.localeCompare(a.releaseKey) || b.id - a.id,
-    rating: (a, b) => b.rating - a.rating || b.id - a.id,
+    updated: (a, b) => b.updatedAt.localeCompare(a.updatedAt) || a.id.localeCompare(b.id),
+    popular: (a, b) => b.popularity - a.popularity || a.id.localeCompare(b.id),
+    release: (a, b) => b.releaseKey.localeCompare(a.releaseKey) || a.id.localeCompare(b.id),
+    rating: (a, b) => b.rating - a.rating || a.id.localeCompare(b.id),
   };
   const itemsByRow = groupBy(lib.rowItems, i => i.rowId);
   const rows: RowDoc[] = [...lib.rows].sort((a, b) => a.sort - b.sort || a.id.localeCompare(b.id)).map((r) => {
-    let titleIds: number[];
+    let titleIds: string[];
     if (r.kind === "rule" && r.rule) {
       const rule = JSON.parse(r.rule) as RowRule;
       titleIds = titleDocs
@@ -547,12 +551,13 @@ export function buildReadModel(lib: Library, today: string): ReadModel {
 
   const search = [
     ...titleDocs.map(t => ({
-      ref: `t${t.id}`,
-      text: [t.card.title, t.detail.originalTitle, ...t.detail.aliases, ...t.detail.credits.cast.slice(0, 10).map(c => c.name), ...t.detail.credits.directors.map(d => d.name)]
+      ref: t.id,
+      type: "title" as const,
+      text: [t.card.title, t.detail.originalTitle, ...t.detail.aliases, ...Object.values(t.detail.translations).map(x => x.title), ...t.detail.credits.cast.slice(0, 10).map(c => c.name), ...t.detail.credits.directors.map(d => d.name)]
         .filter(Boolean)
         .join(" "),
     })),
-    ...peopleDocs.map(p => ({ ref: `p${p.id}`, text: [p.doc.name, p.doc.originalName].filter(Boolean).join(" ") })),
+    ...peopleDocs.map(p => ({ ref: p.id, type: "person" as const, text: [p.doc.name, p.doc.originalName].filter(Boolean).join(" ") })),
   ];
 
   const cmsItems = buildCmsItems(titleDocs, seasonDocs, playback, new Map(lib.categories.map(c => [c.id, c.name])), genreName);

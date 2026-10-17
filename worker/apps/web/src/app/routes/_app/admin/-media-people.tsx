@@ -26,7 +26,7 @@ export function PeopleTab() {
   const people = useQuery({ queryKey: mediaKeys.people(q, page), queryFn: () => mediaApi.people(q, page) });
   const [editing, setEditing] = useState<Person | "new" | null>(null);
   const [deleting, setDeleting] = useState<Person | null>(null);
-  const remove = useMediaMutation((id: number) => mediaApi.deletePerson(id), () => setDeleting(null));
+  const remove = useMediaMutation((id: string) => mediaApi.deletePerson(id), () => setDeleting(null));
   const pages = Math.max(1, Math.ceil((people.data?.total ?? 0) / 20));
 
   return (

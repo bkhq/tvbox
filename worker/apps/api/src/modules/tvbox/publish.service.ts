@@ -2,6 +2,7 @@ import type { PublishedSnapshot } from "./compose";
 import type { JsonObject } from "./parse";
 import type { AppDatabase } from "@/db";
 import { desc, eq } from "drizzle-orm";
+import { getMediaDb } from "@/modules/media/db";
 import { projectLibrary } from "@/modules/media/readmodel/projector.service";
 import { getReadModelDb } from "@/modules/media/readmodel/store";
 import { AppError, NotFoundError } from "@/shared/lib/errors";
@@ -70,8 +71,9 @@ export async function publish(db: AppDatabase, input: Omit<PublishInput, "restor
   // The media library goes out with the config, first: a config never
   // points at a library that failed to publish.
   const rm = getReadModelDb();
-  if (rm)
-    await projectLibrary(db, rm);
+  const media = getMediaDb();
+  if (rm && media)
+    await projectLibrary(media, rm);
   return await writePublish(db, await buildSnapshot(db), input);
 }
 

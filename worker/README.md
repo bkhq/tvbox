@@ -35,7 +35,12 @@ project needs and to the Workers runtime only.
 - **Admin console** — React SPA on the asset pipeline, Hono API in one Durable
   Object that owns its SQLite database. Modules: account (OIDC login, TOTP,
   API tokens, users, groups), audit, settings, backup, file (R2),
-  system, tvbox.
+  system, tvbox, media.
+- **Media library** — titles, seasons, episodes, people and lines, kept in
+  the D1 database `tv-bk-io` (binding `MEDIA`) together with the read model
+  that publishing projects from them; the Durable Object serves the admin
+  API but stores no media rows. Titles, seasons and people have random
+  12-character ids, so the catalogue cannot be counted up.
 
 ## URLs
 
@@ -101,7 +106,7 @@ settings. Login is OpenID Connect; secrets ship with each deploy
 | secret | `CLOUDFLARE_ACCOUNT_ID` | the account the Worker lives in |
 | secret | `OAUTH_CLIENT_SECRET` | the OIDC client's secret; leave empty for a public client (PKCE) |
 | secret | `SERVICE_TOKEN_RELEASE` | `openssl rand -hex 32`; android.yml registers releases with it |
-| secret | `TMDB_TOKEN` | TMDB v3 API key or v4 read access token; names the Netflix Top 10 on the recommendation home (optional: without it those rows are left out) |
+| secret | `TMDB_TOKEN` | TMDB v3 API key or v4 read access token; names the Netflix Top 10 on the recommendation home (optional: without it those rows are left out) and feeds the media import workflow |
 | variable | `WORKER_URL` | the deployed origin, `https://tv.bk.io`; becomes `APP_URL` and `CORS_ORIGIN` |
 | variable | `OAUTH_ISSUER` | the provider's issuer URL (discovery fills the endpoints) |
 | variable | `OAUTH_CLIENT_ID` | the OIDC client id |
@@ -138,6 +143,33 @@ created under Settings → API tokens. Locally:
 ```bash
 TVBOX_URL=https://tv.bk.io/mg TVBOX_API_TOKEN=… bun run tvbox:apply
 ```
+
+## Filling the media library from TMDB
+
+Content is never part of a deploy: `scripts/media-import-tmdb.ts` writes it
+through the console API. It picks TMDB's best-rated movies and series
+(`/discover` sorted by vote average above a vote-count floor), fetches each
+title with its translations, credits, images, seasons and external ids, and
+sends them in batches to `POST /media/import`, worst-rated first so the best
+sit at the top of the "latest" order. Titles are matched by their `tmdb`
+external id (`movie:<id>` / `tv:<id>`), so a second run updates what changed
+and never duplicates; titles created in the console are left alone. The
+display title, overview and tagline are the first of `zh-CN`, `zh-TW`,
+`zh-HK`, `en-US`, then the original; every locale in `--locales` is also
+stored per title (Details → Translations in the console). It publishes at the
+end unless `--no-publish`.
+
+`.github/workflows/media-import.yml` runs it by hand (Actions → Media
+import → Run workflow) with the counts, floors and locales as inputs, and
+uploads the run's report. It needs `TMDB_TOKEN` and an API token with the
+`media:write` scope in `TVBOX_API_TOKEN` (add the scope to the existing
+token, or re-issue it). Locally:
+
+```bash
+TVBOX_URL=https://tv.bk.io/mg TVBOX_API_TOKEN=… TMDB_TOKEN=… bun scripts/media-import-tmdb.ts --movies 2500 --series 2500
+```
+
+`--dry-run` only talks to TMDB and validates the mapped titles.
 
 ## Releasing the app
 

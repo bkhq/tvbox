@@ -2,6 +2,7 @@ import type { AppEnv } from "@/shared/lib/types";
 import { Hono } from "hono";
 import { z } from "zod";
 import { jsonCreated, jsonOk, jsonPaged, validator } from "@/shared/lib/openapi";
+import { requireMediaDb } from "../db";
 import {
   EPISODE_PUBLISH_STATES,
   EPISODE_TYPES,
@@ -10,7 +11,7 @@ import {
   TITLE_KINDS,
   TITLE_STATUSES,
 } from "../schema";
-import { doc, idParam, intParam, isoDate, nameText, nullableText, record } from "../shared/http";
+import { doc, idParam, isoDate, nameText, nullableText, record } from "../shared/http";
 import { createCollection, deleteCollection, getCollection, listCollections, updateCollection } from "./collections.service";
 import {
   createEpisode,
@@ -28,6 +29,7 @@ import {
   updateSeason,
 } from "./seasons.service";
 import { createTitle, deleteTitle, getTitle, listTitles, updateTitle } from "./titles.service";
+import { deleteTranslation, listTranslations, putTranslation } from "./translations.service";
 
 // ─── Schemas ───
 
@@ -38,8 +40,16 @@ const aliasSchema = z.object({
   kind: z.enum(["alias", "translation"]),
 });
 
+const translationSchema = z.object({
+  id: z.string(),
+  locale: z.string(),
+  title: z.string().nullable(),
+  overview: z.string().nullable(),
+  tagline: z.string().nullable(),
+});
+
 const titleSchema = z.object({
-  id: z.number(),
+  id: z.string(),
   kind: z.enum(TITLE_KINDS),
   categoryId: z.string(),
   title: z.string(),
@@ -63,14 +73,15 @@ const titleSchema = z.object({
   sort: z.number(),
   genreIds: z.array(z.string()),
   aliases: z.array(aliasSchema),
+  translations: z.array(translationSchema),
   seasonCount: z.number(),
   createdAt: z.string(),
   updatedAt: z.string(),
 });
 
 const seasonSchema = z.object({
-  id: z.number(),
-  titleId: z.number(),
+  id: z.string(),
+  titleId: z.string(),
   seasonNumber: z.number(),
   name: z.string().nullable(),
   overview: z.string().nullable(),
@@ -90,7 +101,7 @@ const seasonSchema = z.object({
 
 const episodeSchema = z.object({
   id: z.string(),
-  seasonId: z.number(),
+  seasonId: z.string(),
   episodeNumber: z.number(),
   episodeType: z.enum(EPISODE_TYPES),
   name: z.string().nullable(),
@@ -147,6 +158,13 @@ const titleFields = z.object({
   })).max(30).optional(),
 });
 
+const localeParam = z.object({ id: z.string().min(1).max(64), locale: z.string().regex(/^[a-z]{2,3}(-[A-Za-z]{2,4})?$/, "BCP 47 like zh-CN") });
+const translationFields = z.object({
+  title: nullableText(200).optional(),
+  overview: nullableText(5000).optional(),
+  tagline: nullableText(300).optional(),
+});
+
 const seasonFields = z.object({
   seasonNumber: z.number().int().min(0).max(1000),
   name: nullableText(100).optional(),
@@ -193,68 +211,90 @@ export function catalogRoutes() {
     })),
     async (c) => {
       const query = c.req.valid("query");
-      const { items, total } = await listTitles(c.get("db"), query);
+      const { items, total } = await listTitles(requireMediaDb(), query);
       return c.json({ success: true, data: items, meta: { total, page: query.page, limit: query.limit } });
     },
   );
 
   router.post("/media/titles", doc("Add a title (a series gets season 1)", jsonCreated(titleSchema)), validator("json", titleFields.extend({ kind: z.enum(TITLE_KINDS) })), async (c) => {
-    const row = await createTitle(c.get("db"), c.req.valid("json"));
+    const row = await createTitle(requireMediaDb(), c.req.valid("json"));
     await record(c, "media.title.created", { type: "media_title", id: row.id, name: row.title }, { kind: row.kind });
     return c.json({ success: true, data: row }, 201);
   });
 
-  router.get("/media/titles/:id", doc("Get a title", jsonOk(titleSchema)), validator("param", intParam), async c =>
-    c.json({ success: true, data: await getTitle(c.get("db"), c.req.valid("param").id) }));
+  router.get("/media/titles/:id", doc("Get a title", jsonOk(titleSchema)), validator("param", idParam), async c =>
+    c.json({ success: true, data: await getTitle(requireMediaDb(), c.req.valid("param").id) }));
 
-  router.patch("/media/titles/:id", doc("Update a title", jsonOk(titleSchema)), validator("param", intParam), validator("json", titleFields.partial()), async (c) => {
-    const row = await updateTitle(c.get("db"), c.req.valid("param").id, c.req.valid("json"));
+  router.patch("/media/titles/:id", doc("Update a title", jsonOk(titleSchema)), validator("param", idParam), validator("json", titleFields.partial()), async (c) => {
+    const row = await updateTitle(requireMediaDb(), c.req.valid("param").id, c.req.valid("json"));
     await record(c, "media.title.updated", { type: "media_title", id: row.id, name: row.title }, { fields: Object.keys(c.req.valid("json")) });
     return c.json({ success: true, data: row });
   });
 
-  router.delete("/media/titles/:id", doc("Delete a title with its seasons, episodes and sources", jsonOk(titleSchema)), validator("param", intParam), async (c) => {
-    const row = await deleteTitle(c.get("db"), c.req.valid("param").id);
+  router.delete("/media/titles/:id", doc("Delete a title with its seasons, episodes and sources", jsonOk(titleSchema)), validator("param", idParam), async (c) => {
+    const row = await deleteTitle(requireMediaDb(), c.req.valid("param").id);
     await record(c, "media.title.deleted", { type: "media_title", id: row.id, name: row.title });
+    return c.json({ success: true, data: row });
+  });
+
+  // ─── Translations ───
+
+  router.get("/media/titles/:id/translations", doc("List a title's translations", jsonOk(z.array(translationSchema))), validator("param", idParam), async (c) => {
+    const id = c.req.valid("param").id;
+    await getTitle(requireMediaDb(), id);
+    return c.json({ success: true, data: await listTranslations(requireMediaDb(), id) });
+  });
+
+  router.put("/media/titles/:id/translations/:locale", doc("Set a title's translation for one locale", jsonOk(translationSchema)), validator("param", localeParam), validator("json", translationFields), async (c) => {
+    const { id, locale } = c.req.valid("param");
+    const row = await putTranslation(requireMediaDb(), id, locale, c.req.valid("json"));
+    await record(c, "media.translation.set", { type: "media_title", id, name: locale });
+    return c.json({ success: true, data: row });
+  });
+
+  router.delete("/media/titles/:id/translations/:locale", doc("Remove a title's translation for one locale", jsonOk(translationSchema)), validator("param", localeParam), async (c) => {
+    const { id, locale } = c.req.valid("param");
+    const row = await deleteTranslation(requireMediaDb(), id, locale);
+    await record(c, "media.translation.deleted", { type: "media_title", id, name: locale });
     return c.json({ success: true, data: row });
   });
 
   // ─── Seasons ───
 
-  router.get("/media/titles/:id/seasons", doc("List a series' seasons", jsonOk(z.array(seasonSchema))), validator("param", intParam), async (c) => {
+  router.get("/media/titles/:id/seasons", doc("List a series' seasons", jsonOk(z.array(seasonSchema))), validator("param", idParam), async (c) => {
     const id = c.req.valid("param").id;
-    await getTitle(c.get("db"), id);
-    return c.json({ success: true, data: await listSeasons(c.get("db"), id) });
+    await getTitle(requireMediaDb(), id);
+    return c.json({ success: true, data: await listSeasons(requireMediaDb(), id) });
   });
 
-  router.post("/media/titles/:id/seasons", doc("Add a season", jsonCreated(seasonSchema)), validator("param", intParam), validator("json", seasonFields), async (c) => {
-    const row = await createSeason(c.get("db"), c.req.valid("param").id, c.req.valid("json"));
+  router.post("/media/titles/:id/seasons", doc("Add a season", jsonCreated(seasonSchema)), validator("param", idParam), validator("json", seasonFields), async (c) => {
+    const row = await createSeason(requireMediaDb(), c.req.valid("param").id, c.req.valid("json"));
     await record(c, "media.season.created", { type: "media_season", id: row.id, name: `S${row.seasonNumber}` }, { titleId: row.titleId });
     return c.json({ success: true, data: row }, 201);
   });
 
-  router.get("/media/seasons/:id", doc("Get a season", jsonOk(seasonSchema)), validator("param", intParam), async c =>
-    c.json({ success: true, data: await getSeason(c.get("db"), c.req.valid("param").id) }));
+  router.get("/media/seasons/:id", doc("Get a season", jsonOk(seasonSchema)), validator("param", idParam), async c =>
+    c.json({ success: true, data: await getSeason(requireMediaDb(), c.req.valid("param").id) }));
 
-  router.patch("/media/seasons/:id", doc("Update a season", jsonOk(seasonSchema)), validator("param", intParam), validator("json", seasonFields.partial()), async (c) => {
-    const row = await updateSeason(c.get("db"), c.req.valid("param").id, c.req.valid("json"));
+  router.patch("/media/seasons/:id", doc("Update a season", jsonOk(seasonSchema)), validator("param", idParam), validator("json", seasonFields.partial()), async (c) => {
+    const row = await updateSeason(requireMediaDb(), c.req.valid("param").id, c.req.valid("json"));
     await record(c, "media.season.updated", { type: "media_season", id: row.id, name: `S${row.seasonNumber}` }, { titleId: row.titleId, fields: Object.keys(c.req.valid("json")) });
     return c.json({ success: true, data: row });
   });
 
-  router.delete("/media/seasons/:id", doc("Delete a season with its episodes", jsonOk(seasonSchema)), validator("param", intParam), async (c) => {
-    const row = await deleteSeason(c.get("db"), c.req.valid("param").id);
+  router.delete("/media/seasons/:id", doc("Delete a season with its episodes", jsonOk(seasonSchema)), validator("param", idParam), async (c) => {
+    const row = await deleteSeason(requireMediaDb(), c.req.valid("param").id);
     await record(c, "media.season.deleted", { type: "media_season", id: row.id, name: `S${row.seasonNumber}` }, { titleId: row.titleId });
     return c.json({ success: true, data: row });
   });
 
   // ─── Episodes ───
 
-  router.get("/media/seasons/:id/episodes", doc("List a season's episodes", jsonOk(z.array(episodeSchema))), validator("param", intParam), async c =>
-    c.json({ success: true, data: await listEpisodes(c.get("db"), c.req.valid("param").id) }));
+  router.get("/media/seasons/:id/episodes", doc("List a season's episodes", jsonOk(z.array(episodeSchema))), validator("param", idParam), async c =>
+    c.json({ success: true, data: await listEpisodes(requireMediaDb(), c.req.valid("param").id) }));
 
-  router.post("/media/seasons/:id/episodes", doc("Add an episode", jsonCreated(episodeSchema)), validator("param", intParam), validator("json", episodeFields), async (c) => {
-    const row = await createEpisode(c.get("db"), c.req.valid("param").id, c.req.valid("json"));
+  router.post("/media/seasons/:id/episodes", doc("Add an episode", jsonCreated(episodeSchema)), validator("param", idParam), validator("json", episodeFields), async (c) => {
+    const row = await createEpisode(requireMediaDb(), c.req.valid("param").id, c.req.valid("json"));
     await record(c, "media.episode.created", { type: "media_episode", id: row.id, name: `E${row.episodeNumber}` }, { seasonId: row.seasonId });
     return c.json({ success: true, data: row }, 201);
   });
@@ -262,11 +302,11 @@ export function catalogRoutes() {
   router.post(
     "/media/seasons/:id/episodes/generate",
     doc("Create episodes from..to, skipping numbers that exist", jsonOk(countSchema)),
-    validator("param", intParam),
+    validator("param", idParam),
     validator("json", z.object({ from: z.number().int().min(0), to: z.number().int().min(0) })),
     async (c) => {
       const { from, to } = c.req.valid("json");
-      const n = await generateEpisodes(c.get("db"), c.req.valid("param").id, from, to);
+      const n = await generateEpisodes(requireMediaDb(), c.req.valid("param").id, from, to);
       await record(c, "media.episodes.generated", { type: "media_season", id: c.req.valid("param").id, name: `${from}-${to}` }, { count: n });
       return c.json({ success: true, data: { count: n } });
     },
@@ -275,11 +315,11 @@ export function catalogRoutes() {
   router.post(
     "/media/seasons/:id/episodes/shift",
     doc("Renumber episodes from a number on by delta", jsonOk(countSchema)),
-    validator("param", intParam),
+    validator("param", idParam),
     validator("json", z.object({ from: z.number().int().min(0), delta: z.number().int().min(-1000).max(1000) })),
     async (c) => {
       const { from, delta } = c.req.valid("json");
-      const n = await shiftEpisodes(c.get("db"), c.req.valid("param").id, from, delta);
+      const n = await shiftEpisodes(requireMediaDb(), c.req.valid("param").id, from, delta);
       await record(c, "media.episodes.shifted", { type: "media_season", id: c.req.valid("param").id, name: `${from}${delta >= 0 ? "+" : ""}${delta}` }, { count: n });
       return c.json({ success: true, data: { count: n } });
     },
@@ -288,27 +328,27 @@ export function catalogRoutes() {
   router.post(
     "/media/seasons/:id/episodes/schedule",
     doc("Set air dates from a number on: startDate, then every intervalDays", jsonOk(countSchema)),
-    validator("param", intParam),
+    validator("param", idParam),
     validator("json", z.object({ from: z.number().int().min(0), startDate: isoDate, intervalDays: z.number().int().min(1).max(365) })),
     async (c) => {
       const { from, startDate, intervalDays } = c.req.valid("json");
-      const n = await scheduleEpisodes(c.get("db"), c.req.valid("param").id, from, startDate, intervalDays);
+      const n = await scheduleEpisodes(requireMediaDb(), c.req.valid("param").id, from, startDate, intervalDays);
       await record(c, "media.episodes.scheduled", { type: "media_season", id: c.req.valid("param").id, name: startDate }, { count: n, intervalDays });
       return c.json({ success: true, data: { count: n } });
     },
   );
 
   router.get("/media/episodes/:id", doc("Get an episode", jsonOk(episodeSchema)), validator("param", idParam), async c =>
-    c.json({ success: true, data: await getEpisode(c.get("db"), c.req.valid("param").id) }));
+    c.json({ success: true, data: await getEpisode(requireMediaDb(), c.req.valid("param").id) }));
 
   router.patch("/media/episodes/:id", doc("Update an episode", jsonOk(episodeSchema)), validator("param", idParam), validator("json", episodeFields.partial()), async (c) => {
-    const row = await updateEpisode(c.get("db"), c.req.valid("param").id, c.req.valid("json"));
+    const row = await updateEpisode(requireMediaDb(), c.req.valid("param").id, c.req.valid("json"));
     await record(c, "media.episode.updated", { type: "media_episode", id: row.id, name: `E${row.episodeNumber}` }, { seasonId: row.seasonId, fields: Object.keys(c.req.valid("json")) });
     return c.json({ success: true, data: row });
   });
 
   router.delete("/media/episodes/:id", doc("Delete an episode", jsonOk(episodeSchema)), validator("param", idParam), async (c) => {
-    const row = await deleteEpisode(c.get("db"), c.req.valid("param").id);
+    const row = await deleteEpisode(requireMediaDb(), c.req.valid("param").id);
     await record(c, "media.episode.deleted", { type: "media_episode", id: row.id, name: `E${row.episodeNumber}` }, { seasonId: row.seasonId });
     return c.json({ success: true, data: row });
   });
@@ -316,25 +356,25 @@ export function catalogRoutes() {
   // ─── Collections ───
 
   router.get("/media/collections", doc("List collections", jsonOk(z.array(collectionSchema))), async c =>
-    c.json({ success: true, data: await listCollections(c.get("db")) }));
+    c.json({ success: true, data: await listCollections(requireMediaDb()) }));
 
   router.post("/media/collections", doc("Add a collection", jsonCreated(collectionSchema)), validator("json", collectionFields), async (c) => {
-    const row = await createCollection(c.get("db"), c.req.valid("json"));
+    const row = await createCollection(requireMediaDb(), c.req.valid("json"));
     await record(c, "media.collection.created", { type: "media_collection", id: row.id, name: row.name });
     return c.json({ success: true, data: row }, 201);
   });
 
   router.get("/media/collections/:id", doc("Get a collection", jsonOk(collectionSchema)), validator("param", idParam), async c =>
-    c.json({ success: true, data: await getCollection(c.get("db"), c.req.valid("param").id) }));
+    c.json({ success: true, data: await getCollection(requireMediaDb(), c.req.valid("param").id) }));
 
   router.patch("/media/collections/:id", doc("Update a collection", jsonOk(collectionSchema)), validator("param", idParam), validator("json", collectionFields.partial()), async (c) => {
-    const row = await updateCollection(c.get("db"), c.req.valid("param").id, c.req.valid("json"));
+    const row = await updateCollection(requireMediaDb(), c.req.valid("param").id, c.req.valid("json"));
     await record(c, "media.collection.updated", { type: "media_collection", id: row.id, name: row.name });
     return c.json({ success: true, data: row });
   });
 
   router.delete("/media/collections/:id", doc("Delete a collection (its titles stay)", jsonOk(collectionSchema)), validator("param", idParam), async (c) => {
-    const row = await deleteCollection(c.get("db"), c.req.valid("param").id);
+    const row = await deleteCollection(requireMediaDb(), c.req.valid("param").id);
     await record(c, "media.collection.deleted", { type: "media_collection", id: row.id, name: row.name });
     return c.json({ success: true, data: row });
   });

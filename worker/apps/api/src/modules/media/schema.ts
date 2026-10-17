@@ -2,10 +2,12 @@ import { index, integer, primaryKey, real, sqliteTable, text, uniqueIndex } from
 
 // The media library's source data (docs/plan/media-library.md, part 1).
 // Admins edit these rows; publishing projects the published part into the
-// D1 read model that clients query. Ids that clients see — titles, seasons,
-// people — are AUTOINCREMENT integers so they are never reused; the rest are
-// ULIDs. Images and external ids hang off several owner types and so carry no
-// foreign key: the owner's delete removes them.
+// D1 read model that clients query. Both live in the same D1 database
+// (`d1/media/`), not in the Durable Object. Ids that clients see — titles,
+// seasons, people — are random 12-character strings (`mediaId`) so the
+// catalogue cannot be enumerated; the rest are ULIDs. Images and external ids
+// hang off several owner types and so carry no foreign key: the owner's
+// delete removes them.
 
 const now = () => new Date().toISOString();
 const createdAt = () => text("created_at").notNull().$defaultFn(now);
@@ -60,7 +62,7 @@ export const mediaCollections = sqliteTable("media_collections", {
 // ─── Catalog ───
 
 export const mediaTitles = sqliteTable("media_titles", {
-  id: integer("id").primaryKey({ autoIncrement: true }),
+  id: text("id").primaryKey(),
   kind: text("kind", { enum: TITLE_KINDS }).notNull(),
   categoryId: text("category_id").notNull().references(() => mediaCategories.id),
   title: text("title").notNull(),
@@ -94,7 +96,7 @@ export const mediaTitles = sqliteTable("media_titles", {
 // Other names a title is found by: aliases and translations.
 export const mediaTitleAliases = sqliteTable("media_title_aliases", {
   id: text("id").primaryKey(),
-  titleId: integer("title_id").notNull().references(() => mediaTitles.id, { onDelete: "cascade" }),
+  titleId: text("title_id").notNull().references(() => mediaTitles.id, { onDelete: "cascade" }),
   name: text("name").notNull(),
   locale: text("locale"),
   kind: text("kind", { enum: ["alias", "translation"] }).notNull().default("alias"),
@@ -102,8 +104,22 @@ export const mediaTitleAliases = sqliteTable("media_title_aliases", {
   index("idx_media_title_aliases_title").on(t.titleId),
 ]);
 
+// Per-locale title, overview and tagline; the columns on `media_titles` are
+// the display values (the first locale that has them). One row per locale,
+// so a new language is a new row, not a new column.
+export const mediaTitleTranslations = sqliteTable("media_title_translations", {
+  id: text("id").primaryKey(),
+  titleId: text("title_id").notNull().references(() => mediaTitles.id, { onDelete: "cascade" }),
+  locale: text("locale").notNull(),
+  title: text("title"),
+  overview: text("overview"),
+  tagline: text("tagline"),
+}, t => [
+  uniqueIndex("idx_media_title_translations_locale").on(t.titleId, t.locale),
+]);
+
 export const mediaTitleGenres = sqliteTable("media_title_genres", {
-  titleId: integer("title_id").notNull().references(() => mediaTitles.id, { onDelete: "cascade" }),
+  titleId: text("title_id").notNull().references(() => mediaTitles.id, { onDelete: "cascade" }),
   genreId: text("genre_id").notNull().references(() => mediaGenres.id, { onDelete: "cascade" }),
 }, t => [
   primaryKey({ columns: [t.titleId, t.genreId] }),
@@ -113,8 +129,8 @@ export const mediaTitleGenres = sqliteTable("media_title_genres", {
 // Every episode of a series belongs to a season; a one-season series has a
 // season 1. Season 0 holds specials.
 export const mediaSeasons = sqliteTable("media_seasons", {
-  id: integer("id").primaryKey({ autoIncrement: true }),
-  titleId: integer("title_id").notNull().references(() => mediaTitles.id, { onDelete: "cascade" }),
+  id: text("id").primaryKey(),
+  titleId: text("title_id").notNull().references(() => mediaTitles.id, { onDelete: "cascade" }),
   seasonNumber: integer("season_number").notNull(),
   name: text("name"),
   overview: text("overview"),
@@ -134,7 +150,7 @@ export const mediaSeasons = sqliteTable("media_seasons", {
 
 export const mediaEpisodes = sqliteTable("media_episodes", {
   id: text("id").primaryKey(),
-  seasonId: integer("season_id").notNull().references(() => mediaSeasons.id, { onDelete: "cascade" }),
+  seasonId: text("season_id").notNull().references(() => mediaSeasons.id, { onDelete: "cascade" }),
   episodeNumber: integer("episode_number").notNull(),
   episodeType: text("episode_type", { enum: EPISODE_TYPES }).notNull().default("standard"),
   name: text("name"),
@@ -151,7 +167,7 @@ export const mediaEpisodes = sqliteTable("media_episodes", {
 // ─── People ───
 
 export const mediaPeople = sqliteTable("media_people", {
-  id: integer("id").primaryKey({ autoIncrement: true }),
+  id: text("id").primaryKey(),
   name: text("name").notNull(),
   originalName: text("original_name"),
   gender: text("gender", { enum: ["female", "male", "other"] }),
@@ -168,9 +184,9 @@ export const mediaPeople = sqliteTable("media_people", {
 // of its own uses those instead.
 export const mediaCredits = sqliteTable("media_credits", {
   id: text("id").primaryKey(),
-  personId: integer("person_id").notNull().references(() => mediaPeople.id, { onDelete: "cascade" }),
-  titleId: integer("title_id").notNull().references(() => mediaTitles.id, { onDelete: "cascade" }),
-  seasonId: integer("season_id").references(() => mediaSeasons.id, { onDelete: "cascade" }),
+  personId: text("person_id").notNull().references(() => mediaPeople.id, { onDelete: "cascade" }),
+  titleId: text("title_id").notNull().references(() => mediaTitles.id, { onDelete: "cascade" }),
+  seasonId: text("season_id").references(() => mediaSeasons.id, { onDelete: "cascade" }),
   role: text("role", { enum: CREDIT_ROLES }).notNull(),
   character: text("character"),
   department: text("department"),
@@ -218,8 +234,8 @@ export const mediaExternalIds = sqliteTable("media_external_ids", {
 // A line (自建, 4K, …): on the title for a movie, on a season for a series.
 export const mediaSources = sqliteTable("media_sources", {
   id: text("id").primaryKey(),
-  titleId: integer("title_id").references(() => mediaTitles.id, { onDelete: "cascade" }),
-  seasonId: integer("season_id").references(() => mediaSeasons.id, { onDelete: "cascade" }),
+  titleId: text("title_id").references(() => mediaTitles.id, { onDelete: "cascade" }),
+  seasonId: text("season_id").references(() => mediaSeasons.id, { onDelete: "cascade" }),
   name: text("name").notNull(),
   quality: text("quality"),
   enabled: integer("enabled", { mode: "boolean" }).notNull().default(true),
@@ -265,7 +281,7 @@ export const mediaRows = sqliteTable("media_rows", {
 
 export const mediaRowItems = sqliteTable("media_row_items", {
   rowId: text("row_id").notNull().references(() => mediaRows.id, { onDelete: "cascade" }),
-  titleId: integer("title_id").notNull().references(() => mediaTitles.id, { onDelete: "cascade" }),
+  titleId: text("title_id").notNull().references(() => mediaTitles.id, { onDelete: "cascade" }),
   sort: integer("sort").notNull().default(0),
 }, t => [
   primaryKey({ columns: [t.rowId, t.titleId] }),

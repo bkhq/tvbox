@@ -52,13 +52,13 @@ async function home(rm: ReadModelDb): Promise<string> {
 
   // The first home row, each series as its newest season.
   const homeDoc = await meta<{ rows: { items: { id: string }[] }[] }>(rm, "home");
-  const titleIds = (homeDoc?.rows[0]?.items ?? []).map(i => Number(i.id.slice(1))).slice(0, PAGE);
+  const titleIds = (homeDoc?.rows[0]?.items ?? []).map(i => i.id).slice(0, PAGE);
   let list: string[];
   if (titleIds.length > 0) {
     const { results } = await rm.prepare(`SELECT title_id, list_json FROM rm_cms_items WHERE title_id IN (${titleIds.map(() => "?").join(", ")}) ORDER BY group_order DESC`)
       .bind(...titleIds)
-      .all<{ title_id: number; list_json: string }>();
-    const newest = new Map<number, string>();
+      .all<{ title_id: string; list_json: string }>();
+    const newest = new Map<string, string>();
     for (const r of results) {
       if (!newest.has(r.title_id))
         newest.set(r.title_id, r.list_json);
@@ -129,14 +129,14 @@ async function search(rm: ReadModelDb, wd: string, page: number): Promise<string
   if (!q)
     return body([], 1, 1, 0);
   // Pages are pages of titles; a series brings all its seasons along.
-  const refs = await searchRefs(rm, q, (page - 1) * PAGE, PAGE + 1, "t");
+  const refs = await searchRefs(rm, q, (page - 1) * PAGE, PAGE + 1, "title");
   const more = refs.length > PAGE;
-  const titleIds = refs.slice(0, PAGE).map(r => Number(r.slice(1)));
+  const titleIds = refs.slice(0, PAGE).map(r => r.ref);
   let list: string[] = [];
   if (titleIds.length > 0) {
     const { results } = await rm.prepare(`SELECT title_id, list_json FROM rm_cms_items WHERE title_id IN (${titleIds.map(() => "?").join(", ")}) ORDER BY group_order`)
       .bind(...titleIds)
-      .all<{ title_id: number; list_json: string }>();
+      .all<{ title_id: string; list_json: string }>();
     const rank = new Map(titleIds.map((id, i) => [id, i]));
     list = results.sort((a, b) => rank.get(a.title_id)! - rank.get(b.title_id)!).map(r => r.list_json);
   }

@@ -1,0 +1,92 @@
+name: Media import
+
+# Fills the media library from TMDB: the best-rated movies and series with
+# their metadata and translations, written through the console API
+# (worker/scripts/media-import-tmdb.ts). Content never ships with a deploy;
+# run this by hand whenever the library should be (re)filled. Re-runs update
+# what changed and never duplicate.
+
+on:
+  workflow_dispatch:
+    inputs:
+      movies:
+        description: "Movies to import (best rated first)"
+        type: number
+        default: 2500
+      series:
+        description: "Series to import (best rated first)"
+        type: number
+        default: 2500
+      min_votes:
+        description: "Vote-count floors, movies,series"
+        type: string
+        default: "300,150"
+      locales:
+        description: "Locales stored as translations, comma-separated"
+        type: string
+        default: "zh-CN,en-US"
+      publish:
+        description: "Publish after importing"
+        type: boolean
+        default: true
+      dry_run:
+        description: "Only fetch and validate; write nothing"
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: media-import
+  cancel-in-progress: false
+
+jobs:
+  import:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    env:
+      # The console's base path (BASE_PATH in worker/apps/api/wrangler.toml).
+      TVBOX_URL: ${{ vars.WORKER_URL }}/mg
+      # An API token with the media:write scope (Settings → API tokens).
+      TVBOX_API_TOKEN: ${{ secrets.TVBOX_API_TOKEN }}
+      TMDB_TOKEN: ${{ secrets.TMDB_TOKEN }}
+    steps:
+      - name: Require the deployment URL and the tokens
+        run: |
+          if [ "$TVBOX_URL" = "/mg" ] || [ -z "$TVBOX_API_TOKEN" ] || [ -z "$TMDB_TOKEN" ]; then
+            echo "::error::set the variable WORKER_URL and the secrets TVBOX_API_TOKEN (media:write scope) and TMDB_TOKEN"
+            exit 1
+          fi
+
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.4.2"
+
+      - name: Install
+        working-directory: worker
+        run: bun install --frozen-lockfile
+
+      - name: Import
+        working-directory: worker
+        env:
+          MOVIES: ${{ inputs.movies }}
+          SERIES: ${{ inputs.series }}
+          MIN_VOTES: ${{ inputs.min_votes }}
+          LOCALES: ${{ inputs.locales }}
+          PUBLISH: ${{ inputs.publish }}
+          DRY_RUN: ${{ inputs.dry_run }}
+        run: |
+          flags="--movies $MOVIES --series $SERIES --min-votes $MIN_VOTES --locales $LOCALES --json import-report.json"
+          [ "$PUBLISH" = true ] || flags="$flags --no-publish"
+          [ "$DRY_RUN" = true ] && flags="$flags --dry-run"
+          bun scripts/media-import-tmdb.ts $flags
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: import-report
+          path: worker/import-report.json
+          if-no-files-found: ignore

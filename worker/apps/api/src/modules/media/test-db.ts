@@ -1,22 +1,24 @@
-import type { AppDatabase } from "@/db";
-import { mkdirSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { resolve } from "node:path";
-import { createDb } from "@/db";
-import { nanoid } from "@/shared/lib/id";
+import type { MediaDb } from "./db";
+import { readdirSync, readFileSync } from "node:fs";
+import { dirname, join, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
+import { createClient } from "@libsql/client";
+import { drizzle } from "drizzle-orm/libsql";
+import * as schema from "./schema";
 import { seedTaxonomy } from "./taxonomy/taxonomy.service";
 
-/** A fresh migrated database with the default categories and genres, for tests. */
-export async function openTestDb(): Promise<{ db: AppDatabase; dispose: () => void }> {
-  const dir = resolve(tmpdir(), `test-media-${Date.now()}-${nanoid()}`);
-  mkdirSync(dir, { recursive: true });
-  const db = await createDb(resolve(dir, "test.db"));
+const MIGRATIONS = resolve(dirname(fileURLToPath(import.meta.url)), "../../../d1/media");
+
+/** A fresh media database (the D1 schema on libsql) with the default categories and genres, for tests. */
+export async function openTestDb(): Promise<{ db: MediaDb; dispose: () => void }> {
+  const client = createClient({ url: ":memory:" });
+  await client.execute("PRAGMA foreign_keys = ON");
+  for (const file of readdirSync(MIGRATIONS).filter(f => f.endsWith(".sql")).sort())
+    await client.executeMultiple(readFileSync(join(MIGRATIONS, file), "utf8"));
+  const db = drizzle(client, { schema });
   await seedTaxonomy(db);
   return {
     db,
-    dispose: () => {
-      db.close();
-      rmSync(dir, { recursive: true, force: true });
-    },
+    dispose: () => client.close(),
   };
 }

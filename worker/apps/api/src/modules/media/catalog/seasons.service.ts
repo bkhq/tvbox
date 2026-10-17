@@ -1,8 +1,9 @@
-import type { AppDatabase } from "@/db";
+import type { MediaDb } from "../db";
 import { and, asc, eq, gte, inArray, lte, sql } from "drizzle-orm";
 import { chunked } from "@/shared/lib/chunk";
 import { AppError, isUniqueViolation, NotFoundError } from "@/shared/lib/errors";
-import { ulid } from "@/shared/lib/id";
+import { mediaId, ulid } from "@/shared/lib/id";
+import { insertRows, runBatch } from "../db";
 import { mediaEpisodes, mediaSeasons, mediaTitles } from "../schema";
 import { deleteOwned, deleteSeasonOwned } from "../shared/owners";
 import { episodeCounts, refreshSeriesStatus, touchTitle } from "./titles.service";
@@ -56,43 +57,45 @@ async function guardNumber<T>(what: string, fn: () => Promise<T>): Promise<T> {
 
 // ─── Seasons ───
 
-async function seasonRow(db: AppDatabase, id: number): Promise<SeasonRow> {
+async function seasonRow(db: MediaDb, id: string): Promise<SeasonRow> {
   const row = await db.select().from(mediaSeasons).where(eq(mediaSeasons.id, id)).get();
   if (!row)
-    throw new NotFoundError("Season", String(id));
+    throw new NotFoundError("Season", id);
   return row;
 }
 
-export async function getSeason(db: AppDatabase, id: number): Promise<SeasonView> {
+export async function getSeason(db: MediaDb, id: string): Promise<SeasonView> {
   const row = await seasonRow(db, id);
   const counts = (await episodeCounts(db, [id])).get(id);
   return { ...row, episodeCount: counts?.total ?? 0, publishedEpisodeCount: counts?.published ?? 0 };
 }
 
-export async function listSeasons(db: AppDatabase, titleId: number): Promise<SeasonView[]> {
+export async function listSeasons(db: MediaDb, titleId: string): Promise<SeasonView[]> {
   const rows = await db.select().from(mediaSeasons).where(eq(mediaSeasons.titleId, titleId)).orderBy(asc(mediaSeasons.sort), asc(mediaSeasons.seasonNumber)).all();
   const counts = await episodeCounts(db, rows.map(r => r.id));
   return rows.map(r => ({ ...r, episodeCount: counts.get(r.id)?.total ?? 0, publishedEpisodeCount: counts.get(r.id)?.published ?? 0 }));
 }
 
-export async function createSeason(db: AppDatabase, titleId: number, input: SeasonInput & { seasonNumber: number }): Promise<SeasonView> {
+export async function createSeason(db: MediaDb, titleId: string, input: SeasonInput & { seasonNumber: number }): Promise<SeasonView> {
   const title = await db.select({ kind: mediaTitles.kind }).from(mediaTitles).where(eq(mediaTitles.id, titleId)).get();
   if (!title)
-    throw new NotFoundError("Title", String(titleId));
+    throw new NotFoundError("Title", titleId);
   if (title.kind !== "series")
     throw new AppError("Only a series has seasons", 422, "NOT_A_SERIES");
-  const [row] = await guardNumber("Season", () => db.insert(mediaSeasons).values({
+  const id = mediaId();
+  await guardNumber("Season", () => db.insert(mediaSeasons).values({
     ...pick(input),
+    id,
     titleId,
     seasonNumber: input.seasonNumber,
     sort: input.sort ?? input.seasonNumber,
-  }).returning({ id: mediaSeasons.id }).all());
+  }).run());
   await refreshSeriesStatus(db, titleId);
   await touchTitle(db, titleId);
-  return await getSeason(db, row!.id);
+  return await getSeason(db, id);
 }
 
-export async function updateSeason(db: AppDatabase, id: number, input: SeasonInput): Promise<SeasonView> {
+export async function updateSeason(db: MediaDb, id: string, input: SeasonInput): Promise<SeasonView> {
   const current = await seasonRow(db, id);
   await guardNumber("Season", () => db.update(mediaSeasons).set({ ...pick(input), updatedAt: new Date().toISOString() }).where(eq(mediaSeasons.id, id)).run());
   await refreshSeriesStatus(db, current.titleId);
@@ -101,12 +104,9 @@ export async function updateSeason(db: AppDatabase, id: number, input: SeasonInp
 }
 
 /** Its episodes, sources and credits go with it. */
-export async function deleteSeason(db: AppDatabase, id: number): Promise<SeasonView> {
+export async function deleteSeason(db: MediaDb, id: string): Promise<SeasonView> {
   const current = await getSeason(db, id);
-  await db.transaction(async (tx) => {
-    await deleteSeasonOwned(tx, [id]);
-    await tx.delete(mediaSeasons).where(eq(mediaSeasons.id, id)).run();
-  });
+  await runBatch(db, [...await deleteSeasonOwned(db, [id]), db.delete(mediaSeasons).where(eq(mediaSeasons.id, id))]);
   await refreshSeriesStatus(db, current.titleId);
   await touchTitle(db, current.titleId);
   return current;
@@ -114,19 +114,19 @@ export async function deleteSeason(db: AppDatabase, id: number): Promise<SeasonV
 
 // ─── Episodes ───
 
-export async function getEpisode(db: AppDatabase, id: string): Promise<EpisodeRow> {
+export async function getEpisode(db: MediaDb, id: string): Promise<EpisodeRow> {
   const row = await db.select().from(mediaEpisodes).where(eq(mediaEpisodes.id, id)).get();
   if (!row)
     throw new NotFoundError("Episode", id);
   return row;
 }
 
-export async function listEpisodes(db: AppDatabase, seasonId: number): Promise<EpisodeRow[]> {
+export async function listEpisodes(db: MediaDb, seasonId: string): Promise<EpisodeRow[]> {
   await seasonRow(db, seasonId);
   return await db.select().from(mediaEpisodes).where(eq(mediaEpisodes.seasonId, seasonId)).orderBy(asc(mediaEpisodes.episodeNumber)).all();
 }
 
-export async function createEpisode(db: AppDatabase, seasonId: number, input: EpisodeInput & { episodeNumber: number }): Promise<EpisodeRow> {
+export async function createEpisode(db: MediaDb, seasonId: string, input: EpisodeInput & { episodeNumber: number }): Promise<EpisodeRow> {
   const season = await seasonRow(db, seasonId);
   const id = ulid();
   await guardNumber("Episode", () => db.insert(mediaEpisodes).values({ ...pick(input), id, seasonId, episodeNumber: input.episodeNumber }).run());
@@ -134,7 +134,7 @@ export async function createEpisode(db: AppDatabase, seasonId: number, input: Ep
   return await getEpisode(db, id);
 }
 
-export async function updateEpisode(db: AppDatabase, id: string, input: EpisodeInput): Promise<EpisodeRow> {
+export async function updateEpisode(db: MediaDb, id: string, input: EpisodeInput): Promise<EpisodeRow> {
   const current = await getEpisode(db, id);
   await guardNumber("Episode", () => db.update(mediaEpisodes).set({ ...pick(input), updatedAt: new Date().toISOString() }).where(eq(mediaEpisodes.id, id)).run());
   const season = await seasonRow(db, current.seasonId);
@@ -143,19 +143,16 @@ export async function updateEpisode(db: AppDatabase, id: string, input: EpisodeI
 }
 
 /** Its streams go with it. */
-export async function deleteEpisode(db: AppDatabase, id: string): Promise<EpisodeRow> {
+export async function deleteEpisode(db: MediaDb, id: string): Promise<EpisodeRow> {
   const current = await getEpisode(db, id);
-  await db.transaction(async (tx) => {
-    await deleteOwned(tx, "episode", [id]);
-    await tx.delete(mediaEpisodes).where(eq(mediaEpisodes.id, id)).run();
-  });
+  await runBatch(db, [...deleteOwned(db, "episode", [id]), db.delete(mediaEpisodes).where(eq(mediaEpisodes.id, id))]);
   const season = await seasonRow(db, current.seasonId);
   await touchTitle(db, season.titleId);
   return current;
 }
 
 /** Create episodes `from`..`to`, skipping numbers that exist. Returns how many were added. */
-export async function generateEpisodes(db: AppDatabase, seasonId: number, from: number, to: number): Promise<number> {
+export async function generateEpisodes(db: MediaDb, seasonId: string, from: number, to: number): Promise<number> {
   if (to < from || to - from >= 1000)
     throw new AppError("Give a range of at most 1000 episodes", 422, "INVALID_RANGE");
   const season = await seasonRow(db, seasonId);
@@ -165,10 +162,7 @@ export async function generateEpisodes(db: AppDatabase, seasonId: number, from: 
     if (!existing.has(n))
       numbers.push(n);
   }
-  await db.transaction(async (tx) => {
-    for (const n of numbers)
-      await tx.insert(mediaEpisodes).values({ id: ulid(), seasonId, episodeNumber: n }).run();
-  });
+  await runBatch(db, insertRows(db, mediaEpisodes, numbers.map(n => ({ id: ulid(), seasonId, episodeNumber: n }))));
   if (numbers.length > 0)
     await touchTitle(db, season.titleId);
   return numbers.length;
@@ -179,7 +173,7 @@ export async function generateEpisodes(db: AppDatabase, seasonId: number, from: 
  * missed episode, or close a gap). Goes through negative numbers so the
  * unique index never sees two episodes on one number mid-way.
  */
-export async function shiftEpisodes(db: AppDatabase, seasonId: number, from: number, delta: number): Promise<number> {
+export async function shiftEpisodes(db: MediaDb, seasonId: string, from: number, delta: number): Promise<number> {
   const season = await seasonRow(db, seasonId);
   const moving = await db.select({ id: mediaEpisodes.id, n: mediaEpisodes.episodeNumber }).from(mediaEpisodes).where(and(eq(mediaEpisodes.seasonId, seasonId), gte(mediaEpisodes.episodeNumber, from))).all();
   if (moving.length === 0 || delta === 0)
@@ -190,28 +184,25 @@ export async function shiftEpisodes(db: AppDatabase, seasonId: number, from: num
   const staying = await db.select({ n: mediaEpisodes.episodeNumber }).from(mediaEpisodes).where(and(eq(mediaEpisodes.seasonId, seasonId), lte(mediaEpisodes.episodeNumber, from - 1))).all();
   if (staying.some(e => target.has(e.n)))
     throw new AppError("The shift would collide with earlier episodes", 409, "NUMBER_TAKEN");
-  await db.transaction(async (tx) => {
-    for (const part of chunked(moving.map(e => e.id)))
-      await tx.update(mediaEpisodes).set({ episodeNumber: sql`-1 - ${mediaEpisodes.episodeNumber}` }).where(inArray(mediaEpisodes.id, part)).run();
-    await tx.update(mediaEpisodes).set({ episodeNumber: sql`-1 - ${mediaEpisodes.episodeNumber} + ${delta}` }).where(and(eq(mediaEpisodes.seasonId, seasonId), sql`${mediaEpisodes.episodeNumber} < 0`)).run();
-  });
+  await runBatch(db, [
+    ...chunked(moving.map(e => e.id)).map(part => db.update(mediaEpisodes).set({ episodeNumber: sql`-1 - ${mediaEpisodes.episodeNumber}` }).where(inArray(mediaEpisodes.id, part))),
+    db.update(mediaEpisodes).set({ episodeNumber: sql`-1 - ${mediaEpisodes.episodeNumber} + ${delta}` }).where(and(eq(mediaEpisodes.seasonId, seasonId), sql`${mediaEpisodes.episodeNumber} < 0`)),
+  ]);
   await touchTitle(db, season.titleId);
   return moving.length;
 }
 
 /** Air dates `startDate`, then every `intervalDays`, for episodes from `from` on. */
-export async function scheduleEpisodes(db: AppDatabase, seasonId: number, from: number, startDate: string, intervalDays: number): Promise<number> {
+export async function scheduleEpisodes(db: MediaDb, seasonId: string, from: number, startDate: string, intervalDays: number): Promise<number> {
   const season = await seasonRow(db, seasonId);
   const episodes = await db.select({ id: mediaEpisodes.id }).from(mediaEpisodes).where(and(eq(mediaEpisodes.seasonId, seasonId), gte(mediaEpisodes.episodeNumber, from))).orderBy(asc(mediaEpisodes.episodeNumber)).all();
   const start = Date.parse(`${startDate}T00:00:00Z`);
   if (Number.isNaN(start))
     throw new AppError("startDate must be YYYY-MM-DD", 422, "INVALID_DATE");
-  await db.transaction(async (tx) => {
-    for (const [i, e] of episodes.entries()) {
-      const airDate = new Date(start + i * intervalDays * 86_400_000).toISOString().slice(0, 10);
-      await tx.update(mediaEpisodes).set({ airDate }).where(eq(mediaEpisodes.id, e.id)).run();
-    }
-  });
+  await runBatch(db, episodes.map((e, i) => {
+    const airDate = new Date(start + i * intervalDays * 86_400_000).toISOString().slice(0, 10);
+    return db.update(mediaEpisodes).set({ airDate }).where(eq(mediaEpisodes.id, e.id));
+  }));
   if (episodes.length > 0)
     await touchTitle(db, season.titleId);
   return episodes.length;

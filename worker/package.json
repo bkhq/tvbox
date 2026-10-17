@@ -34,7 +34,8 @@
     "hash-password": "bun scripts/hash-password.ts",
     "deploy": "bun run --filter @app/web build && bun run --filter @app/api workers:deploy",
     "tvbox:apply": "bun scripts/tvbox-apply.ts",
-    "tvbox:health": "bun scripts/tvbox-health.ts"
+    "tvbox:health": "bun scripts/tvbox-health.ts",
+    "media:import": "bun scripts/media-import-tmdb.ts"
   },
   "devDependencies": {
     "@antfu/eslint-config": "9.5.1",

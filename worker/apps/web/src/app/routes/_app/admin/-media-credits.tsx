@@ -30,7 +30,7 @@ export function CreditsPanel({ title }: { title: Title }) {
   const add = useMediaMutation(() => mediaApi.addCredit(title.id, {
     personId: person!.id,
     role,
-    seasonId: season === ALL_SEASONS ? null : Number(season),
+    seasonId: season === ALL_SEASONS ? null : season,
     ...(role === "cast" ? { character: orNull(character) } : { job, character: null }),
   }), () => {
     setPerson(null);
@@ -39,7 +39,7 @@ export function CreditsPanel({ title }: { title: Title }) {
   });
   const createPerson = useMediaMutation(() => mediaApi.createPerson({ name: q.trim() }), p => setPerson(p));
   const remove = useMediaMutation((id: string) => mediaApi.deleteCredit(id));
-  const seasonName = (id: number | null) => {
+  const seasonName = (id: string | null) => {
     if (id === null)
       return t("media:credits.allSeasons");
     const s = seasons.data?.find(x => x.id === id);
@@ -114,8 +114,8 @@ export function CreditsPanel({ title }: { title: Title }) {
             <Field label={t("media:credits.season")}>
               <EnumSelect
                 value={season}
-                values={[ALL_SEASONS, ...(seasons.data ?? []).map(s => String(s.id))]}
-                label={v => seasonName(v === ALL_SEASONS ? null : Number(v))}
+                values={[ALL_SEASONS, ...(seasons.data ?? []).map(s => s.id)]}
+                label={v => seasonName(v === ALL_SEASONS ? null : v)}
                 onChange={setSeason}
               />
             </Field>

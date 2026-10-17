@@ -58,14 +58,6 @@ function json(body: string, status = 200): Response {
 
 const list = (docs: readonly string[]) => `[${docs.join(",")}]`;
 
-/** `t123` → 123 for a prefix `t`; anything else is not found. */
-function numericId(prefix: string, id: string, what: string): number {
-  const n = id.startsWith(prefix) ? Number(id.slice(prefix.length)) : Number.NaN;
-  if (!Number.isSafeInteger(n) || n <= 0)
-    throw new NotFoundError(what, id);
-  return n;
-}
-
 const limit = (max: number, fallback: number) => z.coerce.number().int().min(1).max(max).default(fallback);
 const offsetCursor = z.string().regex(/^\d{1,6}$/).optional();
 const idParam = z.object({ id: z.string().min(1).max(64) });
@@ -151,9 +143,9 @@ export function mediaV1(): Hono<Env> {
       const offset = Number(cursor ?? 0);
       const refs = await searchRefs(c.env.rm, q, offset, limit + 1);
       const page = refs.slice(0, limit);
-      const ids = (prefix: string) => page.filter(r => r.startsWith(prefix)).map(r => Number(r.slice(1)));
-      const titles = await documentsByIds(c.env.rm, "titles", ids("t"), "card_json");
-      const people = (await documentsByIds(c.env.rm, "people", ids("p"), "json")).map((raw) => {
+      const ids = (type: "title" | "person") => page.filter(r => r.type === type).map(r => r.ref);
+      const titles = await documentsByIds(c.env.rm, "titles", ids("title"), "card_json");
+      const people = (await documentsByIds(c.env.rm, "people", ids("person"), "json")).map((raw) => {
         const p = JSON.parse(raw) as z.infer<typeof personSchema>;
         return { id: p.id, name: p.name, images: p.images };
       });
@@ -170,11 +162,11 @@ export function mediaV1(): Hono<Env> {
       return json(found);
     });
 
-  byId("/titles/:id", "A title with its seasons, credits and images", titleDetailSchema, (rm, id) => document(rm, "titles", numericId("t", id, "Title")), "Title");
-  byId("/seasons/:id", "A season and all its episodes", seasonDetailSchema, (rm, id) => document(rm, "seasons", numericId("s", id, "Season")), "Season");
-  byId("/people/:id", "A person and the titles they are credited in", personSchema, (rm, id) => document(rm, "people", numericId("p", id, "Person")), "Person");
-  byId("/collections/:id", "A collection's titles, oldest first", collectionSchema, (rm, id) => document(rm, "collections", id.startsWith("c") ? id.slice(1) : ""), "Collection");
-  byId("/playback/:id", "What a movie (`t…`) or an episode (`e…`) plays; never cached", playbackSchema, (rm, id) => document(rm, "playback", id), "Playback");
+  byId("/titles/:id", "A title with its seasons, credits and images", titleDetailSchema, (rm, id) => document(rm, "titles", id), "Title");
+  byId("/seasons/:id", "A season and all its episodes", seasonDetailSchema, (rm, id) => document(rm, "seasons", id), "Season");
+  byId("/people/:id", "A person and the titles they are credited in", personSchema, (rm, id) => document(rm, "people", id), "Person");
+  byId("/collections/:id", "A collection's titles, oldest first", collectionSchema, (rm, id) => document(rm, "collections", id), "Collection");
+  byId("/playback/:id", "What a movie (by title id) or an episode (by episode id) plays; never cached", playbackSchema, (rm, id) => document(rm, "playback", id), "Playback");
 
   app.get("/live/channels", doc("Live channel groups, channels and their streams", liveSchema), async (c) => {
     return json(JSON.stringify(await meta(c.env.rm, "live") ?? { epg: [], groups: [] }));

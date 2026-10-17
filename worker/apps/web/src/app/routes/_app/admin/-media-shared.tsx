@@ -62,7 +62,7 @@ export function MoveButtons({ ids, index, onMove }: { ids: readonly string[]; in
 }
 
 /** An ordered list of titles: search to add, remove, reorder. */
-export function TitleListEditor({ ids, onChange, max }: { ids: number[]; onChange: (ids: number[]) => void; max: number }) {
+export function TitleListEditor({ ids, onChange, max }: { ids: string[]; onChange: (ids: string[]) => void; max: number }) {
   const { t } = useTranslation("media");
   const [q, setQ] = useState("");
   const search = useQuery({
@@ -75,7 +75,7 @@ export function TitleListEditor({ ids, onChange, max }: { ids: number[]; onChang
     queryFn: async () => (await Promise.all(ids.map(id => mediaApi.title(id).catch(() => null)))).filter((x): x is Title => x !== null),
     enabled: ids.length > 0,
   });
-  const name = (id: number) => known.data?.find(x => x.id === id)?.title ?? `#${id}`;
+  const name = (id: string) => known.data?.find(x => x.id === id)?.title ?? `#${id}`;
 
   return (
     <div className="space-y-2">
@@ -83,7 +83,7 @@ export function TitleListEditor({ ids, onChange, max }: { ids: number[]; onChang
         {ids.map((id, i) => (
           <div key={id} className="flex items-center gap-2 rounded-md border px-2 py-1 text-sm">
             <span className="flex-1 truncate">{name(id)}</span>
-            <MoveButtons ids={ids.map(String)} index={i} onMove={next => onChange(next.map(Number))} />
+            <MoveButtons ids={ids} index={i} onMove={onChange} />
             <Button size="sm" variant="ghost" onClick={() => onChange(ids.filter(x => x !== id))}><X className="size-4" /></Button>
           </div>
         ))}

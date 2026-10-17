@@ -1,5 +1,9 @@
+import type { LibSQLDatabase } from "drizzle-orm/libsql";
 import type { SQLiteTable } from "drizzle-orm/sqlite-core";
 import { getTableName } from "drizzle-orm";
+
+/** A database other than the Durable Object's that holds a module's tables (the media library's D1). */
+export type ExternalBackupDb = LibSQLDatabase<Record<string, unknown>>;
 
 /**
  * Description of a single logical "data module" — the unit that the backup
@@ -17,11 +21,15 @@ import { getTableName } from "drizzle-orm";
  * - `deps`: names of other modules whose tables must come before this one
  *   on insert (and after on delete). String-based so registration is order-
  *   independent and free of import cycles.
+ * - `db`: where the tables live when not in the Durable Object's database;
+ *   null when the deployment has no such database (the module is then
+ *   exported empty and skipped on restore).
  */
 export interface BackupContribution {
   readonly name: string;
   readonly tables: readonly SQLiteTable[];
   readonly deps: readonly string[];
+  readonly db?: (() => ExternalBackupDb | null) | undefined;
 }
 
 const contributions = new Map<string, BackupContribution>();

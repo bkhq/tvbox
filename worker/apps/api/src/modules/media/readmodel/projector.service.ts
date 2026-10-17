@@ -1,6 +1,7 @@
+import type { MediaDb } from "../db";
 import type { Library, ReadModel } from "./documents";
 import type { ReadModelDb, RmStatement } from "./store";
-import type { AppDatabase } from "@/db";
+import { eq } from "drizzle-orm";
 import { ulid } from "@/shared/lib/id";
 import { LIVE_EPG_KEY } from "../live/live.service";
 import {
@@ -18,13 +19,15 @@ import {
   mediaRowItems,
   mediaRows,
   mediaSeasons,
+  mediaSettings,
   mediaSources,
   mediaStreams,
   mediaTitleAliases,
   mediaTitleGenres,
   mediaTitles,
+  mediaTitleTranslations,
 } from "../schema";
-import { getHero, getSetting } from "../taxonomy/rows.service";
+import { HERO_KEY } from "../taxonomy/rows.service";
 import { buildReadModel, hashOf } from "./documents";
 
 // D1 runs a batch as one transaction; this many statements per call keeps a
@@ -38,30 +41,56 @@ export interface ProjectResult {
   readonly titles: number;
 }
 
-/** Everything a publish reads. Whole tables: the library is small enough, and it spares 100-parameter `IN` lists. */
-export async function loadLibrary(db: AppDatabase): Promise<Library> {
+/** Everything a publish reads, in one batch. Whole tables: the library is small enough, and it spares 100-parameter `IN` lists. */
+export async function loadLibrary(db: MediaDb): Promise<Library> {
+  const [categories, genres, collections, titles, aliases, translations, titleGenres, seasons, episodes, people, credits, images, externalIds, sources, streams, rows, rowItems, liveGroups, liveChannels, liveStreams, hero, liveEpg] = await db.batch([
+    db.select().from(mediaCategories),
+    db.select().from(mediaGenres),
+    db.select().from(mediaCollections),
+    db.select().from(mediaTitles),
+    db.select().from(mediaTitleAliases),
+    db.select().from(mediaTitleTranslations),
+    db.select().from(mediaTitleGenres),
+    db.select().from(mediaSeasons),
+    db.select().from(mediaEpisodes),
+    db.select().from(mediaPeople),
+    db.select().from(mediaCredits),
+    db.select().from(mediaImages),
+    db.select().from(mediaExternalIds),
+    db.select().from(mediaSources),
+    db.select().from(mediaStreams),
+    db.select().from(mediaRows),
+    db.select().from(mediaRowItems),
+    db.select().from(mediaLiveGroups),
+    db.select().from(mediaLiveChannels),
+    db.select().from(mediaLiveStreams),
+    db.select({ value: mediaSettings.value }).from(mediaSettings).where(eq(mediaSettings.key, HERO_KEY)),
+    db.select({ value: mediaSettings.value }).from(mediaSettings).where(eq(mediaSettings.key, LIVE_EPG_KEY)),
+  ]);
+  const setting = <T>(found: { value: string }[], fallback: T): T => (found[0] ? JSON.parse(found[0].value) as T : fallback);
   return {
-    categories: await db.select().from(mediaCategories).all(),
-    genres: await db.select().from(mediaGenres).all(),
-    collections: await db.select().from(mediaCollections).all(),
-    titles: await db.select().from(mediaTitles).all(),
-    aliases: await db.select().from(mediaTitleAliases).all(),
-    titleGenres: await db.select().from(mediaTitleGenres).all(),
-    seasons: await db.select().from(mediaSeasons).all(),
-    episodes: await db.select().from(mediaEpisodes).all(),
-    people: await db.select().from(mediaPeople).all(),
-    credits: await db.select().from(mediaCredits).all(),
-    images: await db.select().from(mediaImages).all(),
-    externalIds: await db.select().from(mediaExternalIds).all(),
-    sources: await db.select().from(mediaSources).all(),
-    streams: await db.select().from(mediaStreams).all(),
-    rows: await db.select().from(mediaRows).all(),
-    rowItems: await db.select().from(mediaRowItems).all(),
-    hero: await getHero(db),
-    liveGroups: await db.select().from(mediaLiveGroups).all(),
-    liveChannels: await db.select().from(mediaLiveChannels).all(),
-    liveStreams: await db.select().from(mediaLiveStreams).all(),
-    liveEpg: await getSetting<string[]>(db, LIVE_EPG_KEY, []),
+    categories,
+    genres,
+    collections,
+    titles,
+    aliases,
+    translations,
+    titleGenres,
+    seasons,
+    episodes,
+    people,
+    credits,
+    images,
+    externalIds,
+    sources,
+    streams,
+    rows,
+    rowItems,
+    hero: setting<string[]>(hero, []),
+    liveGroups,
+    liveChannels,
+    liveStreams,
+    liveEpg: setting<string[]>(liveEpg, []),
   };
 }
 
@@ -137,11 +166,11 @@ export async function writeReadModel(rm: ReadModelDb, model: ReadModel, options:
     ),
     ...(isNew ? [] : [q("DELETE FROM rm_title_genres WHERE title_id = ?", t.id)]),
     ...t.genreIds.map(g => q("INSERT INTO rm_title_genres (genre_id, title_id) VALUES (?, ?)", g, t.id)),
-  ], id => [q("DELETE FROM rm_titles WHERE id = ?", Number(id)), q("DELETE FROM rm_title_genres WHERE title_id = ?", Number(id))]);
+  ], id => [q("DELETE FROM rm_titles WHERE id = ?", id), q("DELETE FROM rm_title_genres WHERE title_id = ?", id)]);
 
   await diff(rm, plan, "SELECT id, hash FROM rm_seasons", model.seasons, s => String(s.id), s => hashOf(s.detail), (s, h) => [
     q("INSERT OR REPLACE INTO rm_seasons (id, title_id, number, detail_json, hash) VALUES (?, ?, ?, ?, ?)", s.id, s.titleId, s.number, JSON.stringify(s.detail), h),
-  ], id => [q("DELETE FROM rm_seasons WHERE id = ?", Number(id))]);
+  ], id => [q("DELETE FROM rm_seasons WHERE id = ?", id)]);
 
   await diff(rm, plan, "SELECT id, hash FROM rm_playback", model.playback, p => p.id, p => hashOf(p.doc), (p, h) => [
     q("INSERT OR REPLACE INTO rm_playback (id, title_id, season_id, episode_number, json, hash) VALUES (?, ?, ?, ?, ?, ?)", p.id, p.titleId, p.seasonId, p.episodeNumber, JSON.stringify(p.doc), h),
@@ -149,7 +178,7 @@ export async function writeReadModel(rm: ReadModelDb, model: ReadModel, options:
 
   await diff(rm, plan, "SELECT id, hash FROM rm_people", model.people, p => String(p.id), p => hashOf(p.doc), (p, h) => [
     q("INSERT OR REPLACE INTO rm_people (id, json, hash) VALUES (?, ?, ?)", p.id, JSON.stringify(p.doc), h),
-  ], id => [q("DELETE FROM rm_people WHERE id = ?", Number(id))]);
+  ], id => [q("DELETE FROM rm_people WHERE id = ?", id)]);
 
   await diff(rm, plan, "SELECT id, hash FROM rm_collections", model.collections, c => c.id, c => hashOf(c.doc), (c, h) => [
     q("INSERT OR REPLACE INTO rm_collections (id, json, hash) VALUES (?, ?, ?)", c.id, JSON.stringify(c.doc), h),
@@ -163,7 +192,7 @@ export async function writeReadModel(rm: ReadModelDb, model: ReadModel, options:
 
   await diff(rm, plan, "SELECT ref AS id, hash FROM rm_search", model.search, s => s.ref, s => hashOf(s.text), (s, h, isNew) => [
     ...(isNew ? [] : [q("DELETE FROM rm_search WHERE ref = ?", s.ref)]),
-    q("INSERT INTO rm_search (ref, hash, text) VALUES (?, ?, ?)", s.ref, h, s.text),
+    q("INSERT INTO rm_search (ref, type, hash, text) VALUES (?, ?, ?, ?)", s.ref, s.type, h, s.text),
   ], id => [q("DELETE FROM rm_search WHERE ref = ?", id)]);
 
   await diff(rm, plan, "SELECT vod_id AS id, hash FROM rm_cms_items", model.cmsItems, c => c.vodId, c => hashOf(c), (c, h) => [
@@ -204,7 +233,7 @@ export function today(): string {
 }
 
 /** Publish the library: project what is published now into the read model. */
-export async function projectLibrary(db: AppDatabase, rm: ReadModelDb, options: { full?: boolean; today?: string } = {}): Promise<ProjectResult> {
+export async function projectLibrary(db: MediaDb, rm: ReadModelDb, options: { full?: boolean; today?: string } = {}): Promise<ProjectResult> {
   const model = buildReadModel(await loadLibrary(db), options.today ?? today());
   return await writeReadModel(rm, model, options);
 }

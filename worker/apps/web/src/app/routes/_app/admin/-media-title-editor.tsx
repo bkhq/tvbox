@@ -1,4 +1,4 @@
-import type { ExternalSource, Title, TitleInput } from "./-media-api";
+import type { ExternalSource, Title, TitleInput, Translation } from "./-media-api";
 import { useQuery } from "@tanstack/react-query";
 import { Trash2 } from "lucide-react";
 import { useState } from "react";
@@ -21,7 +21,7 @@ import { SourcesPanel } from "./-media-sources";
 
 const NONE = "none";
 
-export function TitleEditor({ id, onClose }: { id: number; onClose: () => void }) {
+export function TitleEditor({ id, onClose }: { id: string; onClose: () => void }) {
   const { t } = useTranslation(["common", "media"]);
   const title = useQuery({ queryKey: mediaKeys.title(id), queryFn: () => mediaApi.title(id) });
 
@@ -40,6 +40,7 @@ export function TitleEditor({ id, onClose }: { id: number; onClose: () => void }
                 : <TabsTrigger value="sources">{t("media:editor.sources")}</TabsTrigger>}
               <TabsTrigger value="credits">{t("media:editor.credits")}</TabsTrigger>
               <TabsTrigger value="images">{t("media:editor.images")}</TabsTrigger>
+              <TabsTrigger value="translations">{t("media:editor.translations")}</TabsTrigger>
               <TabsTrigger value="external">{t("media:editor.external")}</TabsTrigger>
             </TabsList>
             <TabsContent value="info"><InfoForm key={title.data.updatedAt} title={title.data} /></TabsContent>
@@ -48,6 +49,7 @@ export function TitleEditor({ id, onClose }: { id: number; onClose: () => void }
               : <TabsContent value="sources"><SourcesPanel owner={{ kind: "titles", id }} /></TabsContent>}
             <TabsContent value="credits"><CreditsPanel title={title.data} /></TabsContent>
             <TabsContent value="images"><ImagesPanel ownerType="title" ownerId={id} kinds={["poster", "backdrop", "logo"]} /></TabsContent>
+            <TabsContent value="translations"><Translations titleId={id} /></TabsContent>
             <TabsContent value="external"><ExternalIds titleId={id} /></TabsContent>
           </Tabs>
         )}
@@ -167,7 +169,44 @@ function InfoForm({ title }: { title: Title }) {
   );
 }
 
-function ExternalIds({ titleId }: { titleId: number }) {
+const EMPTY_TRANSLATION = { locale: "", title: "", overview: "", tagline: "" };
+
+function Translations({ titleId }: { titleId: string }) {
+  const { t } = useTranslation(["common", "media"]);
+  const list = useQuery({ queryKey: mediaKeys.translations(titleId), queryFn: () => mediaApi.translations(titleId) });
+  const [form, setForm] = useState(EMPTY_TRANSLATION);
+  const set = <K extends keyof typeof form>(key: K, value: string) => setForm(f => ({ ...f, [key]: value }));
+  const edit = (x: Translation) => setForm({ locale: x.locale, title: x.title ?? "", overview: x.overview ?? "", tagline: x.tagline ?? "" });
+  const save = useMediaMutation(
+    () => mediaApi.putTranslation(titleId, form.locale.trim(), { title: orNull(form.title), overview: orNull(form.overview), tagline: orNull(form.tagline) }),
+    () => setForm(EMPTY_TRANSLATION),
+  );
+  const remove = useMediaMutation((locale: string) => mediaApi.deleteTranslation(titleId, locale));
+
+  return (
+    <div className="space-y-3 pt-4">
+      {list.data?.length === 0 && <CenteredHint>{t("media:translations.empty")}</CenteredHint>}
+      {list.data?.map(x => (
+        <div key={x.id} className="flex items-center gap-2 text-sm">
+          <Badge variant="outline">{x.locale}</Badge>
+          <button type="button" className="flex-1 truncate text-left hover:underline" onClick={() => edit(x)}>{x.title || x.overview || x.tagline || "—"}</button>
+          <Button size="sm" variant="ghost" onClick={() => remove.mutate(x.locale)}><Trash2 className="size-4" /></Button>
+        </div>
+      ))}
+      <div className="grid gap-3 sm:grid-cols-3">
+        <Field label={t("media:translations.locale")}><Input value={form.locale} onChange={e => set("locale", e.target.value)} placeholder="en-US" /></Field>
+        <Field label={t("media:titles.title")}><Input value={form.title} onChange={e => set("title", e.target.value)} /></Field>
+        <Field label={t("media:info.tagline")}><Input value={form.tagline} onChange={e => set("tagline", e.target.value)} /></Field>
+        <div className="sm:col-span-3">
+          <Field label={t("media:info.overview")}><Textarea rows={3} value={form.overview} onChange={e => set("overview", e.target.value)} /></Field>
+        </div>
+      </div>
+      <Button size="sm" disabled={!form.locale.trim() || save.isPending} onClick={() => save.mutate(undefined)}>{t("common.save")}</Button>
+    </div>
+  );
+}
+
+function ExternalIds({ titleId }: { titleId: string }) {
   const { t } = useTranslation(["common", "media"]);
   const list = useQuery({ queryKey: mediaKeys.externalIds(titleId), queryFn: () => mediaApi.externalIds(titleId) });
   const [source, setSource] = useState<ExternalSource>("tmdb");
@@ -187,7 +226,7 @@ function ExternalIds({ titleId }: { titleId: number }) {
       ))}
       <div className="flex items-center gap-2">
         <EnumSelect className="w-28" value={source} values={EXTERNAL_SOURCES} label={v => v} onChange={setSource} />
-        <Input className="w-56" value={value} onChange={e => setValue(e.target.value)} placeholder="tt0111161" />
+        <Input className="w-56" value={value} onChange={e => setValue(e.target.value)} placeholder={source === "tmdb" ? "movie:27205" : "tt0111161"} />
         <Button size="sm" disabled={!value.trim() || add.isPending} onClick={() => add.mutate(undefined)}>{t("media:add")}</Button>
       </div>
     </div>

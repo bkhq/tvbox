@@ -1,4 +1,5 @@
-import type { BackupContribution } from "@/modules/backup/registry";
+import type { BackupContribution, ExternalBackupDb } from "@/modules/backup/registry";
+import { getMediaDb } from "./db";
 import {
   mediaCategories,
   mediaCollections,
@@ -20,12 +21,15 @@ import {
   mediaTitleAliases,
   mediaTitleGenres,
   mediaTitles,
+  mediaTitleTranslations,
 } from "./schema";
 
-// The source data only: the D1 read model is rebuilt from it by publishing,
-// and uploaded images live in blob storage like the tvbox module's files.
+// The source data only, from the media D1 database: the read model next to
+// it is rebuilt by publishing, and uploaded images live in blob storage like
+// the tvbox module's files.
 export const mediaBackupContribution: BackupContribution = {
   name: "media",
+  db: () => getMediaDb() as unknown as ExternalBackupDb | null,
   // Parents before children so every FK resolves on restore.
   tables: [
     mediaCategories,
@@ -33,6 +37,7 @@ export const mediaBackupContribution: BackupContribution = {
     mediaCollections,
     mediaTitles,
     mediaTitleAliases,
+    mediaTitleTranslations,
     mediaTitleGenres,
     mediaSeasons,
     mediaEpisodes,

@@ -70,6 +70,7 @@
     "sources": "Sources",
     "credits": "Credits",
     "images": "Images",
+    "translations": "Translations",
     "external": "External IDs"
   },
   "info": {
@@ -182,6 +183,10 @@
       "still": "Landscape 16:9, 1280×720",
       "profile": "Portrait 2:3, 300×450"
     }
+  },
+  "translations": {
+      "empty": "No translations yet. Imports write one per locale; add one by hand here.",
+      "locale": "Locale (e.g. en-US)"
   },
   "external": {
     "empty": "No external IDs yet."

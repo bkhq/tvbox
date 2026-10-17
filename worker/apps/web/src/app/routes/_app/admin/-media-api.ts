@@ -39,7 +39,7 @@ export interface Collection {
 }
 
 export interface Title {
-  readonly id: number;
+  readonly id: string;
   readonly kind: TitleKind;
   readonly categoryId: string;
   readonly title: string;
@@ -59,17 +59,28 @@ export interface Title {
   readonly publishState: PublishState;
   readonly genreIds: string[];
   readonly aliases: { id: string; name: string; locale: string | null; kind: "alias" | "translation" }[];
+  readonly translations: Translation[];
   readonly seasonCount: number;
   readonly updatedAt: string;
 }
 
-export type TitleInput = Partial<Omit<Title, "id" | "kind" | "aliases" | "seasonCount" | "updatedAt">> & {
+export interface Translation {
+  readonly id: string;
+  readonly locale: string;
+  readonly title: string | null;
+  readonly overview: string | null;
+  readonly tagline: string | null;
+}
+
+export type TranslationInput = Pick<Translation, "title" | "overview" | "tagline">;
+
+export type TitleInput = Partial<Omit<Title, "id" | "kind" | "aliases" | "translations" | "seasonCount" | "updatedAt">> & {
   aliases?: { name: string }[];
 };
 
 export interface Season {
-  readonly id: number;
-  readonly titleId: number;
+  readonly id: string;
+  readonly titleId: string;
   readonly seasonNumber: number;
   readonly name: string | null;
   readonly overview: string | null;
@@ -85,7 +96,7 @@ export interface Season {
 
 export interface Episode {
   readonly id: string;
-  readonly seasonId: number;
+  readonly seasonId: string;
   readonly episodeNumber: number;
   readonly episodeType: EpisodeType;
   readonly name: string | null;
@@ -121,7 +132,7 @@ export interface PasteResult {
 }
 
 export interface Person {
-  readonly id: number;
+  readonly id: string;
   readonly name: string;
   readonly originalName: string | null;
   readonly gender: "female" | "male" | "other" | null;
@@ -132,9 +143,9 @@ export interface Person {
 
 export interface Credit {
   readonly id: string;
-  readonly personId: number;
+  readonly personId: string;
   readonly personName: string;
-  readonly seasonId: number | null;
+  readonly seasonId: string | null;
   readonly role: "cast" | "crew";
   readonly character: string | null;
   readonly job: string | null;
@@ -173,7 +184,7 @@ export interface Row {
   readonly rule: RowRule | null;
   readonly onHome: boolean;
   readonly sort: number;
-  readonly titleIds: number[];
+  readonly titleIds: string[];
 }
 
 export interface LiveGroup {
@@ -219,15 +230,16 @@ export const mediaKeys = {
   genres: ["media", "genres"] as const,
   collections: ["media", "collections"] as const,
   titles: (query: Record<string, string | number | undefined>) => ["media", "titles", query] as const,
-  title: (id: number) => ["media", "title", id] as const,
-  seasons: (titleId: number) => ["media", "seasons", titleId] as const,
-  episodes: (seasonId: number) => ["media", "episodes", seasonId] as const,
+  title: (id: string) => ["media", "title", id] as const,
+  seasons: (titleId: string) => ["media", "seasons", titleId] as const,
+  episodes: (seasonId: string) => ["media", "episodes", seasonId] as const,
   sources: (owner: SourceOwner) => ["media", "sources", owner.kind, owner.id] as const,
   streams: (sourceId: string) => ["media", "streams", sourceId] as const,
   people: (q: string, page: number) => ["media", "people", q, page] as const,
-  credits: (titleId: number) => ["media", "credits", titleId] as const,
-  images: (owner: ImageOwner, id: string | number) => ["media", "images", owner, String(id)] as const,
-  externalIds: (titleId: number) => ["media", "external-ids", titleId] as const,
+  credits: (titleId: string) => ["media", "credits", titleId] as const,
+  images: (owner: ImageOwner, id: string) => ["media", "images", owner, id] as const,
+  externalIds: (titleId: string) => ["media", "external-ids", titleId] as const,
+  translations: (titleId: string) => ["media", "translations", titleId] as const,
   rows: ["media", "rows"] as const,
   hero: ["media", "hero"] as const,
   liveGroups: ["media", "live", "groups"] as const,
@@ -237,7 +249,7 @@ export const mediaKeys = {
 
 export interface SourceOwner {
   readonly kind: "titles" | "seasons";
-  readonly id: number;
+  readonly id: string;
 }
 
 async function data<T>(path: string, init?: RequestInit): Promise<T> {
@@ -276,23 +288,23 @@ export const mediaApi = {
   deleteCollection: (id: string) => data<Collection>(`/media/collections/${id}`, send("DELETE")),
 
   titles: (params: Record<string, string | number | undefined>) => paged<Title>(`/media/titles${query(params)}`),
-  title: (id: number) => data<Title>(`/media/titles/${id}`),
+  title: (id: string) => data<Title>(`/media/titles/${id}`),
   createTitle: (body: TitleInput & { kind: TitleKind; categoryId: string; title: string }) => data<Title>("/media/titles", send("POST", body)),
-  updateTitle: (id: number, body: TitleInput) => data<Title>(`/media/titles/${id}`, send("PATCH", body)),
-  deleteTitle: (id: number) => data<Title>(`/media/titles/${id}`, send("DELETE")),
+  updateTitle: (id: string, body: TitleInput) => data<Title>(`/media/titles/${id}`, send("PATCH", body)),
+  deleteTitle: (id: string) => data<Title>(`/media/titles/${id}`, send("DELETE")),
 
-  seasons: (titleId: number) => data<Season[]>(`/media/titles/${titleId}/seasons`),
-  createSeason: (titleId: number, body: Partial<Season> & { seasonNumber: number }) => data<Season>(`/media/titles/${titleId}/seasons`, send("POST", body)),
-  updateSeason: (id: number, body: Partial<Omit<Season, "id">>) => data<Season>(`/media/seasons/${id}`, send("PATCH", body)),
-  deleteSeason: (id: number) => data<Season>(`/media/seasons/${id}`, send("DELETE")),
+  seasons: (titleId: string) => data<Season[]>(`/media/titles/${titleId}/seasons`),
+  createSeason: (titleId: string, body: Partial<Season> & { seasonNumber: number }) => data<Season>(`/media/titles/${titleId}/seasons`, send("POST", body)),
+  updateSeason: (id: string, body: Partial<Omit<Season, "id">>) => data<Season>(`/media/seasons/${id}`, send("PATCH", body)),
+  deleteSeason: (id: string) => data<Season>(`/media/seasons/${id}`, send("DELETE")),
 
-  episodes: (seasonId: number) => data<Episode[]>(`/media/seasons/${seasonId}/episodes`),
-  createEpisode: (seasonId: number, body: Partial<Episode> & { episodeNumber: number }) => data<Episode>(`/media/seasons/${seasonId}/episodes`, send("POST", body)),
+  episodes: (seasonId: string) => data<Episode[]>(`/media/seasons/${seasonId}/episodes`),
+  createEpisode: (seasonId: string, body: Partial<Episode> & { episodeNumber: number }) => data<Episode>(`/media/seasons/${seasonId}/episodes`, send("POST", body)),
   updateEpisode: (id: string, body: Partial<Omit<Episode, "id">>) => data<Episode>(`/media/episodes/${id}`, send("PATCH", body)),
   deleteEpisode: (id: string) => data<Episode>(`/media/episodes/${id}`, send("DELETE")),
-  generateEpisodes: (seasonId: number, from: number, to: number) => data<{ count: number }>(`/media/seasons/${seasonId}/episodes/generate`, send("POST", { from, to })),
-  shiftEpisodes: (seasonId: number, from: number, delta: number) => data<{ count: number }>(`/media/seasons/${seasonId}/episodes/shift`, send("POST", { from, delta })),
-  scheduleEpisodes: (seasonId: number, from: number, startDate: string, intervalDays: number) =>
+  generateEpisodes: (seasonId: string, from: number, to: number) => data<{ count: number }>(`/media/seasons/${seasonId}/episodes/generate`, send("POST", { from, to })),
+  shiftEpisodes: (seasonId: string, from: number, delta: number) => data<{ count: number }>(`/media/seasons/${seasonId}/episodes/shift`, send("POST", { from, delta })),
+  scheduleEpisodes: (seasonId: string, from: number, startDate: string, intervalDays: number) =>
     data<{ count: number }>(`/media/seasons/${seasonId}/episodes/schedule`, send("POST", { from, startDate, intervalDays })),
 
   sources: (owner: SourceOwner) => data<Source[]>(`/media/${owner.kind}/${owner.id}/sources`),
@@ -306,32 +318,36 @@ export const mediaApi = {
 
   people: (q: string, page: number) => paged<Person>(`/media/people${query({ q: q.trim() || undefined, page, limit: 20 })}`),
   createPerson: (body: Partial<Person> & { name: string }) => data<Person>("/media/people", send("POST", body)),
-  updatePerson: (id: number, body: Partial<Omit<Person, "id">>) => data<Person>(`/media/people/${id}`, send("PATCH", body)),
-  deletePerson: (id: number) => data<Person>(`/media/people/${id}`, send("DELETE")),
+  updatePerson: (id: string, body: Partial<Omit<Person, "id">>) => data<Person>(`/media/people/${id}`, send("PATCH", body)),
+  deletePerson: (id: string) => data<Person>(`/media/people/${id}`, send("DELETE")),
 
-  credits: (titleId: number) => data<Credit[]>(`/media/titles/${titleId}/credits`),
-  addCredit: (titleId: number, body: { personId: number; role: "cast" | "crew"; seasonId?: number | null; character?: string | null; job?: string | null }) =>
+  credits: (titleId: string) => data<Credit[]>(`/media/titles/${titleId}/credits`),
+  addCredit: (titleId: string, body: { personId: string; role: "cast" | "crew"; seasonId?: string | null; character?: string | null; job?: string | null }) =>
     data<Credit>(`/media/titles/${titleId}/credits`, send("POST", body)),
   deleteCredit: (id: string) => data<Credit>(`/media/credits/${id}`, send("DELETE")),
 
-  images: (ownerType: ImageOwner, ownerId: string | number) => data<MediaImage[]>(`/media/images${query({ ownerType, ownerId: String(ownerId) })}`),
+  images: (ownerType: ImageOwner, ownerId: string) => data<MediaImage[]>(`/media/images${query({ ownerType, ownerId })}`),
   addImage: (body: { ownerType: ImageOwner; ownerId: string; kind: ImageKind; url?: string; assetSha256?: string; assetName?: string }) => data<MediaImage>("/media/images", send("POST", body)),
   setPrimaryImage: (id: string) => data<MediaImage>(`/media/images/${id}`, send("PATCH", { isPrimary: true })),
   deleteImage: (id: string) => data<MediaImage>(`/media/images/${id}`, send("DELETE")),
   uploadImage: (file: File) => data<{ sha256: string; name: string }>(`/media/images/upload?name=${encodeURIComponent(file.name)}`, { method: "POST", body: file, headers: { "Content-Type": "application/octet-stream" } }),
 
-  externalIds: (titleId: number) => data<ExternalId[]>(`/media/external-ids${query({ ownerType: "title", ownerId: String(titleId) })}`),
-  addExternalId: (titleId: number, source: ExternalSource, externalId: string) =>
+  externalIds: (titleId: string) => data<ExternalId[]>(`/media/external-ids${query({ ownerType: "title", ownerId: titleId })}`),
+  addExternalId: (titleId: string, source: ExternalSource, externalId: string) =>
     data<ExternalId>("/media/external-ids", send("POST", { ownerType: "title", ownerId: String(titleId), source, externalId })),
   deleteExternalId: (id: string) => data<ExternalId>(`/media/external-ids/${id}`, send("DELETE")),
 
+  translations: (titleId: string) => data<Translation[]>(`/media/titles/${titleId}/translations`),
+  putTranslation: (titleId: string, locale: string, body: TranslationInput) => data<Translation>(`/media/titles/${titleId}/translations/${encodeURIComponent(locale)}`, send("PUT", body)),
+  deleteTranslation: (titleId: string, locale: string) => data<Translation>(`/media/titles/${titleId}/translations/${encodeURIComponent(locale)}`, send("DELETE")),
+
   rows: () => data<Row[]>("/media/rows"),
-  createRow: (body: { name: string; kind: "manual" | "rule"; rule?: RowRule | null; titleIds?: number[]; onHome?: boolean }) => data<Row>("/media/rows", send("POST", body)),
-  updateRow: (id: string, body: { name?: string; rule?: RowRule | null; titleIds?: number[]; onHome?: boolean }) => data<Row>(`/media/rows/${id}`, send("PATCH", body)),
+  createRow: (body: { name: string; kind: "manual" | "rule"; rule?: RowRule | null; titleIds?: string[]; onHome?: boolean }) => data<Row>("/media/rows", send("POST", body)),
+  updateRow: (id: string, body: { name?: string; rule?: RowRule | null; titleIds?: string[]; onHome?: boolean }) => data<Row>(`/media/rows/${id}`, send("PATCH", body)),
   deleteRow: (id: string) => data<Row>(`/media/rows/${id}`, send("DELETE")),
   reorderRows: (ids: string[]) => data<unknown>("/media/rows/reorder", send("POST", { ids })),
-  hero: () => data<{ titleIds: number[] }>("/media/hero").then(r => r.titleIds),
-  setHero: (titleIds: number[]) => data<{ titleIds: number[] }>("/media/hero", send("PUT", { titleIds })),
+  hero: () => data<{ titleIds: string[] }>("/media/hero").then(r => r.titleIds),
+  setHero: (titleIds: string[]) => data<{ titleIds: string[] }>("/media/hero", send("PUT", { titleIds })),
 
   liveGroups: () => data<LiveGroup[]>("/media/live/groups"),
   createLiveGroup: (name: string) => data<LiveGroup>("/media/live/groups", send("POST", { name })),

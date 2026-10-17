@@ -3,6 +3,7 @@ import { Hono } from "hono";
 import { z } from "zod";
 import { storeUpload } from "@/modules/tvbox/upload.service";
 import { jsonCreated, jsonOk, validator } from "@/shared/lib/openapi";
+import { requireMediaDb } from "../db";
 import { EXTERNAL_OWNER_TYPES, EXTERNAL_SOURCES, IMAGE_KINDS, IMAGE_OWNER_TYPES } from "../schema";
 import { addExternalId, deleteExternalId, listExternalIds } from "../shared/external-ids";
 import { doc, httpUrl, idParam, record } from "../shared/http";
@@ -53,7 +54,7 @@ export function artworkRoutes() {
     validator("query", z.object({ ownerType: z.enum(IMAGE_OWNER_TYPES), ownerId: z.string().min(1).max(64) })),
     async (c) => {
       const { ownerType, ownerId } = c.req.valid("query");
-      return c.json({ success: true, data: await listImages(c.get("db"), ownerType, ownerId) });
+      return c.json({ success: true, data: await listImages(requireMediaDb(), ownerType, ownerId) });
     },
   );
 
@@ -63,7 +64,7 @@ export function artworkRoutes() {
     validator("json", imageFields.extend({ ownerType: z.enum(IMAGE_OWNER_TYPES), ownerId: z.string().min(1).max(64), kind: z.enum(IMAGE_KINDS) })),
     async (c) => {
       const { ownerType, ownerId, ...input } = c.req.valid("json");
-      const row = await addImage(c.get("db"), ownerType, ownerId, input);
+      const row = await addImage(requireMediaDb(), ownerType, ownerId, input);
       await record(c, "media.image.added", { type: "media_image", id: row.id, name: row.kind }, { ownerType, ownerId });
       return c.json({ success: true, data: row }, 201);
     },
@@ -86,14 +87,14 @@ export function artworkRoutes() {
     validator("param", idParam),
     validator("json", imageFields.extend({ sort: z.number().int().optional() })),
     async (c) => {
-      const row = await updateImage(c.get("db"), c.req.valid("param").id, c.req.valid("json"));
+      const row = await updateImage(requireMediaDb(), c.req.valid("param").id, c.req.valid("json"));
       await record(c, "media.image.updated", { type: "media_image", id: row.id, name: row.kind }, { ownerType: row.ownerType, ownerId: row.ownerId });
       return c.json({ success: true, data: row });
     },
   );
 
   router.delete("/media/images/:id", doc("Delete an image", jsonOk(imageSchema)), validator("param", idParam), async (c) => {
-    const row = await deleteImage(c.get("db"), c.req.valid("param").id);
+    const row = await deleteImage(requireMediaDb(), c.req.valid("param").id);
     await record(c, "media.image.deleted", { type: "media_image", id: row.id, name: row.kind }, { ownerType: row.ownerType, ownerId: row.ownerId });
     return c.json({ success: true, data: row });
   });
@@ -104,7 +105,7 @@ export function artworkRoutes() {
     validator("query", z.object({ ownerType: z.enum(EXTERNAL_OWNER_TYPES), ownerId: z.string().min(1).max(64) })),
     async (c) => {
       const { ownerType, ownerId } = c.req.valid("query");
-      return c.json({ success: true, data: await listExternalIds(c.get("db"), ownerType, ownerId) });
+      return c.json({ success: true, data: await listExternalIds(requireMediaDb(), ownerType, ownerId) });
     },
   );
 
@@ -119,14 +120,14 @@ export function artworkRoutes() {
     })),
     async (c) => {
       const { ownerType, ownerId, ...input } = c.req.valid("json");
-      const row = await addExternalId(c.get("db"), ownerType, ownerId, input);
+      const row = await addExternalId(requireMediaDb(), ownerType, ownerId, input);
       await record(c, "media.external_id.added", { type: "media_external_id", id: row.id, name: `${row.source}:${row.externalId}` }, { ownerType, ownerId });
       return c.json({ success: true, data: row }, 201);
     },
   );
 
   router.delete("/media/external-ids/:id", doc("Unlink an external id", jsonOk(externalIdSchema)), validator("param", idParam), async (c) => {
-    const row = await deleteExternalId(c.get("db"), c.req.valid("param").id);
+    const row = await deleteExternalId(requireMediaDb(), c.req.valid("param").id);
     await record(c, "media.external_id.deleted", { type: "media_external_id", id: row.id, name: `${row.source}:${row.externalId}` }, { ownerType: row.ownerType, ownerId: row.ownerId });
     return c.json({ success: true, data: row });
   });

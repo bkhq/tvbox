@@ -1,4 +1,3 @@
-import type { AppDatabase } from "@/db";
 import type { AppEnv } from "@/shared/lib/types";
 import { Hono } from "hono";
 import { registerBackupContribution } from "@/modules/backup/registry";
@@ -6,6 +5,8 @@ import { registerTokenScope } from "@/shared/lib/token-scopes";
 import { adminRequired, authRequired } from "@/shared/middleware/auth";
 import { artworkRoutes } from "./artwork/artwork.routes";
 import { catalogRoutes } from "./catalog/catalog.routes";
+import { getMediaDb } from "./db";
+import { importRoutes } from "./import/import.routes";
 import { liveRoutes } from "./live/live.routes";
 import { mediaBackupContribution } from "./media.backup";
 import { peopleRoutes } from "./people/people.routes";
@@ -17,9 +18,11 @@ import { seedTaxonomy } from "./taxonomy/taxonomy.service";
 
 registerBackupContribution(mediaBackupContribution);
 
-/** Boot-time setup: the default categories and genres on a fresh database. */
-export async function initMedia(db: AppDatabase): Promise<void> {
-  await seedTaxonomy(db);
+/** Boot-time setup: the default categories and genres on a fresh media database, where there is one. */
+export async function initMedia(): Promise<void> {
+  const db = getMediaDb();
+  if (db)
+    await seedTaxonomy(db);
 }
 
 /** The admin API of the media library, admin only throughout. */
@@ -34,6 +37,7 @@ export function mediaRoutes() {
   router.route("/", rowsRoutes());
   router.route("/", liveRoutes());
   router.route("/", readModelRoutes());
+  router.route("/", importRoutes());
   return router;
 }
 

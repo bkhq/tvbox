@@ -1,5 +1,5 @@
 import type { z } from "zod";
-import type { AppDatabase } from "@/db";
+import type { MediaDb } from "@/modules/media/db";
 import type { DevicesFile } from "@/modules/tvbox/storage";
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { createHash } from "node:crypto";
@@ -32,7 +32,7 @@ const TOKEN = "0123456789abcdef0123456789abcdef";
 const SHA = "d".repeat(64);
 const ASSET_BASE = `https://worker.example/s/${TOKEN}/a/`;
 
-let db: AppDatabase;
+let db: MediaDb;
 let dispose: () => void;
 let rm: ReturnType<typeof createSqliteReadModel>;
 
@@ -108,22 +108,22 @@ describe("media v1", () => {
     const row = home.rows[0]!;
     expect(row.items.length).toBe(3);
     const rest = await body(`/v1/rows/${row.id}?cursor=1&limit=1`, rowSchema);
-    expect(rest.items.map(i => i.id)).toEqual([`t${b.id}`]);
+    expect(rest.items.map(i => i.id)).toEqual([b.id]);
     expect(rest.cursor).toBe("2");
     const last = await body(`/v1/rows/${row.id}?cursor=2&limit=1`, rowSchema);
-    expect(last).toMatchObject({ items: [{ id: `t${c.id}` }], cursor: null });
+    expect(last).toMatchObject({ items: [{ id: c.id }], cursor: null });
   });
 
   test("browse pages by cursor without repeats, in each sort", async () => {
     const { a, b, c } = await library();
     const first = await body("/v1/browse?category=movie&sort=popular&limit=2", pageSchema);
-    expect(first.items.map(i => i.id)).toEqual([`t${a.id}`, `t${b.id}`]);
+    expect(first.items.map(i => i.id)).toEqual([a.id, b.id]);
     const second = await body(`/v1/browse?category=movie&sort=popular&limit=2&cursor=${first.cursor}`, pageSchema);
-    expect(second).toMatchObject({ items: [{ id: `t${c.id}` }], cursor: null });
+    expect(second).toMatchObject({ items: [{ id: c.id }], cursor: null });
     const filtered = await body("/v1/browse?category=movie&genre=g878&year=2023", pageSchema);
-    expect(filtered.items.map(i => i.id)).toEqual([`t${b.id}`]);
+    expect(filtered.items.map(i => i.id)).toEqual([b.id]);
     const release = await body("/v1/browse?sort=release", pageSchema);
-    expect(release.items.map(i => i.id).slice(0, 2)).toEqual([`t${b.id}`, `t${a.id}`]);
+    expect(release.items.map(i => i.id).slice(0, 2)).toEqual([b.id, a.id]);
   });
 
   test("facets: precomputed per category, counted when narrowed", async () => {
@@ -140,11 +140,11 @@ describe("media v1", () => {
   test("search finds titles and people by short and long queries", async () => {
     const { a, b, person } = await library();
     const long = await body(`/v1/search?q=${encodeURIComponent("流浪地球")}`, searchSchema);
-    expect(long.titles.map(t => t.id).sort()).toEqual([`t${a.id}`, `t${b.id}`].sort());
+    expect(long.titles.map(t => t.id).sort()).toEqual([a.id, b.id].sort());
     const short = await body(`/v1/search?q=${encodeURIComponent("吴京")}`, searchSchema);
-    expect(short.people).toEqual([expect.objectContaining({ id: `p${person.id}`, name: "吴京" })]);
+    expect(short.people).toEqual([expect.objectContaining({ id: person.id, name: "吴京" })]);
     // A title matches its cast too.
-    expect(short.titles.map(t => t.id)).toEqual([`t${a.id}`]);
+    expect(short.titles.map(t => t.id)).toEqual([a.id]);
     const paged = await body(`/v1/search?q=${encodeURIComponent("流浪地球")}&limit=1`, searchSchema);
     expect(paged.cursor).toBe("1");
     expect((await call("/v1/search?q=")).status).toBe(422);
@@ -152,12 +152,12 @@ describe("media v1", () => {
 
   test("documents by id, with assets under the device's prefix", async () => {
     const { a, season, e1, person } = await library();
-    const title = await body(`/v1/titles/t${a.id}`, titleDetailSchema);
+    const title = await body(`/v1/titles/${a.id}`, titleDetailSchema);
     expect(title.images.poster!.url).toBe(`${ASSET_BASE}${SHA}/poster.jpg`);
-    expect((await body(`/v1/seasons/s${season.id}`, seasonDetailSchema)).episodes.length).toBe(1);
-    expect((await body(`/v1/people/p${person.id}`, personSchema)).credits[0]!.title.id).toBe(`t${a.id}`);
-    expect((await body(`/v1/playback/e${e1.id}`, playbackSchema)).sources[0]!.streams[0]!.url).toBe("https://v/s1e1.m3u8");
-    for (const path of [`/v1/titles/${a.id}`, "/v1/titles/t999", "/v1/seasons/sx", "/v1/collections/x", "/v1/nope", "/v2/manifest"]) {
+    expect((await body(`/v1/seasons/${season.id}`, seasonDetailSchema)).episodes.length).toBe(1);
+    expect((await body(`/v1/people/${person.id}`, personSchema)).credits[0]!.title.id).toBe(a.id);
+    expect((await body(`/v1/playback/${e1.id}`, playbackSchema)).sources[0]!.streams[0]!.url).toBe("https://v/s1e1.m3u8");
+    for (const path of [`/v1/seasons/${a.id}`, "/v1/titles/nope", "/v1/seasons/nope", "/v1/collections/x", "/v1/nope", "/v2/manifest"]) {
       const res = await call(path);
       expect({ path, status: res.status }).toEqual({ path, status: 404 });
       expect(await res.json()).toMatchObject({ error: { code: "NOT_FOUND" } });
@@ -166,12 +166,12 @@ describe("media v1", () => {
 
   test("metadata carries the generation as its ETag; playback is never cached", async () => {
     const { a } = await library();
-    const res = await call(`/v1/titles/t${a.id}`);
+    const res = await call(`/v1/titles/${a.id}`);
     const etag = res.headers.get("etag")!;
     expect(etag).toMatch(/^"[0-9a-z]{26}"$/);
     expect(res.headers.get("cache-control")).toBe("private, max-age=60");
-    expect((await call(`/v1/titles/t${a.id}`, { "if-none-match": etag })).status).toBe(304);
-    const play = await call(`/v1/playback/t${a.id}`, { "if-none-match": etag });
+    expect((await call(`/v1/titles/${a.id}`, { "if-none-match": etag })).status).toBe(304);
+    const play = await call(`/v1/playback/${a.id}`, { "if-none-match": etag });
     expect(play.status).toBe(200);
     expect(play.headers.get("cache-control")).toBe("no-store");
     expect(play.headers.get("etag")).toBeNull();
@@ -204,7 +204,7 @@ describe("through the subscription", () => {
 
   test("a device's token reaches the media API; without a read model it is missing", async () => {
     const { a } = await library();
-    const url = `https://worker.example/s/${TOKEN}/media/v1/titles/t${a.id}`;
+    const url = `https://worker.example/s/${TOKEN}/media/v1/titles/${a.id}`;
     const res = await handleSubscription(new Request(url), { FILES: files, MEDIA: rm });
     expect(res.status).toBe(200);
     expect(((await res.json()) as { images: { poster: { url: string } } }).images.poster.url).toBe(`${ASSET_BASE}${SHA}/poster.jpg`);

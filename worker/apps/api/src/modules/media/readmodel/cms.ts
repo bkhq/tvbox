@@ -6,15 +6,15 @@ import { countryName, languageName } from "./names";
  * The Apple CMS view of the library (docs/plan/media-library.md, part 4),
  * derived from the same documents the native API serves so both show the
  * same thing. One item per movie (`m<id>`) and per playable season
- * (`s<id>`); a series with more than one gets the season's name appended.
+ * (by season id); a series with more than one gets the season's name appended.
  */
 
 export type Vod = Record<string, string>;
 
 export interface CmsItemDoc {
   readonly vodId: string;
-  readonly titleId: number;
-  readonly seasonId: number | null;
+  readonly titleId: string;
+  readonly seasonId: string | null;
   readonly typeId: string;
   readonly year: number | null;
   readonly country: string | null;
@@ -83,12 +83,12 @@ export function buildCmsItems(
     const columns = { titleId: t.id, typeId: t.categoryId, country: t.country, genres: t.genreIds.length ? `,${t.genreIds.join(",")},` : "", updatedAt: t.updatedAt };
 
     if (t.type === "movie") {
-      const play = playbackById.get(`t${t.id}`);
+      const play = playbackById.get(t.id);
       if (!play)
         continue;
-      const list: Vod = { vod_id: `m${t.id}`, vod_name: t.card.title, vod_pic: d.images.poster?.url ?? "", vod_remarks: t.card.badge ?? "", vod_year: t.year ? String(t.year) : "", ...base(d.credits, d.overview) };
+      const list: Vod = { vod_id: t.id, vod_name: t.card.title, vod_pic: d.images.poster?.url ?? "", vod_remarks: t.card.badge ?? "", vod_year: t.year ? String(t.year) : "", ...base(d.credits, d.overview) };
       const lists = playLists([{ label: "正片", doc: play }]);
-      out.push({ ...columns, vodId: `m${t.id}`, seasonId: null, year: t.year, groupOrder: 0, list, detail: { ...list, vod_play_from: lists.from, vod_play_url: lists.url } });
+      out.push({ ...columns, vodId: t.id, seasonId: null, year: t.year, groupOrder: 0, list, detail: { ...list, vod_play_from: lists.from, vod_play_url: lists.url } });
       continue;
     }
 
@@ -99,7 +99,7 @@ export function buildCmsItems(
       const last = Math.max(...available.map(e => e.number));
       const year = sd.airDate ? Number(sd.airDate.slice(0, 4)) || t.year : t.year;
       const list: Vod = {
-        vod_id: `s${s.id}`,
+        vod_id: s.id,
         vod_name: own.length > 1 ? `${t.card.title} ${sd.name}` : t.card.title,
         vod_pic: sd.images.poster?.url ?? "",
         vod_remarks: sd.status === "ended" && sd.availableCount >= sd.episodeCount ? `全 ${sd.episodeCount} 集` : `更新至第 ${last} 集`,
@@ -110,7 +110,7 @@ export function buildCmsItems(
         const doc = playbackById.get(e.id);
         return doc ? [{ label: e.type === "special" || e.name === `第 ${e.number} 集` ? e.name : `第 ${e.number} 集 ${e.name}`, doc }] : [];
       }));
-      out.push({ ...columns, vodId: `s${s.id}`, seasonId: s.id, year, groupOrder: s.number, list, detail: { ...list, vod_play_from: lists.from, vod_play_url: lists.url } });
+      out.push({ ...columns, vodId: s.id, seasonId: s.id, year, groupOrder: s.number, list, detail: { ...list, vod_play_from: lists.from, vod_play_url: lists.url } });
     }
   }
   return out;

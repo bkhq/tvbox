@@ -1,7 +1,8 @@
-import type { AppDatabase } from "@/db";
+import type { MediaDb } from "../db";
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { createEpisode, createSeason, generateEpisodes, listEpisodes, listSeasons, updateEpisode, updateSeason } from "../catalog/seasons.service";
 import { createTitle, updateTitle } from "../catalog/titles.service";
+import { putTranslation } from "../catalog/translations.service";
 import { homeSchema, manifestSchema, playbackSchema, seasonDetailSchema, titleDetailSchema } from "../contract";
 import { addCredit, createPerson } from "../people/people.service";
 import { addStream, createSource, listSources, listStreams, updateStream } from "../playable/playable.service";
@@ -10,7 +11,7 @@ import { openTestDb } from "../test-db";
 import { projectLibrary } from "./projector.service";
 import { createSqliteReadModel } from "./sqlite-adapter";
 
-let db: AppDatabase;
+let db: MediaDb;
 let dispose: () => void;
 let rm: ReturnType<typeof createSqliteReadModel>;
 
@@ -57,14 +58,14 @@ describe("building the read model", () => {
     await addStream(db, src.id, { url: "https://v/m.m3u8" });
     await projectLibrary(db, rm, { today: TODAY });
 
-    const ids = (await rm.prepare("SELECT id FROM rm_titles").all<{ id: number }>()).results.map(r => r.id);
+    const ids = (await rm.prepare("SELECT id FROM rm_titles").all<{ id: string }>()).results.map(r => r.id);
     expect(ids).toEqual([m.id]);
     expect(ids).not.toContain(empty.id);
     const detail = titleDetailSchema.parse(await doc("SELECT detail_json AS doc FROM rm_titles WHERE id = ?", m.id));
-    expect(detail).toMatchObject({ id: `t${m.id}`, badge: "4K", available: true, year: 2019 });
-    const play = playbackSchema.parse(await doc("SELECT json AS doc FROM rm_playback WHERE id = ?", `t${m.id}`));
+    expect(detail).toMatchObject({ id: m.id, badge: "4K", available: true, year: 2019 });
+    const play = playbackSchema.parse(await doc("SELECT json AS doc FROM rm_playback WHERE id = ?", m.id));
     expect(play.sources[0]!.streams[0]!.url).toBe("https://v/m.m3u8");
-    expect((await rm.prepare("SELECT vod_id FROM rm_cms_items").all<{ vod_id: string }>()).results).toEqual([{ vod_id: `m${m.id}` }]);
+    expect((await rm.prepare("SELECT vod_id FROM rm_cms_items").all<{ vod_id: string }>()).results).toEqual([{ vod_id: m.id }]);
   });
 
   test("seasons gate episodes by air date and playback continues into the next season", async () => {
@@ -72,7 +73,7 @@ describe("building the read model", () => {
     await projectLibrary(db, rm, { today: TODAY });
 
     const detail = titleDetailSchema.parse(await doc("SELECT detail_json AS doc FROM rm_titles WHERE id = ?", title.id));
-    expect(detail.defaultSeason).toBe(`s${s2.id}`);
+    expect(detail.defaultSeason).toBe(s2.id);
     expect(detail.badge).toBe("第 2 季 更新至第 1 集");
     expect(detail.seasons.map(s => [s.number, s.availableCount, s.nextAirDate])).toEqual([[1, 3, null], [2, 1, "2026-07-01"]]);
 
@@ -80,11 +81,11 @@ describe("building the read model", () => {
     expect(season2.episodes.map(e => e.available)).toEqual([true, false]);
 
     const s1Episodes = await listEpisodes(db, s1.id);
-    const last = playbackSchema.parse(await doc("SELECT json AS doc FROM rm_playback WHERE id = ?", `e${s1Episodes[2]!.id}`));
-    expect(last.next).toMatchObject({ seasonId: `s${s2.id}`, number: 1 });
+    const last = playbackSchema.parse(await doc("SELECT json AS doc FROM rm_playback WHERE id = ?", s1Episodes[2]!.id));
+    expect(last.next).toMatchObject({ seasonId: s2.id, number: 1 });
     const unaired = (await listEpisodes(db, s2.id))[1]!;
-    expect(await rm.prepare("SELECT id FROM rm_playback WHERE id = ?").bind(`e${unaired.id}`).first()).toBeNull();
-    expect((await rm.prepare("SELECT vod_id FROM rm_cms_items ORDER BY group_order").all<{ vod_id: string }>()).results.map(r => r.vod_id)).toEqual([`s${s1.id}`, `s${s2.id}`]);
+    expect(await rm.prepare("SELECT id FROM rm_playback WHERE id = ?").bind(unaired.id).first()).toBeNull();
+    expect((await rm.prepare("SELECT vod_id FROM rm_cms_items ORDER BY group_order").all<{ vod_id: string }>()).results.map(r => r.vod_id)).toEqual([s1.id, s2.id]);
   });
 
   test("home, manifest and facets are stored as meta", async () => {
@@ -98,8 +99,8 @@ describe("building the read model", () => {
     const meta = async (key: string) => JSON.parse((await rm.prepare("SELECT value FROM rm_meta WHERE key = ?").bind(key).first<{ value: string }>())!.value);
     expect((await rm.prepare("SELECT value FROM rm_meta WHERE key = 'generation'").first<{ value: string }>())!.value).toBe(generation);
     const home = homeSchema.parse(await meta("home"));
-    expect(home.hero.map(h => h.id)).toEqual([`t${title.id}`]);
-    expect(home.rows[0]!.items.map(i => i.id)).toEqual([`t${title.id}`]);
+    expect(home.hero.map(h => h.id)).toEqual([title.id]);
+    expect(home.rows[0]!.items.map(i => i.id)).toEqual([title.id]);
     const manifest = manifestSchema.parse({ ...await meta("manifest"), generation });
     expect(manifest.categories.find(c => c.id === "tv")!.count).toBe(1);
     expect(manifest.countries).toEqual([{ code: "CN", name: "中国大陆" }]);
@@ -116,6 +117,22 @@ describe("writing the read model", () => {
     const result = await projectLibrary(db, rm, { today: TODAY });
     expect(result).toMatchObject({ upserted: 0, deleted: 0 });
     expect(rm.statements - before).toBe(1);
+  });
+
+  test("translations go into the detail document and translated titles into the search text", async () => {
+    const m = await createTitle(db, { kind: "movie", categoryId: "movie", title: "盗梦空间", publishState: "published" });
+    await putTranslation(db, m.id, "en-US", { title: "Inception", overview: "A thief who steals secrets", tagline: null });
+    await putTranslation(db, m.id, "zh-TW", { title: "全面啟動" });
+    await projectLibrary(db, rm, { today: TODAY });
+
+    const detail = titleDetailSchema.parse(await doc("SELECT detail_json AS doc FROM rm_titles WHERE id = ?", m.id));
+    expect(detail.translations).toEqual({
+      "en-US": { title: "Inception", overview: "A thief who steals secrets", tagline: null },
+      "zh-TW": { title: "全面啟動", overview: null, tagline: null },
+    });
+    const search = await rm.prepare("SELECT text FROM rm_search WHERE ref = ?").bind(m.id).first<{ text: string }>();
+    expect(search!.text).toContain("Inception");
+    expect(search!.text).toContain("全面啟動");
   });
 
   test("a changed episode rewrites its season, its playback and the title it bumps", async () => {
@@ -137,9 +154,9 @@ describe("writing the read model", () => {
     const changed = [...after].filter(([k, h]) => before.get(k) !== h).map(([k]) => k).sort();
     // The edit bumps the title's `updatedAt`, which its card and CMS items carry.
     expect(changed).toEqual([
-      `rm_cms_items:s${s1.id}`,
-      `rm_cms_items:s${s2.id}`,
-      `rm_playback:e${second!.id}`,
+      `rm_cms_items:${s1.id}`,
+      `rm_cms_items:${s2.id}`,
+      `rm_playback:${second!.id}`,
       `rm_seasons:${s1.id}`,
       `rm_titles:${title.id}`,
     ].sort());
@@ -158,7 +175,7 @@ describe("writing the read model", () => {
     expect(result).toMatchObject({ upserted: 2, deleted: 0 });
     const after = await rm.prepare("SELECT vod_id, hash FROM rm_cms_items").all<{ vod_id: string; hash: string }>();
     const changed = after.results.filter(r => before.results.find(b => b.vod_id === r.vod_id)?.hash !== r.hash).map(r => r.vod_id);
-    expect(changed).toEqual([`s${s1.id}`]);
+    expect(changed).toEqual([s1.id]);
   });
 
   test("unpublishing removes a title and everything hanging off it", async () => {
@@ -175,9 +192,9 @@ describe("writing the read model", () => {
   test("a full rebuild starts from an empty read model", async () => {
     await series();
     await projectLibrary(db, rm, { today: TODAY });
-    await rm.prepare("INSERT INTO rm_people (id, json, hash) VALUES (999, '{}', 'x')").run();
+    await rm.prepare("INSERT INTO rm_people (id, json, hash) VALUES ('nope', '{}', 'x')").run();
     const result = await projectLibrary(db, rm, { today: TODAY, full: true });
     expect(result.deleted).toBe(0);
-    expect(await rm.prepare("SELECT id FROM rm_people WHERE id = 999").first()).toBeNull();
+    expect(await rm.prepare("SELECT id FROM rm_people WHERE id = 'nope'").first()).toBeNull();
   });
 });

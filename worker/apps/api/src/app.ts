@@ -119,7 +119,7 @@ export async function buildFullApp({ config, db, logger }: AppDeps) {
   await initFileModule(config, logger);
   startFileGcSweep(db, config, logger);
   await initTvbox(db, config, logger);
-  await initMedia(db);
+  await initMedia();
   // OpenAPI spec (/openapi.json) + Scalar UI (/docs). Mounted BEFORE the
   // route modules: Hono middleware only applies to routes registered after
   // it, so mounting here keeps docs outside every module's `use("*")` auth /

@@ -1,9 +1,10 @@
+import type { MediaDb, Statement } from "../db";
 import type { M3uChannel } from "./m3u";
-import type { AppDatabase } from "@/db";
 import { asc, count, eq, inArray, max } from "drizzle-orm";
 import { chunked } from "@/shared/lib/chunk";
 import { AppError, NotFoundError } from "@/shared/lib/errors";
 import { ulid } from "@/shared/lib/id";
+import { insertRows, runBatch } from "../db";
 import { buildLive } from "../readmodel/documents";
 import { mediaLiveChannels, mediaLiveGroups, mediaLiveStreams } from "../schema";
 import { getSetting, putSetting } from "../taxonomy/rows.service";
@@ -44,59 +45,55 @@ export interface ChannelInput {
 
 // ─── Groups ───
 
-export async function listGroups(db: AppDatabase): Promise<GroupView[]> {
+export async function listGroups(db: MediaDb): Promise<GroupView[]> {
   const rows = await db.select().from(mediaLiveGroups).orderBy(asc(mediaLiveGroups.sort), asc(mediaLiveGroups.id)).all();
   const counts = await db.select({ id: mediaLiveChannels.groupId, n: count() }).from(mediaLiveChannels).groupBy(mediaLiveChannels.groupId).all();
   return rows.map(r => ({ ...r, channelCount: counts.find(c => c.id === r.id)?.n ?? 0 }));
 }
 
-async function groupRow(db: AppDatabase, id: string): Promise<GroupRow> {
+async function groupRow(db: MediaDb, id: string): Promise<GroupRow> {
   const row = await db.select().from(mediaLiveGroups).where(eq(mediaLiveGroups.id, id)).get();
   if (!row)
     throw new NotFoundError("Live group", id);
   return row;
 }
 
-async function nextGroupSort(db: AppDatabase): Promise<number> {
+async function nextGroupSort(db: MediaDb): Promise<number> {
   const last = await db.select({ sort: max(mediaLiveGroups.sort) }).from(mediaLiveGroups).get();
   return (last?.sort ?? -1) + 1;
 }
 
-export async function createGroup(db: AppDatabase, name: string): Promise<GroupRow> {
+export async function createGroup(db: MediaDb, name: string): Promise<GroupRow> {
   const row = { id: ulid(), name, sort: await nextGroupSort(db) };
   await db.insert(mediaLiveGroups).values(row).run();
   return row;
 }
 
-export async function updateGroup(db: AppDatabase, id: string, name: string): Promise<GroupRow> {
+export async function updateGroup(db: MediaDb, id: string, name: string): Promise<GroupRow> {
   await groupRow(db, id);
   await db.update(mediaLiveGroups).set({ name }).where(eq(mediaLiveGroups.id, id)).run();
   return await groupRow(db, id);
 }
 
 /** Deletes its channels and their streams too. */
-export async function deleteGroup(db: AppDatabase, id: string): Promise<GroupRow> {
+export async function deleteGroup(db: MediaDb, id: string): Promise<GroupRow> {
   const current = await groupRow(db, id);
-  await db.transaction(async (tx) => {
-    const channels = await tx.select({ id: mediaLiveChannels.id }).from(mediaLiveChannels).where(eq(mediaLiveChannels.groupId, id)).all();
-    for (const part of chunked(channels.map(c => c.id)))
-      await tx.delete(mediaLiveStreams).where(inArray(mediaLiveStreams.channelId, part)).run();
-    await tx.delete(mediaLiveChannels).where(eq(mediaLiveChannels.groupId, id)).run();
-    await tx.delete(mediaLiveGroups).where(eq(mediaLiveGroups.id, id)).run();
-  });
+  const channels = await db.select({ id: mediaLiveChannels.id }).from(mediaLiveChannels).where(eq(mediaLiveChannels.groupId, id)).all();
+  await runBatch(db, [
+    ...chunked(channels.map(c => c.id)).map(part => db.delete(mediaLiveStreams).where(inArray(mediaLiveStreams.channelId, part))),
+    db.delete(mediaLiveChannels).where(eq(mediaLiveChannels.groupId, id)),
+    db.delete(mediaLiveGroups).where(eq(mediaLiveGroups.id, id)),
+  ]);
   return current;
 }
 
-export async function reorderGroups(db: AppDatabase, ids: readonly string[]): Promise<void> {
-  await db.transaction(async (tx) => {
-    for (const [i, id] of ids.entries())
-      await tx.update(mediaLiveGroups).set({ sort: i }).where(eq(mediaLiveGroups.id, id)).run();
-  });
+export async function reorderGroups(db: MediaDb, ids: readonly string[]): Promise<void> {
+  await runBatch(db, ids.map((id, i) => db.update(mediaLiveGroups).set({ sort: i }).where(eq(mediaLiveGroups.id, id))));
 }
 
 // ─── Channels ───
 
-async function viewsOf(db: AppDatabase, rows: readonly ChannelRow[]): Promise<ChannelView[]> {
+async function viewsOf(db: MediaDb, rows: readonly ChannelRow[]): Promise<ChannelView[]> {
   const streams: StreamRow[] = [];
   for (const part of chunked(rows.map(r => r.id)))
     streams.push(...await db.select().from(mediaLiveStreams).where(inArray(mediaLiveStreams.channelId, part)).all());
@@ -106,34 +103,30 @@ async function viewsOf(db: AppDatabase, rows: readonly ChannelRow[]): Promise<Ch
   }));
 }
 
-export async function getChannel(db: AppDatabase, id: string): Promise<ChannelView> {
+export async function getChannel(db: MediaDb, id: string): Promise<ChannelView> {
   const row = await db.select().from(mediaLiveChannels).where(eq(mediaLiveChannels.id, id)).get();
   if (!row)
     throw new NotFoundError("Live channel", id);
   return (await viewsOf(db, [row]))[0]!;
 }
 
-export async function listChannels(db: AppDatabase, groupId: string): Promise<ChannelView[]> {
+export async function listChannels(db: MediaDb, groupId: string): Promise<ChannelView[]> {
   await groupRow(db, groupId);
   const rows = await db.select().from(mediaLiveChannels).where(eq(mediaLiveChannels.groupId, groupId)).orderBy(asc(mediaLiveChannels.sort), asc(mediaLiveChannels.id)).all();
   return await viewsOf(db, rows);
 }
 
-type Tx = Parameters<Parameters<AppDatabase["transaction"]>[0]>[0];
-
-async function writeStreams(tx: AppDatabase | Tx, channelId: string, streams: readonly StreamInput[]): Promise<void> {
-  await tx.delete(mediaLiveStreams).where(eq(mediaLiveStreams.channelId, channelId)).run();
+function writeStreams(db: MediaDb, channelId: string, streams: readonly StreamInput[]): Statement[] {
   const rows = streams.map((s, sort) => ({ id: ulid(), channelId, url: s.url, label: s.label ?? null, userAgent: s.userAgent ?? null, referer: s.referer ?? null, sort }));
-  for (const part of chunked(rows, 12))
-    await tx.insert(mediaLiveStreams).values(part).run();
+  return [db.delete(mediaLiveStreams).where(eq(mediaLiveStreams.channelId, channelId)), ...insertRows(db, mediaLiveStreams, rows)];
 }
 
-export async function createChannel(db: AppDatabase, input: ChannelInput & { groupId: string; name: string }): Promise<ChannelView> {
+export async function createChannel(db: MediaDb, input: ChannelInput & { groupId: string; name: string }): Promise<ChannelView> {
   await groupRow(db, input.groupId);
   const last = await db.select({ sort: max(mediaLiveChannels.sort) }).from(mediaLiveChannels).where(eq(mediaLiveChannels.groupId, input.groupId)).get();
   const id = ulid();
-  await db.transaction(async (tx) => {
-    await tx.insert(mediaLiveChannels).values({
+  await runBatch(db, [
+    db.insert(mediaLiveChannels).values({
       id,
       groupId: input.groupId,
       name: input.name,
@@ -142,50 +135,45 @@ export async function createChannel(db: AppDatabase, input: ChannelInput & { gro
       logo: input.logo ?? null,
       enabled: input.enabled ?? true,
       sort: (last?.sort ?? -1) + 1,
-    }).run();
-    await writeStreams(tx, id, input.streams ?? []);
-  });
+    }),
+    ...writeStreams(db, id, input.streams ?? []),
+  ]);
   return await getChannel(db, id);
 }
 
-export async function updateChannel(db: AppDatabase, id: string, input: ChannelInput): Promise<ChannelView> {
+export async function updateChannel(db: MediaDb, id: string, input: ChannelInput): Promise<ChannelView> {
   await getChannel(db, id);
   if (input.groupId !== undefined)
     await groupRow(db, input.groupId);
   const { streams, ...fields } = input;
   const set = Object.fromEntries(Object.entries(fields).filter(([, v]) => v !== undefined));
-  await db.transaction(async (tx) => {
-    if (Object.keys(set).length > 0)
-      await tx.update(mediaLiveChannels).set(set).where(eq(mediaLiveChannels.id, id)).run();
-    if (streams)
-      await writeStreams(tx, id, streams);
-  });
+  await runBatch(db, [
+    ...(Object.keys(set).length > 0 ? [db.update(mediaLiveChannels).set(set).where(eq(mediaLiveChannels.id, id))] : []),
+    ...(streams ? writeStreams(db, id, streams) : []),
+  ]);
   return await getChannel(db, id);
 }
 
-export async function deleteChannel(db: AppDatabase, id: string): Promise<ChannelView> {
+export async function deleteChannel(db: MediaDb, id: string): Promise<ChannelView> {
   const current = await getChannel(db, id);
-  await db.transaction(async (tx) => {
-    await tx.delete(mediaLiveStreams).where(eq(mediaLiveStreams.channelId, id)).run();
-    await tx.delete(mediaLiveChannels).where(eq(mediaLiveChannels.id, id)).run();
-  });
+  await runBatch(db, [
+    db.delete(mediaLiveStreams).where(eq(mediaLiveStreams.channelId, id)),
+    db.delete(mediaLiveChannels).where(eq(mediaLiveChannels.id, id)),
+  ]);
   return current;
 }
 
-export async function reorderChannels(db: AppDatabase, ids: readonly string[]): Promise<void> {
-  await db.transaction(async (tx) => {
-    for (const [i, id] of ids.entries())
-      await tx.update(mediaLiveChannels).set({ sort: i }).where(eq(mediaLiveChannels.id, id)).run();
-  });
+export async function reorderChannels(db: MediaDb, ids: readonly string[]): Promise<void> {
+  await runBatch(db, ids.map((id, i) => db.update(mediaLiveChannels).set({ sort: i }).where(eq(mediaLiveChannels.id, id))));
 }
 
 // ─── EPG ───
 
-export async function getEpg(db: AppDatabase): Promise<string[]> {
+export async function getEpg(db: MediaDb): Promise<string[]> {
   return await getSetting<string[]>(db, LIVE_EPG_KEY, []);
 }
 
-export async function setEpg(db: AppDatabase, urls: readonly string[]): Promise<string[]> {
+export async function setEpg(db: MediaDb, urls: readonly string[]): Promise<string[]> {
   const unique = [...new Set(urls)];
   await putSetting(db, LIVE_EPG_KEY, unique);
   return unique;
@@ -207,7 +195,7 @@ export interface ImportResult {
  * streams, and importing the same playlist again adds nothing. `replace`
  * clears every group first.
  */
-export async function importM3u(db: AppDatabase, text: string, options: { replace?: boolean | undefined; dryRun?: boolean | undefined } = {}): Promise<ImportResult> {
+export async function importM3u(db: MediaDb, text: string, options: { replace?: boolean | undefined; dryRun?: boolean | undefined } = {}): Promise<ImportResult> {
   const playlist = parseM3u(text);
   if (playlist.channels.length === 0)
     throw new AppError("No channels found in the playlist", 422, "NOTHING_IMPORTED");
@@ -268,19 +256,12 @@ export async function importM3u(db: AppDatabase, text: string, options: { replac
   }
 
   if (!options.dryRun) {
-    await db.transaction(async (tx) => {
-      if (options.replace) {
-        await tx.delete(mediaLiveStreams).run();
-        await tx.delete(mediaLiveChannels).run();
-        await tx.delete(mediaLiveGroups).run();
-      }
-      for (const part of chunked(groupRows, 30))
-        await tx.insert(mediaLiveGroups).values(part).run();
-      for (const part of chunked(channelRows, 12))
-        await tx.insert(mediaLiveChannels).values(part).run();
-      for (const part of chunked(streamRows, 12))
-        await tx.insert(mediaLiveStreams).values(part).run();
-    });
+    await runBatch(db, [
+      ...(options.replace ? [db.delete(mediaLiveStreams), db.delete(mediaLiveChannels), db.delete(mediaLiveGroups)] : []),
+      ...insertRows(db, mediaLiveGroups, groupRows),
+      ...insertRows(db, mediaLiveChannels, channelRows),
+      ...insertRows(db, mediaLiveStreams, streamRows),
+    ]);
     if (playlist.epg.length > 0 && (options.replace || (await getEpg(db)).length === 0))
       await setEpg(db, playlist.epg);
   }
@@ -288,7 +269,7 @@ export async function importM3u(db: AppDatabase, text: string, options: { replac
 }
 
 /** The enabled channels as M3U, as they would be published. */
-export async function exportM3u(db: AppDatabase): Promise<string> {
+export async function exportM3u(db: MediaDb): Promise<string> {
   return toM3u(buildLive({
     liveGroups: await db.select().from(mediaLiveGroups).all(),
     liveChannels: await db.select().from(mediaLiveChannels).all(),

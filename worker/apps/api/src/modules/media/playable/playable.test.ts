@@ -1,4 +1,4 @@
-import type { AppDatabase } from "@/db";
+import type { MediaDb } from "../db";
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { eq } from "drizzle-orm";
 import { createEpisode, deleteEpisode, generateEpisodes, listEpisodes, listSeasons } from "../catalog/seasons.service";
@@ -9,7 +9,7 @@ import { createRow, getHero, listRows, setHero, updateRow } from "../taxonomy/ro
 import { openTestDb } from "../test-db";
 import { addStream, createSource, deleteSource, deleteStream, listSources, listStreams, pasteStreams, updateSource, updateStream } from "./playable.service";
 
-let db: AppDatabase;
+let db: MediaDb;
 let dispose: () => void;
 
 beforeEach(async () => {
@@ -115,8 +115,8 @@ describe("pasting streams", () => {
 
 describe("the title's updatedAt", () => {
   const OLD = "2000-01-01T00:00:00.000Z";
-  const age = async (id: number) => await db.update(mediaTitles).set({ updatedAt: OLD }).where(eq(mediaTitles.id, id)).run();
-  const bumped = async (id: number) => (await db.select({ at: mediaTitles.updatedAt }).from(mediaTitles).where(eq(mediaTitles.id, id)).get())!.at !== OLD;
+  const age = async (id: string) => await db.update(mediaTitles).set({ updatedAt: OLD }).where(eq(mediaTitles.id, id)).run();
+  const bumped = async (id: string) => (await db.select({ at: mediaTitles.updatedAt }).from(mediaTitles).where(eq(mediaTitles.id, id)).get())!.at !== OLD;
 
   test("moves only when an episode or movie becomes playable", async () => {
     const { title, season } = await seasonOne();
@@ -214,8 +214,8 @@ describe("home rows and hero", () => {
 
   test("rows and the hero refuse unknown titles; deleting a title drops it from rows", async () => {
     const a = await movie();
-    await expect(createRow(db, { name: "x", titleIds: [999] })).rejects.toMatchObject({ statusCode: 404 });
-    await expect(setHero(db, [999])).rejects.toMatchObject({ statusCode: 404 });
+    await expect(createRow(db, { name: "x", titleIds: ["nope"] })).rejects.toMatchObject({ statusCode: 404 });
+    await expect(setHero(db, ["nope"])).rejects.toMatchObject({ statusCode: 404 });
     const row = await createRow(db, { name: "推荐", titleIds: [a.id] });
     expect(await setHero(db, [a.id, a.id])).toEqual([a.id]);
     expect(await getHero(db)).toEqual([a.id]);

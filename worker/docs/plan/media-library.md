@@ -20,6 +20,9 @@
 - 后台“发布”页提供“添加订阅条目”按钮，一键在公共站点和直播源里加上 `@media/cms` / `@media/live.m3u` 条目。
 - 后台没有做“预览”页；排序用上移、下移按钮，不支持拖拽。
 - 第 4 阶段没有在模拟器上验证，改为用 RN 客户端的 CMS 解析代码直接解析我们的输出。
+- 翻译：`media_title_translations` 按 locale 存每个作品的标题、简介和标语（2026-10-17，计划 `20261017-0111-tmdb-top-rated-import`）；`media_titles` 上的字段是展示值。TMDB 的外部 ID 记为 `movie:<id>` / `tv:<id>`，因为电影和剧集的 id 空间重叠。
+- 批量写入走 `POST /media/import`，由 `scripts/media-import-tmdb.ts` 从 TMDB 拉取后调用；Worker 本身不刮削。
+- 源数据表不在 DO SQLite 里，而在 D1 库 `tv-bk-io` 中与只读模型同库（2026-10-17，计划 `20261017-0151-media-source-in-d1`）：DO 只跑管理 API，通过 `modules/media/db.ts` 的句柄读写，所有写入都是 `db.batch()`（D1 没有交互式事务）。作品、季、人物的 id 是 12 位随机字符串（`mediaId()`），对外裸用、不带类型前缀；只读模型的 id 列相应改为 TEXT，`rm_search` 多一列 `type`。备份模块通过 `BackupContribution.db` 读写这些表。
 - 线路和播放地址的改动只在让某集（或电影）从不可播变为可播时才更新作品的 `updatedAt`；换地址、加备用线路、删线路只重新发布 `rm_playback` 和对应的 CMS 条目，元数据不变。
 
 ## 目标

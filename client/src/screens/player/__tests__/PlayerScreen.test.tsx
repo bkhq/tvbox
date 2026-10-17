@@ -15,7 +15,7 @@ import { clearEngines, registerEngine } from '../../../player/engine/registry';
 import type { EngineEvent } from '../../../player/engine/types';
 import type { PlayerParams } from '../../../player/params';
 import { createMockEngine, type MockEngine } from '../../../player/testing/mockEngine';
-import PlayerScreen from '..';
+import PlayerScreen, { CONTROLS_HIDE_DELAY } from '..';
 import { SEEK_COMMIT_DELAY } from '../useRemoteKeys';
 
 void [ActivityIndicator, FlatList, Modal, Pressable, ScrollView, TextInput];
@@ -198,7 +198,7 @@ describe('PlayerScreen', () => {
     await act(async () => renderer.unmount());
   });
 
-  it('toggles pause with OK while the controls are hidden', async () => {
+  it('pauses with OK while the controls are hidden, and resumes from the focused 播放', async () => {
     const renderer = await render({ url: 'https://m/a.m3u8' });
     await emit(mpv, load);
     expect(mpv.props?.paused).toBe(false);
@@ -206,9 +206,40 @@ describe('PlayerScreen', () => {
     expect(mpv.props?.paused).toBe(false);
     await remote('select');
     expect(mpv.props?.paused).toBe(true);
+    // The controls are up now: OK presses the focused button instead of reaching the screen.
     await remote('select');
+    expect(mpv.props?.paused).toBe(true);
+    await press(renderer, 'player-play');
     expect(mpv.props?.paused).toBe(false);
     await act(async () => renderer.unmount());
+  });
+
+  it('shows the controls with 播放 focused while paused, and keeps them until playback resumes', async () => {
+    const renderer = await render({ url: 'https://m/a.m3u8' });
+    await emit(mpv, load);
+    jest.useFakeTimers();
+    try {
+      await remote('select');
+      expect(mpv.props?.paused).toBe(true);
+      expect(has(renderer, 'player-controls')).toBe(true);
+      expect(byTestId(renderer, 'player-play').props.accessibilityLabel).toBe('播放');
+      await act(async () => jest.advanceTimersByTime(CONTROLS_HIDE_DELAY * 2));
+      expect(has(renderer, 'player-controls')).toBe(true);
+
+      // press() settles on real timers; with fake ones the press is acted directly.
+      await act(async () => byTestId(renderer, 'player-play').props.onPress());
+      expect(mpv.props?.paused).toBe(false);
+      await act(async () => jest.advanceTimersByTime(CONTROLS_HIDE_DELAY));
+      expect(has(renderer, 'player-controls')).toBe(false);
+
+      // The media pause key shows them too.
+      await remote('pause');
+      expect(mpv.props?.paused).toBe(true);
+      expect(has(renderer, 'player-controls')).toBe(true);
+    } finally {
+      jest.useRealTimers();
+      await act(async () => renderer.unmount());
+    }
   });
 
   it('seeks with left / right, growing the step while the key repeats', async () => {

@@ -127,11 +127,12 @@ function PlayerView({ params, focused, onExit, onReload }: PlayerViewProps) {
     return () => clearTimeout(timer);
   }, [notice]);
 
+  // Paused, the controls stay until playback resumes or back hides them.
   useEffect(() => {
-    if (!overlay || panel) return;
+    if (!overlay || panel || state.paused) return;
     const timer = setTimeout(() => setOverlay(false), CONTROLS_HIDE_DELAY);
     return () => clearTimeout(timer);
-  }, [overlay, panel, activity]);
+  }, [overlay, panel, activity, state.paused]);
 
   useBackgroundPause(background, pause);
 
@@ -182,10 +183,16 @@ function PlayerView({ params, focused, onExit, onReload }: PlayerViewProps) {
     const target = Math.max(0, position + offset);
     seek(duration > 0 ? Math.min(duration, target) : target);
   };
-  // VideoActivity.onKeyCenter: pause / resume and hide the controls.
-  const center = () => {
+  // VideoActivity.onKeyCenter / onPlayingChanged: pausing from the remote shows the controls with 播放 focused,
+  // resuming hides them. Pauses on blur or in the background leave the overlay alone.
+  const userPause = () => {
+    pause();
+    setOverlay(true);
+  };
+  const userToggle = () => {
+    const resuming = stateRef.current.paused;
     toggle();
-    setOverlay(false);
+    setOverlay(!resuming);
   };
   const hasEpisodes = state.flags.length > 0;
 
@@ -193,10 +200,10 @@ function PlayerView({ params, focused, onExit, onReload }: PlayerViewProps) {
     overlayVisible: overlay,
     panelOpen: !!panel,
     onActivity: bump,
-    onCenter: center,
+    onCenter: userToggle,
     onPlay: play,
-    onPause: pause,
-    onToggle: toggle,
+    onPause: userPause,
+    onToggle: userToggle,
     onShowControls: showControls,
     onShowEpisodes: () => (hasEpisodes ? openPanel('episodes') : showControls()),
     onNext: next,
@@ -208,7 +215,7 @@ function PlayerView({ params, focused, onExit, onReload }: PlayerViewProps) {
   const touch = useTouchGestures({
     width,
     onSingleTap: () => (overlay ? setOverlay(false) : showControls()),
-    onDoubleTap: center,
+    onDoubleTap: userToggle,
     onSeeking: seekPreview,
     onSeekEnd: seekCommit,
   });

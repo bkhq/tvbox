@@ -16,13 +16,15 @@ describe('web assets', () => {
   it('serves index.html for the root', () => {
     const res = serveAsset('/');
     expect(res).toMatchObject({ status: 200, bodyEncoding: 'base64', headers: { 'Content-Type': 'text/html; charset=utf-8' } });
-    expect(Buffer.from(res.body ?? '', 'base64').toString('utf8')).toContain('<html');
+    const html = Buffer.from(res.body ?? '', 'base64').toString('utf8');
+    expect(html).toContain('<html');
+    for (const tab of ['remote', 'search', 'library', 'more']) expect(html).toContain(`data-tab="${tab}"`);
+    expect(html).not.toContain('jquery');
   });
 
   it.each([
     ['/css/ui.css', 'text/css; charset=utf-8'],
     ['/js/script.js', 'application/javascript; charset=utf-8'],
-    ['/js/jquery.min.js', 'application/javascript; charset=utf-8'],
     ['/favicon.ico', 'image/x-icon'],
   ])('serves %s as %s', (path, mime) => {
     expect(serveAsset(path)).toMatchObject({ status: 200, headers: { 'Content-Type': mime } });

@@ -1,4 +1,5 @@
-import { mediaProcess, pushApi, searchApi } from './api/action';
+import { mediaProcess, pushApi } from './api/action';
+import { detailApi, libraryApi, playApi, searchApi } from './api/catalog';
 import { configApi } from './api/config';
 import { controlApi } from './api/control';
 import { enrollApi } from './api/enroll';
@@ -58,6 +59,9 @@ export function createLanServer(deps: LanServerDeps, files?: FileSystemPort): La
     ['remote', remoteApi(context)],
     ['push', pushApi(context)],
     ['search', searchApi(context)],
+    ['detail', detailApi(context)],
+    ['play', playApi(context)],
+    ['library', libraryApi(context)],
   ]);
   const processes: LanProcess[] = [mediaProcess(context), proxyProcess(context)];
   if (files) {

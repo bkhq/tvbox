@@ -15,22 +15,6 @@ describe('/api/push', () => {
   });
 });
 
-describe('/api/search', () => {
-  it('searches the word', async () => {
-    const navigator = { search: jest.fn() };
-    const { call } = await setup({ ports: { navigator } });
-    expect((await call('/api/search', { word: '三体' })).status).toBe(200);
-    expect(navigator.search).toHaveBeenCalledWith('三体');
-  });
-
-  it('requires a word', async () => {
-    const navigator = { search: jest.fn() };
-    const { call } = await setup({ ports: { navigator } });
-    expect(await call('/api/search')).toMatchObject({ status: 400, body: 'word required' });
-    expect(navigator.search).not.toHaveBeenCalled();
-  });
-});
-
 describe('/media', () => {
   it('answers {} without a player, even for unpaired clients', async () => {
     const { call } = await setup();

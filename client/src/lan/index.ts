@@ -14,5 +14,7 @@ export { proxyProcess } from './api/proxy';
 export * from './settingRegistry';
 export { serveAsset, webAssets, type WebAsset } from './web';
 export { bindLanNavigation, createLanNavigator } from './navigation';
+export { createLanCatalog, type LanCatalogDeps } from './catalogAdapter';
+export { SEARCH_IDLE_MS } from './api/catalog';
 export { createLanPlayer, createLanSources, type LanLiveSources, type LanLiveSourcesDeps } from './playerAdapter';
 export * from './runtime';

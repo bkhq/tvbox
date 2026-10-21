@@ -81,7 +81,7 @@ describe('ControlScreen', () => {
     expect(shown).toContain('配对码');
     expect(renderer.root.findByProps({ testID: 'control-code' }).props.children).toBe(mockRuntime.pairing!.getCode());
     expect(shown).toContain('已配对设备 0 台');
-    expect(renderer.root.findByType(QRCode).props.value).toBe('http://192.168.1.5:9978?tab=1');
+    expect(renderer.root.findByType(QRCode).props.value).toBe('http://192.168.1.5:9978');
   });
 
   it('changes the pairing code from the button', () => {

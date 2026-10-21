@@ -49,8 +49,87 @@ export interface LanRemote {
 }
 
 export interface LanNavigator {
+  /** Opens the Search screen with the keyword. */
   search(word: string): void;
-  openPlayer?(): void;
+  /** Opens the Player on an episode of a site's vod. */
+  play(params: LanPlayParams): void;
+}
+
+/** Player route params for a site's vod (RootStackParamList['Player']). */
+export interface LanPlayParams {
+  siteKey: string;
+  vodId: string;
+  flag: string;
+  episodeUrl: string;
+  /** Start position in milliseconds. */
+  position?: number;
+}
+
+export interface LanVodSummary {
+  id: string;
+  name: string;
+  pic: string;
+  remarks: string;
+  year: string;
+  type: string;
+}
+
+export interface LanSearchSnapshot {
+  groups: { site: LanSourceItem; list: LanVodSummary[] }[];
+  /** Sites that answered, failed or timed out. */
+  completed: number;
+  total: number;
+  done: boolean;
+}
+
+export interface LanSearchSession {
+  snapshot(): LanSearchSnapshot;
+  cancel(): void;
+}
+
+export interface LanEpisode {
+  name: string;
+  url: string;
+}
+
+export interface LanDetail {
+  site: LanSourceItem;
+  vod: LanVodSummary & { area: string; director: string; actor: string; content: string };
+  flags: { flag: string; episodes: LanEpisode[] }[];
+  /** Saved episode of the history, when its flag and url still exist. */
+  resume?: { flag: string; episodeUrl: string; position: number; duration: number };
+}
+
+export interface LanLibraryItem extends LanVodSummary {
+  siteKey: string;
+  siteName: string;
+  /** History only: the saved episode and progress in milliseconds. */
+  flag?: string;
+  episodeUrl?: string;
+  position?: number;
+  duration?: number;
+  /** Epoch milliseconds of the last play or the favourite. */
+  time: number;
+}
+
+/** Search, detail and user data of the active VOD config. */
+export interface LanCatalog {
+  search(keyword: string, quick: boolean): LanSearchSession;
+  /** Rejects with LanCatalogError when the site or vod is unknown or the site is unsupported. */
+  detail(siteKey: string, vodId: string): Promise<LanDetail>;
+  history(): Promise<LanLibraryItem[]>;
+  keeps(): Promise<LanLibraryItem[]>;
+  words(): Promise<{ history: string[]; hot: string[] }>;
+}
+
+export class LanCatalogError extends Error {
+  constructor(
+    readonly status: 400 | 404,
+    message: string,
+  ) {
+    super(message);
+    this.name = 'LanCatalogError';
+  }
 }
 
 export interface LanSourceItem {
@@ -82,10 +161,11 @@ export interface LanPorts {
   remote: LanRemote | null;
   navigator: LanNavigator | null;
   sources: LanSources | null;
+  catalog: LanCatalog | null;
   env: LanEnv | null;
 }
 
-const emptyPorts = (): LanPorts => ({ player: null, remote: null, navigator: null, sources: null, env: null });
+const emptyPorts = (): LanPorts => ({ player: null, remote: null, navigator: null, sources: null, catalog: null, env: null });
 
 let ports: LanPorts = emptyPorts();
 

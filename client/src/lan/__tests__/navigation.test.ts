@@ -18,11 +18,20 @@ describe('createLanNavigator', () => {
     expect(navigate).toHaveBeenCalledWith('Search', { keyword: '繁花' });
   });
 
+  it('opens the Player on an episode', () => {
+    const { ref, navigate } = fakeRef(true);
+    bindLanNavigation(ref);
+    const params = { siteKey: 'a', vodId: 'v1', flag: 'line1', episodeUrl: 'e1', position: 5000 };
+    createLanNavigator().play(params);
+    expect(navigate).toHaveBeenCalledWith('Player', params);
+  });
+
   it('does nothing before the container is bound or ready', () => {
     expect(() => createLanNavigator().search('a')).not.toThrow();
     const { ref, navigate } = fakeRef(false);
     bindLanNavigation(ref);
     createLanNavigator().search('a');
+    createLanNavigator().play({ siteKey: 'a', vodId: 'v1', flag: 'f', episodeUrl: 'e' });
     expect(navigate).not.toHaveBeenCalled();
   });
 });

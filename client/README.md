@@ -675,7 +675,7 @@ request with `server.handle` (500 with the message on an unexpected error).
 `refreshLanAddress()` re-reads the IP. Without the native module (Jest, web)
 the state is `error` and the app runs on. On Android TV it also starts the
 AirPlay and DLNA receivers. The Control screen (`src/screens/control`, title
-手机控制) shows the address QR code (`?tab=1`), both addresses, the pairing
+手机控制) shows the address QR code, both addresses, the pairing
 code (new on every focus) and the number of paired devices.
 
 **Ports.** The server only reaches the app through ports, all optional (the
@@ -686,7 +686,8 @@ API answers without them):
 | `LanPlayer`    | runtime: `createLanPlayer()` on `getPlaybackController()` | `/api/control`, `/api/state` player, push, DLNA, AirPlay |
 | `LanSources`   | runtime: `createLanSources()` (live sources; no parsers yet) | `/api/source`, `/api/state` sources         |
 | `LanRemote`    | runtime: httpd `sendKey` / `sendText` / `adjustVolume` | `/api/remote`                               |
-| `LanNavigator` | runtime: `createLanNavigator()`                    | `/api/search`                               |
+| `LanNavigator` | runtime: `createLanNavigator()`                    | `/api/search?do=open`, `/api/play`          |
+| `LanCatalog`   | runtime: `createLanCatalog()` on the providers, history and keeps | `/api/search`, `/api/detail`, `/api/play`, `/api/library` |
 | `LanEnv`       | runtime: app version and address                   | `/api/state`                                |
 
 Another workstream plugs in by replacing a port, without touching the server:
@@ -715,8 +716,11 @@ on, under `airplayName` (default `tvbox`), and sends HLS casts to the
 `LanPlayer`; `startDlna` runs the renderer under the device name. Both push
 the player state back to the sender every second while casting.
 
-**Web UI.** The page is `assets/web` (from the Java app); the server serves
-the generated `src/lan/web/assets.generated.ts`. After changing anything in
+**Web UI.** The page is `assets/web` (plain HTML/CSS/JS, no framework): tabs
+遥控 (now playing, D-pad, volume, text), 搜索 (results from the TV's sites,
+detail sheet, play on the TV), 媒体库 (history, favourites) and 更多
+(configs, settings, server link, devices, files). The server serves the
+generated `src/lan/web/assets.generated.ts`. After changing anything in
 `assets/web`, run `npm run gen:lan-web` and commit both.
 
 ## Android debug build

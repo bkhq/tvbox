@@ -11,6 +11,7 @@ import { asyncStorageStore, createConfigRepository } from '../core/storage';
 import { startAirPlay } from './cast/airplay';
 import { startDlna } from './cast/dlna';
 import { createExpoFileSystem } from './files';
+import { createLanCatalog } from './catalogAdapter';
 import { createLanNavigator } from './navigation';
 import { createPairing, type Pairing } from './pairing';
 import { createLanPlayer, createLanSources } from './playerAdapter';
@@ -100,6 +101,7 @@ async function run(): Promise<void> {
     player: createLanPlayer(),
     sources,
     navigator: createLanNavigator(),
+    catalog: createLanCatalog(),
     remote: { sendKey: httpd.sendKey, sendText: httpd.sendText, adjustVolume: httpd.adjustVolume },
     env: {
       version: getAppConfig().versionName,
@@ -181,7 +183,7 @@ export async function stopLanServices(): Promise<void> {
   await pending;
   started = null;
   for (const cleanup of cleanups.splice(0)) cleanup();
-  setLanPorts({ player: null, sources: null, navigator: null, remote: null, env: null });
+  setLanPorts({ player: null, sources: null, navigator: null, remote: null, catalog: null, env: null });
   setSpiderProxy(-1);
   pairing = null;
   status = IDLE;

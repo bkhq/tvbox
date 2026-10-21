@@ -19,9 +19,6 @@ import {
   type Scaler,
 } from '../../ui';
 
-/** PushActivity opens the web page on its default tab (Server.getAddress(tab)). */
-const TAB = 1;
-
 /** QR code edge in design px. */
 const QR_SIZE = 320;
 
@@ -64,7 +61,7 @@ export default function ControlScreen() {
             <View style={styles.card}>
               <View style={styles.qr} testID="control-qr">
                 <QRCode
-                  value={`${status.address}?tab=${TAB}`}
+                  value={status.address}
                   size={s(QR_SIZE)}
                   backgroundColor="#ffffff"
                   color="#000000"

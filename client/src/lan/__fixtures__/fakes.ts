@@ -6,7 +6,7 @@ import { createConfigRepository } from '../../core/storage/configs';
 import { MemoryStore } from '../../core/storage/keyValueStore';
 import type { Site } from '../../core/types';
 import { createPairing } from '../pairing';
-import type { LanPlayer, LanPlayerState, LanPorts } from '../ports';
+import type { LanCatalog, LanDetail, LanLibraryItem, LanPlayer, LanPlayerState, LanPorts, LanSearchSnapshot } from '../ports';
 import { createLanServer } from '../server';
 import type { LanRequest } from '../types';
 
@@ -70,6 +70,29 @@ export function fakePlayer(state: Partial<LanPlayerState> = {}) {
   return { player, state: current };
 }
 
+export const fakeDetail: LanDetail = {
+  site: { key: 'a', name: 'Site a' },
+  vod: { id: 'v1', name: 'Movie', pic: 'https://img.example/v1.jpg', remarks: '更新至2集', year: '2024', type: '剧集', area: '', director: '', actor: '', content: '' },
+  flags: [
+    { flag: 'line1', episodes: [{ name: '第1集', url: 'e1' }, { name: '第2集', url: 'e2' }] },
+    { flag: 'line2', episodes: [{ name: '第1集', url: 'f1' }] },
+  ],
+};
+
+/** Catalog whose search answers a fixed snapshot and whose detail is `fakeDetail`. */
+export function fakeCatalog(snapshot: Partial<LanSearchSnapshot> = {}) {
+  const current: LanSearchSnapshot = { groups: [], completed: 0, total: 2, done: false, ...snapshot };
+  const session = { snapshot: jest.fn(() => current), cancel: jest.fn() };
+  const catalog = {
+    search: jest.fn(() => session),
+    detail: jest.fn(async () => fakeDetail),
+    history: jest.fn(async (): Promise<LanLibraryItem[]> => []),
+    keeps: jest.fn(async (): Promise<LanLibraryItem[]> => []),
+    words: jest.fn(async () => ({ history: ['繁花'], hot: ['三体'] })),
+  } satisfies LanCatalog;
+  return { catalog, session, snapshot: current };
+}
+
 export function fakeServerLink(enabled = true, snapshot: Partial<ServerLinkSnapshot> = {}) {
   return {
     isEnabled: () => enabled,
@@ -103,7 +126,7 @@ export async function setup(options: { ports?: Partial<LanPorts>; sites?: Site[]
       await vod.setActive(url);
     }),
   } satisfies Pick<Bootstrap, 'getSnapshot' | 'addConfig'>;
-  const ports: LanPorts = { player: null, remote: null, navigator: null, sources: null, env: null, ...options.ports };
+  const ports: LanPorts = { player: null, remote: null, navigator: null, sources: null, catalog: null, env: null, ...options.ports };
   const server = createLanServer({
     pairing,
     ports: () => ports,

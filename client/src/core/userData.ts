@@ -17,6 +17,11 @@ let store: KeyValueStore = asyncStorageStore;
 let history: HistoryRepository | undefined;
 let keep: KeepRepository | undefined;
 
+/** The store behind user data; other per-device caches persist through it too. */
+export function getUserDataStore(): KeyValueStore {
+  return store;
+}
+
 export function getHistoryRepository(): HistoryRepository {
   history ??= createHistoryRepository(store);
   return history;

@@ -3,7 +3,9 @@ import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 
 import { parseSite } from '../../../core/config/vodConfig';
 import { registerProvider, resetProviderRegistry, type SiteProvider } from '../../../core/provider';
+import { MemoryStore } from '../../../core/storage';
 import { normalizeResult, normalizeVod, type Result, type Vod } from '../../../core/types';
+import { setUserDataStore } from '../../../core/userData';
 import {
   createSiteHomeContent,
   type HomeContent,
@@ -26,7 +28,10 @@ function mockSite(home: () => Promise<Result>, homeVideo: () => Promise<Result>)
   });
 }
 
-afterEach(() => resetProviderRegistry());
+afterEach(() => {
+  resetProviderRegistry();
+  setUserDataStore(undefined);
+});
 
 describe('pickFeatured', () => {
   it('takes the first five vods with a picture', () => {
@@ -205,5 +210,73 @@ describe('useHomeContent', () => {
     expect(signal?.aborted).toBe(false);
     await update({ key: 'b', load: async () => CONTENT });
     expect(signal?.aborted).toBe(true);
+  });
+});
+
+describe('useHomeContent cache', () => {
+  const CACHED: HomeContent = {
+    ...CONTENT,
+    rows: [{ key: 'recommend', title: '热门推荐', items: [vod('1')], siteKey: 'cms' }],
+  };
+  const FRESH: HomeContent = {
+    ...CONTENT,
+    rows: [{ key: 'recommend', title: '热门推荐', items: [vod('2')], siteKey: 'cms' }],
+  };
+  const pending = (): HomeContentProvider => ({
+    key: 'cms',
+    cacheKey: 'cms',
+    load: () => new Promise(() => undefined),
+  });
+
+  beforeEach(() => setUserDataStore(new MemoryStore()));
+
+  it('shows the last content of the same source at once while it reloads', async () => {
+    await renderHome({ key: 'cms', cacheKey: 'cms', load: async () => CACHED });
+    const { result } = await renderHome(pending());
+    expect(result.state).toEqual({ status: 'ready', content: CACHED });
+  });
+
+  /** A restart: the same stored data, nothing in memory. */
+  const restart = (store: MemoryStore) => {
+    const next = new MemoryStore();
+    store.data.forEach((value, key) => next.data.set(key, value));
+    setUserDataStore(next);
+    return next;
+  };
+
+  it('keeps it across restarts, and replaces it with the fresh content', async () => {
+    let store = new MemoryStore();
+    setUserDataStore(store);
+    await renderHome({ key: 'cms', cacheKey: 'cms', load: async () => CACHED });
+    store = restart(store);
+    const reload = deferred();
+    const { result } = await renderHome({ key: 'cms', cacheKey: 'cms', load: () => reload.promise });
+    expect(result.state).toEqual({ status: 'ready', content: CACHED });
+    await act(async () => reload.resolve(FRESH));
+    expect(result.state).toEqual({ status: 'ready', content: FRESH });
+
+    restart(store);
+    const next = await renderHome(pending());
+    expect(next.result.state).toEqual({ status: 'ready', content: FRESH });
+  });
+
+  it('keeps showing the cached content when the reload fails', async () => {
+    await renderHome({ key: 'cms', cacheKey: 'cms', load: async () => CACHED });
+    const { result } = await renderHome({
+      key: 'cms',
+      cacheKey: 'cms',
+      load: async () => Promise.reject(new Error('boom')),
+    });
+    expect(result.state).toEqual({ status: 'ready', content: CACHED });
+  });
+
+  it("does not show another source's content", async () => {
+    await renderHome({ key: 'cms', cacheKey: 'cms', load: async () => CACHED });
+    const { result } = await renderHome({ key: 'xml', cacheKey: 'xml', load: () => new Promise(() => undefined) });
+    expect(result.state).toEqual({ status: 'loading' });
+  });
+
+  it('keys site homes by site key and api', () => {
+    expect(createSiteHomeContent(SITE).cacheKey).toBe(`cms ${SITE.api}`);
   });
 });

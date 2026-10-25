@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 
 import { getProvider, type SiteProvider, UnsupportedSiteError } from '../../core/provider';
 import type { Class, Result, Site, Vod } from '../../core/types';
+import { peekHomeCache, readHomeCache, writeHomeCache } from './homeCache';
 
 /** One horizontal row of the home page; its items open on `siteKey`. */
 export interface HomeRow {
@@ -26,6 +27,8 @@ export interface HomeContent {
 export interface HomeContentProvider {
   /** Identity of the source, e.g. the site key. */
   readonly key: string;
+  /** Identity of the content for the home cache; uncached without one. */
+  readonly cacheKey?: string;
   load(signal?: AbortSignal): Promise<HomeContent>;
 }
 
@@ -64,6 +67,7 @@ async function chartRows(provider: SiteProvider, site: Site, home: Result): Prom
 export function createSiteHomeContent(site: Site): HomeContentProvider {
   return {
     key: site.key,
+    cacheKey: `${site.key} ${site.api}`,
     load: async () => {
       try {
         const provider = getProvider(site);
@@ -99,17 +103,29 @@ function errorMessage(error: unknown): string {
   return `加载失败：${error instanceof Error ? error.message : String(error)}`;
 }
 
-/** Content of `provider`; reloads when the provider object changes or on retry, ignoring stale results. */
+/**
+ * Content of `provider`; reloads when the provider object changes or on retry, ignoring stale results. While it
+ * loads, or when the load fails, the cached content of the same source shows instead.
+ */
 export function useHomeContent(provider: HomeContentProvider | undefined): [HomeState, () => void] {
   const [attempt, setAttempt] = useState(0);
   // The result of one request; a different provider or attempt reads as loading until its own result arrives.
   const [loaded, setLoaded] = useState<{ provider: HomeContentProvider; attempt: number; state: HomeState }>();
+  // Content stored by an earlier run, read once per provider.
+  const [saved, setSaved] = useState<{ provider: HomeContentProvider; content: HomeContent }>();
 
   useEffect(() => {
     if (!provider) return;
     const controller = new AbortController();
+    const { cacheKey } = provider;
+    if (cacheKey && !peekHomeCache(cacheKey)) {
+      void readHomeCache(cacheKey).then((content) => {
+        if (content && !controller.signal.aborted) setSaved({ provider, content });
+      });
+    }
     provider.load(controller.signal).then(
       (content) => {
+        if (cacheKey) writeHomeCache(cacheKey, content);
         if (!controller.signal.aborted) setLoaded({ provider, attempt, state: { status: 'ready', content } });
       },
       (error: unknown) => {
@@ -120,9 +136,12 @@ export function useHomeContent(provider: HomeContentProvider | undefined): [Home
     return () => controller.abort();
   }, [provider, attempt]);
 
-  const state =
-    loaded && loaded.provider === provider && loaded.attempt === attempt
-      ? loaded.state
-      : { status: 'loading' as const };
-  return [state, () => setAttempt((n) => n + 1)];
+  const retry = () => setAttempt((n) => n + 1);
+  const own = loaded && loaded.provider === provider && loaded.attempt === attempt ? loaded.state : undefined;
+  if (own?.status === 'ready') return [own, retry];
+  const cached =
+    provider?.cacheKey &&
+    (peekHomeCache(provider.cacheKey) ?? (saved?.provider === provider ? saved.content : undefined));
+  if (cached) return [{ status: 'ready', content: cached }, retry];
+  return [own ?? { status: 'loading' }, retry];
 }

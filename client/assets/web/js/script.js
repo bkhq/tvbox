@@ -16,6 +16,7 @@ let snackbarTimer = null;
 let seeking = false;
 let playerTimer = null;
 let lastPlayer = null;
+let linking = false;
 
 function token() {
     return localStorage.getItem('token') || '';
@@ -26,9 +27,49 @@ function headers() {
 }
 
 function onUnauthorized() {
+    // The saved token is gone on the TV: take the QR code's fresh key instead, unless that is the token just refused.
+    const refused = token();
     localStorage.removeItem('token');
     paired = false;
+    const entry = takeEntry();
+    if (linking) return;
+    if (entry && entry.key && entry.key !== refused) {
+        linking = true;
+        useKey(entry, true).then((ready) => { if (ready) location.reload(); });
+        return;
+    }
     showPairDialog();
+}
+
+/** The QR code's link details (d, key, via) kept for this tab; read once. */
+function takeEntry() {
+    const entry = JSON.parse(sessionStorage.getItem('entry') || 'null');
+    sessionStorage.removeItem('entry');
+    return entry;
+}
+
+/** Whether `url` answers within 1.5s. */
+function reachable(url) {
+    const abort = new AbortController();
+    const timer = setTimeout(() => abort.abort(), 1500);
+    return fetch(url, { mode: 'no-cors', cache: 'no-store', signal: abort.signal })
+        .then(() => true, () => false)
+        .finally(() => clearTimeout(timer));
+}
+
+/**
+ * Turns the QR code's key into this phone's token. When the worker's /link entry answers, the phone goes there: it
+ * keeps one token per TV, so a TV on a new address gets the old one back; resolves false as the page is leaving.
+ * Otherwise the key itself becomes the token (the TV claims it on first use) and it resolves true.
+ */
+async function useKey(entry, renew) {
+    const via = entry.via || (await fetch('/api/link').then((res) => res.json()).then((json) => json.via || '', () => ''));
+    if (via && (await reachable(via))) {
+        location.replace(via + '?' + [entry.d, entry.key, location.host].concat(renew ? ['renew'] : []).join('/'));
+        return false;
+    }
+    localStorage.setItem('token', entry.key);
+    return true;
 }
 
 /** POST /api/<path>; resolves the response text, rejects with { status, message } on error. */
@@ -776,9 +817,26 @@ document.addEventListener('visibilitychange', () => { if (!document.hidden) poll
 
 // ── start ──
 
-history.replaceState(null, '');
-paired = !!token();
-showTab(new URLSearchParams(location.search).get('tab') || 'remote', true);
-loadState();
-playerTimer = setInterval(pollPlayer, 2000);
-if (!paired) showPairDialog();
+// Opened from the QR code as /?<d>/<key>, or sent back by the worker's /link entry with token (this phone's token for
+// this TV), key (the QR code's key, when a saved token was used), d and via. They leave the address bar at once.
+const opened = new URLSearchParams(location.search);
+const link = /^\?([0-9a-z-]{1,64})\/([0-9a-f]{32,128})$/i.exec(location.search);
+if (link) {
+    sessionStorage.setItem('entry', JSON.stringify({ d: link[1], key: link[2], via: '' }));
+    opened.delete(link[1] + '/' + link[2]);
+} else if (opened.get('token')) {
+    localStorage.setItem('token', opened.get('token'));
+    sessionStorage.setItem('entry', JSON.stringify({ key: opened.get('key') || '', d: opened.get('d') || '', via: opened.get('via') || '' }));
+    ['token', 'key', 'd', 'via'].forEach((name) => opened.delete(name));
+}
+history.replaceState(null, '', location.pathname + (opened.toString() ? '?' + opened : ''));
+
+async function start() {
+    if (!token() && link && !(await useKey(takeEntry()))) return;
+    paired = !!token();
+    showTab(opened.get('tab') || 'remote', true);
+    loadState();
+    playerTimer = setInterval(pollPlayer, 2000);
+    if (!paired) showPairDialog();
+}
+start();

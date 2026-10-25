@@ -1,6 +1,6 @@
 import { MemoryStore } from '../../core/storage/keyValueStore';
 import { counterBytes, request } from '../__fixtures__/fakes';
-import { createPairing, isProtectedPath, PAIRED_DEVICES_KEY } from '../pairing';
+import { createPairing, isProtectedPath, LAN_DEVICE_ID_KEY, PAIRED_DEVICES_KEY } from '../pairing';
 
 const flush = () => new Promise<void>((resolve) => setTimeout(resolve, 0));
 
@@ -23,6 +23,40 @@ describe('pairing', () => {
     const draws = [0xff, 0xff, 0xff, 0xff, 0, 0, 0, 1];
     const pairing = createPairing({ store: new MemoryStore(), randomBytes: (n) => Uint8Array.from(draws.splice(0, n)) });
     expect(pairing.getCode()).toBe('000001');
+  });
+
+  it('keeps one device id per TV across restarts', async () => {
+    const store = new MemoryStore();
+    const first = make(store);
+    await first.ready;
+    expect(first.getDeviceId()).toMatch(/^[0-9a-f]{16}$/);
+    expect(store.data.get(LAN_DEVICE_ID_KEY)).toBe(JSON.stringify(first.getDeviceId()));
+    const restarted = createPairing({ store, randomBytes: () => new Uint8Array(24).fill(7) });
+    await restarted.ready;
+    expect(restarted.getDeviceId()).toBe(first.getDeviceId());
+  });
+
+  it('turns the QR key into the token of the first phone that uses it, then rotates the key', async () => {
+    const store = new MemoryStore();
+    const pairing = make(store);
+    await pairing.ready;
+    const listener = jest.fn();
+    pairing.subscribe(listener);
+    const key = pairing.getKey();
+    expect(key).toMatch(/^[0-9a-f]{48}$/);
+
+    const use = (token: string, remoteAddress = '192.168.1.30') =>
+      pairing.allow(request('/api/state', { remoteAddress, query: { token }, headers: { 'user-agent': 'Safari' } }));
+    expect(use('f'.repeat(48))).toBe(false);
+    expect(use(key)).toBe(true);
+    expect(pairing.find(key)).toMatchObject({ token: key, agent: 'Safari', ip: '192.168.1.30' });
+    expect(pairing.getKey()).not.toBe(key);
+    expect(listener).toHaveBeenCalled();
+    // The claimed key is now that phone's token; the device list does not grow on reuse.
+    expect(use(key, '192.168.1.31')).toBe(true);
+    expect(pairing.devices()).toHaveLength(1);
+    await flush();
+    expect(JSON.parse(store.data.get(PAIRED_DEVICES_KEY) ?? '[]')[0].token).toBe(key);
   });
 
   it('pairs with the right code, rotates it and issues a 48-char hex token', async () => {
@@ -84,7 +118,7 @@ describe('pairing', () => {
       for (const path of ['/api/state', '/api/unpair', '/action', '/file/x', '/upload', '/newFolder', '/delFolder', '/delFile']) {
         expect(isProtectedPath(path)).toBe(true);
       }
-      for (const path of ['/api/pair', '/', '/index.html', '/proxy', '/api']) expect(isProtectedPath(path)).toBe(false);
+      for (const path of ['/api/pair', '/api/link', '/', '/index.html', '/proxy', '/api']) expect(isProtectedPath(path)).toBe(false);
     });
 
     it('accepts the token from the header or a parameter and touches the device', async () => {

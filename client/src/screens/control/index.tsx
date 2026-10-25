@@ -2,6 +2,7 @@ import { useEffect, useReducer, useSyncExternalStore } from 'react';
 import { ScrollView, Text, View } from 'react-native';
 import QRCode from 'react-native-qrcode-svg';
 
+import type { Pairing } from '../../lan/pairing';
 import { getLanPairing, getLanStatus, refreshLanAddress, subscribeLanStatus } from '../../lan/runtime';
 import { useAppNavigation } from '../../navigation/useAppNavigation';
 import {
@@ -21,6 +22,15 @@ import {
 
 /** QR code edge in design px. */
 const QR_SIZE = 320;
+
+/**
+ * What the QR code opens: the TV's page with its device id and one-time key. The page turns the key into this phone's
+ * token, through the worker's /link entry when it answers so a changed TV address needs no new pairing.
+ */
+function qrValue(address: string, pairing: Pairing): string {
+  const deviceId = pairing.getDeviceId();
+  return deviceId ? `${address}/?${deviceId}/${pairing.getKey()}` : address;
+}
 
 /** PushActivity: address QR code, addresses and the pairing code for the phone control page. */
 export default function ControlScreen() {
@@ -61,7 +71,7 @@ export default function ControlScreen() {
             <View style={styles.card}>
               <View style={styles.qr} testID="control-qr">
                 <QRCode
-                  value={status.address}
+                  value={qrValue(status.address, pairing)}
                   size={s(QR_SIZE)}
                   backgroundColor="#ffffff"
                   color="#000000"

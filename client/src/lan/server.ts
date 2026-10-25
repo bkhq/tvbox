@@ -4,7 +4,7 @@ import { configApi } from './api/config';
 import { controlApi } from './api/control';
 import { enrollApi } from './api/enroll';
 import { fileApi, fileProcess } from './api/file';
-import { pairApi, unpairApi } from './api/pair';
+import { linkApi, pairApi, unpairApi } from './api/pair';
 import { proxyProcess } from './api/proxy';
 import { remoteApi } from './api/remote';
 import { settingApi } from './api/setting';
@@ -49,6 +49,7 @@ export function createLanServer(deps: LanServerDeps, files?: FileSystemPort): La
   };
   const endpoints = new Map<string, LanEndpoint>([
     ['pair', pairApi(context)],
+    ['link', linkApi()],
     ['unpair', unpairApi(context)],
     ['state', stateApi(context)],
     ['config', configApi(context)],

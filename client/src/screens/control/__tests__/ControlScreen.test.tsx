@@ -81,7 +81,15 @@ describe('ControlScreen', () => {
     expect(shown).toContain('配对码');
     expect(renderer.root.findByProps({ testID: 'control-code' }).props.children).toBe(mockRuntime.pairing!.getCode());
     expect(shown).toContain('已配对设备 0 台');
-    expect(renderer.root.findByType(QRCode).props.value).toBe('http://192.168.1.5:9978');
+  });
+
+  it('points the QR code at the TV page with the device id and one-time key once they are loaded', async () => {
+    await act(async () => mockRuntime.pairing!.ready);
+    const renderer = render();
+    const pairing = mockRuntime.pairing!;
+    expect(renderer.root.findByType(QRCode).props.value).toBe(
+      `http://192.168.1.5:9978/?${pairing.getDeviceId()}/${pairing.getKey()}`,
+    );
   });
 
   it('changes the pairing code from the button', () => {

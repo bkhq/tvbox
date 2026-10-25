@@ -54,7 +54,12 @@ export function LiveTab() {
       <div className="grid gap-6 lg:grid-cols-[16rem_1fr]">
         <div className="space-y-2">
           {groups.data?.map(g => (
-            <div key={g.id} className={`flex items-center gap-1 rounded-md px-1 ${current?.id === g.id ? "bg-muted" : ""}`}>
+            <div
+              key={g.id}
+              className={`flex items-center gap-1 rounded-md px-1 ${current?.id === g.id
+                ? "bg-muted"
+                : ""}`}
+            >
               <button type="button" className="flex-1 truncate py-1 text-left text-sm" onClick={() => setSelected(g.id)}>
                 {g.name}
                 <span className="ml-1 text-xs text-muted-foreground">{g.channelCount}</span>
@@ -87,7 +92,10 @@ export function LiveTab() {
 
 function Channels({ groupId }: { groupId: string }) {
   const { t } = useTranslation(["common", "media"]);
-  const channels = useQuery({ queryKey: mediaKeys.liveChannels(groupId), queryFn: () => mediaApi.liveChannels(groupId) });
+  const channels = useQuery({
+    queryKey: mediaKeys.liveChannels(groupId),
+    queryFn: () => mediaApi.liveChannels(groupId),
+  });
   const [editing, setEditing] = useState<LiveChannel | "new" | null>(null);
   const toggle = useMediaMutation(({ id, enabled }: { id: string; enabled: boolean }) => mediaApi.updateLiveChannel(id, { enabled }));
   const remove = useMediaMutation((id: string) => mediaApi.deleteLiveChannel(id));
@@ -132,7 +140,18 @@ function Channels({ groupId }: { groupId: string }) {
         <Plus className="size-4" />
         {t("media:live.addChannel")}
       </Button>
-      {editing !== null && <ChannelDialog key={editing === "new" ? "new" : editing.id} groupId={groupId} channel={editing === "new" ? null : editing} onClose={() => setEditing(null)} />}
+      {editing !== null && (
+        <ChannelDialog
+          key={editing === "new"
+            ? "new"
+            : editing.id}
+          groupId={groupId}
+          channel={editing === "new"
+            ? null
+            : editing}
+          onClose={() => setEditing(null)}
+        />
+      )}
     </div>
   );
 }
@@ -145,7 +164,11 @@ function streamsToText(streams: readonly LiveStream[]): string {
 function textToStreams(text: string): LiveStream[] {
   return text.split("\n").map(l => l.trim()).filter(Boolean).map((line) => {
     const [url, userAgent, referer] = line.split("|").map(s => s.trim());
-    return { url: url!, userAgent: orNull(userAgent ?? ""), referer: orNull(referer ?? "") };
+    return {
+      url: url!,
+      userAgent: orNull(userAgent ?? ""),
+      referer: orNull(referer ?? ""),
+    };
   });
 }
 
@@ -165,19 +188,27 @@ function ChannelDialog({ groupId, channel, onClose }: { groupId: string; channel
     const body = {
       groupId: form.groupId,
       name: form.name.trim(),
-      number: form.number.trim() ? Number(form.number) : null,
+      number: form.number.trim()
+        ? Number(form.number)
+        : null,
       tvgId: orNull(form.tvgId),
       logo: orNull(form.logo),
       streams: textToStreams(form.streams),
     };
-    return channel ? mediaApi.updateLiveChannel(channel.id, body) : mediaApi.createLiveChannel(body);
+    return channel
+      ? mediaApi.updateLiveChannel(channel.id, body)
+      : mediaApi.createLiveChannel(body);
   }, onClose);
 
   return (
     <Dialog open onOpenChange={open => !open && onClose()}>
       <DialogContent className="sm:max-w-xl">
         <DialogHeader>
-          <DialogTitle>{channel ? channel.name : t("media:live.addChannel")}</DialogTitle>
+          <DialogTitle>
+            {channel
+              ? channel.name
+              : t("media:live.addChannel")}
+          </DialogTitle>
         </DialogHeader>
         <div className="grid gap-3 sm:grid-cols-2">
           <Field label={t("media:live.channel")}><Input value={form.name} onChange={e => set("name", e.target.value)} /></Field>

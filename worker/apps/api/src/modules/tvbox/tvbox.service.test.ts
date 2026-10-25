@@ -37,7 +37,14 @@ import {
 } from "./tvbox.service";
 import { storeUpload } from "./upload.service";
 
-const noop = { debug() {}, info() {}, warn() {}, error() {}, fatal() {}, flush() {} } as unknown as Logger;
+const noop = {
+  debug() {},
+  info() {},
+  warn() {},
+  error() {},
+  fatal() {},
+  flush() {},
+} as unknown as Logger;
 
 const PRIMARY = "https://up.example/xiaosa/api.json";
 const SECONDARY = "https://other.example/cfg/api.json";
@@ -52,7 +59,9 @@ const fakeFetch = (async (input: RequestInfo | URL) => {
   const hit = files.get(String(input));
   if (!hit)
     return new Response("missing", { status: 404 });
-  return typeof hit === "function" ? hit() : hit.clone();
+  return typeof hit === "function"
+    ? hit()
+    : hit.clone();
 }) as typeof fetch;
 
 function primaryConfig(sites: object[], extra: object = {}) {
@@ -60,20 +69,43 @@ function primaryConfig(sites: object[], extra: object = {}) {
     spider: "./spider.jar;md5;stale",
     wallpaper: "https://wall.example/",
     sites,
-    parses: [{ name: "p1", type: 0, url: "https://parse.example/?url=" }],
+    parses: [
+      { name: "p1", type: 0, url: "https://parse.example/?url=" },
+    ],
     lives: [{}],
     flags: ["qq"],
     ...extra,
   });
 }
 
-const SITE_A = { key: "a", name: "A", type: 3, api: "csp_A", ext: { json: "./json/A.json" } };
-const SITE_B = { key: "b", name: "B", type: 3, api: "csp_B" };
+const SITE_A = {
+  key: "a",
+  name: "A",
+  type: 3,
+  api: "csp_A",
+  ext: { json: "./json/A.json" },
+};
+const SITE_B = {
+  key: "b",
+  name: "B",
+  type: 3,
+  api: "csp_B",
+};
 
 async function seedAdmin(): Promise<string> {
   const id = nanoid();
   const now = new Date().toISOString();
-  await db.insert(users).values({ id, oauthSub: `sub-${id}`, username: `u-${id}`, name: id, email: `${id}@t.io`, role: "admin", status: "active", createdAt: now, updatedAt: now }).run();
+  await db.insert(users).values({
+    id,
+    oauthSub: `sub-${id}`,
+    username: `u-${id}`,
+    name: id,
+    email: `${id}@t.io`,
+    role: "admin",
+    status: "active",
+    createdAt: now,
+    updatedAt: now,
+  }).run();
   return id;
 }
 
@@ -85,9 +117,18 @@ beforeEach(async () => {
   __setLocalDriverRootForTests(resolve(dir, "blobs"));
   setActiveDriver("local");
   files = new Map<string, Response | (() => Response)>([
-    [PRIMARY, primaryConfig([SITE_A, SITE_B])],
-    ["https://up.example/xiaosa/spider.jar", new Response(JAR)],
-    ["https://up.example/xiaosa/json/A.json", new Response(JSON_A)],
+    [
+      PRIMARY,
+      primaryConfig([SITE_A, SITE_B]),
+    ],
+    [
+      "https://up.example/xiaosa/spider.jar",
+      new Response(JAR),
+    ],
+    [
+      "https://up.example/xiaosa/json/A.json",
+      new Response(JSON_A),
+    ],
   ]);
 });
 
@@ -119,11 +160,22 @@ describe("importing an upstream", () => {
 
     // `lives: [{}]` is not an entry worth keeping, but it is still an entry.
     const config = await buildConfig(db);
-    expect(Object.keys(config)).toEqual(["spider", "wallpaper", "sites", "parses", "lives", "flags"]);
+    expect(Object.keys(config)).toEqual([
+      "spider",
+      "wallpaper",
+      "sites",
+      "parses",
+      "lives",
+      "flags",
+    ]);
   });
 
   test("DoH is ours: an upstream's resolvers are not imported", async () => {
-    files.set(PRIMARY, primaryConfig([SITE_A], { doh: [{ name: "Theirs", url: "https://doh.example/dns-query" }] }));
+    files.set(PRIMARY, primaryConfig([SITE_A], {
+      doh: [
+        { name: "Theirs", url: "https://doh.example/dns-query" },
+      ],
+    }));
     const up = await createUpstream(db, { name: "x", url: PRIMARY });
     await sync(up.id);
     expect(await listEntries(db, "doh")).toEqual([]);
@@ -133,7 +185,18 @@ describe("importing an upstream", () => {
     const primary = await createUpstream(db, { name: "p", url: PRIMARY });
     const secondary = await createUpstream(db, { name: "s", url: SECONDARY });
     expect(secondary.isPrimary).toBe(false);
-    files.set(SECONDARY, Response.json({ spider: "./s.jar", wallpaper: "https://ignored/", sites: [{ key: "a", name: "A2", type: 3, api: "csp_X" }] }));
+    files.set(SECONDARY, Response.json({
+      spider: "./s.jar",
+      wallpaper: "https://ignored/",
+      sites: [
+        {
+          key: "a",
+          name: "A2",
+          type: 3,
+          api: "csp_X",
+        },
+      ],
+    }));
     files.set("https://other.example/cfg/s.jar", new Response(new TextEncoder().encode("PK-other").buffer));
     await sync(primary.id);
     await sync(secondary.id);
@@ -176,12 +239,31 @@ describe("collections", () => {
       {"url": "./b/../tv.json", "name": "Relative"},
       {"url": "clan://localhost/x.json", "name": "Local only"}
     ]}`));
-    files.set(SECONDARY, Response.json({ spider: "./s.jar", sites: [{ key: "a", name: "A2", type: 3, api: "csp_X" }] }));
+    files.set(SECONDARY, Response.json({
+      spider: "./s.jar",
+      sites: [
+        {
+          key: "a",
+          name: "A2",
+          type: 3,
+          api: "csp_X",
+        },
+      ],
+    }));
     files.set("https://other.example/cfg/s.jar", new Response(new TextEncoder().encode("PK-other").buffer));
   });
 
   test("each line becomes an upstream of its own, synced with its own spider", async () => {
-    files.set("https://list.example/tv.json", Response.json({ sites: [{ key: "c", name: "C", type: 1, api: "https://cms.example/api" }] }));
+    files.set("https://list.example/tv.json", Response.json({
+      sites: [
+        {
+          key: "c",
+          name: "C",
+          type: 1,
+          api: "https://cms.example/api",
+        },
+      ],
+    }));
     const primary = await createUpstream(db, { name: "p", url: PRIMARY });
     await sync(primary.id);
     const list = await createUpstream(db, { name: "op", url: COLLECTION });
@@ -191,7 +273,10 @@ describe("collections", () => {
     expect(result.added).toBe(2);
 
     const lines = (await listUpstreams(db)).filter(u => u.parentId === list.id);
-    expect(lines.map(u => [u.name, u.url, u.isPrimary])).toEqual([["Other", SECONDARY, false], ["Relative", "https://list.example/tv.json", false]]);
+    expect(lines.map(u => [u.name, u.url, u.isPrimary])).toEqual([
+      ["Other", SECONDARY, false],
+      ["Relative", "https://list.example/tv.json", false],
+    ]);
     expect((await listEntries(db, "sites", list.id))).toEqual([]);
     const other = (await listEntries(db, "sites", lines[0]!.id))[0]!;
     expect(other.data.jar).toStartWith("./a/");
@@ -212,7 +297,11 @@ describe("collections", () => {
     expect(await listEntries(db, "sites", other.id)).toHaveLength(1);
     expect((await listUpstreams(db)).find(u => u.id === other.id)!.name).toBe("Mine");
 
-    files.set(COLLECTION, Response.json({ urls: [{ url: LINE_B, name: "B" }] }));
+    files.set(COLLECTION, Response.json({
+      urls: [
+        { url: LINE_B, name: "B" },
+      ],
+    }));
     files.set(LINE_B, Response.json({ sites: [] }));
     const third = await sync(list.id);
     expect(third.removed).toBeGreaterThan(0);
@@ -221,7 +310,11 @@ describe("collections", () => {
   });
 
   test("a line that is itself a collection is refused", async () => {
-    files.set(SECONDARY, Response.json({ urls: [{ url: PRIMARY, name: "deeper" }] }));
+    files.set(SECONDARY, Response.json({
+      urls: [
+        { url: PRIMARY, name: "deeper" },
+      ],
+    }));
     const list = await createUpstream(db, { name: "op", url: COLLECTION });
     expect((await sync(list.id)).lines!.failed).toContain("Other");
     const other = (await listUpstreams(db)).find(u => u.name === "Other")!;
@@ -231,7 +324,10 @@ describe("collections", () => {
   test("a device that follows a collection follows every line, including new ones", async () => {
     const userId = await seedAdmin();
     const list = await createUpstream(db, { name: "op", url: COLLECTION });
-    const dev = await createDevice(db, { name: "tv", upstreamIds: [list.id] }, userId);
+    const dev = await createDevice(db, {
+      name: "tv",
+      upstreamIds: [list.id],
+    }, userId);
     await sync(list.id);
     const lines = (await listUpstreams(db)).filter(u => u.parentId === list.id).map(u => u.id);
     const file = (JSON.parse(await readObjectText(DEVICES_KEY)) as DevicesFile).devices;
@@ -248,9 +344,14 @@ describe("re-syncing", () => {
     const up = await createUpstream(db, { name: "x", url: PRIMARY });
     await sync(up.id);
     const [a, b] = await listEntries(db, "sites");
-    await updateEntry(db, b!.id, { data: { ...b!.data, name: "Mine" } });
+    await updateEntry(db, b!.id, {
+      data: { ...b!.data, name: "Mine" },
+    });
 
-    files.set(PRIMARY, primaryConfig([{ ...SITE_A, name: "A v2" }, { ...SITE_B, name: "B v2" }]));
+    files.set(PRIMARY, primaryConfig([
+      { ...SITE_A, name: "A v2" },
+      { ...SITE_B, name: "B v2" },
+    ]));
     const result = await sync(up.id);
     expect(result.updated).toBe(1);
 
@@ -286,7 +387,10 @@ describe("re-syncing", () => {
     await sync(up.id);
     const [a] = await listEntries(db, "sites");
     await updateEntry(db, a!.id, { enabled: false });
-    files.set(PRIMARY, primaryConfig([{ ...SITE_A, name: "A v2" }, SITE_B]));
+    files.set(PRIMARY, primaryConfig([
+      { ...SITE_A, name: "A v2" },
+      SITE_B,
+    ]));
     await sync(up.id);
     expect((await listEntries(db, "sites"))[0]!.enabled).toBe(false);
   });
@@ -307,7 +411,12 @@ describe("local entries and globals", () => {
   test("local entries can be added and deleted; upstream globals cannot be deleted", async () => {
     const up = await createUpstream(db, { name: "x", url: PRIMARY });
     await sync(up.id);
-    const mine = await createEntry(db, "sites", { key: "mine", name: "Mine", type: 3, api: "csp_M" });
+    const mine = await createEntry(db, "sites", {
+      key: "mine",
+      name: "Mine",
+      type: 3,
+      api: "csp_M",
+    });
     expect(mine.sort).toBe(2);
     await expect(createEntry(db, "sites", { name: "no key" })).rejects.toThrow("non-empty \"key\"");
     await deleteEntry(db, mine.id);
@@ -328,7 +437,10 @@ describe("local entries and globals", () => {
     expect((await buildConfig(db)).sites).toEqual([SITE_B]);
 
     // The upstream changes it, drops it, brings it back: still deleted.
-    files.set(PRIMARY, primaryConfig([{ ...SITE_A, name: "A!" }, SITE_B]));
+    files.set(PRIMARY, primaryConfig([
+      { ...SITE_A, name: "A!" },
+      SITE_B,
+    ]));
     expect((await sync(up.id)).updated).toBe(0);
     files.set(PRIMARY, primaryConfig([SITE_B]));
     expect((await sync(up.id)).removed).toBe(0);
@@ -345,7 +457,12 @@ describe("local entries and globals", () => {
   test("bulk delete removes local entries and hides upstream ones", async () => {
     const up = await createUpstream(db, { name: "x", url: PRIMARY });
     await sync(up.id);
-    const mine = await createEntry(db, "sites", { key: "mine", name: "Mine", type: 3, api: "csp_M" });
+    const mine = await createEntry(db, "sites", {
+      key: "mine",
+      name: "Mine",
+      type: 3,
+      api: "csp_M",
+    });
     const ids = (await listEntries(db, "sites")).map(e => e.id);
     expect(await deleteEntries(db, ids)).toBe(3);
     expect(await listEntries(db, "sites")).toEqual([]);
@@ -357,7 +474,10 @@ describe("local entries and globals", () => {
     const b = await createUpstream(db, { name: "b", url: SECONDARY });
     await updateUpstream(db, b.id, { isPrimary: true });
     const rows = await (await import("./tvbox.service")).listUpstreams(db);
-    expect(rows.map(r => [r.id, r.isPrimary])).toEqual([[a.id, false], [b.id, true]]);
+    expect(rows.map(r => [r.id, r.isPrimary])).toEqual([
+      [a.id, false],
+      [b.id, true],
+    ]);
   });
 });
 
@@ -372,7 +492,13 @@ describe("publishing", () => {
     const up = await createUpstream(db, { name: "x", url: PRIMARY });
     await sync(up.id);
     const first = await publish(db, { trigger: "manual", userId });
-    expect(JSON.parse(first.counts)).toEqual({ sites: 2, parses: 1, lives: 1, rules: 0, doh: 0 });
+    expect(JSON.parse(first.counts)).toEqual({
+      sites: 2,
+      parses: 1,
+      lives: 1,
+      rules: 0,
+      doh: 0,
+    });
 
     const [a] = await listEntries(db, "sites");
     await updateEntry(db, a!.id, { enabled: false });
@@ -388,7 +514,13 @@ describe("publishing", () => {
 
   test("a version published before devices cannot be restored", async () => {
     const userId = await seedAdmin();
-    await db.insert(tvboxPublishes).values({ id: "legacy", sha256: "x", size: 1, counts: "{}", trigger: "manual" }).run();
+    await db.insert(tvboxPublishes).values({
+      id: "legacy",
+      sha256: "x",
+      size: 1,
+      counts: "{}",
+      trigger: "manual",
+    }).run();
     await expect(restorePublish(db, "legacy", userId)).rejects.toThrow("predates devices");
   });
 
@@ -411,13 +543,19 @@ describe("devices", () => {
     const userId = await seedAdmin();
     const a = await createUpstream(db, { name: "a", url: PRIMARY });
     const tv = await createDevice(db, { name: "tv", upstreamIds: null }, userId);
-    const phone = await createDevice(db, { name: "phone", upstreamIds: [a.id] }, userId);
+    const phone = await createDevice(db, {
+      name: "phone",
+      upstreamIds: [a.id],
+    }, userId);
     expect(tv.token).toMatch(/^[0-9a-f]{32}$/);
     expect(tv.hint).toBe(tv.token!.slice(-4));
 
     expect(await readDevices()).toEqual({
       [hashHex("sha256", tv.token!)]: { id: tv.id, upstreams: null },
-      [hashHex("sha256", phone.token!)]: { id: phone.id, upstreams: [a.id] },
+      [hashHex("sha256", phone.token!)]: {
+        id: phone.id,
+        upstreams: [a.id],
+      },
     });
     expect((await listUpstreams(db))[0]).toMatchObject({ deviceCount: 1 });
   });
@@ -428,13 +566,25 @@ describe("devices", () => {
     const b = await createUpstream(db, { name: "b", url: SECONDARY });
     const dev = await createDevice(db, { name: "tv", upstreamIds: null }, userId);
 
-    const narrowed = await updateDevice(db, dev.id, { upstreamIds: [b.id] });
-    expect({ all: narrowed.allUpstreams, ids: narrowed.upstreamIds }).toEqual({ all: false, ids: [b.id] });
-    expect(Object.values(await readDevices())).toEqual([{ id: dev.id, upstreams: [b.id] }]);
+    const narrowed = await updateDevice(db, dev.id, {
+      upstreamIds: [b.id],
+    });
+    expect({ all: narrowed.allUpstreams, ids: narrowed.upstreamIds }).toEqual({
+      all: false,
+      ids: [b.id],
+    });
+    expect(Object.values(await readDevices())).toEqual([
+      {
+        id: dev.id,
+        upstreams: [b.id],
+      },
+    ]);
 
     const rotated = await rotateDevice(db, dev.id);
     expect(rotated.token).not.toBe(dev.token);
-    expect(Object.keys(await readDevices())).toEqual([hashHex("sha256", rotated.token!)]);
+    expect(Object.keys(await readDevices())).toEqual([
+      hashHex("sha256", rotated.token!),
+    ]);
 
     await updateDevice(db, dev.id, { enabled: false });
     expect(await readDevices()).toEqual({});
@@ -442,7 +592,9 @@ describe("devices", () => {
 
     // Deleting an upstream drops it from every device that picked it.
     await (await import("./tvbox.service")).deleteUpstream(db, b.id);
-    expect(Object.values(await readDevices())).toEqual([{ id: dev.id, upstreams: [] }]);
+    expect(Object.values(await readDevices())).toEqual([
+      { id: dev.id, upstreams: [] },
+    ]);
     expect(a.id).toBeTruthy();
 
     await deleteDevice(db, dev.id);
@@ -452,7 +604,10 @@ describe("devices", () => {
 
   test("an unknown upstream is refused and nothing is created", async () => {
     const userId = await seedAdmin();
-    await expect(createDevice(db, { name: "tv", upstreamIds: ["nope"] }, userId)).rejects.toThrow("Unknown upstream");
+    await expect(createDevice(db, {
+      name: "tv",
+      upstreamIds: ["nope"],
+    }, userId)).rejects.toThrow("Unknown upstream");
     expect(await listDevices(db)).toEqual([]);
   });
 });
@@ -461,7 +616,12 @@ describe("content management", () => {
   test("entries filter by source, and enable or disable in bulk", async () => {
     const up = await createUpstream(db, { name: "x", url: PRIMARY });
     await sync(up.id);
-    const common = await createEntry(db, "sites", { key: "mine", name: "Mine", type: 3, api: "csp_M" });
+    const common = await createEntry(db, "sites", {
+      key: "mine",
+      name: "Mine",
+      type: 3,
+      api: "csp_M",
+    });
 
     expect((await listEntries(db, "sites", "common")).map(e => e.id)).toEqual([common.id]);
     expect((await listEntries(db, "sites", up.id)).map(e => e.upstreamKey)).toEqual(["a", "b"]);
@@ -475,9 +635,19 @@ describe("content management", () => {
 
 describe("our own spider jar", () => {
   test("a site whose jar is @tvbox gets the jar uploaded last", async () => {
-    await createEntry(db, "sites", { key: "cms", name: "CMS", type: 3, api: "csp_MacCms", jar: OWN_JAR, ext: "https://cms.example/api.php/provide/vod/" });
+    await createEntry(db, "sites", {
+      key: "cms",
+      name: "CMS",
+      type: 3,
+      api: "csp_MacCms",
+      jar: OWN_JAR,
+      ext: "https://cms.example/api.php/provide/vod/",
+    });
     const v1 = new TextEncoder().encode("PK-tvbox-1").buffer;
-    expect(await setOwnJar(db, v1)).toMatchObject({ changed: true, md5: hashHex("md5", v1) });
+    expect(await setOwnJar(db, v1)).toMatchObject({
+      changed: true,
+      md5: hashHex("md5", v1),
+    });
     expect(await setOwnJar(db, v1)).toMatchObject({ changed: false });
     const site = () => buildConfig(db).then(c => (c.sites as { jar: string }[])[0]!);
     expect((await site()).jar).toBe(`./a/${hashHex("sha256", v1)}/tvbox.jar;md5;${hashHex("md5", v1)}`);
@@ -495,7 +665,13 @@ describe("uploads", () => {
     const bytes = new TextEncoder().encode("PNG-bytes").buffer;
     const first = await storeUpload(db, "My Logo.png", bytes);
     const sha = hashHex("sha256", bytes);
-    expect(first).toEqual({ path: `./a/${sha}/My_Logo.png`, name: "My_Logo.png", sha256: sha, md5: hashHex("md5", bytes), size: 9 });
+    expect(first).toEqual({
+      path: `./a/${sha}/My_Logo.png`,
+      name: "My_Logo.png",
+      sha256: sha,
+      md5: hashHex("md5", bytes),
+      size: 9,
+    });
     expect(await readObjectText((await import("@/modules/file/storage/key")).deriveStorageKey(sha))).toBe("PNG-bytes");
     // The same bytes again are stored once.
     expect((await storeUpload(db, "My Logo.png", bytes)).sha256).toBe(sha);

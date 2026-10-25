@@ -37,8 +37,12 @@ import { storeUpload } from "./upload.service";
 
 const kindSchema = z.enum(LIST_KINDS);
 const jsonObject = z.record(z.string(), z.unknown());
-const idParam = z.object({ id: z.string() });
-const keyParam = z.object({ key: z.string().min(1).max(100) });
+const idParam = z.object({
+  id: z.string(),
+});
+const keyParam = z.object({
+  key: z.string().min(1).max(100),
+});
 const httpUrl = z.string().url().refine(u => u.startsWith("https://") || u.startsWith("http://"), "must be an http(s) URL");
 
 const upstreamSchema = z.object({
@@ -127,8 +131,14 @@ const syncResultSchema = z.object({
   added: z.number(),
   updated: z.number(),
   removed: z.number(),
-  assets: z.object({ mirrored: z.number(), failed: z.array(z.string()) }),
-  lines: z.object({ total: z.number(), failed: z.array(z.string()) }).optional(),
+  assets: z.object({
+    mirrored: z.number(),
+    failed: z.array(z.string()),
+  }),
+  lines: z.object({
+    total: z.number(),
+    failed: z.array(z.string()),
+  }).optional(),
 });
 
 const nameSchema = z.string().trim().min(1).max(100);
@@ -147,7 +157,9 @@ async function record(
     resourceType: resource.type,
     resourceId: resource.id,
     resourceName: resource.name,
-    ...(detail ? { detail } : {}),
+    ...(detail
+      ? { detail }
+      : {}),
     ...auditMeta(c),
     result: "success",
   });
@@ -155,7 +167,9 @@ async function record(
 
 function entryName(data: JsonObject, fallback: string): string {
   const name = data.name ?? data.key;
-  return typeof name === "string" ? name : fallback;
+  return typeof name === "string"
+    ? name
+    : fallback;
 }
 
 export function tvboxRoutes() {
@@ -165,7 +179,15 @@ export function tvboxRoutes() {
   router.use("/tvbox/*", authRequired, adminRequired);
 
   const doc = (summary: string, responses: ReturnType<typeof jsonOk>) =>
-    describeRoute({ tags: [TAGS.Tvbox], summary, security: SECURITY.session, responses: { ...responses, ...errors(401, 403, 404, 409, 422) } });
+    describeRoute({
+      tags: [TAGS.Tvbox],
+      summary,
+      security: SECURITY.session,
+      responses: {
+        ...responses,
+        ...errors(401, 403, 404, 409, 422),
+      },
+    });
 
   // ─── Upstreams ───
 
@@ -175,7 +197,11 @@ export function tvboxRoutes() {
   router.post(
     "/tvbox/upstreams",
     doc("Add an upstream", jsonCreated(upstreamSchema)),
-    validator("json", z.object({ name: nameSchema, url: httpUrl, syncEnabled: z.boolean().optional() })),
+    validator("json", z.object({
+      name: nameSchema,
+      url: httpUrl,
+      syncEnabled: z.boolean().optional(),
+    })),
     async (c) => {
       const row = await createUpstream(c.get("db"), c.req.valid("json"));
       await record(c, "tvbox.upstream.created", { type: "tvbox_upstream", id: row.id, name: row.name }, { url: row.url });
@@ -209,7 +235,9 @@ export function tvboxRoutes() {
   router.post("/tvbox/upstreams/:id/sync", doc("Pull an upstream now (does not publish)", jsonOk(syncResultSchema)), validator("param", idParam), async (c) => {
     const db = c.get("db");
     const upstream = await getUpstream(db, c.req.valid("param").id);
-    const result = await syncUpstream(db, upstream.id, { logger: c.get("logger") });
+    const result = await syncUpstream(db, upstream.id, {
+      logger: c.get("logger"),
+    });
     await record(c, "tvbox.upstream.synced", { type: "tvbox_upstream", id: upstream.id, name: upstream.name }, { ...result });
     return c.json({ success: true, data: result });
   });
@@ -219,7 +247,11 @@ export function tvboxRoutes() {
   router.get(
     "/tvbox/entries",
     doc("List entries", jsonOk(z.array(entrySchema))),
-    validator("query", z.object({ kind: kindSchema.optional(), source: z.string().min(1).optional(), deleted: z.enum(["true", "false"]).optional() })),
+    validator("query", z.object({
+      kind: kindSchema.optional(),
+      source: z.string().min(1).optional(),
+      deleted: z.enum(["true", "false"]).optional(),
+    })),
     async (c) => {
       const { kind, source, deleted } = c.req.valid("query");
       return c.json({ success: true, data: await listEntries(c.get("db"), kind, source, deleted === "true") });
@@ -229,35 +261,59 @@ export function tvboxRoutes() {
   router.post(
     "/tvbox/entries",
     doc("Add a local entry", jsonCreated(entrySchema)),
-    validator("json", z.object({ kind: kindSchema, data: jsonObject, enabled: z.boolean().optional() })),
+    validator("json", z.object({
+      kind: kindSchema,
+      data: jsonObject,
+      enabled: z.boolean().optional(),
+    })),
     async (c) => {
       const { kind, data, enabled } = c.req.valid("json");
       const row = await createEntry(c.get("db"), kind, data, enabled);
-      await record(c, "tvbox.entry.created", { type: "tvbox_entry", id: row.id, name: entryName(row.data, row.id) }, { kind });
+      await record(c, "tvbox.entry.created", {
+        type: "tvbox_entry",
+        id: row.id,
+        name: entryName(row.data, row.id),
+      }, { kind });
       return c.json({ success: true, data: row }, 201);
     },
   );
 
   router.post(
     "/tvbox/entries/reorder",
-    doc("Reorder the entries of one kind", jsonOk(z.object({ count: z.number() }))),
-    validator("json", z.object({ kind: kindSchema, ids: z.array(z.string()).min(1).max(5000) })),
+    doc("Reorder the entries of one kind", jsonOk(z.object({
+      count: z.number(),
+    }))),
+    validator("json", z.object({
+      kind: kindSchema,
+      ids: z.array(z.string()).min(1).max(5000),
+    })),
     async (c) => {
       const { kind, ids } = c.req.valid("json");
       await reorderEntries(c.get("db"), kind, ids);
-      return c.json({ success: true, data: { count: ids.length } });
+      return c.json({
+        success: true,
+        data: { count: ids.length },
+      });
     },
   );
 
   router.post(
     "/tvbox/entries/bulk",
-    doc("Enable or disable many entries", jsonOk(z.object({ count: z.number() }))),
-    validator("json", z.object({ ids: z.array(z.string()).min(1).max(5000), enabled: z.boolean() })),
+    doc("Enable or disable many entries", jsonOk(z.object({
+      count: z.number(),
+    }))),
+    validator("json", z.object({
+      ids: z.array(z.string()).min(1).max(5000),
+      enabled: z.boolean(),
+    })),
     async (c) => {
       const { ids, enabled } = c.req.valid("json");
       const n = await setEntriesEnabled(c.get("db"), ids, enabled);
       await record(c, "tvbox.entries.bulk", { type: "tvbox_entry", id: "bulk", name: `${n} entries` }, { enabled, count: n });
-      return c.json({ success: true, data: { count: n } });
+      return c.json({
+        success: true,
+        data: { count: n },
+      });
     },
   );
 
@@ -265,13 +321,25 @@ export function tvboxRoutes() {
     "/tvbox/entries/:id",
     doc("Edit or enable/disable an entry", jsonOk(entrySchema)),
     validator("param", idParam),
-    validator("json", z.object({ data: jsonObject.optional(), enabled: z.boolean().optional(), healthExempt: z.boolean().optional() })),
+    validator("json", z.object({
+      data: jsonObject.optional(),
+      enabled: z.boolean().optional(),
+      healthExempt: z.boolean().optional(),
+    })),
     async (c) => {
       const body = c.req.valid("json");
       const row = await updateEntry(c.get("db"), c.req.valid("param").id, body);
-      await record(c, "tvbox.entry.updated", { type: "tvbox_entry", id: row.id, name: entryName(row.data, row.id) }, {
-        ...(body.enabled !== undefined ? { enabled: body.enabled } : {}),
-        ...(body.healthExempt !== undefined ? { healthExempt: body.healthExempt } : {}),
+      await record(c, "tvbox.entry.updated", {
+        type: "tvbox_entry",
+        id: row.id,
+        name: entryName(row.data, row.id),
+      }, {
+        ...(body.enabled !== undefined
+          ? { enabled: body.enabled }
+          : {}),
+        ...(body.healthExempt !== undefined
+          ? { healthExempt: body.healthExempt }
+          : {}),
         dataChanged: body.data !== undefined,
       });
       return c.json({ success: true, data: row });
@@ -280,30 +348,49 @@ export function tvboxRoutes() {
 
   router.post("/tvbox/entries/:id/revert", doc("Drop the local edit and follow the upstream", jsonOk(entrySchema)), validator("param", idParam), async (c) => {
     const row = await revertEntry(c.get("db"), c.req.valid("param").id);
-    await record(c, "tvbox.entry.reverted", { type: "tvbox_entry", id: row.id, name: entryName(row.data, row.id) });
+    await record(c, "tvbox.entry.reverted", {
+      type: "tvbox_entry",
+      id: row.id,
+      name: entryName(row.data, row.id),
+    });
     return c.json({ success: true, data: row });
   });
 
   router.delete("/tvbox/entries/:id", doc("Delete an entry (an upstream one stays hidden through syncs until restored)", jsonOk(entrySchema)), validator("param", idParam), async (c) => {
     const row = await deleteEntry(c.get("db"), c.req.valid("param").id);
-    await record(c, "tvbox.entry.deleted", { type: "tvbox_entry", id: row.id, name: entryName(row.data, row.id) });
+    await record(c, "tvbox.entry.deleted", {
+      type: "tvbox_entry",
+      id: row.id,
+      name: entryName(row.data, row.id),
+    });
     return c.json({ success: true, data: row });
   });
 
   router.post("/tvbox/entries/:id/restore", doc("Restore a deleted upstream entry", jsonOk(entrySchema)), validator("param", idParam), async (c) => {
     const row = await restoreEntry(c.get("db"), c.req.valid("param").id);
-    await record(c, "tvbox.entry.restored", { type: "tvbox_entry", id: row.id, name: entryName(row.data, row.id) });
+    await record(c, "tvbox.entry.restored", {
+      type: "tvbox_entry",
+      id: row.id,
+      name: entryName(row.data, row.id),
+    });
     return c.json({ success: true, data: row });
   });
 
   router.post(
     "/tvbox/entries/bulk-delete",
-    doc("Delete many entries", jsonOk(z.object({ count: z.number() }))),
-    validator("json", z.object({ ids: z.array(z.string()).min(1).max(5000) })),
+    doc("Delete many entries", jsonOk(z.object({
+      count: z.number(),
+    }))),
+    validator("json", z.object({
+      ids: z.array(z.string()).min(1).max(5000),
+    })),
     async (c) => {
       const n = await deleteEntries(c.get("db"), c.req.valid("json").ids);
       await record(c, "tvbox.entries.deleted", { type: "tvbox_entry", id: "bulk", name: `${n} entries` }, { count: n });
-      return c.json({ success: true, data: { count: n } });
+      return c.json({
+        success: true,
+        data: { count: n },
+      });
     },
   );
 
@@ -342,11 +429,17 @@ export function tvboxRoutes() {
     "/tvbox/globals/:key",
     doc("Set a top-level field", jsonOk(globalSchema)),
     validator("param", keyParam),
-    validator("json", z.object({ value: z.unknown() })),
+    validator("json", z.object({
+      value: z.unknown(),
+    })),
     async (c) => {
       const { key } = c.req.valid("param");
-      if (LIST_KINDS.includes(key as never))
-        return c.json({ success: false, error: { code: "INVALID_KEY", message: `"${key}" is edited as entries` } }, 422);
+      if (LIST_KINDS.includes(key as never)) {
+        return c.json({
+          success: false,
+          error: { code: "INVALID_KEY", message: `"${key}" is edited as entries` },
+        }, 422);
+      }
       const row = await putGlobal(c.get("db"), key, c.req.valid("json").value);
       await record(c, "tvbox.global.updated", { type: "tvbox_global", id: key, name: key });
       return c.json({ success: true, data: row });
@@ -378,7 +471,9 @@ export function tvboxRoutes() {
       md5: z.string(),
       size: z.number(),
     }))),
-    validator("query", z.object({ name: z.string().min(1).max(200) })),
+    validator("query", z.object({
+      name: z.string().min(1).max(200),
+    })),
     async (c) => {
       const { name } = c.req.valid("query");
       const stored = await storeUpload(c.get("db"), name, await c.req.arrayBuffer());
@@ -407,11 +502,15 @@ export function tvboxRoutes() {
   router.get(
     "/tvbox/preview",
     doc("The config as it would be published now, for one device or for every upstream", jsonOk(jsonObject)),
-    validator("query", z.object({ deviceId: z.string().optional() })),
+    validator("query", z.object({
+      deviceId: z.string().optional(),
+    })),
     async (c) => {
       const db = c.get("db");
       const { deviceId } = c.req.valid("query");
-      const upstreams = deviceId ? await deviceUpstreams(db, await getDevice(db, deviceId)) : null;
+      const upstreams = deviceId
+        ? await deviceUpstreams(db, await getDevice(db, deviceId))
+        : null;
       return c.json({ success: true, data: await buildConfig(db, upstreams) });
     },
   );
@@ -422,7 +521,9 @@ export function tvboxRoutes() {
   router.post("/tvbox/publishes", doc("Publish the current config", jsonCreated(publishSchema)), async (c) => {
     const user = c.get("user")!;
     const row = await publish(c.get("db"), { trigger: "manual", userId: user.id });
-    await record(c, "tvbox.published", { type: "tvbox_publish", id: row.id, name: row.id }, { counts: JSON.parse(row.counts) as unknown });
+    await record(c, "tvbox.published", { type: "tvbox_publish", id: row.id, name: row.id }, {
+      counts: JSON.parse(row.counts) as unknown,
+    });
     return c.json({ success: true, data: row }, 201);
   });
 
@@ -440,7 +541,19 @@ export function tvboxRoutes() {
     const links = await linkedApps(db);
     const data = (await listDevices(db)).map((d) => {
       const l = links.get(d.id);
-      return { ...d, link: l ? { model: l.model, name: l.name, versionName: l.versionName, mode: l.mode, abi: l.abi, lastSeenAt: l.lastSeenAt } : null };
+      return {
+        ...d,
+        link: l
+          ? {
+              model: l.model,
+              name: l.name,
+              versionName: l.versionName,
+              mode: l.mode,
+              abi: l.abi,
+              lastSeenAt: l.lastSeenAt,
+            }
+          : null,
+      };
     });
     return c.json({ success: true, data });
   });
@@ -448,7 +561,11 @@ export function tvboxRoutes() {
   router.post(
     "/tvbox/devices",
     doc("Add a device", jsonCreated(deviceSchema)),
-    validator("json", z.object({ name: nameSchema, note: z.string().max(500).optional(), upstreamIds: upstreamIdsSchema.default(null) })),
+    validator("json", z.object({
+      name: nameSchema,
+      note: z.string().max(500).optional(),
+      upstreamIds: upstreamIdsSchema.default(null),
+    })),
     async (c) => {
       const device = await createDevice(c.get("db"), c.req.valid("json"), c.get("user")!.id);
       await record(c, "tvbox.device.created", { type: "tvbox_device", id: device.id, name: device.name });

@@ -21,7 +21,9 @@ function bucket(objects: Record<string, string>): SubscriptionBucket {
   return {
     async get(key: string) {
       const body = objects[key];
-      return body === undefined ? null : new Response(body);
+      return body === undefined
+        ? null
+        : new Response(body);
     },
   };
 }
@@ -77,7 +79,9 @@ describe("download page", () => {
   });
 
   test("says so when nothing is released yet", async () => {
-    const html = await (await handleLanding(get(), { FILES: bucket({}) })).text();
+    const html = await (await handleLanding(get(), {
+      FILES: bucket({}),
+    })).text();
     expect(html).toContain("暂无可下载的版本");
   });
 

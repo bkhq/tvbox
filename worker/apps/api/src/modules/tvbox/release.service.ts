@@ -35,7 +35,10 @@ export interface RegisterReleaseInput {
 export async function listReleases(db: AppDatabase): Promise<ReleaseView[]> {
   const releases = await db.select().from(tvboxReleases).orderBy(desc(tvboxReleases.versionCode)).all();
   const assets = await db.select().from(tvboxReleaseAssets).all();
-  return releases.map(r => ({ ...r, assets: assets.filter(a => a.releaseId === r.id) }));
+  return releases.map(r => ({
+    ...r,
+    assets: assets.filter(a => a.releaseId === r.id),
+  }));
 }
 
 async function getRelease(db: AppDatabase, id: string): Promise<ReleaseView> {
@@ -63,16 +66,31 @@ export async function registerRelease(db: AppDatabase, input: RegisterReleaseInp
   const existing = await db.select().from(tvboxReleases).where(and(eq(tvboxReleases.app, app), eq(tvboxReleases.versionCode, input.versionCode))).get();
   const id = existing?.id ?? ulid();
   await db.transaction(async (tx) => {
-    const fields = { versionName: input.versionName, channel: input.channel, notes: input.notes, withdrawn: false };
+    const fields = {
+      versionName: input.versionName,
+      channel: input.channel,
+      notes: input.notes,
+      withdrawn: false,
+    };
     if (existing) {
       await tx.update(tvboxReleases).set(fields).where(eq(tvboxReleases.id, id)).run();
       await tx.delete(tvboxReleaseAssets).where(eq(tvboxReleaseAssets.releaseId, id)).run();
     }
     else {
-      await tx.insert(tvboxReleases).values({ id, app, versionCode: input.versionCode, ...fields }).run();
+      await tx.insert(tvboxReleases).values({
+        id,
+        app,
+        versionCode: input.versionCode,
+        ...fields,
+      }).run();
     }
-    for (const asset of input.assets)
-      await tx.insert(tvboxReleaseAssets).values({ id: ulid(), releaseId: id, ...asset }).run();
+    for (const asset of input.assets) {
+      await tx.insert(tvboxReleaseAssets).values({
+        id: ulid(),
+        releaseId: id,
+        ...asset,
+      }).run();
+    }
   });
 
   for (const old of (await listReleases(db)).filter(r => r.app === app).slice(keep))
@@ -88,9 +106,15 @@ export async function updateRelease(
 ): Promise<ReleaseView> {
   const { app } = await getRelease(db, id);
   await db.update(tvboxReleases).set({
-    ...(patch.channel !== undefined ? { channel: patch.channel } : {}),
-    ...(patch.notes !== undefined ? { notes: patch.notes } : {}),
-    ...(patch.withdrawn !== undefined ? { withdrawn: patch.withdrawn } : {}),
+    ...(patch.channel !== undefined
+      ? { channel: patch.channel }
+      : {}),
+    ...(patch.notes !== undefined
+      ? { notes: patch.notes }
+      : {}),
+    ...(patch.withdrawn !== undefined
+      ? { withdrawn: patch.withdrawn }
+      : {}),
   }).where(eq(tvboxReleases.id, id)).run();
   await writeManifests(db, app);
   return await getRelease(db, id);
@@ -137,7 +161,9 @@ async function writeManifests(db: AppDatabase, app: App): Promise<void> {
         sha256: asset.sha256,
         size: asset.size,
         createdAt: release.createdAt,
-        ...(kind === "ipa" && asset.bundleId ? { bundleId: asset.bundleId } : {}),
+        ...(kind === "ipa" && asset.bundleId
+          ? { bundleId: asset.bundleId }
+          : {}),
       };
       const key = updateManifestKey(channel, asset.mode, asset.abi, app);
       await putObject(key, JSON.stringify(manifest));

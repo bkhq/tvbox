@@ -49,10 +49,15 @@ export function rowsRoutes() {
     return c.json({ success: true, data: row }, 201);
   });
 
-  router.post("/media/rows/reorder", doc("Reorder home rows", jsonOk(z.object({ count: z.number() }))), validator("json", reorderBody), async (c) => {
+  router.post("/media/rows/reorder", doc("Reorder home rows", jsonOk(z.object({
+    count: z.number(),
+  }))), validator("json", reorderBody), async (c) => {
     const { ids } = c.req.valid("json");
     await reorderRows(requireMediaDb(), ids);
-    return c.json({ success: true, data: { count: ids.length } });
+    return c.json({
+      success: true,
+      data: { count: ids.length },
+    });
   });
 
   router.patch("/media/rows/:id", doc("Update a home row", jsonOk(rowSchema)), validator("param", idParam), validator("json", rowFields.partial()), async (c) => {
@@ -68,12 +73,20 @@ export function rowsRoutes() {
   });
 
   router.get("/media/hero", doc("The home page's hero titles", jsonOk(z.object({ titleIds }))), async c =>
-    c.json({ success: true, data: { titleIds: await getHero(requireMediaDb()) } }));
+    c.json({
+      success: true,
+      data: { titleIds: await getHero(requireMediaDb()) },
+    }));
 
-  router.put("/media/hero", doc("Set the home page's hero titles", jsonOk(z.object({ titleIds }))), validator("json", z.object({ titleIds: titleIds.max(10) })), async (c) => {
+  router.put("/media/hero", doc("Set the home page's hero titles", jsonOk(z.object({ titleIds }))), validator("json", z.object({
+    titleIds: titleIds.max(10),
+  })), async (c) => {
     const ids = await setHero(requireMediaDb(), c.req.valid("json").titleIds);
     await record(c, "media.hero.updated", { type: "media_hero", id: "hero", name: `${ids.length} titles` });
-    return c.json({ success: true, data: { titleIds: ids } });
+    return c.json({
+      success: true,
+      data: { titleIds: ids },
+    });
   });
 
   return router;

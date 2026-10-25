@@ -15,13 +15,36 @@ const createdAt = () => text("created_at").notNull().$defaultFn(now);
 const updatedAt = () => text("updated_at").notNull().$defaultFn(now);
 
 export const TITLE_KINDS = ["movie", "series"] as const;
-export const TITLE_STATUSES = ["upcoming", "released", "returning", "ended", "canceled"] as const;
+export const TITLE_STATUSES = [
+  "upcoming",
+  "released",
+  "returning",
+  "ended",
+  "canceled",
+] as const;
 export const SEASON_STATUSES = ["upcoming", "airing", "ended"] as const;
-export const EPISODE_TYPES = ["standard", "premiere", "finale", "special"] as const;
+export const EPISODE_TYPES = [
+  "standard",
+  "premiere",
+  "finale",
+  "special",
+] as const;
 export const PUBLISH_STATES = ["draft", "published", "hidden"] as const;
 export const EPISODE_PUBLISH_STATES = ["draft", "published"] as const;
-export const IMAGE_OWNER_TYPES = ["title", "season", "episode", "person", "collection"] as const;
-export const IMAGE_KINDS = ["poster", "backdrop", "logo", "still", "profile"] as const;
+export const IMAGE_OWNER_TYPES = [
+  "title",
+  "season",
+  "episode",
+  "person",
+  "collection",
+] as const;
+export const IMAGE_KINDS = [
+  "poster",
+  "backdrop",
+  "logo",
+  "still",
+  "profile",
+] as const;
 export const EXTERNAL_OWNER_TYPES = ["title", "season", "episode", "person"] as const;
 export const EXTERNAL_SOURCES = ["tmdb", "imdb", "tvdb", "douban"] as const;
 export const CREDIT_ROLES = ["cast", "crew"] as const;
@@ -100,7 +123,9 @@ export const mediaTitleAliases = sqliteTable("media_title_aliases", {
   titleId: text("title_id").notNull().references(() => mediaTitles.id, { onDelete: "cascade" }),
   name: text("name").notNull(),
   locale: text("locale"),
-  kind: text("kind", { enum: ["alias", "translation"] }).notNull().default("alias"),
+  kind: text("kind", {
+    enum: ["alias", "translation"],
+  }).notNull().default("alias"),
 }, t => [
   index("idx_media_title_aliases_title").on(t.titleId),
 ]);
@@ -123,7 +148,9 @@ export const mediaTitleGenres = sqliteTable("media_title_genres", {
   titleId: text("title_id").notNull().references(() => mediaTitles.id, { onDelete: "cascade" }),
   genreId: text("genre_id").notNull().references(() => mediaGenres.id, { onDelete: "cascade" }),
 }, t => [
-  primaryKey({ columns: [t.titleId, t.genreId] }),
+  primaryKey({
+    columns: [t.titleId, t.genreId],
+  }),
   index("idx_media_title_genres_genre").on(t.genreId),
 ]);
 
@@ -171,7 +198,9 @@ export const mediaPeople = sqliteTable("media_people", {
   id: text("id").primaryKey(),
   name: text("name").notNull(),
   originalName: text("original_name"),
-  gender: text("gender", { enum: ["female", "male", "other"] }),
+  gender: text("gender", {
+    enum: ["female", "male", "other"],
+  }),
   biography: text("biography"),
   birthday: text("birthday"),
   placeOfBirth: text("place_of_birth"),
@@ -285,13 +314,17 @@ export const mediaRowItems = sqliteTable("media_row_items", {
   titleId: text("title_id").notNull().references(() => mediaTitles.id, { onDelete: "cascade" }),
   sort: integer("sort").notNull().default(0),
 }, t => [
-  primaryKey({ columns: [t.rowId, t.titleId] }),
+  primaryKey({
+    columns: [t.rowId, t.titleId],
+  }),
 ]);
 
 // What devices see: the ids the last publish marked live.
 export const mediaPublished = sqliteTable("media_published", {
   id: text("id").primaryKey(),
-  kind: text("kind", { enum: ["title", "season", "episode"] }).notNull(),
+  kind: text("kind", {
+    enum: ["title", "season", "episode"],
+  }).notNull(),
 }, t => [
   index("idx_media_published_kind").on(t.kind),
 ]);

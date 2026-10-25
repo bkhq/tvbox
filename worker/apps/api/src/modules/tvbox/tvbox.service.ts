@@ -30,7 +30,9 @@ function entryView(row: EntryRow): EntryView {
   return {
     ...row,
     data: JSON.parse(row.data) as JsonObject,
-    upstreamData: row.upstreamData === null ? null : JSON.parse(row.upstreamData) as JsonObject,
+    upstreamData: row.upstreamData === null
+      ? null
+      : JSON.parse(row.upstreamData) as JsonObject,
   };
 }
 
@@ -38,7 +40,9 @@ function globalView(row: GlobalRow): GlobalView {
   return {
     ...row,
     value: JSON.parse(row.value) as unknown,
-    upstreamValue: row.upstreamValue === null ? null : JSON.parse(row.upstreamValue) as unknown,
+    upstreamValue: row.upstreamValue === null
+      ? null
+      : JSON.parse(row.upstreamValue) as unknown,
   };
 }
 
@@ -46,8 +50,14 @@ function globalView(row: GlobalRow): GlobalView {
 
 export async function listUpstreams(db: AppDatabase): Promise<UpstreamView[]> {
   const rows = await db.select().from(tvboxUpstreams).orderBy(tvboxUpstreams.id).all();
-  const entries = await db.select({ id: tvboxEntries.upstreamId, n: count() }).from(tvboxEntries).groupBy(tvboxEntries.upstreamId).all();
-  const devices = await db.select({ id: tvboxDeviceUpstreams.upstreamId, n: count() }).from(tvboxDeviceUpstreams).groupBy(tvboxDeviceUpstreams.upstreamId).all();
+  const entries = await db.select({
+    id: tvboxEntries.upstreamId,
+    n: count(),
+  }).from(tvboxEntries).groupBy(tvboxEntries.upstreamId).all();
+  const devices = await db.select({
+    id: tvboxDeviceUpstreams.upstreamId,
+    n: count(),
+  }).from(tvboxDeviceUpstreams).groupBy(tvboxDeviceUpstreams.upstreamId).all();
   return rows.map(r => ({
     ...r,
     entryCount: entries.find(e => e.id === r.id)?.n ?? 0,
@@ -86,10 +96,18 @@ export async function updateUpstream(
     if (patch.isPrimary)
       await tx.update(tvboxUpstreams).set({ isPrimary: false }).where(ne(tvboxUpstreams.id, id)).run();
     await tx.update(tvboxUpstreams).set({
-      ...(patch.name !== undefined ? { name: patch.name } : {}),
-      ...(patch.url !== undefined ? { url: patch.url } : {}),
-      ...(patch.syncEnabled !== undefined ? { syncEnabled: patch.syncEnabled } : {}),
-      ...(patch.isPrimary ? { isPrimary: true } : {}),
+      ...(patch.name !== undefined
+        ? { name: patch.name }
+        : {}),
+      ...(patch.url !== undefined
+        ? { url: patch.url }
+        : {}),
+      ...(patch.syncEnabled !== undefined
+        ? { syncEnabled: patch.syncEnabled }
+        : {}),
+      ...(patch.isPrimary
+        ? { isPrimary: true }
+        : {}),
       updatedAt: new Date().toISOString(),
     }).where(eq(tvboxUpstreams.id, id)).run();
   });
@@ -124,8 +142,12 @@ function assertEntryShape(kind: ListKind, data: JsonObject): void {
 export async function listEntries(db: AppDatabase, kind?: ListKind, source?: string, deleted = false): Promise<EntryView[]> {
   const bySource = source === undefined
     ? undefined
-    : source === "common" ? isNull(tvboxEntries.upstreamId) : eq(tvboxEntries.upstreamId, source);
-  const rows = await db.select().from(tvboxEntries).where(and(kind ? eq(tvboxEntries.kind, kind) : undefined, bySource, eq(tvboxEntries.deleted, deleted))).orderBy(tvboxEntries.kind, tvboxEntries.sort, tvboxEntries.id).all();
+    : source === "common"
+      ? isNull(tvboxEntries.upstreamId)
+      : eq(tvboxEntries.upstreamId, source);
+  const rows = await db.select().from(tvboxEntries).where(and(kind
+    ? eq(tvboxEntries.kind, kind)
+    : undefined, bySource, eq(tvboxEntries.deleted, deleted))).orderBy(tvboxEntries.kind, tvboxEntries.sort, tvboxEntries.id).all();
   return rows.map(entryView);
 }
 
@@ -142,7 +164,9 @@ export async function getEntry(db: AppDatabase, id: string): Promise<EntryView> 
 
 export async function createEntry(db: AppDatabase, kind: ListKind, data: JsonObject, enabled = true): Promise<EntryView> {
   assertEntryShape(kind, data);
-  const last = await db.select({ value: max(tvboxEntries.sort) }).from(tvboxEntries).where(eq(tvboxEntries.kind, kind)).get();
+  const last = await db.select({
+    value: max(tvboxEntries.sort),
+  }).from(tvboxEntries).where(eq(tvboxEntries.kind, kind)).get();
   const id = ulid();
   await db.insert(tvboxEntries).values({
     id,
@@ -174,7 +198,9 @@ export async function updateEntry(
     const data = JSON.stringify(patch.data);
     dataPatch = { data, locallyModified: row.upstreamData !== null && data !== row.upstreamData };
   }
-  let healthPatch: Partial<EntryRow> = patch.healthExempt !== undefined ? { healthExempt: patch.healthExempt } : {};
+  let healthPatch: Partial<EntryRow> = patch.healthExempt !== undefined
+    ? { healthExempt: patch.healthExempt }
+    : {};
   if (patch.enabled === true && row.disabledByHealth)
     healthPatch = { healthExempt: true, disabledByHealth: false };
   else if (patch.enabled === false)
@@ -182,7 +208,9 @@ export async function updateEntry(
   await db.update(tvboxEntries).set({
     ...dataPatch,
     ...healthPatch,
-    ...(patch.enabled !== undefined ? { enabled: patch.enabled } : {}),
+    ...(patch.enabled !== undefined
+      ? { enabled: patch.enabled }
+      : {}),
     updatedAt: new Date().toISOString(),
   }).where(eq(tvboxEntries.id, id)).run();
   return await getEntry(db, id);
@@ -190,7 +218,9 @@ export async function updateEntry(
 
 /** Enable or disable many entries at once, with the same health rules as {@link updateEntry}. */
 export async function setEntriesEnabled(db: AppDatabase, ids: readonly string[], enabled: boolean): Promise<number> {
-  const unique = [...new Set(ids)];
+  const unique = [
+    ...new Set(ids),
+  ];
   if (unique.length === 0)
     return 0;
   const updatedAt = new Date().toISOString();
@@ -203,7 +233,13 @@ export async function setEntriesEnabled(db: AppDatabase, ids: readonly string[],
           .run();
       }
       await tx.update(tvboxEntries)
-        .set({ enabled, updatedAt, ...(enabled ? {} : { disabledByHealth: false }) })
+        .set({
+          enabled,
+          updatedAt,
+          ...(enabled
+            ? {}
+            : { disabledByHealth: false }),
+        })
         .where(and(inArray(tvboxEntries.id, ids), eq(tvboxEntries.deleted, false)))
         .run();
     }
@@ -217,7 +253,11 @@ export async function revertEntry(db: AppDatabase, id: string): Promise<EntryVie
   if (row.upstreamData === null)
     throw new AppError("This entry has no upstream copy to revert to", 409, "NO_UPSTREAM_COPY");
   await db.update(tvboxEntries)
-    .set({ data: row.upstreamData, locallyModified: false, updatedAt: new Date().toISOString() })
+    .set({
+      data: row.upstreamData,
+      locallyModified: false,
+      updatedAt: new Date().toISOString(),
+    })
     .where(eq(tvboxEntries.id, id))
     .run();
   return await getEntry(db, id);
@@ -225,21 +265,33 @@ export async function revertEntry(db: AppDatabase, id: string): Promise<EntryVie
 
 // An upstream entry is only marked: removing the row would let the next sync
 // import it again.
-const TOMBSTONE = { deleted: true, enabled: false, disabledByHealth: false, healthExempt: false } as const;
+const TOMBSTONE = {
+  deleted: true,
+  enabled: false,
+  disabledByHealth: false,
+  healthExempt: false,
+} as const;
 
 /** A local entry is removed; an upstream one is hidden for good, until restored. */
 export async function deleteEntry(db: AppDatabase, id: string): Promise<EntryView> {
   const row = await getEntryRow(db, id);
-  if (row.upstreamId === null)
+  if (row.upstreamId === null) {
     await db.delete(tvboxEntries).where(eq(tvboxEntries.id, id)).run();
-  else
-    await db.update(tvboxEntries).set({ ...TOMBSTONE, updatedAt: new Date().toISOString() }).where(eq(tvboxEntries.id, id)).run();
+  }
+  else {
+    await db.update(tvboxEntries).set({
+      ...TOMBSTONE,
+      updatedAt: new Date().toISOString(),
+    }).where(eq(tvboxEntries.id, id)).run();
+  }
   return entryView(row);
 }
 
 /** {@link deleteEntry} for many; returns how many were deleted. */
 export async function deleteEntries(db: AppDatabase, ids: readonly string[]): Promise<number> {
-  const unique = [...new Set(ids)];
+  const unique = [
+    ...new Set(ids),
+  ];
   const updatedAt = new Date().toISOString();
   let n = 0;
   await db.transaction(async (tx) => {
@@ -262,7 +314,11 @@ export async function restoreEntry(db: AppDatabase, id: string): Promise<EntryVi
   const row = await getEntryRow(db, id);
   if (!row.deleted)
     throw new AppError("This entry is not deleted", 409, "ENTRY_NOT_DELETED");
-  await db.update(tvboxEntries).set({ deleted: false, enabled: true, updatedAt: new Date().toISOString() }).where(eq(tvboxEntries.id, id)).run();
+  await db.update(tvboxEntries).set({
+    deleted: false,
+    enabled: true,
+    updatedAt: new Date().toISOString(),
+  }).where(eq(tvboxEntries.id, id)).run();
   return await getEntry(db, id);
 }
 
@@ -302,7 +358,9 @@ export async function putGlobal(db: AppDatabase, key: string, value: unknown): P
       .run();
   }
   else {
-    const last = await db.select({ value: max(tvboxGlobals.sort) }).from(tvboxGlobals).get();
+    const last = await db.select({
+      value: max(tvboxGlobals.sort),
+    }).from(tvboxGlobals).get();
     await db.insert(tvboxGlobals).values({ key, value: json, sort: (last?.value ?? -1) + 1 }).run();
   }
   return globalView(await getGlobalRow(db, key));
@@ -313,7 +371,11 @@ export async function revertGlobal(db: AppDatabase, key: string): Promise<Global
   if (row.upstreamValue === null)
     throw new AppError("This field has no upstream copy to revert to", 409, "NO_UPSTREAM_COPY");
   await db.update(tvboxGlobals)
-    .set({ value: row.upstreamValue, locallyModified: false, updatedAt: new Date().toISOString() })
+    .set({
+      value: row.upstreamValue,
+      locallyModified: false,
+      updatedAt: new Date().toISOString(),
+    })
     .where(eq(tvboxGlobals.key, key))
     .run();
   return globalView(await getGlobalRow(db, key));

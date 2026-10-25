@@ -31,14 +31,23 @@ export function TitlesTab() {
 
   const categories = useQuery({ queryKey: mediaKeys.categories, queryFn: mediaApi.categories });
   const params = {
-    categoryId: categoryId === ALL ? undefined : categoryId,
-    kind: kind === ALL ? undefined : kind,
-    publishState: state === ALL ? undefined : state,
+    categoryId: categoryId === ALL
+      ? undefined
+      : categoryId,
+    kind: kind === ALL
+      ? undefined
+      : kind,
+    publishState: state === ALL
+      ? undefined
+      : state,
     q: q.trim() || undefined,
     page,
     limit: PAGE,
   };
-  const titles = useQuery({ queryKey: mediaKeys.titles(params), queryFn: () => mediaApi.titles(params) });
+  const titles = useQuery({
+    queryKey: mediaKeys.titles(params),
+    queryFn: () => mediaApi.titles(params),
+  });
   const remove = useMediaMutation((id: string) => mediaApi.deleteTitle(id), () => setDeleting(null));
   const categoryName = (id: string) => categories.data?.find(c => c.id === id)?.name ?? id;
   const pages = Math.max(1, Math.ceil((titles.data?.total ?? 0) / PAGE));
@@ -54,22 +63,31 @@ export function TitlesTab() {
         <EnumSelect
           className="w-32"
           value={categoryId}
-          values={[ALL, ...(categories.data ?? []).map(c => c.id)]}
-          label={v => (v === ALL ? t("media:titles.allCategories") : categoryName(v))}
+          values={[
+            ALL,
+            ...(categories.data ?? []).map(c => c.id),
+          ]}
+          label={v => (v === ALL
+            ? t("media:titles.allCategories")
+            : categoryName(v))}
           onChange={v => filter(() => setCategoryId(v))}
         />
         <EnumSelect
           className="w-28"
           value={kind}
           values={[ALL, "movie", "series"] as const}
-          label={v => (v === ALL ? t("media:titles.allKinds") : t(`media:kind.${v}`))}
+          label={v => (v === ALL
+            ? t("media:titles.allKinds")
+            : t(`media:kind.${v}`))}
           onChange={v => filter(() => setKind(v))}
         />
         <EnumSelect
           className="w-28"
           value={state}
           values={[ALL, ...PUBLISH_STATES] as const}
-          label={v => (v === ALL ? t("media:titles.allStates") : t(`media:state.${v}`))}
+          label={v => (v === ALL
+            ? t("media:titles.allStates")
+            : t(`media:state.${v}`))}
           onChange={v => filter(() => setState(v))}
         />
         <div className="flex-1" />
@@ -154,9 +172,15 @@ function AddTitleDialog({ open, onOpenChange, onCreated }: { open: boolean; onOp
   const [categoryId, setCategoryId] = useState("");
   const [title, setTitle] = useState("");
   const allowed = (categories.data ?? []).filter(c => c.kinds.includes(kind));
-  const category = allowed.some(c => c.id === categoryId) ? categoryId : (allowed[0]?.id ?? "");
+  const category = allowed.some(c => c.id === categoryId)
+    ? categoryId
+    : (allowed[0]?.id ?? "");
 
-  const create = useMediaMutation(() => mediaApi.createTitle({ kind, categoryId: category, title: title.trim() }), (row) => {
+  const create = useMediaMutation(() => mediaApi.createTitle({
+    kind,
+    categoryId: category,
+    title: title.trim(),
+  }), (row) => {
     onOpenChange(false);
     setTitle("");
     onCreated(row.id);

@@ -58,26 +58,53 @@ export interface MediaBindings {
 interface Env { Bindings: MediaBindings }
 
 const TAG = "Media v1";
-const errorSchema = z.object({ error: z.object({ code: z.string(), message: z.string() }) });
+const errorSchema = z.object({
+  error: z.object({
+    code: z.string(),
+    message: z.string(),
+  }),
+});
 
 function doc(summary: string, schema: ZodType, ...errors: number[]): MiddlewareHandler {
   return describeRoute({
     tags: [TAG],
     summary,
     responses: {
-      200: { description: "OK", content: { "application/json": { schema: resolver(schema) } } },
-      ...Object.fromEntries(errors.map(code => [code, { description: "Error", content: { "application/json": { schema: resolver(errorSchema) } } }])),
+      200: {
+        description: "OK",
+        content: {
+          "application/json": {
+            schema: resolver(schema),
+          },
+        },
+      },
+      ...Object.fromEntries(errors.map(code => [
+        code,
+        {
+          description: "Error",
+          content: {
+            "application/json": {
+              schema: resolver(errorSchema),
+            },
+          },
+        },
+      ])),
     },
   });
 }
 
 function json(body: string, status = 200): Response {
-  return new Response(body, { status, headers: { "content-type": "application/json; charset=utf-8" } });
+  return new Response(body, {
+    status,
+    headers: { "content-type": "application/json; charset=utf-8" },
+  });
 }
 
 const limit = (max: number, fallback: number) => z.coerce.number().int().min(1).max(max).default(fallback);
 const offsetCursor = z.string().regex(/^\d{1,6}$/).optional();
-const idParam = z.object({ id: z.string().min(1).max(64) });
+const idParam = z.object({
+  id: z.string().min(1).max(64),
+});
 
 const browseQuery = z.object({
   category: z.string().max(32).optional(),
@@ -90,21 +117,40 @@ const browseQuery = z.object({
   cursor: z.string().max(200).optional(),
 });
 
-const facetsQuery = browseQuery.pick({ category: true, type: true, genre: true, year: true, country: true });
+const facetsQuery = browseQuery.pick({
+  category: true,
+  type: true,
+  genre: true,
+  year: true,
+  country: true,
+});
 
 export function mediaV1(): Hono<Env> {
   const app = new Hono<Env>();
 
   app.onError((err) => {
-    const status = err instanceof AppError ? err.statusCode : 500;
-    const code = err instanceof AppError ? err.code : "INTERNAL_ERROR";
-    const message = err instanceof AppError ? err.message : "Internal error";
-    return json(JSON.stringify({ error: { code, message } }), status);
+    const status = err instanceof AppError
+      ? err.statusCode
+      : 500;
+    const code = err instanceof AppError
+      ? err.code
+      : "INTERNAL_ERROR";
+    const message = err instanceof AppError
+      ? err.message
+      : "Internal error";
+    return json(JSON.stringify({
+      error: { code, message },
+    }), status);
   });
-  app.notFound(() => json(JSON.stringify({ error: { code: "NOT_FOUND", message: "Not found" } }), 404));
+  app.notFound(() => json(JSON.stringify({
+    error: { code: "NOT_FOUND", message: "Not found" },
+  }), 404));
 
   app.get("/manifest", doc("Dictionaries, rows and capabilities; `generation` changes with every publish", manifestSchema), async (c) => {
-    return c.json({ ...await manifest(c.env.db), generation: c.env.generation });
+    return c.json({
+      ...await manifest(c.env.db),
+      generation: c.env.generation,
+    });
   });
 
   app.get("/home", doc("Hero and the home rows with their first cards", homeSchema), async (c) => {
@@ -115,7 +161,10 @@ export function mediaV1(): Hono<Env> {
     "/rows/:id",
     doc("More cards of a row", rowSchema, 404),
     validator("param", idParam),
-    validator("query", z.object({ cursor: offsetCursor, limit: limit(50, 20) })),
+    validator("query", z.object({
+      cursor: offsetCursor,
+      limit: limit(50, 20),
+    })),
     async (c) => {
       const { id } = c.req.valid("param");
       const { cursor, limit } = c.req.valid("query");
@@ -124,7 +173,14 @@ export function mediaV1(): Hono<Env> {
         throw new NotFoundError("Row", id);
       const offset = Number(cursor ?? 0);
       const ids = await rowTitleIds(c.env.db, row, offset, limit + 1);
-      return c.json({ id, name: row.name, items: await cards(c.env.db, ids.slice(0, limit), c.env.today), cursor: ids.length > limit ? String(offset + limit) : null });
+      return c.json({
+        id,
+        name: row.name,
+        items: await cards(c.env.db, ids.slice(0, limit), c.env.today),
+        cursor: ids.length > limit
+          ? String(offset + limit)
+          : null,
+      });
     },
   );
 
@@ -141,11 +197,18 @@ export function mediaV1(): Hono<Env> {
   app.get(
     "/search",
     doc("Titles and people by name", searchSchema, 422),
-    validator("query", z.object({ q: z.string().trim().min(1).max(50), cursor: offsetCursor, limit: limit(50, 20) })),
+    validator("query", z.object({
+      q: z.string().trim().min(1).max(50),
+      cursor: offsetCursor,
+      limit: limit(50, 20),
+    })),
     async (c) => {
       const { q, cursor, limit } = c.req.valid("query");
       const offset = Number(cursor ?? 0);
-      const [titleIds, people] = await Promise.all([searchTitleIds(c.env.db, q, offset, limit + 1), searchPeople(c.env.db, q, offset, limit + 1)]);
+      const [titleIds, people] = await Promise.all([
+        searchTitleIds(c.env.db, q, offset, limit + 1),
+        searchPeople(c.env.db, q, offset, limit + 1),
+      ]);
       const shown = people.slice(0, limit);
       const profiles = shown.length === 0
         ? []
@@ -153,8 +216,16 @@ export function mediaV1(): Hono<Env> {
       const { image } = imagePicker(profiles);
       return c.json({
         titles: await cards(c.env.db, titleIds.slice(0, limit), c.env.today),
-        people: shown.map(p => ({ id: p.id, name: p.name, images: { profile: image("person", p.id, "profile") } })),
-        cursor: titleIds.length > limit || people.length > limit ? String(offset + limit) : null,
+        people: shown.map(p => ({
+          id: p.id,
+          name: p.name,
+          images: {
+            profile: image("person", p.id, "profile"),
+          },
+        })),
+        cursor: titleIds.length > limit || people.length > limit
+          ? String(offset + limit)
+          : null,
       });
     },
   );
@@ -188,7 +259,9 @@ export function mediaV1(): Hono<Env> {
           version: String(SCHEMA_VERSION),
           description: "Served under `/s/<token>/media/v1`. Errors are `{\"error\": {\"code\", \"message\"}}`.",
         },
-        tags: [{ name: TAG }],
+        tags: [
+          { name: TAG },
+        ],
       },
     });
     return spec(c, next);

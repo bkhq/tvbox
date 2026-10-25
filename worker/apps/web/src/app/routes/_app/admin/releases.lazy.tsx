@@ -58,10 +58,15 @@ function ReleasesPage() {
   const [notes, setNotes] = useState("");
   const [deleting, setDeleting] = useState<Release | null>(null);
 
-  const onError = (err: unknown) => toast.error(err instanceof Error ? err.message : t("common.error.operationFailed"));
+  const onError = (err: unknown) => toast.error(err instanceof Error
+    ? err.message
+    : t("common.error.operationFailed"));
   const update = useMutation({
     mutationFn: ({ id, body }: { id: string; body: Partial<Pick<Release, "channel" | "notes" | "withdrawn">> }) =>
-      http(`/tvbox/releases/${id}`, { method: "PATCH", body: JSON.stringify(body) }),
+      http(`/tvbox/releases/${id}`, {
+        method: "PATCH",
+        body: JSON.stringify(body),
+      }),
     onSuccess: () => {
       setEditing(null);
       void qc.invalidateQueries({ queryKey: releasesKey });
@@ -85,7 +90,12 @@ function ReleasesPage() {
         <p className="mt-1 font-mono text-xs text-muted-foreground">{`${window.location.origin}/u/<channel>/<mode>-<abi>.json`}</p>
       </div>
 
-      {query.error && <ErrorBanner message={query.error instanceof Error ? query.error.message : t("common.error.loadFailed")} />}
+      {query.error && (
+        <ErrorBanner message={query.error instanceof Error
+          ? query.error.message
+          : t("common.error.loadFailed")}
+        />
+      )}
       {query.isLoading && <CenteredHint>{t("common.loading")}</CenteredHint>}
       {query.data?.length === 0 && <CenteredHint>{t("releases:empty")}</CenteredHint>}
 
@@ -113,7 +123,13 @@ function ReleasesPage() {
                   {r.notes && <div className="mt-1 line-clamp-2 text-xs whitespace-pre-line">{r.notes}</div>}
                 </TableCell>
                 <TableCell>
-                  <Tabs value={r.channel} onValueChange={v => update.mutate({ id: r.id, body: { channel: v as Channel } })}>
+                  <Tabs
+                    value={r.channel}
+                    onValueChange={v => update.mutate({
+                      id: r.id,
+                      body: { channel: v as Channel },
+                    })}
+                  >
                     <TabsList>
                       <TabsTrigger value="stable">{t("releases:channels.stable")}</TabsTrigger>
                       <TabsTrigger value="beta">{t("releases:channels.beta")}</TabsTrigger>
@@ -124,7 +140,13 @@ function ReleasesPage() {
                   {r.assets.map(a => <div key={a.id}>{`${a.mode}-${a.abi} · ${mb(a.size)}`}</div>)}
                 </TableCell>
                 <TableCell>
-                  <Switch checked={!r.withdrawn} onCheckedChange={on => update.mutate({ id: r.id, body: { withdrawn: !on } })} />
+                  <Switch
+                    checked={!r.withdrawn}
+                    onCheckedChange={on => update.mutate({
+                      id: r.id,
+                      body: { withdrawn: !on },
+                    })}
+                  />
                 </TableCell>
                 <TableCell className="space-x-1 text-right whitespace-nowrap">
                   <Button
@@ -154,7 +176,13 @@ function ReleasesPage() {
           <Textarea value={notes} onChange={e => setNotes(e.target.value)} className="h-48" />
           <DialogFooter>
             <DialogClose render={<Button variant="outline">{t("common.cancel")}</Button>} />
-            <Button disabled={update.isPending} onClick={() => editing && update.mutate({ id: editing.id, body: { notes } })}>
+            <Button
+              disabled={update.isPending}
+              onClick={() => editing && update.mutate({
+                id: editing.id,
+                body: { notes },
+              })}
+            >
               {t("common.save")}
             </Button>
           </DialogFooter>

@@ -4,7 +4,13 @@
  */
 
 /** Top-level arrays whose entries are stored and edited one row at a time. */
-export const LIST_KINDS = ["sites", "parses", "lives", "rules", "doh"] as const;
+export const LIST_KINDS = [
+  "sites",
+  "parses",
+  "lives",
+  "rules",
+  "doh",
+] as const;
 export type ListKind = typeof LIST_KINDS[number];
 
 export type JsonObject = Record<string, unknown>;
@@ -17,7 +23,10 @@ const RE_MD5_SUFFIX = /;md5;/i;
 const RE_UNSAFE_NAME = /[^\w.-]/g;
 
 function parseObject(text: string): JsonObject | undefined {
-  for (const candidate of [text, text.replace(RE_LINE_COMMENT, "")]) {
+  for (const candidate of [
+    text,
+    text.replace(RE_LINE_COMMENT, ""),
+  ]) {
     try {
       const value: unknown = JSON.parse(candidate);
       if (value !== null && typeof value === "object" && !Array.isArray(value))
@@ -71,19 +80,31 @@ export function collectionLines(config: JsonObject, base: string): { name: strin
     }
     if (!isHttpUrl(href) || lines.some(l => l.url === href))
       continue;
-    lines.push({ name: typeof name === "string" && name.trim() !== "" ? name.trim() : href, url: href });
+    lines.push({
+      name: typeof name === "string" && name.trim() !== ""
+        ? name.trim()
+        : href,
+      url: href,
+    });
   }
   return lines;
 }
 
 /** Resolve every `./` or `../` string in the tree against the upstream URL, as TVBox clients do. */
 export function resolveRelative(value: unknown, base: string): unknown {
-  if (typeof value === "string")
-    return value.startsWith("./") || value.startsWith("../") ? new URL(value, base).href : value;
+  if (typeof value === "string") {
+    return value.startsWith("./") || value.startsWith("../")
+      ? new URL(value, base).href
+      : value;
+  }
   if (Array.isArray(value))
     return value.map(v => resolveRelative(v, base));
-  if (value !== null && typeof value === "object")
-    return Object.fromEntries(Object.entries(value).map(([k, v]) => [k, resolveRelative(v, base)]));
+  if (value !== null && typeof value === "object") {
+    return Object.fromEntries(Object.entries(value).map(([k, v]) => [
+      k,
+      resolveRelative(v, base),
+    ]));
+  }
   return value;
 }
 
@@ -92,13 +113,20 @@ export function splitJarSpec(spec: string): { url: string; md5?: string } {
   const match = RE_MD5_SUFFIX.exec(spec);
   if (!match)
     return { url: spec };
-  return { url: spec.slice(0, match.index), md5: spec.slice(match.index + match[0].length) };
+  return {
+    url: spec.slice(0, match.index),
+    md5: spec.slice(match.index + match[0].length),
+  };
 }
 
 /** Stable identity of a list entry within one upstream. */
 export function entryIdentity(kind: ListKind, entry: JsonObject): string {
-  const field = kind === "sites" ? entry.key : entry.name;
-  return typeof field === "string" && field !== "" ? field : JSON.stringify(entry);
+  const field = kind === "sites"
+    ? entry.key
+    : entry.name;
+  return typeof field === "string" && field !== ""
+    ? field
+    : JSON.stringify(entry);
 }
 
 function isHttpUrl(value: string): boolean {
@@ -158,14 +186,22 @@ export function rewriteAssets(value: unknown, mirrored: ReadonlyMap<string, Mirr
   if (typeof value === "string") {
     if (key === "spider" || key === "jar") {
       const asset = mirrored.get(splitJarSpec(value).url);
-      return asset ? `${assetPath(asset)};md5;${asset.md5}` : value;
+      return asset
+        ? `${assetPath(asset)};md5;${asset.md5}`
+        : value;
     }
     const asset = mirrored.get(value);
-    return asset ? assetPath(asset) : value;
+    return asset
+      ? assetPath(asset)
+      : value;
   }
   if (Array.isArray(value))
     return value.map(v => rewriteAssets(v, mirrored, key));
-  if (value !== null && typeof value === "object")
-    return Object.fromEntries(Object.entries(value).map(([k, v]) => [k, rewriteAssets(v, mirrored, k)]));
+  if (value !== null && typeof value === "object") {
+    return Object.fromEntries(Object.entries(value).map(([k, v]) => [
+      k,
+      rewriteAssets(v, mirrored, k),
+    ]));
+  }
   return value;
 }

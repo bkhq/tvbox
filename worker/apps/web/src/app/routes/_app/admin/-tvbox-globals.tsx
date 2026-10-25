@@ -35,7 +35,11 @@ export function GlobalsTab() {
     },
     onError,
   });
-  const revert = useMutation({ mutationFn: (key: string) => tvboxApi.revertGlobal(key), onSuccess: refresh, onError });
+  const revert = useMutation({
+    mutationFn: (key: string) => tvboxApi.revertGlobal(key),
+    onSuccess: refresh,
+    onError,
+  });
   const remove = useMutation({
     mutationFn: (key: string) => tvboxApi.deleteGlobal(key),
     onSuccess: () => {
@@ -45,7 +49,9 @@ export function GlobalsTab() {
     onError,
   });
 
-  const editingGlobal = editing !== null && editing !== "new" ? editing : null;
+  const editingGlobal = editing !== null && editing !== "new"
+    ? editing
+    : null;
   const keyValid = newKey.trim() !== "" && !LIST_KINDS.includes(newKey.trim() as never);
 
   return (
@@ -98,7 +104,9 @@ export function GlobalsTab() {
       <JsonDialog
         open={editing !== null}
         onOpenChange={open => !open && setEditing(null)}
-        title={editingGlobal ? editingGlobal.key : t("tvbox:globals.add")}
+        title={editingGlobal
+          ? editingGlobal.key
+          : t("tvbox:globals.add")}
         value={editingGlobal ? editingGlobal.value : ""}
         pending={put.isPending}
         extra={editing === "new"
@@ -110,12 +118,18 @@ export function GlobalsTab() {
             )
           : undefined}
         onSave={(value) => {
-          if (editingGlobal)
+          if (editingGlobal) {
             put.mutate({ key: editingGlobal.key, value });
-          else if (keyValid)
-            put.mutate({ key: newKey.trim(), value });
-          else
+          }
+          else if (keyValid) {
+            put.mutate({
+              key: newKey.trim(),
+              value,
+            });
+          }
+          else {
             toast.error(t("tvbox:globals.invalidKey"));
+          }
         }}
       />
 

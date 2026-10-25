@@ -33,11 +33,16 @@ export function UpstreamsTab() {
   const [url, setUrl] = useState("");
   const [deleting, setDeleting] = useState<Upstream | null>(null);
 
-  const refresh = () => void qc.invalidateQueries({ queryKey: ["tvbox"] });
+  const refresh = () => void qc.invalidateQueries({
+    queryKey: ["tvbox"],
+  });
   const onError = (err: unknown) => toast.error(errorMessage(err, t("common.error.operationFailed")));
 
   const create = useMutation({
-    mutationFn: () => tvboxApi.createUpstream({ name: name.trim(), url: url.trim() }),
+    mutationFn: () => tvboxApi.createUpstream({
+      name: name.trim(),
+      url: url.trim(),
+    }),
     onSuccess: () => {
       setAddOpen(false);
       setName("");
@@ -54,9 +59,19 @@ export function UpstreamsTab() {
   const sync = useMutation({
     mutationFn: (id: string) => tvboxApi.syncUpstream(id),
     onSuccess: (r) => {
-      toast.success(t("tvbox:upstreams.synced", { added: r.added, updated: r.updated, removed: r.removed, mirrored: r.assets.mirrored }));
-      if (r.lines && r.lines.failed.length > 0)
-        toast.warning(t("tvbox:upstreams.linesFailed", { count: r.lines.failed.length, total: r.lines.total, names: r.lines.failed.join("、") }));
+      toast.success(t("tvbox:upstreams.synced", {
+        added: r.added,
+        updated: r.updated,
+        removed: r.removed,
+        mirrored: r.assets.mirrored,
+      }));
+      if (r.lines && r.lines.failed.length > 0) {
+        toast.warning(t("tvbox:upstreams.linesFailed", {
+          count: r.lines.failed.length,
+          total: r.lines.total,
+          names: r.lines.failed.join("、"),
+        }));
+      }
       if (r.assets.failed.length > 0)
         toast.warning(t("tvbox:upstreams.assetsFailed", { count: r.assets.failed.length }));
       refresh();
@@ -103,7 +118,10 @@ export function UpstreamsTab() {
           <TableBody>
             {upstreamTree(query.data).map(({ upstream: up, depth, lines }) => (
               <TableRow key={up.id}>
-                <TableCell className={depth === 1 ? "max-w-md pl-8" : "max-w-md"}>
+                <TableCell className={depth === 1
+                  ? "max-w-md pl-8"
+                  : "max-w-md"}
+                >
                   <div className="flex items-center gap-2 font-medium">
                     {up.name}
                     {up.isPrimary && <Badge>{t("tvbox:upstreams.primary")}</Badge>}
@@ -115,7 +133,9 @@ export function UpstreamsTab() {
                   {t("tvbox:upstreams.usageText", { entries: up.entryCount, devices: up.deviceCount })}
                 </TableCell>
                 <TableCell className="text-xs">
-                  {up.lastSyncedAt ? new Date(up.lastSyncedAt).toLocaleString() : "—"}
+                  {up.lastSyncedAt
+                    ? new Date(up.lastSyncedAt).toLocaleString()
+                    : "—"}
                   {up.lastStatus === "error" && (
                     <div className="max-w-xs truncate text-destructive" title={up.lastError ?? ""}>{up.lastError}</div>
                   )}
@@ -123,16 +143,30 @@ export function UpstreamsTab() {
                 <TableCell>
                   <Switch
                     checked={up.syncEnabled}
-                    onCheckedChange={syncEnabled => update.mutate({ id: up.id, body: { syncEnabled } })}
+                    onCheckedChange={syncEnabled => update.mutate({
+                      id: up.id,
+                      body: { syncEnabled },
+                    })}
                   />
                 </TableCell>
                 <TableCell className="space-x-1 text-right whitespace-nowrap">
                   <Button size="sm" variant="outline" disabled={sync.isPending} onClick={() => sync.mutate(up.id)}>
-                    <RefreshCw className={sync.isPending && sync.variables === up.id ? "size-4 animate-spin" : "size-4"} />
+                    <RefreshCw className={sync.isPending && sync.variables === up.id
+                      ? "size-4 animate-spin"
+                      : "size-4"}
+                    />
                     {t("tvbox:upstreams.syncNow")}
                   </Button>
                   {!up.isPrimary && up.parentId === null && lines === 0 && (
-                    <Button size="sm" variant="ghost" title={t("tvbox:upstreams.makePrimary")} onClick={() => update.mutate({ id: up.id, body: { isPrimary: true } })}>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      title={t("tvbox:upstreams.makePrimary")}
+                      onClick={() => update.mutate({
+                        id: up.id,
+                        body: { isPrimary: true },
+                      })}
+                    >
                       <Star className="size-4" />
                     </Button>
                   )}

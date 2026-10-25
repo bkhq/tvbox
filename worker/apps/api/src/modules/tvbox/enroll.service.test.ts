@@ -17,7 +17,16 @@ import { DEVICES_KEY, readObjectText } from "./storage";
 
 const ORIGIN = "https://tv.example";
 const CODE = "K7Q2-9XMB";
-const REPORT = { code: CODE, deviceId: "02:AB:CD:EF:01:23", name: "影视", model: "Xiaomi MiBOX4", mode: "leanback", abi: "arm64_v8a", versionCode: 10100, versionName: "1.1.0" };
+const REPORT = {
+  code: CODE,
+  deviceId: "02:AB:CD:EF:01:23",
+  name: "影视",
+  model: "Xiaomi MiBOX4",
+  mode: "leanback",
+  abi: "arm64_v8a",
+  versionCode: 10100,
+  versionName: "1.1.0",
+};
 
 let db: AppDatabase;
 let dir: string;
@@ -32,7 +41,17 @@ beforeEach(async () => {
   setActiveDriver("local");
   admin = nanoid();
   const now = new Date().toISOString();
-  await db.insert(users).values({ id: admin, oauthSub: `sub-${admin}`, username: admin, name: admin, email: `${admin}@t.io`, role: "admin", status: "active", createdAt: now, updatedAt: now }).run();
+  await db.insert(users).values({
+    id: admin,
+    oauthSub: `sub-${admin}`,
+    username: admin,
+    name: admin,
+    email: `${admin}@t.io`,
+    role: "admin",
+    status: "active",
+    createdAt: now,
+    updatedAt: now,
+  }).run();
 });
 
 afterEach(() => {
@@ -48,7 +67,14 @@ describe("the app's side", () => {
     expect(await ask()).toEqual({ status: "pending" });
     expect(await ask({ ...REPORT, versionCode: 10200, versionName: "1.2.0" }, "203.0.113.8")).toEqual({ status: "pending" });
     const [e] = await listEnrollments(db);
-    expect(e).toMatchObject({ code: CODE, status: "pending", model: "Xiaomi MiBOX4", versionName: "1.2.0", ip: "203.0.113.8", deviceRef: null });
+    expect(e).toMatchObject({
+      code: CODE,
+      status: "pending",
+      model: "Xiaomi MiBOX4",
+      versionName: "1.2.0",
+      ip: "203.0.113.8",
+      deviceRef: null,
+    });
   });
 
   test("a check that reports less keeps what an earlier one said", async () => {
@@ -122,7 +148,12 @@ describe("binding a device to its linked apps", () => {
     expect(first.status === "approved" && first.deviceKey).toMatch(/^[0-9a-f]{48}$/);
     const key = (first as { deviceKey: string }).deviceKey;
     expect((await ask() as { deviceKey: string }).deviceKey).toBe(key);
-    expect((await readDevices())[0]!.bindings).toEqual([{ id: REPORT.deviceId, keyHash: sha(key) }]);
+    expect((await readDevices())[0]!.bindings).toEqual([
+      {
+        id: REPORT.deviceId,
+        keyHash: sha(key),
+      },
+    ]);
   });
 
   test("an older app gets no key and leaves the device open, until it upgrades", async () => {
@@ -164,7 +195,12 @@ describe("binding a device to its linked apps", () => {
 describe("RE_ENROLL_CODE", () => {
   test("accepts the app's alphabet only", () => {
     expect(RE_ENROLL_CODE.test("K7Q2-9XMB")).toBe(true);
-    for (const bad of ["K7Q2-9XM", "K7Q29XMB", "k7q2-9xmb", "IOL0-1XMB"])
+    for (const bad of [
+      "K7Q2-9XM",
+      "K7Q29XMB",
+      "k7q2-9xmb",
+      "IOL0-1XMB",
+    ])
       expect(RE_ENROLL_CODE.test(bad)).toBe(false);
   });
 });

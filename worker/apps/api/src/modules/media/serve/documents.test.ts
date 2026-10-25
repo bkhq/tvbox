@@ -31,7 +31,14 @@ async function build(ids: string[]) {
 
 /** A published series: season 1 (3 episodes, all playable) and season 2 (episode 2 airs later). */
 async function series() {
-  const t = await createTitle(db, { kind: "series", categoryId: "tv", title: "长安十二时辰", originCountries: ["CN"], genreIds: ["g18"], publishState: "published" });
+  const t = await createTitle(db, {
+    kind: "series",
+    categoryId: "tv",
+    title: "长安十二时辰",
+    originCountries: ["CN"],
+    genreIds: ["g18"],
+    publishState: "published",
+  });
   const s1 = (await listSeasons(db, t.id))[0]!;
   await updateSeason(db, s1.id, { publishState: "published", status: "ended", airDate: "2019-06-27" });
   const s2 = await createSeason(db, t.id, { seasonNumber: 2, publishState: "published", airDate: "2026-05-01" });
@@ -49,8 +56,19 @@ async function series() {
 describe("building documents from a slice", () => {
   test("only marked, playable titles are built", async () => {
     const draft = await createTitle(db, { kind: "movie", categoryId: "movie", title: "草稿" });
-    const empty = await createTitle(db, { kind: "series", categoryId: "tv", title: "空剧", publishState: "published" });
-    const m = await createTitle(db, { kind: "movie", categoryId: "movie", title: "流浪地球", releaseDate: "2019-02-05", publishState: "published" });
+    const empty = await createTitle(db, {
+      kind: "series",
+      categoryId: "tv",
+      title: "空剧",
+      publishState: "published",
+    });
+    const m = await createTitle(db, {
+      kind: "movie",
+      categoryId: "movie",
+      title: "流浪地球",
+      releaseDate: "2019-02-05",
+      publishState: "published",
+    });
     const src = await createSource(db, { titleId: m.id }, { name: "自建", quality: "4K" });
     await addStream(db, src.id, { url: "https://v/m.m3u8" });
     expect((await build([m.id])).titles).toEqual([]);
@@ -58,7 +76,12 @@ describe("building documents from a slice", () => {
 
     const built = await build([draft.id, empty.id, m.id]);
     expect(built.titles.map(t => t.id)).toEqual([m.id]);
-    expect(titleDetailSchema.parse(built.titles[0]!.detail)).toMatchObject({ id: m.id, badge: "4K", available: true, year: 2019 });
+    expect(titleDetailSchema.parse(built.titles[0]!.detail)).toMatchObject({
+      id: m.id,
+      badge: "4K",
+      available: true,
+      year: 2019,
+    });
     const play = playbackSchema.parse(built.playback.find(p => p.id === m.id)!.doc);
     expect(play.sources[0]!.streams[0]!.url).toBe("https://v/m.m3u8");
     expect(built.cms.map(i => i.vodId)).toEqual([m.id]);
@@ -72,7 +95,10 @@ describe("building documents from a slice", () => {
     const detail = titleDetailSchema.parse(built.titles[0]!.detail);
     expect(detail.defaultSeason).toBe(s2.id);
     expect(detail.badge).toBe("第 2 季 更新至第 1 集");
-    expect(detail.seasons.map(s => [s.number, s.availableCount, s.nextAirDate])).toEqual([[1, 3, null], [2, 1, "2026-07-01"]]);
+    expect(detail.seasons.map(s => [s.number, s.availableCount, s.nextAirDate])).toEqual([
+      [1, 3, null],
+      [2, 1, "2026-07-01"],
+    ]);
 
     const season2 = seasonDetailSchema.parse(built.seasons.find(s => s.id === s2.id)!.detail);
     expect(season2.episodes.map(e => e.available)).toEqual([true, false]);
@@ -98,7 +124,12 @@ describe("building documents from a slice", () => {
   });
 
   test("translations go into the detail document", async () => {
-    const m = await createTitle(db, { kind: "movie", categoryId: "movie", title: "盗梦空间", publishState: "published" });
+    const m = await createTitle(db, {
+      kind: "movie",
+      categoryId: "movie",
+      title: "盗梦空间",
+      publishState: "published",
+    });
     await putTranslation(db, m.id, "en-US", { title: "Inception", overview: "A thief who steals secrets", tagline: null });
     await putTranslation(db, m.id, "zh-TW", { title: "全面啟動" });
     await markPublished(db);

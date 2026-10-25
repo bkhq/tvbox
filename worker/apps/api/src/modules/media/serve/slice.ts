@@ -31,22 +31,33 @@ function liveIds(db: MediaDb, kind: "title" | "season" | "episode") {
 
 /** The live rows of `ids` and what hangs off them, a few queries per 30 titles; people only with `credits`. */
 export async function loadSlice(db: MediaDb, titleIds: readonly string[], options: { credits?: boolean } = {}): Promise<Slice> {
-  const [categories, genres] = await db.batch([db.select().from(mediaCategories), db.select().from(mediaGenres)]);
-  const parts = await Promise.all(chunked([...new Set(titleIds)], CHUNK).map(ids => loadPart(db, ids, options.credits ?? false)));
+  const [categories, genres] = await db.batch([
+    db.select().from(mediaCategories),
+    db.select().from(mediaGenres),
+  ]);
+  const parts = await Promise.all(chunked([
+    ...new Set(titleIds),
+  ], CHUNK).map(ids => loadPart(db, ids, options.credits ?? false)));
   const all = <K extends keyof Omit<Slice, "categories" | "genres">>(key: K): Slice[K] => parts.flatMap(p => p[key] as unknown[]) as unknown as Slice[K];
   return {
     categories,
     genres,
-    collections: [...new Map(all("collections").map(c => [c.id, c])).values()],
+    collections: [
+      ...new Map(all("collections").map(c => [c.id, c])).values(),
+    ],
     titles: all("titles"),
     aliases: all("aliases"),
     translations: all("translations"),
     titleGenres: all("titleGenres"),
     seasons: all("seasons"),
     episodes: all("episodes"),
-    people: [...new Map(all("people").map(p => [p.id, p])).values()],
+    people: [
+      ...new Map(all("people").map(p => [p.id, p])).values(),
+    ],
     credits: all("credits"),
-    images: [...new Map(all("images").map(i => [i.id, i])).values()],
+    images: [
+      ...new Map(all("images").map(i => [i.id, i])).values(),
+    ],
     externalIds: all("externalIds"),
     sources: all("sources"),
     streams: all("streams"),
@@ -77,13 +88,45 @@ async function loadPart(db: MediaDb, ids: string[], withCredits: boolean): Promi
     )),
     db.select().from(mediaCollections).where(inArray(mediaCollections.id, db.select({ id: mediaTitles.collectionId }).from(mediaTitles).where(inArray(mediaTitles.id, ids)))),
   ]);
-  if (!withCredits)
-    return { titles, aliases, translations, titleGenres, externalIds, seasons, episodes, sources, streams, images, collections, credits: [], people: [] };
+  if (!withCredits) {
+    return {
+      titles,
+      aliases,
+      translations,
+      titleGenres,
+      externalIds,
+      seasons,
+      episodes,
+      sources,
+      streams,
+      images,
+      collections,
+      credits: [],
+      people: [],
+    };
+  }
 
   const [credits, people, profiles] = await db.batch([
     db.select().from(mediaCredits).where(inArray(mediaCredits.titleId, ids)),
     db.select().from(mediaPeople).where(inArray(mediaPeople.id, personIds)),
     db.select().from(mediaImages).where(owned("person", personIds)),
   ]);
-  return { titles, aliases, translations, titleGenres, externalIds, seasons, episodes, sources, streams, images: [...images, ...profiles], collections, credits, people };
+  return {
+    titles,
+    aliases,
+    translations,
+    titleGenres,
+    externalIds,
+    seasons,
+    episodes,
+    sources,
+    streams,
+    images: [
+      ...images,
+      ...profiles,
+    ],
+    collections,
+    credits,
+    people,
+  };
 }

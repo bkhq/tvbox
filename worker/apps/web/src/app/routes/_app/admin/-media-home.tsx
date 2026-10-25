@@ -15,7 +15,12 @@ import { useMediaMutation } from "./-media-hooks";
 import { EnumSelect, Field, MoveButtons, TitleListEditor } from "./-media-shared";
 
 const ANY = "any";
-const SORTS = ["updated", "popular", "release", "rating"] as const;
+const SORTS = [
+  "updated",
+  "popular",
+  "release",
+  "rating",
+] as const;
 
 export function HomeTab() {
   const { t } = useTranslation(["common", "media"]);
@@ -61,7 +66,14 @@ export function HomeTab() {
                   <TableCell className="font-medium">{r.name}</TableCell>
                   <TableCell>
                     {r.kind === "rule" && r.rule
-                      ? <Badge variant="outline">{t("media:home.ruleSummary", { sort: t(`media:home.sorts.${r.rule.sort}`), limit: r.rule.limit })}</Badge>
+                      ? (
+                          <Badge variant="outline">
+                            {t("media:home.ruleSummary", {
+                              sort: t(`media:home.sorts.${r.rule.sort}`),
+                              limit: r.rule.limit,
+                            })}
+                          </Badge>
+                        )
                       : t("media:home.manualSummary", { count: r.titleIds.length })}
                   </TableCell>
                   <TableCell><Switch checked={r.onHome} onCheckedChange={onHome => update.mutate({ id: r.id, onHome })} /></TableCell>
@@ -77,7 +89,17 @@ export function HomeTab() {
         )}
       </section>
 
-      {editing !== null && <RowDialog key={editing === "new" ? "new" : editing.id} row={editing === "new" ? null : editing} onClose={() => setEditing(null)} />}
+      {editing !== null && (
+        <RowDialog
+          key={editing === "new"
+            ? "new"
+            : editing.id}
+          row={editing === "new"
+            ? null
+            : editing}
+          onClose={() => setEditing(null)}
+        />
+      )}
     </div>
   );
 }
@@ -91,8 +113,19 @@ function RowDialog({ row, onClose }: { row: Row | null; onClose: () => void }) {
   const [titleIds, setTitleIds] = useState(row?.titleIds ?? []);
   const [rule, setRule] = useState<RowRule>(row?.rule ?? { sort: "updated", limit: 20 });
   const save = useMediaMutation(() => {
-    const body = kind === "rule" ? { name: name.trim(), rule } : { name: name.trim(), rule: null, titleIds };
-    return row ? mediaApi.updateRow(row.id, body) : mediaApi.createRow({ ...body, kind });
+    const body = kind === "rule"
+      ? {
+          name: name.trim(),
+          rule,
+        }
+      : {
+          name: name.trim(),
+          rule: null,
+          titleIds,
+        };
+    return row
+      ? mediaApi.updateRow(row.id, body)
+      : mediaApi.createRow({ ...body, kind });
   }, onClose);
   const pick = (key: "categoryId" | "genreId" | "kind", value: string) => {
     const next = { ...rule };
@@ -107,7 +140,11 @@ function RowDialog({ row, onClose }: { row: Row | null; onClose: () => void }) {
     <Dialog open onOpenChange={open => !open && onClose()}>
       <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-xl">
         <DialogHeader>
-          <DialogTitle>{row ? row.name : t("media:home.addRow")}</DialogTitle>
+          <DialogTitle>
+            {row
+              ? row.name
+              : t("media:home.addRow")}
+          </DialogTitle>
         </DialogHeader>
         <div className="space-y-3">
           <Field label={t("media:home.name")}><Input value={name} onChange={e => setName(e.target.value)} /></Field>
@@ -123,16 +160,26 @@ function RowDialog({ row, onClose }: { row: Row | null; onClose: () => void }) {
                   <Field label={t("media:titles.category")}>
                     <EnumSelect
                       value={rule.categoryId ?? ANY}
-                      values={[ANY, ...(categories.data ?? []).map(c => c.id)]}
-                      label={v => (v === ANY ? t("media:home.any") : categories.data?.find(c => c.id === v)?.name ?? v)}
+                      values={[
+                        ANY,
+                        ...(categories.data ?? []).map(c => c.id),
+                      ]}
+                      label={v => (v === ANY
+                        ? t("media:home.any")
+                        : categories.data?.find(c => c.id === v)?.name ?? v)}
                       onChange={v => pick("categoryId", v)}
                     />
                   </Field>
                   <Field label={t("media:info.genres")}>
                     <EnumSelect
                       value={rule.genreId ?? ANY}
-                      values={[ANY, ...(genres.data ?? []).map(g => g.id)]}
-                      label={v => (v === ANY ? t("media:home.any") : genres.data?.find(g => g.id === v)?.name ?? v)}
+                      values={[
+                        ANY,
+                        ...(genres.data ?? []).map(g => g.id),
+                      ]}
+                      label={v => (v === ANY
+                        ? t("media:home.any")
+                        : genres.data?.find(g => g.id === v)?.name ?? v)}
                       onChange={v => pick("genreId", v)}
                     />
                   </Field>
@@ -140,7 +187,9 @@ function RowDialog({ row, onClose }: { row: Row | null; onClose: () => void }) {
                     <EnumSelect
                       value={rule.kind ?? ANY}
                       values={[ANY, "movie", "series"] as const}
-                      label={v => (v === ANY ? t("media:home.any") : t(`media:kind.${v as TitleKind}`))}
+                      label={v => (v === ANY
+                        ? t("media:home.any")
+                        : t(`media:kind.${v as TitleKind}`))}
                       onChange={v => pick("kind", v)}
                     />
                   </Field>
@@ -148,7 +197,16 @@ function RowDialog({ row, onClose }: { row: Row | null; onClose: () => void }) {
                     <EnumSelect value={rule.sort} values={SORTS} label={v => t(`media:home.sorts.${v}`)} onChange={sort => setRule({ ...rule, sort })} />
                   </Field>
                   <Field label={t("media:home.limit")}>
-                    <Input type="number" min={1} max={50} value={rule.limit} onChange={e => setRule({ ...rule, limit: Math.min(50, Math.max(1, Number(e.target.value) || 1)) })} />
+                    <Input
+                      type="number"
+                      min={1}
+                      max={50}
+                      value={rule.limit}
+                      onChange={e => setRule({
+                        ...rule,
+                        limit: Math.min(50, Math.max(1, Number(e.target.value) || 1)),
+                      })}
+                    />
                   </Field>
                 </div>
               )}

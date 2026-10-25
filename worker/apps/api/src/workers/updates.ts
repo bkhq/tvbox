@@ -70,16 +70,27 @@ const RE_RANGE = /^bytes=(\d*)-(\d*)$/;
  * (then the whole object is sent, as RFC 9110 allows).
  */
 function parseRange(header: string | null, size: number): { offset: number; length: number } | "unsatisfiable" | null {
-  const match = header ? RE_RANGE.exec(header.trim()) : null;
+  const match = header
+    ? RE_RANGE.exec(header.trim())
+    : null;
   if (!match || (match[1] === "" && match[2] === ""))
     return null;
   if (match[1] === "") {
     const suffix = Number(match[2]);
-    return suffix === 0 ? "unsatisfiable" : { offset: Math.max(0, size - suffix), length: Math.min(suffix, size) };
+    return suffix === 0
+      ? "unsatisfiable"
+      : {
+          offset: Math.max(0, size - suffix),
+          length: Math.min(suffix, size),
+        };
   }
   const start = Number(match[1]);
-  const end = match[2] === "" ? size - 1 : Math.min(Number(match[2]), size - 1);
-  return start >= size || end < start ? "unsatisfiable" : { offset: start, length: end - start + 1 };
+  const end = match[2] === ""
+    ? size - 1
+    : Math.min(Number(match[2]), size - 1);
+  return start >= size || end < start
+    ? "unsatisfiable"
+    : { offset: start, length: end - start + 1 };
 }
 
 async function serveBinary(request: Request, bucket: SubscriptionBucket, key: string, kind: "apk" | "ipa", filename: string): Promise<Response> {
@@ -95,8 +106,12 @@ async function serveBinary(request: Request, bucket: SubscriptionBucket, key: st
     if (!meta)
       return notFound();
     const range = parseRange(rangeHeader, meta.size);
-    if (range === "unsatisfiable")
-      return new Response(null, { status: 416, headers: { ...headers, "content-range": `bytes */${meta.size}` } });
+    if (range === "unsatisfiable") {
+      return new Response(null, {
+        status: 416,
+        headers: { ...headers, "content-range": `bytes */${meta.size}` },
+      });
+    }
     if (range) {
       const object = await bucket.get(key, { range });
       if (!object)
@@ -115,7 +130,14 @@ async function serveBinary(request: Request, bucket: SubscriptionBucket, key: st
   if (!object)
     return notFound();
   return new Response(object.body, {
-    headers: { ...headers, ...(object.size !== undefined ? { "content-length": String(object.size) } : {}) },
+    headers: {
+      ...headers,
+      ...(object.size !== undefined
+        ? {
+            "content-length": String(object.size),
+          }
+        : {}),
+    },
   });
 }
 

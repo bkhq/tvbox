@@ -50,7 +50,12 @@ export function taxonomyRoutes() {
   router.post(
     "/media/categories",
     doc("Add a category", jsonCreated(categorySchema)),
-    validator("json", z.object({ id: z.string().regex(CATEGORY_ID), name: nameText, kinds, filters: filters.optional() })),
+    validator("json", z.object({
+      id: z.string().regex(CATEGORY_ID),
+      name: nameText,
+      kinds,
+      filters: filters.optional(),
+    })),
     async (c) => {
       const row = await createCategory(requireMediaDb(), c.req.valid("json"));
       await record(c, "media.category.created", { type: "media_category", id: row.id, name: row.name });
@@ -58,17 +63,26 @@ export function taxonomyRoutes() {
     },
   );
 
-  router.post("/media/categories/reorder", doc("Reorder categories", jsonOk(z.object({ count: z.number() }))), validator("json", reorderBody), async (c) => {
+  router.post("/media/categories/reorder", doc("Reorder categories", jsonOk(z.object({
+    count: z.number(),
+  }))), validator("json", reorderBody), async (c) => {
     const { ids } = c.req.valid("json");
     await reorderCategories(requireMediaDb(), ids);
-    return c.json({ success: true, data: { count: ids.length } });
+    return c.json({
+      success: true,
+      data: { count: ids.length },
+    });
   });
 
   router.patch(
     "/media/categories/:id",
     doc("Update a category", jsonOk(categorySchema)),
     validator("param", idParam),
-    validator("json", z.object({ name: nameText.optional(), kinds: kinds.optional(), filters: filters.optional() })),
+    validator("json", z.object({
+      name: nameText.optional(),
+      kinds: kinds.optional(),
+      filters: filters.optional(),
+    })),
     async (c) => {
       const row = await updateCategory(requireMediaDb(), c.req.valid("param").id, c.req.valid("json"));
       await record(c, "media.category.updated", { type: "media_category", id: row.id, name: row.name });
@@ -88,7 +102,10 @@ export function taxonomyRoutes() {
   router.post(
     "/media/genres",
     doc("Add a genre", jsonCreated(genreSchema)),
-    validator("json", z.object({ name: nameText, tmdbId: z.number().int().positive().nullable().optional() })),
+    validator("json", z.object({
+      name: nameText,
+      tmdbId: z.number().int().positive().nullable().optional(),
+    })),
     async (c) => {
       const row = await createGenre(requireMediaDb(), c.req.valid("json"));
       await record(c, "media.genre.created", { type: "media_genre", id: row.id, name: row.name });
@@ -96,13 +113,20 @@ export function taxonomyRoutes() {
     },
   );
 
-  router.post("/media/genres/reorder", doc("Reorder genres", jsonOk(z.object({ count: z.number() }))), validator("json", reorderBody), async (c) => {
+  router.post("/media/genres/reorder", doc("Reorder genres", jsonOk(z.object({
+    count: z.number(),
+  }))), validator("json", reorderBody), async (c) => {
     const { ids } = c.req.valid("json");
     await reorderGenres(requireMediaDb(), ids);
-    return c.json({ success: true, data: { count: ids.length } });
+    return c.json({
+      success: true,
+      data: { count: ids.length },
+    });
   });
 
-  router.patch("/media/genres/:id", doc("Rename a genre", jsonOk(genreSchema)), validator("param", idParam), validator("json", z.object({ name: nameText.optional() })), async (c) => {
+  router.patch("/media/genres/:id", doc("Rename a genre", jsonOk(genreSchema)), validator("param", idParam), validator("json", z.object({
+    name: nameText.optional(),
+  })), async (c) => {
     const row = await updateGenre(requireMediaDb(), c.req.valid("param").id, c.req.valid("json"));
     await record(c, "media.genre.updated", { type: "media_genre", id: row.id, name: row.name });
     return c.json({ success: true, data: row });

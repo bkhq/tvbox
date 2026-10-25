@@ -44,16 +44,33 @@ const streamSchema = z.object({
   sort: z.number(),
 });
 
-const pastedLine = z.object({ name: z.string(), url: z.string() });
+const pastedLine = z.object({
+  name: z.string(),
+  url: z.string(),
+});
 const pasteResultSchema = z.object({
-  matched: z.array(z.object({ episodeId: z.string(), episodeNumber: z.number(), line: pastedLine })),
-  missing: z.array(z.object({ episodeNumber: z.number(), line: pastedLine })),
-  unmatched: z.array(z.object({ line: pastedLine, reason: z.enum(["no-number", "duplicate", "no-episode"]) })),
+  matched: z.array(z.object({
+    episodeId: z.string(),
+    episodeNumber: z.number(),
+    line: pastedLine,
+  })),
+  missing: z.array(z.object({
+    episodeNumber: z.number(),
+    line: pastedLine,
+  })),
+  unmatched: z.array(z.object({
+    line: pastedLine,
+    reason: z.enum(["no-number", "duplicate", "no-episode"]),
+  })),
   written: z.number(),
   created: z.number(),
 });
 
-const sourceFields = z.object({ name: nameText, quality: nullableText(20).optional(), enabled: z.boolean().optional() });
+const sourceFields = z.object({
+  name: nameText,
+  quality: nullableText(20).optional(),
+  enabled: z.boolean().optional(),
+});
 
 const streamFields = z.object({
   episodeId: z.string().max(64).nullable().optional(),
@@ -87,10 +104,15 @@ export function playableRoutes() {
     return c.json({ success: true, data: row }, 201);
   });
 
-  router.post("/media/sources/reorder", doc("Reorder sources", jsonOk(z.object({ count: z.number() }))), validator("json", reorderBody), async (c) => {
+  router.post("/media/sources/reorder", doc("Reorder sources", jsonOk(z.object({
+    count: z.number(),
+  }))), validator("json", reorderBody), async (c) => {
     const { ids } = c.req.valid("json");
     await reorderSources(requireMediaDb(), ids);
-    return c.json({ success: true, data: { count: ids.length } });
+    return c.json({
+      success: true,
+      data: { count: ids.length },
+    });
   });
 
   router.patch("/media/sources/:id", doc("Rename, grade or enable/disable a source", jsonOk(sourceSchema)), validator("param", idParam), validator("json", sourceFields.partial()), async (c) => {
@@ -118,7 +140,11 @@ export function playableRoutes() {
     "/media/sources/:id/paste",
     doc("Paste name$url lines: lined up with the season's episodes (dryRun previews)", jsonOk(pasteResultSchema)),
     validator("param", idParam),
-    validator("json", z.object({ text: z.string().min(1).max(500_000), createMissing: z.boolean().optional(), dryRun: z.boolean().optional() })),
+    validator("json", z.object({
+      text: z.string().min(1).max(500_000),
+      createMissing: z.boolean().optional(),
+      dryRun: z.boolean().optional(),
+    })),
     async (c) => {
       const { text, ...options } = c.req.valid("json");
       const result = await pasteStreams(requireMediaDb(), c.req.valid("param").id, text, options);

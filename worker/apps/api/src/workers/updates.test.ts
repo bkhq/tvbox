@@ -10,12 +10,16 @@ function bucket(objects: Record<string, string>): SubscriptionBucket {
       if (body === undefined)
         return null;
       const range = options?.range;
-      const part = range ? body.slice(range.offset, range.offset + range.length) : body;
+      const part = range
+        ? body.slice(range.offset, range.offset + range.length)
+        : body;
       return Object.assign(new Response(part), { size: body.length });
     },
     async head(key) {
       const body = objects[key];
-      return body === undefined ? null : { size: body.length };
+      return body === undefined
+        ? null
+        : { size: body.length };
     },
   };
 }
@@ -62,13 +66,17 @@ describe("update endpoints", () => {
       ["bytes=4-100", "BYTES", "bytes 4-8/9"],
       ["bytes=-5", "BYTES", "bytes 4-8/9"],
     ] as const) {
-      const res = await handleUpdates(get(path, { headers: { range } }), { FILES });
+      const res = await handleUpdates(get(path, {
+        headers: { range },
+      }), { FILES });
       expect({ range, status: res.status }).toEqual({ range, status: 206 });
       expect(res.headers.get("content-range")).toBe(contentRange);
       expect(res.headers.get("content-length")).toBe(String(body.length));
       expect(await res.text()).toBe(body);
     }
-    const rn = await handleUpdates(get("/u/rn/apk/10000/android-universal.apk", { headers: { range: "bytes=3-" } }), { FILES });
+    const rn = await handleUpdates(get("/u/rn/apk/10000/android-universal.apk", {
+      headers: { range: "bytes=3-" },
+    }), { FILES });
     expect(rn.status).toBe(206);
     expect(await rn.text()).toBe("APK");
   });
@@ -76,16 +84,22 @@ describe("update endpoints", () => {
   test("an unsatisfiable range is 416 and an unsupported one serves the whole file", async () => {
     const path = "/u/apk/10203/mobile-arm64_v8a.apk";
     for (const range of ["bytes=9-", "bytes=5-3", "bytes=-0"]) {
-      const res = await handleUpdates(get(path, { headers: { range } }), { FILES });
+      const res = await handleUpdates(get(path, {
+        headers: { range },
+      }), { FILES });
       expect({ range, status: res.status }).toEqual({ range, status: 416 });
       expect(res.headers.get("content-range")).toBe("bytes */9");
     }
     for (const range of ["bytes=0-1,4-5", "items=0-1", "bytes=x-"]) {
-      const res = await handleUpdates(get(path, { headers: { range } }), { FILES });
+      const res = await handleUpdates(get(path, {
+        headers: { range },
+      }), { FILES });
       expect({ range, status: res.status }).toEqual({ range, status: 200 });
       expect(await res.text()).toBe("APK-BYTES");
     }
-    const missing = await handleUpdates(get("/u/apk/1/mobile-arm64_v8a.apk", { headers: { range: "bytes=0-1" } }), { FILES });
+    const missing = await handleUpdates(get("/u/apk/1/mobile-arm64_v8a.apk", {
+      headers: { range: "bytes=0-1" },
+    }), { FILES });
     expect(missing.status).toBe(404);
   });
 
@@ -119,10 +133,27 @@ describe("update endpoints", () => {
   });
 
   test("anything unknown or malformed is missing, and only reads are allowed", async () => {
-    for (const path of ["/u/stable/mobile-x86.json", "/u/nightly/mobile-arm64_v8a.json", "/u/apk/abc/mobile-arm64_v8a.apk", "/u/apk/10203/../x.apk", "/u/",
-    // The rn channel: no Java keys, no plist for an APK flavor, kind and
-    // extension must agree with the mode.
-      "/u/rn/stable/mobile-arm64_v8a.json", "/u/rn/apk/10203/mobile-arm64_v8a.apk", "/u/rn/stable/android-universal.plist", "/u/rn/beta/ios-universal.plist", "/u/rn/ipa/10000/android-universal.ipa", "/u/rn/apk/10000/ios-universal.apk", "/u/rn/apk/10000/android-universal.ipa", "/u/rn/ipa/10000/ios-universal.apk", "/u/rn/nightly/ios-universal.plist", "/u/rn/ipa/10000/../ios-universal.ipa", "/u/rn/", "/u/stable/android-universal.json"]) {
+    for (const path of [
+      "/u/stable/mobile-x86.json",
+      "/u/nightly/mobile-arm64_v8a.json",
+      "/u/apk/abc/mobile-arm64_v8a.apk",
+      "/u/apk/10203/../x.apk",
+      "/u/",
+      // The rn channel: no Java keys, no plist for an APK flavor, kind and
+      // extension must agree with the mode.
+      "/u/rn/stable/mobile-arm64_v8a.json",
+      "/u/rn/apk/10203/mobile-arm64_v8a.apk",
+      "/u/rn/stable/android-universal.plist",
+      "/u/rn/beta/ios-universal.plist",
+      "/u/rn/ipa/10000/android-universal.ipa",
+      "/u/rn/apk/10000/ios-universal.apk",
+      "/u/rn/apk/10000/android-universal.ipa",
+      "/u/rn/ipa/10000/ios-universal.apk",
+      "/u/rn/nightly/ios-universal.plist",
+      "/u/rn/ipa/10000/../ios-universal.ipa",
+      "/u/rn/",
+      "/u/stable/android-universal.json",
+    ]) {
       const res = await handleUpdates(get(path), { FILES });
       expect({ path, status: res.status }).toEqual({ path, status: 404 });
     }

@@ -103,7 +103,10 @@ describe("pasting streams", () => {
     const src = await createSource(db, { titleId: m.id }, { name: "自建" });
     const result = await pasteStreams(db, src.id, "1080P$https://v/1080.m3u8\n4K$https://v/4k.mp4");
     expect(result.written).toBe(2);
-    expect((await listStreams(db, src.id)).map(s => [s.resolution, s.format])).toEqual([["1080P", "hls"], ["4K", "mp4"]]);
+    expect((await listStreams(db, src.id)).map(s => [s.resolution, s.format])).toEqual([
+      ["1080P", "hls"],
+      ["4K", "mp4"],
+    ]);
   });
 
   test("nothing pasteable is an error", async () => {
@@ -171,8 +174,18 @@ describe("people and credits", () => {
     const { title, season } = await seasonOne();
     const p = await createPerson(db, { name: "张三" });
     const q = await createPerson(db, { name: "李四" });
-    await addCredit(db, title.id, { personId: p.id, role: "crew", job: "Director", department: "Directing" });
-    const c = await addCredit(db, title.id, { personId: q.id, role: "cast", character: "主角", seasonId: season.id });
+    await addCredit(db, title.id, {
+      personId: p.id,
+      role: "crew",
+      job: "Director",
+      department: "Directing",
+    });
+    const c = await addCredit(db, title.id, {
+      personId: q.id,
+      role: "cast",
+      character: "主角",
+      seasonId: season.id,
+    });
     expect(c.personName).toBe("李四");
     expect((await listCredits(db, title.id)).length).toBe(2);
     expect((await listCredits(db, title.id, null)).map(x => x.personName)).toEqual(["张三"]);
@@ -202,21 +215,37 @@ describe("home rows and hero", () => {
   test("a manual row keeps its titles in order; a rule row needs a rule and holds none", async () => {
     const a = await movie();
     const b = await movie();
-    const row = await createRow(db, { name: "推荐", titleIds: [b.id, a.id, b.id] });
+    const row = await createRow(db, {
+      name: "推荐",
+      titleIds: [b.id, a.id, b.id],
+    });
     expect(row.titleIds).toEqual([b.id, a.id]);
     await expect(createRow(db, { name: "x", kind: "rule" })).rejects.toMatchObject({ code: "INVALID_ROW" });
-    const rule = await createRow(db, { name: "最新电影", kind: "rule", rule: { categoryId: "movie", sort: "updated", limit: 10 } });
+    const rule = await createRow(db, {
+      name: "最新电影",
+      kind: "rule",
+      rule: { categoryId: "movie", sort: "updated", limit: 10 },
+    });
     expect(rule.rule).toEqual({ categoryId: "movie", sort: "updated", limit: 10 });
-    const switched = await updateRow(db, row.id, { kind: "rule", rule: { sort: "popular", limit: 5 } });
+    const switched = await updateRow(db, row.id, {
+      kind: "rule",
+      rule: { sort: "popular", limit: 5 },
+    });
     expect(switched.titleIds).toEqual([]);
     expect((await listRows(db)).map(r => r.name)).toEqual(["推荐", "最新电影"]);
   });
 
   test("rows and the hero refuse unknown titles; deleting a title drops it from rows", async () => {
     const a = await movie();
-    await expect(createRow(db, { name: "x", titleIds: ["nope"] })).rejects.toMatchObject({ statusCode: 404 });
+    await expect(createRow(db, {
+      name: "x",
+      titleIds: ["nope"],
+    })).rejects.toMatchObject({ statusCode: 404 });
     await expect(setHero(db, ["nope"])).rejects.toMatchObject({ statusCode: 404 });
-    const row = await createRow(db, { name: "推荐", titleIds: [a.id] });
+    const row = await createRow(db, {
+      name: "推荐",
+      titleIds: [a.id],
+    });
     expect(await setHero(db, [a.id, a.id])).toEqual([a.id]);
     expect(await getHero(db)).toEqual([a.id]);
     await deleteTitle(db, a.id);

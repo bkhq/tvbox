@@ -9,7 +9,12 @@ import { mediaRowItems, mediaRows, mediaSettings, mediaTitles } from "../schema"
 
 export type RowRow = typeof mediaRows.$inferSelect;
 
-export const ROW_SORTS = ["updated", "popular", "release", "rating"] as const;
+export const ROW_SORTS = [
+  "updated",
+  "popular",
+  "release",
+  "rating",
+] as const;
 
 /** What a rule row selects; expanded into titles when publishing. */
 export const rowRuleSchema = z.object({
@@ -31,7 +36,13 @@ const MAX_ROW_ITEMS = 100;
 
 async function viewOf(db: MediaDb, row: RowRow): Promise<RowView> {
   const items = await db.select({ titleId: mediaRowItems.titleId }).from(mediaRowItems).where(eq(mediaRowItems.rowId, row.id)).orderBy(asc(mediaRowItems.sort)).all();
-  return { ...row, rule: row.rule ? rowRuleSchema.parse(JSON.parse(row.rule)) : null, titleIds: items.map(i => i.titleId) };
+  return {
+    ...row,
+    rule: row.rule
+      ? rowRuleSchema.parse(JSON.parse(row.rule))
+      : null,
+    titleIds: items.map(i => i.titleId),
+  };
 }
 
 export async function getRow(db: MediaDb, id: string): Promise<RowView> {
@@ -52,7 +63,9 @@ export async function listRows(db: MediaDb): Promise<RowView[]> {
 async function assertTitles(db: MediaDb, ids: readonly string[]): Promise<void> {
   if (ids.length > MAX_ROW_ITEMS)
     throw new AppError(`A row holds at most ${MAX_ROW_ITEMS} titles`, 422, "ROW_TOO_LONG");
-  for (const part of chunked([...new Set(ids)])) {
+  for (const part of chunked([
+    ...new Set(ids),
+  ])) {
     const found = await db.select({ id: mediaTitles.id }).from(mediaTitles).where(inArray(mediaTitles.id, part)).all();
     const missing = part.find(id => !found.some(f => f.id === id));
     if (missing !== undefined)
@@ -61,7 +74,9 @@ async function assertTitles(db: MediaDb, ids: readonly string[]): Promise<void> 
 }
 
 async function writeItems(db: MediaDb, rowId: string, titleIds: readonly string[]): Promise<void> {
-  const unique = [...new Set(titleIds)];
+  const unique = [
+    ...new Set(titleIds),
+  ];
   await runBatch(db, [
     db.delete(mediaRowItems).where(eq(mediaRowItems.rowId, rowId)),
     ...insertRows(db, mediaRowItems, unique.map((titleId, sort) => ({ rowId, titleId, sort }))),
@@ -86,13 +101,17 @@ export async function createRow(db: MediaDb, input: RowInput & { name: string })
   assertShape(kind, input.rule);
   if (input.titleIds)
     await assertTitles(db, input.titleIds);
-  const last = await db.select({ sort: max(mediaRows.sort) }).from(mediaRows).get();
+  const last = await db.select({
+    sort: max(mediaRows.sort),
+  }).from(mediaRows).get();
   const id = ulid();
   await db.insert(mediaRows).values({
     id,
     name: input.name,
     kind,
-    rule: kind === "rule" ? JSON.stringify(input.rule) : null,
+    rule: kind === "rule"
+      ? JSON.stringify(input.rule)
+      : null,
     onHome: input.onHome ?? true,
     sort: (last?.sort ?? -1) + 1,
   }).run();
@@ -104,15 +123,23 @@ export async function createRow(db: MediaDb, input: RowInput & { name: string })
 export async function updateRow(db: MediaDb, id: string, input: RowInput): Promise<RowView> {
   const current = await getRow(db, id);
   const kind = input.kind ?? current.kind;
-  const rule = input.rule !== undefined ? input.rule : current.rule;
+  const rule = input.rule !== undefined
+    ? input.rule
+    : current.rule;
   assertShape(kind, rule);
   if (input.titleIds)
     await assertTitles(db, input.titleIds);
   await db.update(mediaRows).set({
-    ...(input.name !== undefined ? { name: input.name } : {}),
-    ...(input.onHome !== undefined ? { onHome: input.onHome } : {}),
+    ...(input.name !== undefined
+      ? { name: input.name }
+      : {}),
+    ...(input.onHome !== undefined
+      ? { onHome: input.onHome }
+      : {}),
     kind,
-    rule: kind === "rule" ? JSON.stringify(rule) : null,
+    rule: kind === "rule"
+      ? JSON.stringify(rule)
+      : null,
     updatedAt: new Date().toISOString(),
   }).where(eq(mediaRows.id, id)).run();
   if (kind === "rule")
@@ -136,13 +163,18 @@ export async function reorderRows(db: MediaDb, ids: readonly string[]): Promise<
 
 export async function getSetting<T>(db: MediaDb, key: string, fallback: T): Promise<T> {
   const row = await db.select().from(mediaSettings).where(eq(mediaSettings.key, key)).get();
-  return row ? JSON.parse(row.value) as T : fallback;
+  return row
+    ? JSON.parse(row.value) as T
+    : fallback;
 }
 
 export async function putSetting(db: MediaDb, key: string, value: unknown): Promise<void> {
   const json = JSON.stringify(value);
   const updatedAt = new Date().toISOString();
-  await db.insert(mediaSettings).values({ key, value: json, updatedAt }).onConflictDoUpdate({ target: mediaSettings.key, set: { value: json, updatedAt } }).run();
+  await db.insert(mediaSettings).values({ key, value: json, updatedAt }).onConflictDoUpdate({
+    target: mediaSettings.key,
+    set: { value: json, updatedAt },
+  }).run();
 }
 
 /** The home page's hero: up to 10 titles, in order. */
@@ -154,7 +186,9 @@ export async function setHero(db: MediaDb, titleIds: readonly string[]): Promise
   if (titleIds.length > 10)
     throw new AppError("The hero holds at most 10 titles", 422, "HERO_TOO_LONG");
   await assertTitles(db, titleIds);
-  const unique = [...new Set(titleIds)];
+  const unique = [
+    ...new Set(titleIds),
+  ];
   await putSetting(db, HERO_KEY, unique);
   return unique;
 }

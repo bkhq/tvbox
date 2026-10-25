@@ -28,7 +28,13 @@ interface Download {
   readonly href: string;
 }
 
-const HTML_ESCAPES: Record<string, string> = { "&": "&amp;", "<": "&lt;", ">": "&gt;", "\"": "&quot;", "'": "&#39;" };
+const HTML_ESCAPES: Record<string, string> = {
+  "&": "&amp;",
+  "<": "&lt;",
+  ">": "&gt;",
+  "\"": "&quot;",
+  "'": "&#39;",
+};
 
 function escapeHtml(text: string): string {
   return text.replace(/[&<>"']/g, ch => HTML_ESCAPES[ch]!);
@@ -54,7 +60,12 @@ async function readDownloads(env: SubscriptionEnv): Promise<Download[]> {
     const manifest = JSON.parse(await object.text()) as UpdateManifest;
     // Manifest URLs are relative to the manifest itself.
     const href = new URL(manifest.url, `https://site/${key.replace(/^tvbox\/updates\//, "u/")}`).pathname;
-    return { mode: mode!, abi: abi!, manifest, href };
+    return {
+      mode: mode!,
+      abi: abi!,
+      manifest,
+      href,
+    };
   }));
   const found = downloads.filter((d): d is Download => d !== null);
   const newest = Math.max(...found.map(d => d.manifest.versionCode));
@@ -80,7 +91,9 @@ function page(downloads: readonly Download[]): string {
   const release = downloads[0]?.manifest;
   // Every flavor of a release carries the same notes.
   const text = downloads.find(d => d.manifest.notes.trim())?.manifest.notes.trim();
-  const notes = text ? `\n    <p class="notes">${escapeHtml(text)}</p>` : "";
+  const notes = text
+    ? `\n    <p class="notes">${escapeHtml(text)}</p>`
+    : "";
   const body = release
     ? `<p class="meta">最新版本 ${escapeHtml(release.versionName)} · ${release.createdAt.slice(0, 10)}</p>${notes}
     <ul>${downloads.map(card).join("")}\n    </ul>`

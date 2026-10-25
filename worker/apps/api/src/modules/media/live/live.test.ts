@@ -29,7 +29,13 @@ describe("m3u", () => {
     const { epg, channels } = parseM3u(PLAYLIST);
     expect(epg).toEqual(["https://epg.example/e.xml"]);
     expect(channels).toHaveLength(3);
-    expect(channels[0]).toMatchObject({ group: "央视", name: "CCTV-1 综合", number: 1, tvgId: "CCTV1", logo: "https://l/1.png" });
+    expect(channels[0]).toMatchObject({
+      group: "央视",
+      name: "CCTV-1 综合",
+      number: 1,
+      tvgId: "CCTV1",
+      logo: "https://l/1.png",
+    });
     expect(channels[1]).toMatchObject({ userAgent: "okhttp", referer: "https://ref.example/" });
   });
 
@@ -45,10 +51,25 @@ describe("m3u", () => {
 
 describe("live channels", () => {
   test("importing merges lines into channels, and again adds nothing", async () => {
-    expect(await importM3u(db, PLAYLIST, { dryRun: true })).toEqual({ groups: 2, channels: 2, streams: 3, skipped: 0 });
+    expect(await importM3u(db, PLAYLIST, { dryRun: true })).toEqual({
+      groups: 2,
+      channels: 2,
+      streams: 3,
+      skipped: 0,
+    });
     expect(await listGroups(db)).toEqual([]);
-    expect(await importM3u(db, PLAYLIST)).toEqual({ groups: 2, channels: 2, streams: 3, skipped: 0 });
-    expect(await importM3u(db, PLAYLIST)).toEqual({ groups: 0, channels: 0, streams: 0, skipped: 3 });
+    expect(await importM3u(db, PLAYLIST)).toEqual({
+      groups: 2,
+      channels: 2,
+      streams: 3,
+      skipped: 0,
+    });
+    expect(await importM3u(db, PLAYLIST)).toEqual({
+      groups: 0,
+      channels: 0,
+      streams: 0,
+      skipped: 3,
+    });
     const [cctv] = await listGroups(db);
     const channels = await listChannels(db, cctv!.id);
     expect(channels[0]!.streams.map(s => s.url)).toEqual(["https://a/cctv1.m3u8", "https://b/cctv1.m3u8"]);
@@ -65,8 +86,18 @@ describe("live channels", () => {
     expect(text.startsWith("#EXTM3U x-tvg-url=\"https://epg.example/e.xml\"")).toBe(true);
     const back = parseM3u(text);
     expect(back.channels.map(c => [c.group, c.name, c.url, c.userAgent])).toEqual([
-      ["央视", "CCTV-1 综合", "https://a/cctv1.m3u8", null],
-      ["央视", "CCTV-1 综合", "https://b/cctv1.m3u8", "okhttp"],
+      [
+        "央视",
+        "CCTV-1 综合",
+        "https://a/cctv1.m3u8",
+        null,
+      ],
+      [
+        "央视",
+        "CCTV-1 综合",
+        "https://b/cctv1.m3u8",
+        "okhttp",
+      ],
       ["卫视", "湖南卫视", "rtmp://c/hunan", null],
     ]);
     const hunan = (await listChannels(db, (await listGroups(db))[1]!.id))[0]!;
@@ -76,9 +107,20 @@ describe("live channels", () => {
 
   test("channels own their streams; a group takes its channels along", async () => {
     const group = await createGroup(db, "测试");
-    const ch = await createChannel(db, { groupId: group.id, name: "A", streams: [{ url: "https://a/1" }, { url: "https://a/2" }] });
+    const ch = await createChannel(db, {
+      groupId: group.id,
+      name: "A",
+      streams: [
+        { url: "https://a/1" },
+        { url: "https://a/2" },
+      ],
+    });
     expect(ch.streams.map(s => s.sort)).toEqual([0, 1]);
-    const updated = await updateChannel(db, ch.id, { streams: [{ url: "https://a/3" }] });
+    const updated = await updateChannel(db, ch.id, {
+      streams: [
+        { url: "https://a/3" },
+      ],
+    });
     expect(updated.streams.map(s => s.url)).toEqual(["https://a/3"]);
     await deleteGroup(db, group.id);
     expect(await listGroups(db)).toEqual([]);

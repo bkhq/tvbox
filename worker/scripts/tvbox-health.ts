@@ -79,19 +79,39 @@ function remoteStrings(value: unknown, out: string[] = []): string[] {
 
 /** What to request for an entry; empty when there is nothing to check. */
 export function probesFor(kind: Kind, data: Record<string, unknown>): Probe[] {
-  if (kind === "lives")
-    return isRemote(data.url) ? [{ url: data.url, expect: "playlist" }] : [];
-  if (kind === "parses" || kind === "doh")
-    return isRemote(data.url) ? [{ url: data.url, expect: "alive" }] : [];
+  if (kind === "lives") {
+    return isRemote(data.url)
+      ? [
+          { url: data.url, expect: "playlist" },
+        ]
+      : [];
+  }
+  if (kind === "parses" || kind === "doh") {
+    return isRemote(data.url)
+      ? [
+          { url: data.url, expect: "alive" },
+        ]
+      : [];
+  }
   if (kind !== "sites")
     return [];
 
   const type = Number(data.type);
-  if ((type === 0 || type === 1) && isRemote(data.api))
-    return [{ url: `${data.api}${data.api.includes("?") ? "&" : "?"}ac=list`, expect: "cms" }];
+  if ((type === 0 || type === 1) && isRemote(data.api)) {
+    return [
+      { url: `${data.api}${data.api.includes("?")
+        ? "&"
+        : "?"}ac=list`, expect: "cms" },
+    ];
+  }
 
   // A spider script, else what its ext points at: one probe per host.
-  const urls = [...(isRemote(data.api) ? [data.api] : []), ...remoteStrings(data.ext)];
+  const urls = [
+    ...(isRemote(data.api)
+      ? [data.api]
+      : []),
+    ...remoteStrings(data.ext),
+  ];
   const seen = new Set<string>();
   const probes: Probe[] = [];
   for (const url of urls) {
@@ -142,31 +162,59 @@ async function probeOnce(p: Probe): Promise<Outcome> {
     return { status: "ok", detail };
   }
   catch (err) {
-    const reason = err instanceof Error ? (err.name === "TimeoutError" ? "timeout" : err.message.split(". For more")[0]!) : String(err);
+    const reason = err instanceof Error
+      ? (err.name === "TimeoutError"
+          ? "timeout"
+          : err.message.split(". For more")[0]!)
+      : String(err);
     return { status: "fail", detail: `${p.url} → ${reason}` };
   }
 }
 
 async function probe(p: Probe): Promise<Outcome> {
   const first = await probeOnce(p);
-  return first.status === "fail" ? await probeOnce(p) : first;
+  return first.status === "fail"
+    ? await probeOnce(p)
+    : first;
 }
 
 /** Alive when any probe is; skipped when there is nothing to probe. */
 export async function check(entry: Entry): Promise<Result> {
   const name = String(entry.data.name ?? entry.data.key ?? entry.id);
   const probes = probesFor(entry.kind, entry.data);
-  if (probes.length === 0)
-    return { id: entry.id, kind: entry.kind, name, status: "skip", detail: "nothing to check" };
+  if (probes.length === 0) {
+    return {
+      id: entry.id,
+      kind: entry.kind,
+      name,
+      status: "skip",
+      detail: "nothing to check",
+    };
+  }
   const outcomes: Outcome[] = [];
   for (const p of probes) {
     const r = await probe(p);
-    if (r.status === "ok")
-      return { id: entry.id, kind: entry.kind, name, status: "ok", detail: r.detail };
+    if (r.status === "ok") {
+      return {
+        id: entry.id,
+        kind: entry.kind,
+        name,
+        status: "ok",
+        detail: r.detail,
+      };
+    }
     outcomes.push(r);
   }
-  const status = outcomes.some(o => o.status === "blocked") ? "blocked" : "fail";
-  return { id: entry.id, kind: entry.kind, name, status, detail: outcomes.map(o => o.detail).join("; ") };
+  const status = outcomes.some(o => o.status === "blocked")
+    ? "blocked"
+    : "fail";
+  return {
+    id: entry.id,
+    kind: entry.kind,
+    name,
+    status,
+    detail: outcomes.map(o => o.detail).join("; "),
+  };
 }
 
 export interface Applied {
@@ -183,7 +231,11 @@ export function client(base: string, token: string): Call {
     const r = await fetch(`${base}/api${path}`, {
       method,
       headers: { "Authorization": `Bearer ${token}`, "Content-Type": "application/json" },
-      ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+      ...(body === undefined
+        ? {}
+        : {
+            body: JSON.stringify(body),
+          }),
     });
     if (!r.ok)
       throw new Error(`${method} ${path} → ${r.status}: ${(await r.text()).slice(0, 300)}`);
@@ -261,7 +313,9 @@ if (import.meta.main) {
     await main();
   }
   catch (err) {
-    console.error(err instanceof Error ? err.message : String(err));
+    console.error(err instanceof Error
+      ? err.message
+      : String(err));
     process.exit(1);
   }
 }

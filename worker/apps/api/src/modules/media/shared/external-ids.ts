@@ -23,7 +23,13 @@ export async function addExternalId(
   await assertOwner(db, ownerType, ownerId);
   const id = ulid();
   try {
-    await db.insert(mediaExternalIds).values({ id, ownerType, ownerId, source: input.source, externalId: input.externalId }).run();
+    await db.insert(mediaExternalIds).values({
+      id,
+      ownerType,
+      ownerId,
+      source: input.source,
+      externalId: input.externalId,
+    }).run();
   }
   catch (err) {
     if (isUniqueViolation(err))

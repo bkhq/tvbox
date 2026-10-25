@@ -100,17 +100,30 @@ async function readState(bucket: SubscriptionBucket, maxAgeMs = CACHE_TTL_MS) {
   const cached = cache.get(bucket);
   if (cached && Date.now() - cached.at < maxAgeMs)
     return cached;
-  const [devicesObject, snapshotObject] = await Promise.all([bucket.get(DEVICES_KEY), bucket.get(PUBLISHED_KEY)]);
-  const devices = new Map(Object.entries(devicesObject ? (JSON.parse(await devicesObject.text()) as DevicesFile).devices : {}));
-  const snapshot = snapshotObject ? JSON.parse(await snapshotObject.text()) as PublishedSnapshot : null;
-  const state = { at: Date.now(), devices, snapshot };
+  const [devicesObject, snapshotObject] = await Promise.all([
+    bucket.get(DEVICES_KEY),
+    bucket.get(PUBLISHED_KEY),
+  ]);
+  const devices = new Map(Object.entries(devicesObject
+    ? (JSON.parse(await devicesObject.text()) as DevicesFile).devices
+    : {}));
+  const snapshot = snapshotObject
+    ? JSON.parse(await snapshotObject.text()) as PublishedSnapshot
+    : null;
+  const state = {
+    at: Date.now(),
+    devices,
+    snapshot,
+  };
   cache.set(bucket, state);
   return state;
 }
 
 async function sha256Hex(value: string): Promise<string> {
   const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(value));
-  return [...new Uint8Array(digest)].map(b => b.toString(16).padStart(2, "0")).join("");
+  return [
+    ...new Uint8Array(digest),
+  ].map(b => b.toString(16).padStart(2, "0")).join("");
 }
 
 async function isBoundApp(request: Request, device: Device): Promise<boolean> {
@@ -155,8 +168,13 @@ export async function handleSubscription(request: Request, env: SubscriptionEnv,
       return notFound();
     // `@media/…` (a site's `api`, a live source's `url`) names this device's media library.
     const composed = composeForDevice(state.snapshot, device.upstreams);
-    const sites = Array.isArray(composed.sites) ? composed.sites : [];
-    const config = JSON.stringify({ ...composed, sites: [HOME_SITE, ...sites] })
+    const sites = Array.isArray(composed.sites)
+      ? composed.sites
+      : [];
+    const config = JSON.stringify({
+      ...composed,
+      sites: [HOME_SITE, ...sites],
+    })
       .replaceAll(`"${MEDIA_PLACEHOLDER}`, `"${new URL(request.url).origin}${SUBSCRIPTION_PREFIX}${token}/media/`);
     return new Response(config, {
       headers: { "content-type": CONTENT_TYPES.json!, "cache-control": "private, max-age=60" },

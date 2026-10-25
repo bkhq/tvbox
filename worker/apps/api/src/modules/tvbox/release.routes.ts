@@ -50,7 +50,9 @@ const registerSchema = z.object({
   })).min(1).max(32),
 });
 
-const idParam = z.object({ id: z.string() });
+const idParam = z.object({
+  id: z.string(),
+});
 
 /** CI registers a release here after uploading its APKs to the bucket. */
 export function releaseRawRoutes() {
@@ -63,7 +65,10 @@ export function releaseRawRoutes() {
       summary: "Register an app release",
       description: "Records a release whose binaries are already in the bucket, and republishes the update manifests of its app. For `tvbox` they are at `tvbox/releases/<versionCode>/<mode>-<abi>.apk`; for `rn` at `tvbox/rn/releases/<versionCode>/<mode>-<abi>.apk`, or `.ipa` for the `ios` and `tvos` modes. Re-registering a version of the same app replaces it. Authorized by the `release` service token.",
       security: SECURITY.serviceToken,
-      responses: { ...jsonCreated(releaseSchema, "Release registered"), ...errors(401, 422, 503) },
+      responses: {
+        ...jsonCreated(releaseSchema, "Release registered"),
+        ...errors(401, 422, 503),
+      },
     }),
     serviceTokenRequired("release"),
     validator("json", registerSchema),
@@ -78,7 +83,12 @@ export function releaseRawRoutes() {
         resourceType: "tvbox_release",
         resourceId: release.id,
         resourceName: release.versionName,
-        detail: { app: release.app, versionCode: release.versionCode, channel: release.channel, flavors: release.assets.length },
+        detail: {
+          app: release.app,
+          versionCode: release.versionCode,
+          channel: release.channel,
+          flavors: release.assets.length,
+        },
         ...auditMeta(c),
         result: "success",
       });
@@ -95,7 +105,15 @@ export function releaseRoutes() {
   router.use("/tvbox/releases", authRequired, adminRequired);
 
   const doc = (summary: string, responses: ReturnType<typeof jsonOk>) =>
-    describeRoute({ tags: [TAGS.Tvbox], summary, security: SECURITY.session, responses: { ...responses, ...errors(401, 403, 404, 422) } });
+    describeRoute({
+      tags: [TAGS.Tvbox],
+      summary,
+      security: SECURITY.session,
+      responses: {
+        ...responses,
+        ...errors(401, 403, 404, 422),
+      },
+    });
 
   const record = async (c: Context<AppEnv>, action: string, release: { id: string; versionName: string }, detail?: Record<string, unknown>) => {
     const user = c.get("user")!;
@@ -106,7 +124,9 @@ export function releaseRoutes() {
       resourceType: "tvbox_release",
       resourceId: release.id,
       resourceName: release.versionName,
-      ...(detail ? { detail } : {}),
+      ...(detail
+        ? { detail }
+        : {}),
       ...auditMeta(c),
       result: "success",
     });
@@ -119,7 +139,11 @@ export function releaseRoutes() {
     "/tvbox/releases/:id",
     doc("Change a release's channel or notes, or withdraw it", jsonOk(releaseSchema)),
     validator("param", idParam),
-    validator("json", z.object({ channel: channelSchema.optional(), notes: z.string().max(10_000).optional(), withdrawn: z.boolean().optional() })),
+    validator("json", z.object({
+      channel: channelSchema.optional(),
+      notes: z.string().max(10_000).optional(),
+      withdrawn: z.boolean().optional(),
+    })),
     async (c) => {
       const release = await updateRelease(c.get("db"), c.req.valid("param").id, c.req.valid("json"));
       await record(c, "tvbox.release.updated", release, c.req.valid("json"));

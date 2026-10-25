@@ -10,9 +10,20 @@ export type ImageOwner = "title" | "season" | "episode" | "person" | "collection
 export type ExternalSource = "tmdb" | "imdb" | "tvdb" | "douban";
 
 export const PUBLISH_STATES: readonly PublishState[] = ["draft", "published", "hidden"];
-export const TITLE_STATUSES: readonly TitleStatus[] = ["upcoming", "released", "returning", "ended", "canceled"];
+export const TITLE_STATUSES: readonly TitleStatus[] = [
+  "upcoming",
+  "released",
+  "returning",
+  "ended",
+  "canceled",
+];
 export const SEASON_STATUSES: readonly SeasonStatus[] = ["upcoming", "airing", "ended"];
-export const EPISODE_TYPES: readonly EpisodeType[] = ["standard", "premiere", "finale", "special"];
+export const EPISODE_TYPES: readonly EpisodeType[] = [
+  "standard",
+  "premiere",
+  "finale",
+  "special",
+];
 export const EXTERNAL_SOURCES: readonly ExternalSource[] = ["tmdb", "imdb", "tvdb", "douban"];
 
 export interface Category {
@@ -233,7 +244,12 @@ export const mediaKeys = {
   title: (id: string) => ["media", "title", id] as const,
   seasons: (titleId: string) => ["media", "seasons", titleId] as const,
   episodes: (seasonId: string) => ["media", "episodes", seasonId] as const,
-  sources: (owner: SourceOwner) => ["media", "sources", owner.kind, owner.id] as const,
+  sources: (owner: SourceOwner) => [
+    "media",
+    "sources",
+    owner.kind,
+    owner.id,
+  ] as const,
   streams: (sourceId: string) => ["media", "streams", sourceId] as const,
   people: (q: string, page: number) => ["media", "people", q, page] as const,
   credits: (titleId: string) => ["media", "credits", titleId] as const,
@@ -262,12 +278,19 @@ async function paged<T>(path: string): Promise<Paged<T>> {
 }
 
 function send(method: string, body?: unknown): RequestInit {
-  return body === undefined ? { method } : { method, body: JSON.stringify(body) };
+  return body === undefined
+    ? { method }
+    : {
+        method,
+        body: JSON.stringify(body),
+      };
 }
 
 function query(params: Record<string, string | number | undefined>): string {
   const entries = Object.entries(params).filter(([, v]) => v !== undefined && v !== "");
-  return entries.length ? `?${entries.map(([k, v]) => `${k}=${encodeURIComponent(String(v))}`).join("&")}` : "";
+  return entries.length
+    ? `?${entries.map(([k, v]) => `${k}=${encodeURIComponent(String(v))}`).join("&")}`
+    : "";
 }
 
 export const mediaApi = {
@@ -330,11 +353,20 @@ export const mediaApi = {
   addImage: (body: { ownerType: ImageOwner; ownerId: string; kind: ImageKind; url?: string; assetSha256?: string; assetName?: string }) => data<MediaImage>("/media/images", send("POST", body)),
   setPrimaryImage: (id: string) => data<MediaImage>(`/media/images/${id}`, send("PATCH", { isPrimary: true })),
   deleteImage: (id: string) => data<MediaImage>(`/media/images/${id}`, send("DELETE")),
-  uploadImage: (file: File) => data<{ sha256: string; name: string }>(`/media/images/upload?name=${encodeURIComponent(file.name)}`, { method: "POST", body: file, headers: { "Content-Type": "application/octet-stream" } }),
+  uploadImage: (file: File) => data<{ sha256: string; name: string }>(`/media/images/upload?name=${encodeURIComponent(file.name)}`, {
+    method: "POST",
+    body: file,
+    headers: { "Content-Type": "application/octet-stream" },
+  }),
 
   externalIds: (titleId: string) => data<ExternalId[]>(`/media/external-ids${query({ ownerType: "title", ownerId: titleId })}`),
   addExternalId: (titleId: string, source: ExternalSource, externalId: string) =>
-    data<ExternalId>("/media/external-ids", send("POST", { ownerType: "title", ownerId: String(titleId), source, externalId })),
+    data<ExternalId>("/media/external-ids", send("POST", {
+      ownerType: "title",
+      ownerId: String(titleId),
+      source,
+      externalId,
+    })),
   deleteExternalId: (id: string) => data<ExternalId>(`/media/external-ids/${id}`, send("DELETE")),
 
   translations: (titleId: string) => data<Translation[]>(`/media/titles/${titleId}/translations`),
@@ -373,5 +405,7 @@ export function splitList(text: string): string[] {
 
 /** An input's text as a nullable field: blank is null. */
 export function orNull(text: string): string | null {
-  return text.trim() === "" ? null : text.trim();
+  return text.trim() === ""
+    ? null
+    : text.trim();
 }

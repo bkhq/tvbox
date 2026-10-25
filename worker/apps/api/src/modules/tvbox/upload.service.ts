@@ -30,12 +30,25 @@ export async function storeUpload(db: AppDatabase, filename: string, data: Array
     throw new AppError(`The file is larger than ${MAX_UPLOAD_BYTES} bytes`, 413, "FILE_TOO_LARGE");
 
   const sha256 = hashHex("sha256", data);
-  const asset = { sha256, md5: hashHex("md5", data), name: assetName(`https://upload/${encodeURIComponent(filename)}`) };
+  const asset = {
+    sha256,
+    md5: hashHex("md5", data),
+    name: assetName(`https://upload/${encodeURIComponent(filename)}`),
+  };
   const sourceUrl = `upload:${sha256}`;
   const existing = await db.select().from(tvboxAssets).where(eq(tvboxAssets.sourceUrl, sourceUrl)).get();
   if (!existing) {
     await getActiveDriver().put(deriveStorageKey(sha256), data);
-    await db.insert(tvboxAssets).values({ id: ulid(), sourceUrl, ...asset, size: data.byteLength }).run();
+    await db.insert(tvboxAssets).values({
+      id: ulid(),
+      sourceUrl,
+      ...asset,
+      size: data.byteLength,
+    }).run();
   }
-  return { path: assetPath(asset), ...asset, size: data.byteLength };
+  return {
+    path: assetPath(asset),
+    ...asset,
+    size: data.byteLength,
+  };
 }

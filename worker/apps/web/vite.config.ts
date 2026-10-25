@@ -16,7 +16,9 @@ process.env.VITE_APP_DISPLAY_NAME = APP_DISPLAY_NAME;
 // under /mg, matching BASE_PATH in apps/api/wrangler.toml; the site root is
 // the Worker's download page.
 const trimmedBase = (process.env.BASE_PATH ?? "/mg").replace(/^\/+|\/+$/g, "");
-const base = trimmedBase ? `/${trimmedBase}/` : "/";
+const base = trimmedBase
+  ? `/${trimmedBase}/`
+  : "/";
 
 export default defineConfig({
   plugins: [

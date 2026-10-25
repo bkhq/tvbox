@@ -27,7 +27,9 @@ export interface HealthOutcome {
  * off are only recorded.
  */
 export async function applyHealth(db: AppDatabase, results: readonly HealthResult[]): Promise<HealthOutcome> {
-  const ids = [...new Set(results.map(r => r.id))];
+  const ids = [
+    ...new Set(results.map(r => r.id)),
+  ];
   if (ids.length === 0)
     return { recorded: 0, disabled: [], enabled: [] };
   // A run covers every entry, so load them all rather than list ids.

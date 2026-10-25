@@ -3,22 +3,48 @@ import { countsText, entrySubtitle, entryTitle, filterEntries, filterHealth, mov
 
 describe("entryTitle / entrySubtitle", () => {
   it("prefers the name, then the key", () => {
-    expect(entryTitle({ id: "1", upstreamKey: null, data: { name: "N", key: "k" } })).toBe("N");
-    expect(entryTitle({ id: "1", upstreamKey: null, data: { key: "k" } })).toBe("k");
+    expect(entryTitle({
+      id: "1",
+      upstreamKey: null,
+      data: { name: "N", key: "k" },
+    })).toBe("N");
+    expect(entryTitle({
+      id: "1",
+      upstreamKey: null,
+      data: { key: "k" },
+    })).toBe("k");
     expect(entryTitle({ id: "1", upstreamKey: "u", data: {} })).toBe("u");
     expect(entryTitle({ id: "1", upstreamKey: null, data: {} })).toBe("1");
   });
 
   it("describes a site by key and api, other entries by url or hosts", () => {
-    expect(entrySubtitle({ kind: "sites", data: { key: "k", api: "csp_A" } })).toBe("k · csp_A");
-    expect(entrySubtitle({ kind: "parses", data: { url: "https://p/" } })).toBe("https://p/");
-    expect(entrySubtitle({ kind: "rules", data: { hosts: ["a", "b"] } })).toBe("a, b");
+    expect(entrySubtitle({
+      kind: "sites",
+      data: { key: "k", api: "csp_A" },
+    })).toBe("k · csp_A");
+    expect(entrySubtitle({
+      kind: "parses",
+      data: { url: "https://p/" },
+    })).toBe("https://p/");
+    expect(entrySubtitle({
+      kind: "rules",
+      data: {
+        hosts: ["a", "b"],
+      },
+    })).toBe("a, b");
     expect(entrySubtitle({ kind: "rules", data: {} })).toBe("");
   });
 });
 
 describe("filterEntries", () => {
-  const rows = [{ data: { name: "Bilibili" } }, { data: { name: "Douban", ext: "x" } }];
+  const rows = [
+    {
+      data: { name: "Bilibili" },
+    },
+    {
+      data: { name: "Douban", ext: "x" },
+    },
+  ];
   it("matches anywhere in the JSON, ignoring case and surrounding space", () => {
     expect(filterEntries(rows, " BILI ")).toEqual([rows[0]]);
     expect(filterEntries(rows, "ext")).toEqual([rows[1]]);
@@ -44,9 +70,24 @@ describe("countsText", () => {
 
 describe("filterHealth", () => {
   const rows = [
-    { id: "a", healthStatus: "fail" as const, disabledByHealth: true, healthExempt: false },
-    { id: "b", healthStatus: "fail" as const, disabledByHealth: false, healthExempt: true },
-    { id: "c", healthStatus: "ok" as const, disabledByHealth: false, healthExempt: false },
+    {
+      id: "a",
+      healthStatus: "fail" as const,
+      disabledByHealth: true,
+      healthExempt: false,
+    },
+    {
+      id: "b",
+      healthStatus: "fail" as const,
+      disabledByHealth: false,
+      healthExempt: true,
+    },
+    {
+      id: "c",
+      healthStatus: "ok" as const,
+      disabledByHealth: false,
+      healthExempt: false,
+    },
   ];
   it("picks down, switched-off-by-check and forced-on entries", () => {
     expect(filterHealth(rows, "all")).toBe(rows);
@@ -58,7 +99,13 @@ describe("filterHealth", () => {
 
 describe("upstreamTree / upstreamLabel", () => {
   const up = (id: string, name: string, parentId: string | null = null) => ({ id, name, parentId });
-  const list = [up("a", "xiaosa"), up("c", "op"), up("l2", "Two", "c"), up("b", "a18"), up("l1", "One", "c")];
+  const list = [
+    up("a", "xiaosa"),
+    up("c", "op"),
+    up("l2", "Two", "c"),
+    up("b", "a18"),
+    up("l1", "One", "c"),
+  ];
 
   it("puts a collection's lines right after it", () => {
     expect(upstreamTree(list).map(r => [r.upstream.id, r.depth, r.lines])).toEqual([

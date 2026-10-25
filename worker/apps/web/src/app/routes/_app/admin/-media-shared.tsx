@@ -13,7 +13,10 @@ import { mediaApi, mediaKeys } from "./-media-api";
 
 export function Field({ label, children, className }: { label: string; children: ReactNode; className?: string }) {
   return (
-    <div className={className ? `space-y-1 ${className}` : "space-y-1"}>
+    <div className={className
+      ? `space-y-1 ${className}`
+      : "space-y-1"}
+    >
       <Label>{label}</Label>
       {children}
     </div>
@@ -22,7 +25,16 @@ export function Field({ label, children, className }: { label: string; children:
 
 export function StateBadge({ state }: { state: PublishState }) {
   const { t } = useTranslation("media");
-  return <Badge variant={state === "published" ? "default" : state === "hidden" ? "outline" : "secondary"}>{t(`state.${state}`)}</Badge>;
+  return (
+    <Badge variant={state === "published"
+      ? "default"
+      : state === "hidden"
+        ? "outline"
+        : "secondary"}
+    >
+      {t(`state.${state}`)}
+    </Badge>
+  );
 }
 
 /** A select over fixed values, labelled by `label`. */
@@ -71,7 +83,10 @@ export function TitleListEditor({ ids, onChange, max }: { ids: string[]; onChang
     enabled: q.trim() !== "",
   });
   const known = useQuery({
-    queryKey: mediaKeys.titles({ ids: ids.join(","), limit: 100 }),
+    queryKey: mediaKeys.titles({
+      ids: ids.join(","),
+      limit: 100,
+    }),
     queryFn: async () => (await Promise.all(ids.map(id => mediaApi.title(id).catch(() => null)))).filter((x): x is Title => x !== null),
     enabled: ids.length > 0,
   });

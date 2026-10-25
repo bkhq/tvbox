@@ -23,7 +23,10 @@ const NONE = "none";
 
 export function TitleEditor({ id, onClose }: { id: string; onClose: () => void }) {
   const { t } = useTranslation(["common", "media"]);
-  const title = useQuery({ queryKey: mediaKeys.title(id), queryFn: () => mediaApi.title(id) });
+  const title = useQuery({
+    queryKey: mediaKeys.title(id),
+    queryFn: () => mediaApi.title(id),
+  });
 
   return (
     <Dialog open onOpenChange={open => !open && onClose()}>
@@ -93,15 +96,21 @@ function InfoForm({ title }: { title: Title }) {
       status: form.status,
       statusLocked: form.statusLocked,
       releaseDate: orNull(form.releaseDate),
-      runtime: form.runtime.trim() ? Number(form.runtime) : null,
+      runtime: form.runtime.trim()
+        ? Number(form.runtime)
+        : null,
       originalLanguage: orNull(form.originalLanguage),
       originCountries: splitList(form.originCountries).map(c => c.toUpperCase()),
       overview: orNull(form.overview),
       tagline: orNull(form.tagline),
       contentRating: orNull(form.contentRating),
-      voteAverage: form.voteAverage.trim() ? Number(form.voteAverage) : null,
+      voteAverage: form.voteAverage.trim()
+        ? Number(form.voteAverage)
+        : null,
       popularity: Number(form.popularity) || 0,
-      collectionId: form.collectionId === NONE ? null : form.collectionId,
+      collectionId: form.collectionId === NONE
+        ? null
+        : form.collectionId,
       genreIds: form.genreIds,
       aliases: splitList(form.aliases).map(name => ({ name })),
     };
@@ -135,8 +144,13 @@ function InfoForm({ title }: { title: Title }) {
         <Field label={t("media:info.collection")}>
           <EnumSelect
             value={form.collectionId}
-            values={[NONE, ...(collections.data ?? []).map(c => c.id)]}
-            label={v => (v === NONE ? t("media:info.noCollection") : collections.data?.find(c => c.id === v)?.name ?? v)}
+            values={[
+              NONE,
+              ...(collections.data ?? []).map(c => c.id),
+            ]}
+            label={v => (v === NONE
+              ? t("media:info.noCollection")
+              : collections.data?.find(c => c.id === v)?.name ?? v)}
             onChange={v => set("collectionId", v)}
           />
         </Field>
@@ -154,7 +168,9 @@ function InfoForm({ title }: { title: Title }) {
                 key={g.id}
                 variant={on ? "default" : "outline"}
                 className="cursor-pointer"
-                onClick={() => set("genreIds", on ? form.genreIds.filter(x => x !== g.id) : [...form.genreIds, g.id])}
+                onClick={() => set("genreIds", on
+                  ? form.genreIds.filter(x => x !== g.id)
+                  : [...form.genreIds, g.id])}
               >
                 {g.name}
               </Badge>
@@ -169,16 +185,33 @@ function InfoForm({ title }: { title: Title }) {
   );
 }
 
-const EMPTY_TRANSLATION = { locale: "", title: "", overview: "", tagline: "" };
+const EMPTY_TRANSLATION = {
+  locale: "",
+  title: "",
+  overview: "",
+  tagline: "",
+};
 
 function Translations({ titleId }: { titleId: string }) {
   const { t } = useTranslation(["common", "media"]);
-  const list = useQuery({ queryKey: mediaKeys.translations(titleId), queryFn: () => mediaApi.translations(titleId) });
+  const list = useQuery({
+    queryKey: mediaKeys.translations(titleId),
+    queryFn: () => mediaApi.translations(titleId),
+  });
   const [form, setForm] = useState(EMPTY_TRANSLATION);
   const set = <K extends keyof typeof form>(key: K, value: string) => setForm(f => ({ ...f, [key]: value }));
-  const edit = (x: Translation) => setForm({ locale: x.locale, title: x.title ?? "", overview: x.overview ?? "", tagline: x.tagline ?? "" });
+  const edit = (x: Translation) => setForm({
+    locale: x.locale,
+    title: x.title ?? "",
+    overview: x.overview ?? "",
+    tagline: x.tagline ?? "",
+  });
   const save = useMediaMutation(
-    () => mediaApi.putTranslation(titleId, form.locale.trim(), { title: orNull(form.title), overview: orNull(form.overview), tagline: orNull(form.tagline) }),
+    () => mediaApi.putTranslation(titleId, form.locale.trim(), {
+      title: orNull(form.title),
+      overview: orNull(form.overview),
+      tagline: orNull(form.tagline),
+    }),
     () => setForm(EMPTY_TRANSLATION),
   );
   const remove = useMediaMutation((locale: string) => mediaApi.deleteTranslation(titleId, locale));
@@ -208,7 +241,10 @@ function Translations({ titleId }: { titleId: string }) {
 
 function ExternalIds({ titleId }: { titleId: string }) {
   const { t } = useTranslation(["common", "media"]);
-  const list = useQuery({ queryKey: mediaKeys.externalIds(titleId), queryFn: () => mediaApi.externalIds(titleId) });
+  const list = useQuery({
+    queryKey: mediaKeys.externalIds(titleId),
+    queryFn: () => mediaApi.externalIds(titleId),
+  });
   const [source, setSource] = useState<ExternalSource>("tmdb");
   const [value, setValue] = useState("");
   const add = useMediaMutation(() => mediaApi.addExternalId(titleId, source, value.trim()), () => setValue(""));
@@ -226,7 +262,14 @@ function ExternalIds({ titleId }: { titleId: string }) {
       ))}
       <div className="flex items-center gap-2">
         <EnumSelect className="w-28" value={source} values={EXTERNAL_SOURCES} label={v => v} onChange={setSource} />
-        <Input className="w-56" value={value} onChange={e => setValue(e.target.value)} placeholder={source === "tmdb" ? "movie:27205" : "tt0111161"} />
+        <Input
+          className="w-56"
+          value={value}
+          onChange={e => setValue(e.target.value)}
+          placeholder={source === "tmdb"
+            ? "movie:27205"
+            : "tt0111161"}
+        />
         <Button size="sm" disabled={!value.trim() || add.isPending} onClick={() => add.mutate(undefined)}>{t("media:add")}</Button>
       </div>
     </div>

@@ -17,11 +17,15 @@ export function lanAddress(value: string): URL | undefined {
   if (!match)
     return undefined;
   const [a, b, c, d] = match.slice(1, 5).map(Number) as [number, number, number, number];
-  const port = match[5] === undefined ? undefined : Number(match[5]);
+  const port = match[5] === undefined
+    ? undefined
+    : Number(match[5]);
   if ([a, b, c, d].some(o => o > 255) || (port !== undefined && (port < 1 || port > 65535)))
     return undefined;
   const lan = a === 10 || (a === 172 && b >= 16 && b <= 31) || (a === 192 && b === 168);
-  return lan ? new URL(`http://${value}/`) : undefined;
+  return lan
+    ? new URL(`http://${value}/`)
+    : undefined;
 }
 
 function cookie(request: Request, name: string): string | undefined {
@@ -33,7 +37,11 @@ function cookie(request: Request, name: string): string | undefined {
   return undefined;
 }
 
-const token = (value: string | undefined) => (value && TOKEN.test(value) ? value : undefined);
+function token(value: string | undefined) {
+  return value && TOKEN.test(value)
+    ? value
+    : undefined;
+}
 
 export function handleControl(request: Request): Response {
   const url = new URL(request.url);
@@ -45,14 +53,20 @@ export function handleControl(request: Request): Response {
 
   const name = `tv_${device}`;
   const saved = token(cookie(request, name));
-  const chosen = renew ? key : (saved ?? key);
+  const chosen = renew
+    ? key
+    : (saved ?? key);
   const to = new URL("/", address);
   to.searchParams.set("token", chosen);
   if (key !== chosen)
     to.searchParams.set("key", key);
   to.searchParams.set("d", device);
   to.searchParams.set("via", `${url.origin}${LINK_PATH}`);
-  const headers = new Headers({ "location": to.toString(), "cache-control": "no-store", "referrer-policy": "no-referrer" });
+  const headers = new Headers({
+    "location": to.toString(),
+    "cache-control": "no-store",
+    "referrer-policy": "no-referrer",
+  });
   if (chosen !== saved)
     headers.set("set-cookie", `${name}=${chosen}; ${COOKIE_ATTRIBUTES}`);
   return new Response(null, { status: 302, headers });

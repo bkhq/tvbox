@@ -59,7 +59,10 @@ const TMDB_IMAGE = "https://image.tmdb.org/t/p/w500";
 const FALLBACK_PREFIX = "tvbox/home/";
 
 async function getJson<T>(f: Fetch, url: string, headers: Record<string, string> = {}): Promise<T> {
-  const res = await f(url, { headers: { "user-agent": UA, ...headers }, signal: AbortSignal.timeout(TIMEOUT_MS) });
+  const res = await f(url, {
+    headers: { "user-agent": UA, ...headers },
+    signal: AbortSignal.timeout(TIMEOUT_MS),
+  });
   if (!res.ok)
     throw new Error(`${new URL(url).host} answered ${res.status}`);
   // Douban leaves raw control characters in strings.
@@ -87,11 +90,17 @@ function doubanVod(item: DoubanItem): HomeVod {
   return {
     vod_id: `msearch:db:${item.id}`,
     vod_name: item.title,
-    vod_pic: pic ? `${pic}${DOUBAN_PIC_REFERER}` : "",
-    vod_remarks: item.episodes_info || (rating > 0 ? `${rating.toFixed(1)}分` : ""),
+    vod_pic: pic
+      ? `${pic}${DOUBAN_PIC_REFERER}`
+      : "",
+    vod_remarks: item.episodes_info || (rating > 0
+      ? `${rating.toFixed(1)}分`
+      : ""),
     vod_year: item.year ?? "",
     vod_content: item.card_subtitle ?? "",
-    type_name: item.type === "tv" ? "剧集" : "电影",
+    type_name: item.type === "tv"
+      ? "剧集"
+      : "电影",
   };
 }
 
@@ -102,11 +111,19 @@ async function doubanCollection(f: Fetch, id: string, page: number): Promise<Cha
     { referer: "https://m.douban.com/" },
   );
   const list = (data.subject_collection_items ?? []).filter(i => i.id && i.title).map(doubanVod);
-  return { list, pagecount: Math.max(1, Math.ceil((data.total ?? list.length) / DOUBAN_PAGE)) };
+  return {
+    list,
+    pagecount: Math.max(1, Math.ceil((data.total ?? list.length) / DOUBAN_PAGE)),
+  };
 }
 
 function douban(id: string, ttl: number, name: string, collection: string): Row {
-  return { id, name, ttl, load: (page, { fetch }) => doubanCollection(fetch, collection, page) };
+  return {
+    id,
+    name,
+    ttl,
+    load: (page, { fetch }) => doubanCollection(fetch, collection, page),
+  };
 }
 
 // ─── iQiyi ───
@@ -146,7 +163,12 @@ function iqiyiRank(id: string, name: string, channel: number, typeName: string):
         };
       });
       // The chart is a few pages deep; an empty page is its end.
-      return { list, pagecount: list.length > 0 ? page + 1 : page };
+      return {
+        list,
+        pagecount: list.length > 0
+          ? page + 1
+          : page,
+      };
     },
   };
 }
@@ -163,11 +185,18 @@ interface NetflixEntry {
 /** The newest week's entries of the categories starting with `prefix` ("Films", "TV"), by rank, English first. */
 export function parseNetflixTop10(tsv: string, prefix: string): NetflixEntry[] {
   const rows = tsv.split("\n").slice(1).map(line => line.split("\t")).filter(c => c.length >= 5);
-  const week = rows.reduce((max, c) => (c[0]! > max ? c[0]! : max), "");
+  const week = rows.reduce((max, c) => (c[0]! > max
+    ? c[0]!
+    : max), "");
   return rows
     .filter(c => c[0] === week && c[1]!.startsWith(prefix))
     .sort((a, b) => Number(a[2]) - Number(b[2]) || a[1]!.localeCompare(b[1]!))
-    .map(c => ({ title: c[3]!, season: c[4] === "N/A" ? "" : c[4]! }));
+    .map(c => ({
+      title: c[3]!,
+      season: c[4] === "N/A"
+        ? ""
+        : c[4]!,
+    }));
 }
 
 interface TmdbResult {
@@ -184,7 +213,10 @@ interface TmdbResult {
 function tmdbHeaders(key: string): { url: string; headers: Record<string, string> } {
   // A v4 read access token is a JWT; a v3 key goes in the query.
   return key.startsWith("eyJ")
-    ? { url: "", headers: { authorization: `Bearer ${key}` } }
+    ? {
+        url: "",
+        headers: { authorization: `Bearer ${key}` },
+      }
     : { url: `&api_key=${encodeURIComponent(key)}`, headers: {} };
 }
 
@@ -202,11 +234,15 @@ function seasonLabel(season: string): string {
   const n = /Season (\d+)/.exec(season)?.[1];
   if (n)
     return `第${n}季`;
-  return season.endsWith("Limited Series") ? "迷你剧" : "";
+  return season.endsWith("Limited Series")
+    ? "迷你剧"
+    : "";
 }
 
 function netflix(id: string, name: string, prefix: "Films" | "TV"): Row {
-  const kind = prefix === "TV" ? "tv" : "movie";
+  const kind = prefix === "TV"
+    ? "tv"
+    : "movie";
   return {
     id,
     name,
@@ -215,7 +251,10 @@ function netflix(id: string, name: string, prefix: "Films" | "TV"): Row {
     load: async (page, { fetch, tmdbKey }) => {
       if (page > 1)
         return { list: [], pagecount: 1 };
-      const res = await fetch(NETFLIX_TSV, { headers: { "user-agent": UA }, signal: AbortSignal.timeout(TIMEOUT_MS) });
+      const res = await fetch(NETFLIX_TSV, {
+        headers: { "user-agent": UA },
+        signal: AbortSignal.timeout(TIMEOUT_MS),
+      });
       if (!res.ok)
         throw new Error(`netflix answered ${res.status}`);
       const entries = parseNetflixTop10(await res.text(), prefix);
@@ -230,11 +269,17 @@ function netflix(id: string, name: string, prefix: "Films" | "TV"): Row {
         list.push({
           vod_id: `msearch:tmdb:${kind}:${r.id}`,
           vod_name: r.title ?? r.name ?? e.title,
-          vod_pic: r.poster_path ? `${TMDB_IMAGE}${r.poster_path}` : "",
-          vod_remarks: seasonLabel(e.season) || (vote > 0 ? `${vote.toFixed(1)}分` : ""),
+          vod_pic: r.poster_path
+            ? `${TMDB_IMAGE}${r.poster_path}`
+            : "",
+          vod_remarks: seasonLabel(e.season) || (vote > 0
+            ? `${vote.toFixed(1)}分`
+            : ""),
           vod_year: (r.release_date ?? r.first_air_date ?? "").slice(0, 4),
           vod_content: r.overview ?? "",
-          type_name: kind === "tv" ? "剧集" : "电影",
+          type_name: kind === "tv"
+            ? "剧集"
+            : "电影",
         });
       }
       return { list, pagecount: 1 };
@@ -305,14 +350,20 @@ async function chart(row: Row, page: number, env: HomeEnv, origin: string, opts:
       throw new Error("empty chart");
     const body = JSON.stringify(fresh);
     await Promise.all([
-      cache?.put(cacheKey, new Response(body, { headers: { "content-type": "application/json", "cache-control": `public, max-age=${row.ttl}` } })),
-      fresh.list.length > 0 ? env.FILES?.put?.(fallbackKey, body) : undefined,
+      cache?.put(cacheKey, new Response(body, {
+        headers: { "content-type": "application/json", "cache-control": `public, max-age=${row.ttl}` },
+      })),
+      fresh.list.length > 0
+        ? env.FILES?.put?.(fallbackKey, body)
+        : undefined,
     ]);
     return fresh;
   }
   catch {
     const stale = await env.FILES?.get(fallbackKey).catch(() => null);
-    return stale ? JSON.parse(await stale.text()) as Chart : { list: [], pagecount: 1 };
+    return stale
+      ? JSON.parse(await stale.text()) as Chart
+      : { list: [], pagecount: 1 };
   }
 }
 
@@ -340,7 +391,9 @@ export async function handleHome(request: Request, env: HomeEnv, opts: HomeOptio
     if (!row)
       return json(body([], 1, 1), HOUR);
     const pg = Number(params.get("pg") ?? 1);
-    const page = Number.isSafeInteger(pg) && pg >= 1 && pg <= 100 ? pg : 1;
+    const page = Number.isSafeInteger(pg) && pg >= 1 && pg <= 100
+      ? pg
+      : 1;
     const { list, pagecount } = await chart(row, page, env, url.origin, opts);
     return json(body(list, page, pagecount), 300);
   }

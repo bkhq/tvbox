@@ -22,7 +22,12 @@ async function marked(kind: string): Promise<string[]> {
 
 describe("publishing marks what is live", () => {
   test("titles, seasons and episodes are marked by id; a later publish follows edits", async () => {
-    const live = await createTitle(db, { kind: "series", categoryId: "tv", title: "上线", publishState: "published" });
+    const live = await createTitle(db, {
+      kind: "series",
+      categoryId: "tv",
+      title: "上线",
+      publishState: "published",
+    });
     const draft = await createTitle(db, { kind: "movie", categoryId: "movie", title: "草稿" });
     const season = (await listSeasons(db, live.id))[0]!;
     await updateSeason(db, season.id, { publishState: "published" });

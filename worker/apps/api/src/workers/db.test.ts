@@ -25,8 +25,12 @@ function fakeDurableStorage(): DurableObjectStorage {
     let i = 0;
     return {
       toArray: () => rows,
-      raw: () => ({ toArray: () => arrays }),
-      next: () => (i < rows.length ? { value: rows[i++], done: false } : { value: undefined, done: true }),
+      raw: () => ({
+        toArray: () => arrays,
+      }),
+      next: () => (i < rows.length
+        ? { value: rows[i++], done: false }
+        : { value: undefined, done: true }),
     };
   }
 

@@ -60,7 +60,9 @@ export function streamJsonBackup(db: AppDatabase, selectedModules: string[]): {
           const mod = registry[modName];
           if (!mod)
             continue;
-          const source = mod.db ? mod.db() : db;
+          const source = mod.db
+            ? mod.db()
+            : db;
 
           for (const table of mod.tables) {
             const tableName = getTableName(table);
@@ -93,7 +95,9 @@ export function streamJsonBackup(db: AppDatabase, selectedModules: string[]): {
                 // `.all()` call, which we narrow to a record map.
                 const baseQuery = source.select().from(table).$dynamic();
 
-                const filtered = cursor === undefined ? baseQuery : baseQuery.where(gt(idColumn, cursor));
+                const filtered = cursor === undefined
+                  ? baseQuery
+                  : baseQuery.where(gt(idColumn, cursor));
                 const rows = await filtered.orderBy(asc(idColumn)).limit(STREAM_BATCH_SIZE).all() as Record<string, unknown>[];
                 if (rows.length === 0)
                   break;

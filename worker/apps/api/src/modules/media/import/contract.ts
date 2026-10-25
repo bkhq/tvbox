@@ -48,7 +48,12 @@ export const importSeasonSchema = z.object({
 export const importTitleSchema = z.object({
   kind: z.enum(["movie", "series"]),
   /** At least `tmdb`; its value is `movie:<id>` or `tv:<id>` (TMDB's id spaces overlap). */
-  externalIds: z.object({ tmdb: text(64).min(1), imdb: text(64).optional(), tvdb: text(64).optional(), douban: text(64).optional() }),
+  externalIds: z.object({
+    tmdb: text(64).min(1),
+    imdb: text(64).optional(),
+    tvdb: text(64).optional(),
+    douban: text(64).optional(),
+  }),
   categoryId: text(32).min(1),
   title: text(200).min(1),
   originalTitle: nullableText(200).optional(),
@@ -58,7 +63,13 @@ export const importTitleSchema = z.object({
   tagline: nullableText(300).optional(),
   releaseDate: isoDate.nullable().optional(),
   runtime: z.number().int().min(0).max(10_000).nullable().optional(),
-  status: z.enum(["upcoming", "released", "returning", "ended", "canceled"]).optional(),
+  status: z.enum([
+    "upcoming",
+    "released",
+    "returning",
+    "ended",
+    "canceled",
+  ]).optional(),
   contentRating: nullableText(20).optional(),
   isAdult: z.boolean().optional(),
   voteAverage: z.number().min(0).max(10).nullable().optional(),
@@ -68,19 +79,35 @@ export const importTitleSchema = z.object({
   origin: text(200).min(1).optional(),
   sort: z.number().int().optional(),
   genreIds: z.array(text(64)).max(20).optional(),
-  translations: z.array(z.object({ locale, title: nullableText(200).optional(), overview: nullableText(5000).optional(), tagline: nullableText(300).optional() })).max(50).optional(),
+  translations: z.array(z.object({
+    locale,
+    title: nullableText(200).optional(),
+    overview: nullableText(5000).optional(),
+    tagline: nullableText(300).optional(),
+  })).max(50).optional(),
   images: z.array(importImageSchema).max(20).optional(),
-  collection: z.object({ externalId: text(64).min(1), name: text(200).min(1), overview: nullableText(5000).optional() }).nullable().optional(),
+  collection: z.object({
+    externalId: text(64).min(1),
+    name: text(200).min(1),
+    overview: nullableText(5000).optional(),
+  }).nullable().optional(),
   seasons: z.array(importSeasonSchema).max(200).optional(),
   credits: z.array(importCreditSchema).max(100).optional(),
 });
 
-export const importBodySchema = z.object({ titles: z.array(importTitleSchema).min(1).max(50) });
+export const importBodySchema = z.object({
+  titles: z.array(importTitleSchema).min(1).max(50),
+});
 
 export const importResultSchema = z.object({
   externalId: z.string(),
   id: z.string().nullable(),
-  action: z.enum(["created", "updated", "unchanged", "skipped"]),
+  action: z.enum([
+    "created",
+    "updated",
+    "unchanged",
+    "skipped",
+  ]),
 });
 
 export type ImportTitle = z.infer<typeof importTitleSchema>;

@@ -92,7 +92,9 @@ const TOTP_PENDING_COOKIE_PROD = "__Secure-totp_pending";
 const TOTP_PENDING_COOKIE_DEV = "totp_pending";
 
 function totpPendingCookieName(env: "production" | "development" | "test"): string {
-  return env === "production" ? TOTP_PENDING_COOKIE_PROD : TOTP_PENDING_COOKIE_DEV;
+  return env === "production"
+    ? TOTP_PENDING_COOKIE_PROD
+    : TOTP_PENDING_COOKIE_DEV;
 }
 
 // Browser-side `state` binding — closes the gap where PKCE alone proves
@@ -103,7 +105,9 @@ const OAUTH_STATE_COOKIE_DEV = "oauth_state";
 const OAUTH_STATE_TTL_SECONDS = 10 * 60;
 
 function oauthStateCookieName(env: "production" | "development" | "test"): string {
-  return env === "production" ? OAUTH_STATE_COOKIE_PROD : OAUTH_STATE_COOKIE_DEV;
+  return env === "production"
+    ? OAUTH_STATE_COOKIE_PROD
+    : OAUTH_STATE_COOKIE_DEV;
 }
 
 // --- Per-IP rate limiter for auth endpoints ---
@@ -127,7 +131,12 @@ export function rateLimitKey(c: Context<AppEnv>): string {
 
 /** Returns 0 when allowed, else seconds remaining until the bucket resets. */
 function checkAuthRateLimit(ip: string): Promise<number> {
-  return consumeRateLimit({ bucket: "auth", key: ip, windowMs: AUTH_RATE_WINDOW_MS, max: AUTH_RATE_MAX });
+  return consumeRateLimit({
+    bucket: "auth",
+    key: ip,
+    windowMs: AUTH_RATE_WINDOW_MS,
+    max: AUTH_RATE_MAX,
+  });
 }
 
 // --- Per-username lockout for single-user login ---
@@ -242,7 +251,10 @@ export function authRoutes() {
         const retryAfter = await checkAuthRateLimit(rateLimitKey(c));
         if (retryAfter > 0) {
           c.header("Retry-After", String(retryAfter));
-          return c.json({ success: false, error: { code: "RATE_LIMITED", message: "Too many requests" } }, 429);
+          return c.json({
+            success: false,
+            error: { code: "RATE_LIMITED", message: "Too many requests" },
+          }, 429);
         }
       }
       const config = c.get("config");
@@ -271,7 +283,9 @@ export function authRoutes() {
         appConfig: config,
         callbackUrl,
         state,
-        codeChallenge: oauth.pkce ? await codeChallenge : undefined,
+        codeChallenge: oauth.pkce
+          ? await codeChallenge
+          : undefined,
       });
 
       // Bind `state` to this browser via an httpOnly cookie. /callback rejects
@@ -306,7 +320,10 @@ export function authRoutes() {
         const retryAfter = await checkAuthRateLimit(rateLimitKey(c));
         if (retryAfter > 0) {
           c.header("Retry-After", String(retryAfter));
-          return c.json({ success: false, error: { code: "RATE_LIMITED", message: "Too many requests" } }, 429);
+          return c.json({
+            success: false,
+            error: { code: "RATE_LIMITED", message: "Too many requests" },
+          }, 429);
         }
       }
       const db = c.get("db");
@@ -389,7 +406,9 @@ export function authRoutes() {
       }
       catch (err) {
         logger.error({
-          err: err instanceof Error ? err.message : String(err),
+          err: err instanceof Error
+            ? err.message
+            : String(err),
           code: (err as { code?: unknown }).code,
         }, "OAuth token exchange failed");
         return c.redirect(buildLoginErrorUrl(base, "oidc_error", "Token exchange failed"), 302);
@@ -403,7 +422,11 @@ export function authRoutes() {
         idTokenSub = readIdTokenSub(tokens.id_token);
       }
       catch (err) {
-        logger.error({ err: err instanceof Error ? err.message : String(err) }, "OAuth id_token rejected");
+        logger.error({
+          err: err instanceof Error
+            ? err.message
+            : String(err),
+        }, "OAuth id_token rejected");
         return c.redirect(buildLoginErrorUrl(base, "oidc_error", "Invalid id_token"), 302);
       }
       let userInfo;
@@ -418,7 +441,11 @@ export function authRoutes() {
         });
       }
       catch (err) {
-        logger.error({ err: err instanceof Error ? err.message : String(err) }, "OAuth userinfo fetch failed");
+        logger.error({
+          err: err instanceof Error
+            ? err.message
+            : String(err),
+        }, "OAuth userinfo fetch failed");
         return c.redirect(buildLoginErrorUrl(base, "oidc_error", "Userinfo fetch failed"), 302);
       }
       const user = await upsertUser(db, userInfo, authCfg, logger);
@@ -514,9 +541,19 @@ export function authRoutes() {
           if (!isSingleUserSession(result.session.accessToken)) {
             try {
               const oauth = getOAuthConfig(config);
-              await revokeToken({ oauth, appConfig: config, token: result.session.accessToken, hint: "access_token" });
+              await revokeToken({
+                oauth,
+                appConfig: config,
+                token: result.session.accessToken,
+                hint: "access_token",
+              });
               if (result.session.refreshToken) {
-                await revokeToken({ oauth, appConfig: config, token: result.session.refreshToken, hint: "refresh_token" });
+                await revokeToken({
+                  oauth,
+                  appConfig: config,
+                  token: result.session.refreshToken,
+                  hint: "refresh_token",
+                });
               }
             }
             catch { /* non-critical */ }
@@ -552,13 +589,18 @@ export function authRoutes() {
       summary: "OIDC logout URL",
       description: "Public. Returns the IdP end-session URL used for account switching (null when not configured).",
       responses: {
-        ...jsonOk(z.object({ url: z.string().nullable() }), "Logout URL"),
+        ...jsonOk(z.object({
+          url: z.string().nullable(),
+        }), "Logout URL"),
       },
     }),
     async (c) => {
       const config = c.get("config");
       const url = getOidcLogoutUrl(config);
-      return c.json({ success: true, data: { url } });
+      return c.json({
+        success: true,
+        data: { url },
+      });
     },
   );
 
@@ -582,7 +624,10 @@ export function authRoutes() {
       summary: "Login mode",
       description: "Public. Tells the SPA which login UI to render (OAuth vs. single-user) and whether OAuth is configured.",
       responses: {
-        ...jsonOk(z.object({ mode: z.enum(["single-user", "oauth"]), oauthConfigured: z.boolean() }), "Login mode"),
+        ...jsonOk(z.object({
+          mode: z.enum(["single-user", "oauth"]),
+          oauthConfigured: z.boolean(),
+        }), "Login mode"),
       },
     }),
     (c) => {
@@ -590,7 +635,9 @@ export function authRoutes() {
       return c.json({
         success: true,
         data: {
-          mode: isSingleUserMode(config) ? "single-user" : "oauth",
+          mode: isSingleUserMode(config)
+            ? "single-user"
+            : "oauth",
           oauthConfigured: isOAuthConfigured(config),
         },
       });
@@ -605,7 +652,11 @@ export function authRoutes() {
       summary: "Single-user login",
       description: "Public. Username/password login for single-user mode. Uses timing-safe verification and a per-username lockout.",
       responses: {
-        ...jsonOk(z.object({ id: z.string(), username: z.string(), name: z.string() }), "Logged in"),
+        ...jsonOk(z.object({
+          id: z.string(),
+          username: z.string(),
+          name: z.string(),
+        }), "Logged in"),
         ...errors(400, 401, 404, 429),
       },
     }),
@@ -614,7 +665,10 @@ export function authRoutes() {
         const retryAfter = await checkAuthRateLimit(rateLimitKey(c));
         if (retryAfter > 0) {
           c.header("Retry-After", String(retryAfter));
-          return c.json({ success: false, error: { code: "RATE_LIMITED", message: "Too many requests" } }, 429);
+          return c.json({
+            success: false,
+            error: { code: "RATE_LIMITED", message: "Too many requests" },
+          }, 429);
         }
       }
 
@@ -623,7 +677,10 @@ export function authRoutes() {
       const logger = c.get("logger");
 
       if (!isSingleUserMode(config)) {
-        return c.json({ success: false, error: { code: "SINGLE_USER_DISABLED", message: "Single-user mode is not enabled" } }, 404);
+        return c.json({
+          success: false,
+          error: { code: "SINGLE_USER_DISABLED", message: "Single-user mode is not enabled" },
+        }, 404);
       }
 
       let body: { username?: unknown; password?: unknown };
@@ -631,13 +688,23 @@ export function authRoutes() {
         body = await c.req.json();
       }
       catch {
-        return c.json({ success: false, error: { code: "INVALID_BODY", message: "Invalid JSON body" } }, 400);
+        return c.json({
+          success: false,
+          error: { code: "INVALID_BODY", message: "Invalid JSON body" },
+        }, 400);
       }
 
-      const usernameRaw = typeof body.username === "string" ? body.username : "";
-      const password = typeof body.password === "string" ? body.password : "";
+      const usernameRaw = typeof body.username === "string"
+        ? body.username
+        : "";
+      const password = typeof body.password === "string"
+        ? body.password
+        : "";
       if (!usernameRaw || !password) {
-        return c.json({ success: false, error: { code: "INVALID_CREDENTIALS", message: "Invalid credentials" } }, 400);
+        return c.json({
+          success: false,
+          error: { code: "INVALID_CREDENTIALS", message: "Invalid credentials" },
+        }, 400);
       }
 
       const single = getSingleUserConfig(config);
@@ -650,7 +717,10 @@ export function authRoutes() {
         if (lock.locked) {
           c.header("Retry-After", String(lock.retryAfterSeconds));
           return c.json(
-            { success: false, error: { code: "ACCOUNT_LOCKED", message: "Account temporarily locked. Try again later." } },
+            {
+              success: false,
+              error: { code: "ACCOUNT_LOCKED", message: "Account temporarily locked. Try again later." },
+            },
             429,
           );
         }
@@ -670,7 +740,9 @@ export function authRoutes() {
         // runtime refuses at this cost. That is a server fault, not a bad
         // credential: answering 401 would blame the operator's password,
         // record a lockout failure against them, and hide the real problem.
-        const reason = err instanceof Error ? err.message : String(err);
+        const reason = err instanceof Error
+          ? err.message
+          : String(err);
         logger.error({ err: reason }, "single-user password verify failed");
         throw new AppError("Password verification is unavailable on this runtime", 500, "PASSWORD_VERIFY_UNAVAILABLE");
       }
@@ -687,11 +759,16 @@ export function authRoutes() {
           resourceType: "auth",
           resourceId: "",
           resourceName: "single-user",
-          detail: { username: usernameRaw.slice(0, 64) },
+          detail: {
+            username: usernameRaw.slice(0, 64),
+          },
           ...auditMeta(c),
           result: "failure",
         });
-        return c.json({ success: false, error: { code: "INVALID_CREDENTIALS", message: "Invalid credentials" } }, 401);
+        return c.json({
+          success: false,
+          error: { code: "INVALID_CREDENTIALS", message: "Invalid credentials" },
+        }, 401);
       }
 
       await clearSingleUserFailures(db, single.username);
@@ -724,7 +801,10 @@ export function authRoutes() {
         result: "success",
       });
 
-      return c.json({ success: true, data: { id: user.id, username: user.username, name: user.name } });
+      return c.json({
+        success: true,
+        data: { id: user.id, username: user.username, name: user.name },
+      });
     },
   );
 
@@ -736,7 +816,9 @@ export function authRoutes() {
       summary: "Verify TOTP challenge",
       description: "Public. Completes login by verifying the 6-digit TOTP code against the pending challenge cookie, then creates the session. Per-user lockout applies.",
       responses: {
-        ...jsonOk(z.object({ redirect: z.string() }), "Verified, session created"),
+        ...jsonOk(z.object({
+          redirect: z.string(),
+        }), "Verified, session created"),
         ...errors(400, 429),
       },
     }),
@@ -745,7 +827,10 @@ export function authRoutes() {
         const retryAfter = await checkAuthRateLimit(rateLimitKey(c));
         if (retryAfter > 0) {
           c.header("Retry-After", String(retryAfter));
-          return c.json({ success: false, error: { code: "RATE_LIMITED", message: "Too many requests" } }, 429);
+          return c.json({
+            success: false,
+            error: { code: "RATE_LIMITED", message: "Too many requests" },
+          }, 429);
         }
       }
       const db = c.get("db");
@@ -754,13 +839,21 @@ export function authRoutes() {
       const challengeId = getCookie(c, totpPendingCookieName(config.NODE_ENV))
         ?? getCookie(c, TOTP_PENDING_COOKIE_DEV);
       if (!challengeId) {
-        return c.json({ success: false, error: { code: "NO_PENDING_TOTP", message: "No pending TOTP challenge" } }, 400);
+        return c.json({
+          success: false,
+          error: { code: "NO_PENDING_TOTP", message: "No pending TOTP challenge" },
+        }, 400);
       }
 
       const body = await c.req.json();
-      const code = typeof body.code === "string" ? body.code : "";
+      const code = typeof body.code === "string"
+        ? body.code
+        : "";
       if (code.length !== 6) {
-        return c.json({ success: false, error: { code: "INVALID_CODE", message: "Code must be 6 digits" } }, 400);
+        return c.json({
+          success: false,
+          error: { code: "INVALID_CODE", message: "Code must be 6 digits" },
+        }, 400);
       }
 
       const challenge = await consumeTotpChallenge(db, challengeId);
@@ -769,7 +862,10 @@ export function authRoutes() {
           path: cookiePath(config.BASE_PATH),
           secure: config.NODE_ENV === "production",
         });
-        return c.json({ success: false, error: { code: "EXPIRED_CHALLENGE", message: "TOTP challenge expired, please login again" } }, 400);
+        return c.json({
+          success: false,
+          error: { code: "EXPIRED_CHALLENGE", message: "TOTP challenge expired, please login again" },
+        }, 400);
       }
 
       // Per-user lockout precedes verifyTotpCode so 5 wrong codes from rotating
@@ -783,7 +879,10 @@ export function authRoutes() {
         });
         c.header("Retry-After", String(lockState.retryAfterSeconds));
         return c.json(
-          { success: false, error: { code: "TOTP_USER_LOCKED", message: "Too many failed attempts. Restart login after the lockout expires." } },
+          {
+            success: false,
+            error: { code: "TOTP_USER_LOCKED", message: "Too many failed attempts. Restart login after the lockout expires." },
+          },
           429,
         );
       }
@@ -801,7 +900,10 @@ export function authRoutes() {
           });
           c.header("Retry-After", String(stateAfter.retryAfterSeconds));
           return c.json(
-            { success: false, error: { code: "TOTP_USER_LOCKED", message: "Too many failed attempts. Restart login after the lockout expires." } },
+            {
+              success: false,
+              error: { code: "TOTP_USER_LOCKED", message: "Too many failed attempts. Restart login after the lockout expires." },
+            },
             429,
           );
         }
@@ -821,7 +923,10 @@ export function authRoutes() {
           path: cookiePath(config.BASE_PATH),
           maxAge: 300,
         });
-        return c.json({ success: false, error: { code: "TOTP_VERIFY_FAILED", message: "Invalid TOTP code" } }, 400);
+        return c.json({
+          success: false,
+          error: { code: "TOTP_VERIFY_FAILED", message: "Invalid TOTP code" },
+        }, 400);
       }
 
       deleteCookie(c, totpPendingCookieName(config.NODE_ENV), {
@@ -855,7 +960,12 @@ export function authRoutes() {
         result: "success",
       });
 
-      return c.json({ success: true, data: { redirect: sanitizeRedirect(challenge.redirectUri, config.BASE_PATH) } });
+      return c.json({
+        success: true,
+        data: {
+          redirect: sanitizeRedirect(challenge.redirectUri, config.BASE_PATH),
+        },
+      });
     },
   );
 

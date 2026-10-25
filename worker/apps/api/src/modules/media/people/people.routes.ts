@@ -77,7 +77,11 @@ export function peopleRoutes() {
     async (c) => {
       const query = c.req.valid("query");
       const { items, total } = await listPeople(requireMediaDb(), query);
-      return c.json({ success: true, data: items, meta: { total, page: query.page, limit: query.limit } });
+      return c.json({
+        success: true,
+        data: items,
+        meta: { total, page: query.page, limit: query.limit },
+      });
     },
   );
 
@@ -92,7 +96,9 @@ export function peopleRoutes() {
 
   router.get(
     "/media/people/:id/credits",
-    doc("A person's credits across titles", jsonOk(z.array(creditSchema.omit({ personName: true }).extend({ title: z.string() })))),
+    doc("A person's credits across titles", jsonOk(z.array(creditSchema.omit({ personName: true }).extend({
+      title: z.string(),
+    })))),
     validator("param", idParam),
     async c => c.json({ success: true, data: await personCredits(requireMediaDb(), c.req.valid("param").id) }),
   );
@@ -113,10 +119,14 @@ export function peopleRoutes() {
     "/media/titles/:id/credits",
     doc("A title's credits; seasonId=none for the title-wide ones, an id for one season's", jsonOk(z.array(creditSchema))),
     validator("param", idParam),
-    validator("query", z.object({ seasonId: z.string().min(1).max(64).optional() })),
+    validator("query", z.object({
+      seasonId: z.string().min(1).max(64).optional(),
+    })),
     async (c) => {
       const { seasonId } = c.req.valid("query");
-      const data = await listCredits(requireMediaDb(), c.req.valid("param").id, seasonId === "none" ? null : seasonId);
+      const data = await listCredits(requireMediaDb(), c.req.valid("param").id, seasonId === "none"
+        ? null
+        : seasonId);
       return c.json({ success: true, data });
     },
   );
@@ -127,10 +137,15 @@ export function peopleRoutes() {
     return c.json({ success: true, data: row }, 201);
   });
 
-  router.post("/media/credits/reorder", doc("Reorder credits", jsonOk(z.object({ count: z.number() }))), validator("json", reorderBody), async (c) => {
+  router.post("/media/credits/reorder", doc("Reorder credits", jsonOk(z.object({
+    count: z.number(),
+  }))), validator("json", reorderBody), async (c) => {
     const { ids } = c.req.valid("json");
     await reorderCredits(requireMediaDb(), ids);
-    return c.json({ success: true, data: { count: ids.length } });
+    return c.json({
+      success: true,
+      data: { count: ids.length },
+    });
   });
 
   router.patch("/media/credits/:id", doc("Update a credit", jsonOk(creditSchema)), validator("param", idParam), validator("json", creditFields.partial()), async (c) => {

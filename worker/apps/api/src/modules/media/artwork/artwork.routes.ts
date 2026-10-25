@@ -51,7 +51,10 @@ export function artworkRoutes() {
   router.get(
     "/media/images",
     doc("List an owner's images", jsonOk(z.array(imageSchema))),
-    validator("query", z.object({ ownerType: z.enum(IMAGE_OWNER_TYPES), ownerId: z.string().min(1).max(64) })),
+    validator("query", z.object({
+      ownerType: z.enum(IMAGE_OWNER_TYPES),
+      ownerId: z.string().min(1).max(64),
+    })),
     async (c) => {
       const { ownerType, ownerId } = c.req.valid("query");
       return c.json({ success: true, data: await listImages(requireMediaDb(), ownerType, ownerId) });
@@ -61,7 +64,11 @@ export function artworkRoutes() {
   router.post(
     "/media/images",
     doc("Add an image by URL or by an uploaded asset; the first of a kind is primary", jsonCreated(imageSchema)),
-    validator("json", imageFields.extend({ ownerType: z.enum(IMAGE_OWNER_TYPES), ownerId: z.string().min(1).max(64), kind: z.enum(IMAGE_KINDS) })),
+    validator("json", imageFields.extend({
+      ownerType: z.enum(IMAGE_OWNER_TYPES),
+      ownerId: z.string().min(1).max(64),
+      kind: z.enum(IMAGE_KINDS),
+    })),
     async (c) => {
       const { ownerType, ownerId, ...input } = c.req.valid("json");
       const row = await addImage(requireMediaDb(), ownerType, ownerId, input);
@@ -72,12 +79,27 @@ export function artworkRoutes() {
 
   router.post(
     "/media/images/upload",
-    doc("Upload an image file; reference it with the returned sha256 and name", jsonCreated(z.object({ sha256: z.string(), name: z.string(), path: z.string(), size: z.number() }))),
-    validator("query", z.object({ name: z.string().min(1).max(200) })),
+    doc("Upload an image file; reference it with the returned sha256 and name", jsonCreated(z.object({
+      sha256: z.string(),
+      name: z.string(),
+      path: z.string(),
+      size: z.number(),
+    }))),
+    validator("query", z.object({
+      name: z.string().min(1).max(200),
+    })),
     async (c) => {
       const stored = await storeUpload(c.get("db"), c.req.valid("query").name, await c.req.arrayBuffer());
       await record(c, "media.image.uploaded", { type: "media_image", id: stored.sha256, name: stored.name }, { size: stored.size });
-      return c.json({ success: true, data: { sha256: stored.sha256, name: stored.name, path: stored.path, size: stored.size } }, 201);
+      return c.json({
+        success: true,
+        data: {
+          sha256: stored.sha256,
+          name: stored.name,
+          path: stored.path,
+          size: stored.size,
+        },
+      }, 201);
     },
   );
 
@@ -85,7 +107,9 @@ export function artworkRoutes() {
     "/media/images/:id",
     doc("Update an image or make it primary", jsonOk(imageSchema)),
     validator("param", idParam),
-    validator("json", imageFields.extend({ sort: z.number().int().optional() })),
+    validator("json", imageFields.extend({
+      sort: z.number().int().optional(),
+    })),
     async (c) => {
       const row = await updateImage(requireMediaDb(), c.req.valid("param").id, c.req.valid("json"));
       await record(c, "media.image.updated", { type: "media_image", id: row.id, name: row.kind }, { ownerType: row.ownerType, ownerId: row.ownerId });
@@ -102,7 +126,10 @@ export function artworkRoutes() {
   router.get(
     "/media/external-ids",
     doc("List an owner's external ids", jsonOk(z.array(externalIdSchema))),
-    validator("query", z.object({ ownerType: z.enum(EXTERNAL_OWNER_TYPES), ownerId: z.string().min(1).max(64) })),
+    validator("query", z.object({
+      ownerType: z.enum(EXTERNAL_OWNER_TYPES),
+      ownerId: z.string().min(1).max(64),
+    })),
     async (c) => {
       const { ownerType, ownerId } = c.req.valid("query");
       return c.json({ success: true, data: await listExternalIds(requireMediaDb(), ownerType, ownerId) });

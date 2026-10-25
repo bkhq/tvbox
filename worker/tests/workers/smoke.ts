@@ -227,18 +227,26 @@ const cases: Case[] = [
         body: JSON.stringify(body),
       });
 
-      const bulk = await post("/entries/bulk", { ids: all.data.map(e => e.id), enabled: true });
+      const bulk = await post("/entries/bulk", {
+        ids: all.data.map(e => e.id),
+        enabled: true,
+      });
       assert(bulk.status === 200, `bulk update returned ${bulk.status}`);
       await bulk.text();
 
       const sites = all.data.filter(e => e.kind === "sites").map(e => e.id);
-      const reorder = await post("/entries/reorder", { kind: "sites", ids: [...sites].reverse() });
+      const reorder = await post("/entries/reorder", {
+        kind: "sites",
+        ids: [...sites].reverse(),
+      });
       assert(reorder.status === 200, `reordering ${sites.length} sites returned ${reorder.status}`);
       await reorder.text();
       const back = await post("/entries/reorder", { kind: "sites", ids: sites });
       await back.text();
 
-      const health = await post("/health", { results: all.data.map(e => ({ id: e.id, status: "ok", detail: "smoke" })) });
+      const health = await post("/health", {
+        results: all.data.map(e => ({ id: e.id, status: "ok", detail: "smoke" })),
+      });
       assert(health.status === 200, `the health report returned ${health.status}`);
       const outcome = await json<{ data: { recorded: number } }>(health);
       assert(outcome.data.recorded === all.data.length, "the health report did not record every entry");
@@ -269,7 +277,15 @@ const cases: Case[] = [
       const common = await call(`${BASE_PATH}/api/tvbox/entries`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ kind: "sites", data: { key: "smoke-common", name: "Common", type: 3, api: "csp_Smoke" } }),
+        body: JSON.stringify({
+          kind: "sites",
+          data: {
+            key: "smoke-common",
+            name: "Common",
+            type: 3,
+            api: "csp_Smoke",
+          },
+        }),
       });
       assert(common.status === 201, `adding a common entry returned ${common.status}`);
       await common.text();
@@ -302,7 +318,17 @@ const cases: Case[] = [
   {
     name: "a TVBox app links through the root enroll path once approved, bound by its device key",
     async run() {
-      const report = { action: "request", code: "SMKE-2345", deviceId: "02:00:00:00:00:01", name: "smoke tv", model: "Smoke Box", mode: "leanback", abi: "arm64_v8a", versionCode: 10002, versionName: "1.0.2" };
+      const report = {
+        action: "request",
+        code: "SMKE-2345",
+        deviceId: "02:00:00:00:00:01",
+        name: "smoke tv",
+        model: "Smoke Box",
+        mode: "leanback",
+        abi: "arm64_v8a",
+        versionCode: 10002,
+        versionName: "1.0.2",
+      };
       const enroll = async () => json<{ status: string; subscription?: string; deviceKey?: string }>(await fetch(`${baseUrl}/api/raw/tvbox/enroll`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -325,7 +351,9 @@ const cases: Case[] = [
       assert(answer.status === "approved" && answer.subscription, `an approved code answered ${answer.status}`);
       assert(answer.deviceKey, "an app that can send a device key got none");
       const path = new URL(answer.subscription).pathname;
-      const asApp = { headers: { "X-Device-Id": report.deviceId, "X-Device-Key": answer.deviceKey } };
+      const asApp = {
+        headers: { "X-Device-Id": report.deviceId, "X-Device-Key": answer.deviceKey },
+      };
       let res = await fetch(`${baseUrl}${path}`, asApp);
       for (let i = 0; i < 5 && res.status === 404; i++) {
         await res.text();
@@ -347,7 +375,18 @@ const cases: Case[] = [
   {
     name: "release registration needs the service token and an uploaded APK",
     async run() {
-      const body = JSON.stringify({ versionCode: 1, versionName: "0.0.1", assets: [{ mode: "mobile", abi: "smoke", sha256: "0".repeat(64), size: 1 }] });
+      const body = JSON.stringify({
+        versionCode: 1,
+        versionName: "0.0.1",
+        assets: [
+          {
+            mode: "mobile",
+            abi: "smoke",
+            sha256: "0".repeat(64),
+            size: 1,
+          },
+        ],
+      });
       const headers = { "Content-Type": "application/json" };
       // No body: the token is checked first, and an unread body makes the
       // local dev proxy drop the connection the next request reuses.
@@ -355,7 +394,11 @@ const cases: Case[] = [
       assert(anonymous.status === 401, `registration without a token returned ${anonymous.status}`);
       await anonymous.text();
 
-      const missing = await fetch(`${baseUrl}${BASE_PATH}/api/raw/releases`, { method: "POST", headers: { ...headers, Authorization: `Bearer ${RELEASE_TOKEN}` }, body });
+      const missing = await fetch(`${baseUrl}${BASE_PATH}/api/raw/releases`, {
+        method: "POST",
+        headers: { ...headers, Authorization: `Bearer ${RELEASE_TOKEN}` },
+        body,
+      });
       assert(missing.status === 422, `registration without an APK returned ${missing.status}`);
       await missing.text();
 
@@ -372,7 +415,12 @@ const cases: Case[] = [
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
       });
-      const created = await post("/media/titles", { kind: "series", categoryId: "tv", title: "smoke series", genreIds: ["g18"] });
+      const created = await post("/media/titles", {
+        kind: "series",
+        categoryId: "tv",
+        title: "smoke series",
+        genreIds: ["g18"],
+      });
       if (created.status !== 201)
         throw new SmokeError(`create returned ${created.status}: ${await created.text()}`);
       const title = (await json<{ data: { id: number } }>(created)).data;
@@ -398,15 +446,35 @@ const cases: Case[] = [
     name: "a published movie is served by the media API from D1",
     async run() {
       const post = async (path: string, body: unknown) => {
-        const res = await call(`${BASE_PATH}/api${path}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+        const res = await call(`${BASE_PATH}/api${path}`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        });
         if (res.status !== 201)
           throw new SmokeError(`${path} returned ${res.status}: ${await res.text()}`);
         return (await json<{ data: { id: string | number } }>(res)).data;
       };
-      const movie = await post("/media/titles", { kind: "movie", categoryId: "movie", title: "冒烟测试电影", releaseDate: "2020-01-01", genreIds: ["g28"], publishState: "published" });
+      const movie = await post("/media/titles", {
+        kind: "movie",
+        categoryId: "movie",
+        title: "冒烟测试电影",
+        releaseDate: "2020-01-01",
+        genreIds: ["g28"],
+        publishState: "published",
+      });
       const source = await post(`/media/titles/${movie.id}/sources`, { name: "smoke", quality: "1080p" });
       await post(`/media/sources/${source.id}/streams`, { url: "https://example.com/smoke.m3u8" });
-      await post("/tvbox/entries", { kind: "sites", data: { key: "own_media", name: "媒体库", type: 1, api: "@media/cms", mediaApi: "@media/v1" } });
+      await post("/tvbox/entries", {
+        kind: "sites",
+        data: {
+          key: "own_media",
+          name: "媒体库",
+          type: 1,
+          api: "@media/cms",
+          mediaApi: "@media/v1",
+        },
+      });
       const imported = await call(`${BASE_PATH}/api/media/live/import`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -438,7 +506,9 @@ const cases: Case[] = [
       const etag = title.headers.get("etag");
       assert(etag === `"${m.generation}"`, `the title's ETag ${etag} is not the generation`);
       await title.text();
-      const again = await media(`/titles/${movie.id}`, { headers: { "If-None-Match": etag } });
+      const again = await media(`/titles/${movie.id}`, {
+        headers: { "If-None-Match": etag },
+      });
       assert(again.status === 304, `a matching ETag returned ${again.status}`);
       await again.text();
 
@@ -452,7 +522,9 @@ const cases: Case[] = [
           await sleep(1000);
       }
       // Locally `wrangler dev` presents requests under the route's host, so only the path is compared.
-      const api = site ? new URL(site.api).pathname : "";
+      const api = site
+        ? new URL(site.api).pathname
+        : "";
       assert(api === `/s/${subscriptionToken}/media/cms`, `the media site's api is ${site?.api}`);
       const cms = await json<{ list: { vod_id: string; vod_play_url: string }[] }>(await fetch(`${baseUrl}${api}?ac=detail&ids=${movie.id}`));
       assert(cms.list[0]?.vod_play_url === "正片$https://example.com/smoke.m3u8", `the CMS detail plays ${cms.list[0]?.vod_play_url}`);
@@ -611,12 +683,29 @@ async function main(): Promise<void> {
     });
     // The media library is a D1 database.
     const migrated = Bun.spawnSync(
-      ["./node_modules/.bin/wrangler", "d1", "migrations", "apply", "MEDIA", "--local"],
-      { cwd: new URL("../../apps/api", import.meta.url).pathname, env: { ...process.env, CI: "1", WRANGLER_SEND_METRICS: "false" } },
+      [
+        "./node_modules/.bin/wrangler",
+        "d1",
+        "migrations",
+        "apply",
+        "MEDIA",
+        "--local",
+      ],
+      {
+        cwd: new URL("../../apps/api", import.meta.url).pathname,
+        env: { ...process.env, CI: "1", WRANGLER_SEND_METRICS: "false" },
+      },
     );
     assert(migrated.exitCode === 0, `migrating the local D1 database failed: ${migrated.stderr.toString()}`);
     dev = Bun.spawn(
-      ["./node_modules/.bin/wrangler", "dev", "--port", String(PORT), "--ip", "127.0.0.1"],
+      [
+        "./node_modules/.bin/wrangler",
+        "dev",
+        "--port",
+        String(PORT),
+        "--ip",
+        "127.0.0.1",
+      ],
       {
         cwd: new URL("../../apps/api", import.meta.url).pathname,
         env: {
@@ -630,7 +719,9 @@ async function main(): Promise<void> {
     );
   }
 
-  const suite = process.argv.includes("--oidc") ? oidcCases : cases;
+  const suite = process.argv.includes("--oidc")
+    ? oidcCases
+    : cases;
 
   let failures = 0;
   try {
@@ -643,7 +734,9 @@ async function main(): Promise<void> {
       catch (err) {
         failures++;
         console.error(`  FAIL  ${c.name}`);
-        console.error(`        ${err instanceof Error ? err.message : String(err)}`);
+        console.error(`        ${err instanceof Error
+          ? err.message
+          : String(err)}`);
       }
     }
   }
@@ -652,7 +745,9 @@ async function main(): Promise<void> {
   }
 
   console.log(`\n${suite.length - failures}/${suite.length} passed`);
-  process.exit(failures === 0 ? 0 : 1);
+  process.exit(failures === 0
+    ? 0
+    : 1);
 }
 
 await main();

@@ -75,7 +75,13 @@ export const titleDetailSchema = cardSchema.extend({
   aliases: z.array(z.string()),
   overview: z.string().nullable(),
   tagline: z.string().nullable(),
-  status: z.enum(["upcoming", "released", "returning", "ended", "canceled"]),
+  status: z.enum([
+    "upcoming",
+    "released",
+    "returning",
+    "ended",
+    "canceled",
+  ]),
   contentRating: z.string().nullable(),
   isAdult: z.boolean(),
   countries: z.array(z.string()),
@@ -84,10 +90,17 @@ export const titleDetailSchema = cardSchema.extend({
   runtime: z.number().nullable(),
   voteCount: z.number().nullable(),
   credits: creditsSchema,
-  collection: z.object({ id: z.string(), name: z.string() }).nullable(),
+  collection: z.object({
+    id: z.string(),
+    name: z.string(),
+  }).nullable(),
   externalIds: z.record(z.string(), z.string()),
   /** Title, overview and tagline per locale (`zh-CN`, `en-US`, …) where known. */
-  translations: z.record(z.string(), z.object({ title: z.string().nullable(), overview: z.string().nullable(), tagline: z.string().nullable() })),
+  translations: z.record(z.string(), z.object({
+    title: z.string().nullable(),
+    overview: z.string().nullable(),
+    tagline: z.string().nullable(),
+  })),
   seasons: z.array(seasonSummarySchema),
   /** The season a client opens first: the newest with something to play. */
   defaultSeason: z.string().nullable(),
@@ -99,7 +112,12 @@ export const titleDetailSchema = cardSchema.extend({
 export const episodeSchema = z.object({
   id: z.string(),
   number: z.number(),
-  type: z.enum(["standard", "premiere", "finale", "special"]),
+  type: z.enum([
+    "standard",
+    "premiere",
+    "finale",
+    "special",
+  ]),
   name: z.string(),
   overview: z.string().nullable(),
   airDate: z.string().nullable(),
@@ -130,14 +148,21 @@ export const playbackSchema = z.object({
   id: z.string(),
   titleId: z.string(),
   seasonId: z.string().nullable(),
-  episode: z.object({ number: z.number(), name: z.string() }).nullable(),
+  episode: z.object({
+    number: z.number(),
+    name: z.string(),
+  }).nullable(),
   sources: z.array(z.object({
     id: z.string(),
     name: z.string(),
     quality: z.string().nullable(),
     streams: z.array(streamSchema),
   })),
-  next: z.object({ id: z.string(), seasonId: z.string(), number: z.number() }).nullable(),
+  next: z.object({
+    id: z.string(),
+    seasonId: z.string(),
+    number: z.number(),
+  }).nullable(),
   // Reserved; empty in this version.
   subtitles: z.array(z.unknown()),
   markers: z.unknown().nullable(),
@@ -190,7 +215,11 @@ export const homeSchema = z.object({
   rows: z.array(rowSchema),
 });
 
-export const facetValueSchema = z.object({ value: z.string(), label: z.string(), count: z.number() });
+export const facetValueSchema = z.object({
+  value: z.string(),
+  label: z.string(),
+  count: z.number(),
+});
 export const facetsSchema = z.object({
   genre: z.array(facetValueSchema).optional(),
   year: z.array(facetValueSchema).optional(),
@@ -213,11 +242,22 @@ export const manifestSchema = z.object({
     filters: z.array(z.enum(["genre", "year", "country"])),
     count: z.number(),
   })),
-  genres: z.array(z.object({ id: z.string(), name: z.string() })),
-  countries: z.array(z.object({ code: z.string(), name: z.string() })),
-  languages: z.array(z.object({ code: z.string(), name: z.string() })),
+  genres: z.array(z.object({
+    id: z.string(),
+    name: z.string(),
+  })),
+  countries: z.array(z.object({
+    code: z.string(),
+    name: z.string(),
+  })),
+  languages: z.array(z.object({
+    code: z.string(),
+    name: z.string(),
+  })),
   rows: z.array(z.string()),
-  capabilities: z.object({ live: z.boolean() }),
+  capabilities: z.object({
+    live: z.boolean(),
+  }),
 });
 
 export const liveSchema = z.object({
@@ -231,7 +271,11 @@ export const liveSchema = z.object({
       name: z.string(),
       tvgId: z.string().nullable(),
       logo: z.string().nullable(),
-      streams: z.array(z.object({ url: z.string(), label: z.string().nullable(), headers: z.record(z.string(), z.string()) })),
+      streams: z.array(z.object({
+        url: z.string(),
+        label: z.string().nullable(),
+        headers: z.record(z.string(), z.string()),
+      })),
     })),
   })),
 });

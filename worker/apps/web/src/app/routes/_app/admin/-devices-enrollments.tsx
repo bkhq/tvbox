@@ -37,10 +37,20 @@ export function EnrollmentsSection({ devices, upstreams }: { readonly devices: r
   const [approving, setApproving] = useState<Enrollment | null>(null);
   const [showHistory, setShowHistory] = useState(false);
 
-  const refresh = () => void qc.invalidateQueries({ queryKey: ["tvbox"] });
+  const refresh = () => void qc.invalidateQueries({
+    queryKey: ["tvbox"],
+  });
   const onError = (err: unknown) => toast.error(errorMessage(err, t("common.error.operationFailed")));
-  const reject = useMutation({ mutationFn: (id: string) => tvboxApi.rejectEnrollment(id), onSuccess: refresh, onError });
-  const remove = useMutation({ mutationFn: (id: string) => tvboxApi.deleteEnrollment(id), onSuccess: refresh, onError });
+  const reject = useMutation({
+    mutationFn: (id: string) => tvboxApi.rejectEnrollment(id),
+    onSuccess: refresh,
+    onError,
+  });
+  const remove = useMutation({
+    mutationFn: (id: string) => tvboxApi.deleteEnrollment(id),
+    onSuccess: refresh,
+    onError,
+  });
 
   const rows = query.data ?? [];
   const pending = rows.filter(e => e.status === "pending");
@@ -93,7 +103,9 @@ export function EnrollmentsSection({ devices, upstreams }: { readonly devices: r
       {history.length > 0 && (
         <div>
           <Button size="sm" variant="ghost" onClick={() => setShowHistory(v => !v)}>
-            {showHistory ? t("devices:enroll.hideHistory") : t("devices:enroll.showHistory", { count: history.length })}
+            {showHistory
+              ? t("devices:enroll.hideHistory")
+              : t("devices:enroll.showHistory", { count: history.length })}
           </Button>
           {showHistory && (
             <Table>
@@ -114,7 +126,12 @@ export function EnrollmentsSection({ devices, upstreams }: { readonly devices: r
                       <div className="text-xs text-muted-foreground">{appLine(e)}</div>
                     </TableCell>
                     <TableCell className="space-x-1 text-xs">
-                      <Badge variant={e.status === "approved" ? "default" : "outline"}>{t(`devices:enroll.status.${e.status}`)}</Badge>
+                      <Badge variant={e.status === "approved"
+                        ? "default"
+                        : "outline"}
+                      >
+                        {t(`devices:enroll.status.${e.status}`)}
+                      </Badge>
                       {e.deviceName && <span>{e.deviceName}</span>}
                     </TableCell>
                     <TableCell className="space-x-1 text-right whitespace-nowrap">
@@ -179,13 +196,21 @@ function ApproveForm({
   const { t } = useTranslation(["common", "devices"]);
   const [target, setTarget] = useState<"new" | "existing">("new");
   const [name, setName] = useState(enrollment.name || enrollment.model || enrollment.code);
-  const [choice, setChoice] = useState<UpstreamChoice>(() => ({ allUpstreams: true, upstreamIds: new Set() }));
+  const [choice, setChoice] = useState<UpstreamChoice>(() => ({
+    allUpstreams: true,
+    upstreamIds: new Set(),
+  }));
   const [deviceId, setDeviceId] = useState<string | null>(devices[0]?.id ?? null);
 
   const approve = useMutation({
     mutationFn: () => tvboxApi.approveEnrollment(enrollment.id, target === "existing" && deviceId
       ? { deviceId }
-      : { name: name.trim(), upstreamIds: choice.allUpstreams ? null : [...choice.upstreamIds] }),
+      : {
+          name: name.trim(),
+          upstreamIds: choice.allUpstreams
+            ? null
+            : [...choice.upstreamIds],
+        }),
     onSuccess: () => {
       toast.success(t("devices:enroll.approved"));
       onClose();
@@ -201,7 +226,12 @@ function ApproveForm({
         <DialogDescription>{t("devices:enroll.approveHint")}</DialogDescription>
       </DialogHeader>
       <div className="space-y-4">
-        <p className="text-sm text-muted-foreground">{[enrollment.name, appLine(enrollment)].filter(Boolean).join(" · ")}</p>
+        <p className="text-sm text-muted-foreground">
+          {[
+            enrollment.name,
+            appLine(enrollment),
+          ].filter(Boolean).join(" · ")}
+        </p>
         <Tabs value={target} onValueChange={v => setTarget(v as "new" | "existing")}>
           <TabsList>
             <TabsTrigger value="new">{t("devices:enroll.newDevice")}</TabsTrigger>
@@ -231,7 +261,12 @@ function ApproveForm({
       </div>
       <DialogFooter>
         <DialogClose render={<Button variant="outline">{t("common.cancel")}</Button>} />
-        <Button disabled={approve.isPending || (target === "new" ? !name.trim() : !deviceId)} onClick={() => approve.mutate()}>
+        <Button
+          disabled={approve.isPending || (target === "new"
+            ? !name.trim()
+            : !deviceId)}
+          onClick={() => approve.mutate()}
+        >
           {t("devices:enroll.approve")}
         </Button>
       </DialogFooter>

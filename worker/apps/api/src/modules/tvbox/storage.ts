@@ -44,11 +44,15 @@ export type App = typeof APPS[number];
 
 /** iOS and tvOS builds of the rn app ship as an ipa, everything else as an APK. */
 export function releaseKind(app: App, mode: string): "apk" | "ipa" {
-  return app === "rn" && (mode === "ios" || mode === "tvos") ? "ipa" : "apk";
+  return app === "rn" && (mode === "ios" || mode === "tvos")
+    ? "ipa"
+    : "apk";
 }
 
 function appPrefix(app: App): string {
-  return app === "rn" ? "tvbox/rn" : "tvbox";
+  return app === "rn"
+    ? "tvbox/rn"
+    : "tvbox";
 }
 
 /** Binary uploaded by CI for one flavor of a release. */
@@ -84,12 +88,16 @@ export interface UpdateManifest {
 
 export function hashHex(algorithm: "sha256" | "md5", data: ArrayBuffer | string): string {
   const hash = createHash(algorithm);
-  hash.update(typeof data === "string" ? data : new Uint8Array(data));
+  hash.update(typeof data === "string"
+    ? data
+    : new Uint8Array(data));
   return hash.digest("hex");
 }
 
 export async function putObject(key: string, data: ArrayBuffer | string): Promise<void> {
-  const bytes = typeof data === "string" ? new TextEncoder().encode(data).buffer : data;
+  const bytes = typeof data === "string"
+    ? new TextEncoder().encode(data).buffer
+    : data;
   await getActiveDriver().put(key, bytes);
 }
 

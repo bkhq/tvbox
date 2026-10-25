@@ -13,8 +13,12 @@ const MAX_MESSAGE = 65_535;
 const PASSED_RESPONSE_HEADERS = ["content-type", "cache-control"];
 
 export async function handleDoh(request: Request, fetchImpl: typeof fetch = fetch): Promise<Response> {
-  if (request.method !== "GET" && request.method !== "POST")
-    return new Response("Method Not Allowed", { status: 405, headers: { allow: "GET, POST" } });
+  if (request.method !== "GET" && request.method !== "POST") {
+    return new Response("Method Not Allowed", {
+      status: 405,
+      headers: { allow: "GET, POST" },
+    });
+  }
 
   let body: ArrayBuffer | undefined;
   if (request.method === "POST") {

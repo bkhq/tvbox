@@ -13,14 +13,31 @@ import { useMediaMutation } from "./-media-hooks";
 import { EnumSelect, Field } from "./-media-shared";
 
 const ALL_SEASONS = "all";
-const JOBS = ["Director", "Writer", "Screenplay", "Creator", "Producer"] as const;
+const JOBS = [
+  "Director",
+  "Writer",
+  "Screenplay",
+  "Creator",
+  "Producer",
+] as const;
 
 export function CreditsPanel({ title }: { title: Title }) {
   const { t } = useTranslation(["common", "media"]);
-  const credits = useQuery({ queryKey: mediaKeys.credits(title.id), queryFn: () => mediaApi.credits(title.id) });
-  const seasons = useQuery({ queryKey: mediaKeys.seasons(title.id), queryFn: () => mediaApi.seasons(title.id), enabled: title.kind === "series" });
+  const credits = useQuery({
+    queryKey: mediaKeys.credits(title.id),
+    queryFn: () => mediaApi.credits(title.id),
+  });
+  const seasons = useQuery({
+    queryKey: mediaKeys.seasons(title.id),
+    queryFn: () => mediaApi.seasons(title.id),
+    enabled: title.kind === "series",
+  });
   const [q, setQ] = useState("");
-  const people = useQuery({ queryKey: mediaKeys.people(q, 1), queryFn: () => mediaApi.people(q, 1), enabled: q.trim() !== "" });
+  const people = useQuery({
+    queryKey: mediaKeys.people(q, 1),
+    queryFn: () => mediaApi.people(q, 1),
+    enabled: q.trim() !== "",
+  });
   const [person, setPerson] = useState<Person | null>(null);
   const [role, setRole] = useState<"cast" | "crew">("cast");
   const [character, setCharacter] = useState("");
@@ -30,20 +47,30 @@ export function CreditsPanel({ title }: { title: Title }) {
   const add = useMediaMutation(() => mediaApi.addCredit(title.id, {
     personId: person!.id,
     role,
-    seasonId: season === ALL_SEASONS ? null : season,
-    ...(role === "cast" ? { character: orNull(character) } : { job, character: null }),
+    seasonId: season === ALL_SEASONS
+      ? null
+      : season,
+    ...(role === "cast"
+      ? {
+          character: orNull(character),
+        }
+      : { job, character: null }),
   }), () => {
     setPerson(null);
     setCharacter("");
     setQ("");
   });
-  const createPerson = useMediaMutation(() => mediaApi.createPerson({ name: q.trim() }), p => setPerson(p));
+  const createPerson = useMediaMutation(() => mediaApi.createPerson({
+    name: q.trim(),
+  }), p => setPerson(p));
   const remove = useMediaMutation((id: string) => mediaApi.deleteCredit(id));
   const seasonName = (id: string | null) => {
     if (id === null)
       return t("media:credits.allSeasons");
     const s = seasons.data?.find(x => x.id === id);
-    return s ? s.name ?? t("media:seasons.numbered", { number: s.seasonNumber }) : `#${id}`;
+    return s
+      ? s.name ?? t("media:seasons.numbered", { number: s.seasonNumber })
+      : `#${id}`;
   };
 
   return (
@@ -65,7 +92,11 @@ export function CreditsPanel({ title }: { title: Title }) {
               <TableRow key={c.id}>
                 <TableCell>{c.personName}</TableCell>
                 <TableCell><Badge variant="outline">{t(`media:credits.roles.${c.role}`)}</Badge></TableCell>
-                <TableCell>{c.role === "cast" ? c.character : c.job}</TableCell>
+                <TableCell>
+                  {c.role === "cast"
+                    ? c.character
+                    : c.job}
+                </TableCell>
                 {title.kind === "series" && <TableCell>{seasonName(c.seasonId)}</TableCell>}
                 <TableCell className="text-right"><Button size="sm" variant="ghost" onClick={() => remove.mutate(c.id)}><Trash2 className="size-4" /></Button></TableCell>
               </TableRow>
@@ -92,7 +123,9 @@ export function CreditsPanel({ title }: { title: Title }) {
                     ))}
                     {q.trim() && people.data?.items.every(p => p.name !== q.trim()) && (
                       <Badge variant="secondary" className="cursor-pointer" onClick={() => createPerson.mutate(undefined)}>
-                        {t("media:credits.newPerson", { name: q.trim() })}
+                        {t("media:credits.newPerson", {
+                          name: q.trim(),
+                        })}
                       </Badge>
                     )}
                   </div>
@@ -114,8 +147,13 @@ export function CreditsPanel({ title }: { title: Title }) {
             <Field label={t("media:credits.season")}>
               <EnumSelect
                 value={season}
-                values={[ALL_SEASONS, ...(seasons.data ?? []).map(s => s.id)]}
-                label={v => seasonName(v === ALL_SEASONS ? null : v)}
+                values={[
+                  ALL_SEASONS,
+                  ...(seasons.data ?? []).map(s => s.id),
+                ]}
+                label={v => seasonName(v === ALL_SEASONS
+                  ? null
+                  : v)}
                 onChange={setSeason}
               />
             </Field>

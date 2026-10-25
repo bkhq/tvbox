@@ -52,27 +52,39 @@ export async function listPeople(db: MediaDb, query: { q?: string | undefined; p
     const pattern = `%${query.q}%`;
     condition = or(like(mediaPeople.name, pattern), like(mediaPeople.originalName, pattern));
   }
-  const total = (await db.select({ n: count() }).from(mediaPeople).where(condition).get())?.n ?? 0;
+  const total = (await db.select({
+    n: count(),
+  }).from(mediaPeople).where(condition).get())?.n ?? 0;
   const items = await db.select().from(mediaPeople).where(condition).orderBy(asc(mediaPeople.name), asc(mediaPeople.id)).limit(query.limit).offset((query.page - 1) * query.limit).all();
   return { items, total };
 }
 
 export async function createPerson(db: MediaDb, input: PersonInput & { name: string }): Promise<PersonRow> {
   const id = mediaId();
-  await db.insert(mediaPeople).values({ ...defined(input), id, name: input.name }).run();
+  await db.insert(mediaPeople).values({
+    ...defined(input),
+    id,
+    name: input.name,
+  }).run();
   return await getPerson(db, id);
 }
 
 export async function updatePerson(db: MediaDb, id: string, input: PersonInput): Promise<PersonRow> {
   await getPerson(db, id);
-  await db.update(mediaPeople).set({ ...defined(input), updatedAt: new Date().toISOString() }).where(eq(mediaPeople.id, id)).run();
+  await db.update(mediaPeople).set({
+    ...defined(input),
+    updatedAt: new Date().toISOString(),
+  }).where(eq(mediaPeople.id, id)).run();
   return await getPerson(db, id);
 }
 
 /** Their credits go with them. */
 export async function deletePerson(db: MediaDb, id: string): Promise<PersonRow> {
   const row = await getPerson(db, id);
-  await runBatch(db, [...deleteOwned(db, "person", [id]), db.delete(mediaPeople).where(eq(mediaPeople.id, id))]);
+  await runBatch(db, [
+    ...deleteOwned(db, "person", [id]),
+    db.delete(mediaPeople).where(eq(mediaPeople.id, id)),
+  ]);
   return row;
 }
 
@@ -103,7 +115,9 @@ async function getCredit(db: MediaDb, id: string): Promise<CreditView> {
 
 /** `seasonId` undefined: every credit of the title; null: the title-wide ones; an id: that season's. */
 export async function listCredits(db: MediaDb, titleId: string, seasonId?: string | null): Promise<CreditView[]> {
-  const where = [eq(mediaCredits.titleId, titleId)];
+  const where = [
+    eq(mediaCredits.titleId, titleId),
+  ];
   if (seasonId === null)
     where.push(isNull(mediaCredits.seasonId));
   else if (seasonId !== undefined)
@@ -132,7 +146,13 @@ export async function addCredit(db: MediaDb, titleId: string, input: CreditInput
   await getPerson(db, input.personId);
   await assertSeasonOf(db, titleId, input.seasonId);
   const id = ulid();
-  await db.insert(mediaCredits).values({ ...defined(input), id, titleId, personId: input.personId, role: input.role }).run();
+  await db.insert(mediaCredits).values({
+    ...defined(input),
+    id,
+    titleId,
+    personId: input.personId,
+    role: input.role,
+  }).run();
   return await getCredit(db, id);
 }
 

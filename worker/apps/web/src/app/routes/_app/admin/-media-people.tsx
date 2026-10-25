@@ -23,7 +23,10 @@ export function PeopleTab() {
   const { t } = useTranslation(["common", "media"]);
   const [q, setQ] = useState("");
   const [page, setPage] = useState(1);
-  const people = useQuery({ queryKey: mediaKeys.people(q, page), queryFn: () => mediaApi.people(q, page) });
+  const people = useQuery({
+    queryKey: mediaKeys.people(q, page),
+    queryFn: () => mediaApi.people(q, page),
+  });
   const [editing, setEditing] = useState<Person | "new" | null>(null);
   const [deleting, setDeleting] = useState<Person | null>(null);
   const remove = useMediaMutation((id: string) => mediaApi.deletePerson(id), () => setDeleting(null));
@@ -89,7 +92,17 @@ export function PeopleTab() {
         </div>
       )}
 
-      {editing !== null && <PersonDialog key={editing === "new" ? "new" : editing.id} person={editing === "new" ? null : editing} onClose={() => setEditing(null)} />}
+      {editing !== null && (
+        <PersonDialog
+          key={editing === "new"
+            ? "new"
+            : editing.id}
+          person={editing === "new"
+            ? null
+            : editing}
+          onClose={() => setEditing(null)}
+        />
+      )}
       <ConfirmDeleteDialog
         open={deleting !== null}
         onOpenChange={open => !open && setDeleting(null)}
@@ -117,19 +130,27 @@ function PersonDialog({ person, onClose }: { person: Person | null; onClose: () 
     const body = {
       name: form.name.trim(),
       originalName: orNull(form.originalName),
-      gender: form.gender === NONE ? null : form.gender,
+      gender: form.gender === NONE
+        ? null
+        : form.gender,
       birthday: orNull(form.birthday),
       placeOfBirth: orNull(form.placeOfBirth),
       biography: orNull(form.biography),
     };
-    return person ? mediaApi.updatePerson(person.id, body) : mediaApi.createPerson(body);
+    return person
+      ? mediaApi.updatePerson(person.id, body)
+      : mediaApi.createPerson(body);
   }, onClose);
 
   return (
     <Dialog open onOpenChange={open => !open && onClose()}>
       <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
         <DialogHeader>
-          <DialogTitle>{person ? person.name : t("media:people.add")}</DialogTitle>
+          <DialogTitle>
+            {person
+              ? person.name
+              : t("media:people.add")}
+          </DialogTitle>
         </DialogHeader>
         <div className="grid gap-3 sm:grid-cols-2">
           <Field label={t("media:people.name")}><Input value={form.name} onChange={e => set("name", e.target.value)} /></Field>

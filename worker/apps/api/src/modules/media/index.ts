@@ -42,10 +42,18 @@ export function mediaRoutes() {
 registerTokenScope({
   name: "media:read",
   description: "Read the media library",
-  routes: [{ method: "GET", path: "/media/*" }],
+  routes: [
+    { method: "GET", path: "/media/*" },
+  ],
 });
 registerTokenScope({
   name: "media:write",
   description: "Manage the media library",
-  routes: (["GET", "POST", "PUT", "PATCH", "DELETE"] as const).map(method => ({ method, path: "/media/*" })),
+  routes: ([
+    "GET",
+    "POST",
+    "PUT",
+    "PATCH",
+    "DELETE",
+  ] as const).map(method => ({ method, path: "/media/*" })),
 });

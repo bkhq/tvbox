@@ -18,7 +18,9 @@ describe("parsePasted", () => {
   });
 
   test("splits on the last $ so names may contain one", () => {
-    expect(parsePasted("$5 promo$https://a/p.mp4")).toEqual([{ name: "$5 promo", url: "https://a/p.mp4" }]);
+    expect(parsePasted("$5 promo$https://a/p.mp4")).toEqual([
+      { name: "$5 promo", url: "https://a/p.mp4" },
+    ]);
   });
 });
 
@@ -43,32 +45,59 @@ describe("episodeNumberOf", () => {
 
 describe("alignLines", () => {
   test("by number, whatever the order", () => {
-    const result = alignLines([line("第2集"), line("第1集")], eps(1, 2));
-    expect(result.matched.map(m => [m.episodeId, m.line.name])).toEqual([["e2", "第2集"], ["e1", "第1集"]]);
+    const result = alignLines([
+      line("第2集"),
+      line("第1集"),
+    ], eps(1, 2));
+    expect(result.matched.map(m => [m.episodeId, m.line.name])).toEqual([
+      ["e2", "第2集"],
+      ["e1", "第1集"],
+    ]);
     expect(result.missing).toEqual([]);
     expect(result.unmatched).toEqual([]);
   });
 
   test("reports numbers the season lacks as missing", () => {
-    const result = alignLines([line("第1集"), line("第3集")], eps(1, 2));
+    const result = alignLines([
+      line("第1集"),
+      line("第3集"),
+    ], eps(1, 2));
     expect(result.matched.map(m => m.episodeNumber)).toEqual([1]);
     expect(result.missing.map(m => m.episodeNumber)).toEqual([3]);
   });
 
   test("by position when no line has a number", () => {
-    const result = alignLines([line("正片A"), line("正片B"), line("正片C")], eps(5, 4));
-    expect(result.matched.map(m => [m.episodeNumber, m.line.name])).toEqual([[4, "正片A"], [5, "正片B"]]);
-    expect(result.unmatched).toEqual([{ line: line("正片C"), reason: "no-episode" }]);
+    const result = alignLines([
+      line("正片A"),
+      line("正片B"),
+      line("正片C"),
+    ], eps(5, 4));
+    expect(result.matched.map(m => [m.episodeNumber, m.line.name])).toEqual([
+      [4, "正片A"],
+      [5, "正片B"],
+    ]);
+    expect(result.unmatched).toEqual([
+      {
+        line: line("正片C"),
+        reason: "no-episode",
+      },
+    ]);
   });
 
   test("a mix places the numbered lines and reports the rest; repeats are dropped", () => {
-    const result = alignLines([line("第1集"), line("花絮"), line("第1集", "dup")], eps(1, 2));
+    const result = alignLines([
+      line("第1集"),
+      line("花絮"),
+      line("第1集", "dup"),
+    ], eps(1, 2));
     expect(result.matched.map(m => m.episodeNumber)).toEqual([1]);
     expect(result.unmatched.map(u => u.reason)).toEqual(["no-number", "duplicate"]);
   });
 
   test("specials number from 0", () => {
-    const result = alignLines([line("第0集")], eps(0, 1));
+    const result = alignLines([
+      line("第0集"),
+    ], eps(0, 1));
     expect(result.matched[0]!.episodeId).toBe("e0");
   });
 });

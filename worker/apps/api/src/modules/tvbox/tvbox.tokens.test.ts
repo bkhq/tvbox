@@ -15,7 +15,14 @@ import { tvboxRoutes } from "./tvbox.routes";
 import "@/modules/account";
 import "@/modules/tvbox";
 
-const noop = { debug() {}, info() {}, warn() {}, error() {}, fatal() {}, flush() {} } as unknown as Logger;
+const noop = {
+  debug() {},
+  info() {},
+  warn() {},
+  error() {},
+  fatal() {},
+  flush() {},
+} as unknown as Logger;
 
 let dir: string;
 let db: AppDatabase;
@@ -46,7 +53,17 @@ function app(): Hono<AppEnv> {
 async function tokenFor(role: "admin" | "user", scopes: string[]): Promise<string> {
   const id = `${role}-${scopes.join("-")}`;
   const now = new Date().toISOString();
-  await db.insert(users).values({ id, oauthSub: `sub-${id}`, username: id, name: id, email: `${id}@t.io`, role, status: "active", createdAt: now, updatedAt: now }).run();
+  await db.insert(users).values({
+    id,
+    oauthSub: `sub-${id}`,
+    username: id,
+    name: id,
+    email: `${id}@t.io`,
+    role,
+    status: "active",
+    createdAt: now,
+    updatedAt: now,
+  }).run();
   return (await createApiToken(db, id, { name: "ci", scopes, expiresAt: null })).token;
 }
 
@@ -56,7 +73,9 @@ function call(token: string, method = "GET", body?: string) {
   return app().request("/api/tvbox/upstreams", {
     method,
     headers: { "Authorization": `Bearer ${token}`, "Content-Type": "application/json" },
-    ...(body ? { body } : {}),
+    ...(body
+      ? { body }
+      : {}),
   });
 }
 

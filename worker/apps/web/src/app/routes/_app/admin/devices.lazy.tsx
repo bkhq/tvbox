@@ -42,7 +42,12 @@ interface FormState {
   readonly upstreamIds: ReadonlySet<string>;
 }
 
-const EMPTY_FORM: FormState = { name: "", note: "", allUpstreams: true, upstreamIds: new Set() };
+const EMPTY_FORM: FormState = {
+  name: "",
+  note: "",
+  allUpstreams: true,
+  upstreamIds: new Set(),
+};
 
 function DevicesPage() {
   const { t } = useTranslation(["common", "devices"]);
@@ -56,7 +61,9 @@ function DevicesPage() {
   const [deleting, setDeleting] = useState<Device | null>(null);
   const [rotating, setRotating] = useState<Device | null>(null);
 
-  const refresh = () => void qc.invalidateQueries({ queryKey: ["tvbox"] });
+  const refresh = () => void qc.invalidateQueries({
+    queryKey: ["tvbox"],
+  });
   const onError = (err: unknown) => toast.error(errorMessage(err, t("common.error.operationFailed")));
 
   const save = useMutation({
@@ -64,9 +71,13 @@ function DevicesPage() {
       const body = {
         name: state.name.trim(),
         note: state.note,
-        upstreamIds: state.allUpstreams ? null : [...state.upstreamIds],
+        upstreamIds: state.allUpstreams
+          ? null
+          : [...state.upstreamIds],
       };
-      return device ? await tvboxApi.updateDevice(device.id, body) : await tvboxApi.createDevice(body);
+      return device
+        ? await tvboxApi.updateDevice(device.id, body)
+        : await tvboxApi.createDevice(body);
     },
     onSuccess: (device, { device: before }) => {
       setForm(null);
@@ -108,12 +119,19 @@ function DevicesPage() {
 
   const upstreamName = (id: string) => {
     const u = upstreams.data?.find(u => u.id === id);
-    return u ? upstreamLabel(u, upstreams.data ?? []) : "—";
+    return u
+      ? upstreamLabel(u, upstreams.data ?? [])
+      : "—";
   };
   const openForm = (device: Device | null) => setForm({
     device,
     state: device
-      ? { name: device.name, note: device.note, allUpstreams: device.allUpstreams, upstreamIds: new Set(device.upstreamIds) }
+      ? {
+          name: device.name,
+          note: device.note,
+          allUpstreams: device.allUpstreams,
+          upstreamIds: new Set(device.upstreamIds),
+        }
       : EMPTY_FORM,
   });
 
@@ -202,7 +220,9 @@ function DevicesPage() {
         device={showUrl}
         pending={rotate.isPending}
         onClose={() => setShowUrl(null)}
-        onRotate={() => showUrl && (showUrl.token ? setRotating(showUrl) : rotate.mutate(showUrl.id))}
+        onRotate={() => showUrl && (showUrl.token
+          ? setRotating(showUrl)
+          : rotate.mutate(showUrl.id))}
       />
 
       <ConfirmDeleteDialog
@@ -256,7 +276,11 @@ function DeviceFormDialog({
     <Dialog open={form !== null} onOpenChange={open => !open && onClose()}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>{form?.device ? t("devices:edit") : t("devices:add")}</DialogTitle>
+          <DialogTitle>
+            {form?.device
+              ? t("devices:edit")
+              : t("devices:add")}
+          </DialogTitle>
         </DialogHeader>
         <div className="space-y-4">
           <div className="space-y-1">
@@ -267,7 +291,14 @@ function DeviceFormDialog({
             <Label>{t("devices:note")}</Label>
             <Textarea value={state.note} onChange={e => onChange({ ...state, note: e.target.value })} className="h-16" />
           </div>
-          <UpstreamPicker value={state} upstreams={upstreams} onChange={choice => onChange({ ...state, ...choice })} />
+          <UpstreamPicker
+            value={state}
+            upstreams={upstreams}
+            onChange={choice => onChange({
+              ...state,
+              ...choice,
+            })}
+          />
         </div>
         <DialogFooter>
           <DialogClose render={<Button variant="outline">{t("common.cancel")}</Button>} />
@@ -295,7 +326,9 @@ function UrlDialog({
   if (device !== null && device !== shown)
     setShown(device);
   const current = device ?? shown;
-  const url = current?.token ? subscriptionUrl(current.token) : null;
+  const url = current?.token
+    ? subscriptionUrl(current.token)
+    : null;
   const copy = () => {
     if (url)
       void navigator.clipboard.writeText(url).then(() => toast.success(t("devices:url.copied")));

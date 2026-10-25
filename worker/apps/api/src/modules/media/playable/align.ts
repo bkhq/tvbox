@@ -31,7 +31,12 @@ export function parsePasted(text: string): PastedLine[] {
     .filter(item => item !== "")
     .map((item) => {
       const cut = item.lastIndexOf("$");
-      return cut < 0 ? { name: "", url: item } : { name: item.slice(0, cut).trim(), url: item.slice(cut + 1).trim() };
+      return cut < 0
+        ? { name: "", url: item }
+        : {
+            name: item.slice(0, cut).trim(),
+            url: item.slice(cut + 1).trim(),
+          };
     })
     .filter(line => MEDIA_URL.test(line.url));
 }

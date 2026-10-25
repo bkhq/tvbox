@@ -7,7 +7,11 @@ const SAVED = "b".repeat(48);
 const ADDR = "192.168.1.5:9978";
 
 function open(query: string, cookie?: string) {
-  return handleControl(new Request(`https://tv.example/link?${query}`, { headers: cookie ? { cookie } : {} }));
+  return handleControl(new Request(`https://tv.example/link?${query}`, {
+    headers: cookie
+      ? { cookie }
+      : {},
+  }));
 }
 
 function target(res: Response) {
@@ -63,7 +67,15 @@ describe("lanAddress", () => {
     expect(lanAddress("10.1.2.3")?.origin).toBe("http://10.1.2.3");
     expect(lanAddress("172.16.0.1:9978")?.origin).toBe("http://172.16.0.1:9978");
     expect(lanAddress("172.31.255.1")).toBeDefined();
-    for (const bad of ["172.32.0.1", "8.8.8.8", "tv.local:9978", "u:p@10.0.0.1", "10.0.0.1/x", "10.0.0.1:99999", ""])
+    for (const bad of [
+      "172.32.0.1",
+      "8.8.8.8",
+      "tv.local:9978",
+      "u:p@10.0.0.1",
+      "10.0.0.1/x",
+      "10.0.0.1:99999",
+      "",
+    ])
       expect(lanAddress(bad)).toBeUndefined();
   });
 });

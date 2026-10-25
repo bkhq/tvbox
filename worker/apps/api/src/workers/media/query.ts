@@ -19,7 +19,13 @@ import { getHero, rowRuleSchema } from "@/modules/media/taxonomy/rows.service";
  * return (`loadSlice`).
  */
 
-export const BROWSE_SORTS = ["updated", "popular", "release", "rating", "manual"] as const;
+export const BROWSE_SORTS = [
+  "updated",
+  "popular",
+  "release",
+  "rating",
+  "manual",
+] as const;
 export type BrowseSort = typeof BROWSE_SORTS[number];
 
 // Sort key, direction: id DESC breaks ties everywhere.
@@ -90,7 +96,12 @@ export async function browseIds(db: MediaDb, filter: TitleFilter, sort: BrowseSo
     ORDER BY ${key} ${sql.raw(desc ? "DESC" : "ASC")}, t.id DESC LIMIT ${limit + 1}`);
   const page = rows.slice(0, limit);
   const last = page.at(-1);
-  return { ids: page.map(r => r.id), cursor: rows.length > limit && last ? encodeCursor([last.k, last.id]) : null };
+  return {
+    ids: page.map(r => r.id),
+    cursor: rows.length > limit && last
+      ? encodeCursor([last.k, last.id])
+      : null,
+  };
 }
 
 async function idsBy(db: MediaDb, filter: TitleFilter, sort: BrowseSort, offset: number, limit: number): Promise<string[]> {
@@ -143,17 +154,33 @@ export async function home(db: MediaDb, today: string): Promise<Home> {
     if (ids.length > 0)
       onHome.push({ row, ids });
   }
-  const docs = new Map((await titleDocs(db, [...heroIds, ...onHome.flatMap(r => r.ids.slice(0, HOME_ROW_ITEMS))], today)).map(t => [t.id, t]));
+  const docs = new Map((await titleDocs(db, [
+    ...heroIds,
+    ...onHome.flatMap(r => r.ids.slice(0, HOME_ROW_ITEMS)),
+  ], today)).map(t => [t.id, t]));
   return {
     hero: heroIds.flatMap((id) => {
       const t = docs.get(id);
-      return t ? [{ ...t.card, images: t.detail.images, overview: t.detail.overview, tagline: t.detail.tagline }] : [];
+      return t
+        ? [
+            {
+              ...t.card,
+              images: t.detail.images,
+              overview: t.detail.overview,
+              tagline: t.detail.tagline,
+            },
+          ]
+        : [];
     }),
     rows: onHome.map(({ row, ids }) => ({
       id: row.id,
       name: row.name,
-      items: ids.slice(0, HOME_ROW_ITEMS).flatMap(id => (docs.has(id) ? [docs.get(id)!.card] : [])),
-      cursor: ids.length > HOME_ROW_ITEMS ? String(HOME_ROW_ITEMS) : null,
+      items: ids.slice(0, HOME_ROW_ITEMS).flatMap(id => (docs.has(id)
+        ? [docs.get(id)!.card]
+        : [])),
+      cursor: ids.length > HOME_ROW_ITEMS
+        ? String(HOME_ROW_ITEMS)
+        : null,
     })),
   };
 }
@@ -183,8 +210,14 @@ export async function manifest(db: MediaDb): Promise<Omit<Manifest, "generation"
       count: count.get(c.id) ?? 0,
     })),
     genres: genres.map(g => ({ id: g.id, name: g.name })),
-    countries: countries.map(c => ({ code: c.code, name: countryName(c.code) })),
-    languages: languages.map(l => ({ code: l.code, name: languageName(l.code) })),
+    countries: countries.map(c => ({
+      code: c.code,
+      name: countryName(c.code),
+    })),
+    languages: languages.map(l => ({
+      code: l.code,
+      name: languageName(l.code),
+    })),
     rows: withTitles,
     capabilities: { live: live.length > 0 },
   };
@@ -202,8 +235,16 @@ export async function facets(db: MediaDb, filter: TitleFilter): Promise<Facets> 
   const genreName = new Map(genres.map(g => [g.id, g.name]));
   return {
     genre: genreCounts.map(g => ({ value: g.v, label: genreName.get(g.v) ?? g.v, count: g.n })).sort((a, b) => b.count - a.count || a.label.localeCompare(b.label)),
-    year: years.map(y => ({ value: String(y.v), label: String(y.v), count: y.n })),
-    country: countries.map(c => ({ value: c.v, label: countryName(c.v), count: c.n })).sort((a, b) => b.count - a.count || a.value.localeCompare(b.value)),
+    year: years.map(y => ({
+      value: String(y.v),
+      label: String(y.v),
+      count: y.n,
+    })),
+    country: countries.map(c => ({
+      value: c.v,
+      label: countryName(c.v),
+      count: c.n,
+    })).sort((a, b) => b.count - a.count || a.value.localeCompare(b.value)),
   };
 }
 
@@ -275,7 +316,9 @@ export async function person(db: MediaDb, id: string, today: string): Promise<Pe
     ORDER BY COALESCE(t.release_date, '') DESC LIMIT ${PERSON_TITLES * 3}`);
   if (credits.length === 0)
     return null;
-  const ids = [...new Set(credits.map(c => c.titleId))].slice(0, PERSON_TITLES);
+  const ids = [
+    ...new Set(credits.map(c => c.titleId)),
+  ].slice(0, PERSON_TITLES);
   const docs = new Map((await titleDocs(db, ids, today)).map(t => [t.id, t]));
   const profiles = await db.select().from(mediaImages).where(and(eq(mediaImages.ownerType, "person"), eq(mediaImages.ownerId, id))).all();
   return buildPerson(p, credits, docs, imagePicker(profiles).image("person", id, "profile"));

@@ -31,18 +31,30 @@ afterEach(() => {
   rmSync(dir, { recursive: true, force: true });
 });
 
-const FLAVORS = [["leanback", "arm64_v8a"], ["mobile", "arm64_v8a"]] as const;
+const FLAVORS = [
+  ["leanback", "arm64_v8a"],
+  ["mobile", "arm64_v8a"],
+] as const;
 
 async function release(versionCode: number, over: Partial<RegisterReleaseInput> = {}, keep = 10) {
   const assets = over.assets ?? FLAVORS.map(([mode, abi]) => ({ mode, abi, sha256: SHA, size: 100 }));
   for (const a of assets)
     await putObject(releaseFileKey(versionCode, a.mode, a.abi, over.app), "bin");
-  return await registerRelease(db, { versionCode, versionName: `v${versionCode}`, channel: "stable", notes: "", ...over, assets }, keep);
+  return await registerRelease(db, {
+    versionCode,
+    versionName: `v${versionCode}`,
+    channel: "stable",
+    notes: "",
+    ...over,
+    assets,
+  }, keep);
 }
 
 async function manifest(channel: string, mode = "mobile", abi = "arm64_v8a", app: "tvbox" | "rn" = "tvbox"): Promise<UpdateManifest | null> {
   const key = updateManifestKey(channel, mode, abi, app);
-  return (await objectExists(key)) ? JSON.parse(await readObjectText(key)) as UpdateManifest : null;
+  return (await objectExists(key))
+    ? JSON.parse(await readObjectText(key)) as UpdateManifest
+    : null;
 }
 
 describe("registering a release", () => {
@@ -66,13 +78,30 @@ describe("registering a release", () => {
       versionName: "v1",
       channel: "stable",
       notes: "",
-      assets: [{ mode: "mobile", abi: "x86", sha256: SHA, size: 1 }],
+      assets: [
+        {
+          mode: "mobile",
+          abi: "x86",
+          sha256: SHA,
+          size: 1,
+        },
+      ],
     }, 10)).rejects.toThrow("No APK uploaded for mobile-x86");
   });
 
   test("re-registering a version replaces it", async () => {
     await release(5);
-    await release(5, { notes: "again", assets: [{ mode: "mobile", abi: "arm64_v8a", sha256: SHA, size: 7 }] });
+    await release(5, {
+      notes: "again",
+      assets: [
+        {
+          mode: "mobile",
+          abi: "arm64_v8a",
+          sha256: SHA,
+          size: 7,
+        },
+      ],
+    });
     const all = await listReleases(db);
     expect(all).toHaveLength(1);
     expect(all[0]!.assets).toHaveLength(1);
@@ -100,16 +129,35 @@ describe("registering a release", () => {
 });
 
 describe("the rn app", () => {
-  const RN = { app: "rn", assets: [
-    { mode: "android", abi: "universal", sha256: SHA, size: 10 },
-    { mode: "ios", abi: "universal", sha256: SHA, size: 20, bundleId: "io.bk.tv" },
-  ] } as const;
+  const RN = {
+    app: "rn",
+    assets: [
+      {
+        mode: "android",
+        abi: "universal",
+        sha256: SHA,
+        size: 10,
+      },
+      {
+        mode: "ios",
+        abi: "universal",
+        sha256: SHA,
+        size: 20,
+        bundleId: "io.bk.tv",
+      },
+    ],
+  } as const;
 
   test("has its own manifests, pointing at the APK or the ipa", async () => {
     await release(10000, RN);
     expect(await manifest("stable", "android", "universal", "rn")).toMatchObject({ url: "../apk/10000/android-universal.apk", size: 10 });
     const ios = await manifest("stable", "ios", "universal", "rn");
-    expect(ios).toMatchObject({ versionCode: 10000, url: "../ipa/10000/ios-universal.ipa", size: 20, bundleId: "io.bk.tv" });
+    expect(ios).toMatchObject({
+      versionCode: 10000,
+      url: "../ipa/10000/ios-universal.ipa",
+      size: 20,
+      bundleId: "io.bk.tv",
+    });
     expect(await manifest("stable", "android", "universal")).toBeNull();
     expect(JSON.parse(await readObjectText(manifestIndexKey("rn")))).toHaveLength(4);
     expect(await objectExists(MANIFEST_INDEX_KEY)).toBe(false);
@@ -119,7 +167,10 @@ describe("the rn app", () => {
     await release(10000);
     await release(10000, RN, 1);
     await release(10001, RN, 1);
-    expect((await listReleases(db)).map(r => [r.app, r.versionCode])).toEqual([["rn", 10001], ["tvbox", 10000]]);
+    expect((await listReleases(db)).map(r => [r.app, r.versionCode])).toEqual([
+      ["rn", 10001],
+      ["tvbox", 10000],
+    ]);
     expect(await objectExists(releaseFileKey(10000, "mobile", "arm64_v8a"))).toBe(true);
     expect(await objectExists(releaseFileKey(10000, "ios", "universal", "rn"))).toBe(false);
     expect((await manifest("stable"))?.versionCode).toBe(10000);
@@ -132,7 +183,17 @@ describe("the rn app", () => {
   });
 
   test("refuses an ipa flavor without a bundle id", async () => {
-    await expect(release(10000, { app: "rn", assets: [{ mode: "tvos", abi: "universal", sha256: SHA, size: 1 }] }))
+    await expect(release(10000, {
+      app: "rn",
+      assets: [
+        {
+          mode: "tvos",
+          abi: "universal",
+          sha256: SHA,
+          size: 1,
+        },
+      ],
+    }))
       .rejects
       .toMatchObject({ statusCode: 422, message: "No bundle id for tvos-universal" });
   });

@@ -32,7 +32,12 @@ const answerSchema = z.object({
 const enrollmentSchema = z.object({
   id: z.string(),
   code: z.string(),
-  status: z.enum(["pending", "approved", "rejected", "unlinked"]),
+  status: z.enum([
+    "pending",
+    "approved",
+    "rejected",
+    "unlinked",
+  ]),
   deviceRef: z.string().nullable(),
   deviceName: z.string().nullable(),
   appDeviceId: z.string(),
@@ -48,7 +53,9 @@ const enrollmentSchema = z.object({
   resolvedAt: z.string().nullable(),
 });
 
-const idParam = z.object({ id: z.string() });
+const idParam = z.object({
+  id: z.string(),
+});
 
 /**
  * The TVBox app's link endpoint. Public: the device code, which only shows on
@@ -65,7 +72,10 @@ export function enrollRawRoutes() {
       tags: [TAGS.Tvbox],
       summary: "Ask to link a TVBox app, or poll for the answer",
       description: "`request` records the device code and answers `pending`, `approved` (with the subscription URL and, for an app that supports binding, its device key) or `rejected`; `unlink` ends the link from the device.",
-      responses: { ...jsonOk(answerSchema, "Link state"), ...errors(422, 429) },
+      responses: {
+        ...jsonOk(answerSchema, "Link state"),
+        ...errors(422, 429),
+      },
     }),
     validator("json", enrollSchema),
     async (c) => {
@@ -85,7 +95,15 @@ export function enrollRoutes() {
   router.use("/tvbox/enrollments/*", authRequired, adminRequired);
 
   const doc = (summary: string, responses: ReturnType<typeof jsonOk>) =>
-    describeRoute({ tags: [TAGS.Tvbox], summary, security: SECURITY.session, responses: { ...responses, ...errors(401, 403, 404, 409, 422) } });
+    describeRoute({
+      tags: [TAGS.Tvbox],
+      summary,
+      security: SECURITY.session,
+      responses: {
+        ...responses,
+        ...errors(401, 403, 404, 409, 422),
+      },
+    });
 
   const record = async (c: Context<AppEnv>, action: string, e: { id: string; code: string }, detail?: Record<string, unknown>) => {
     const user = c.get("user")!;
@@ -96,7 +114,9 @@ export function enrollRoutes() {
       resourceType: "tvbox_enrollment",
       resourceId: e.id,
       resourceName: e.code,
-      ...(detail ? { detail } : {}),
+      ...(detail
+        ? { detail }
+        : {}),
       ...auditMeta(c),
       result: "success",
     });

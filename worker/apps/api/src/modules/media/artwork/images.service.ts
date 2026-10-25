@@ -53,7 +53,9 @@ export async function addImage(db: MediaDb, ownerType: OwnerType, ownerId: strin
   assertSource(input.url, input.assetSha256);
   const id = ulid();
   const same = and(eq(mediaImages.ownerType, ownerType), eq(mediaImages.ownerId, ownerId), eq(mediaImages.kind, input.kind));
-  const last = await db.select({ sort: max(mediaImages.sort) }).from(mediaImages).where(same).get();
+  const last = await db.select({
+    sort: max(mediaImages.sort),
+  }).from(mediaImages).where(same).get();
   const isPrimary = input.isPrimary ?? last?.sort == null;
   await runBatch(db, [
     db.insert(mediaImages).values({
@@ -70,19 +72,36 @@ export async function addImage(db: MediaDb, ownerType: OwnerType, ownerId: strin
       isPrimary,
       sort: (last?.sort ?? -1) + 1,
     }),
-    ...(isPrimary ? [clearPrimary(db, { id, ownerType, ownerId, kind: input.kind })] : []),
+    ...(isPrimary
+      ? [
+          clearPrimary(db, {
+            id,
+            ownerType,
+            ownerId,
+            kind: input.kind,
+          }),
+        ]
+      : []),
   ]);
   return await getImage(db, id);
 }
 
 export async function updateImage(db: MediaDb, id: string, patch: Partial<Omit<ImageInput, "kind">> & { sort?: number | undefined }): Promise<ImageRow> {
   const current = await getImage(db, id);
-  const url = patch.url !== undefined ? patch.url : current.url;
-  const sha = patch.assetSha256 !== undefined ? patch.assetSha256 : current.assetSha256;
+  const url = patch.url !== undefined
+    ? patch.url
+    : current.url;
+  const sha = patch.assetSha256 !== undefined
+    ? patch.assetSha256
+    : current.assetSha256;
   assertSource(url, sha);
   await runBatch(db, [
     db.update(mediaImages).set(Object.fromEntries(Object.entries(patch).filter(([, v]) => v !== undefined))).where(eq(mediaImages.id, id)),
-    ...(patch.isPrimary ? [clearPrimary(db, current)] : []),
+    ...(patch.isPrimary
+      ? [
+          clearPrimary(db, current),
+        ]
+      : []),
   ]);
   return await getImage(db, id);
 }

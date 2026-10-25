@@ -4,7 +4,9 @@ import { toast } from "sonner";
 import { mediaKeys } from "./-media-api";
 
 export function errorText(err: unknown, fallback: string): string {
-  return err instanceof Error ? err.message : fallback;
+  return err instanceof Error
+    ? err.message
+    : fallback;
 }
 
 /**

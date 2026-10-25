@@ -107,14 +107,24 @@ export interface Mapped {
 
 // ─── Mapping ───
 
-const text = (s: string | null | undefined): string | null => (s && s.trim() ? s.trim() : null);
+function text(s: string | null | undefined): string | null {
+  return s && s.trim()
+    ? s.trim()
+    : null;
+}
 const localeOf = (t: Translation) => `${t.iso_639_1}-${t.iso_3166_1}`;
-const img = (size: string, path: string | null | undefined) => (path ? `${IMAGE}/${size}${path}` : null);
+function img(size: string, path: string | null | undefined) {
+  return path
+    ? `${IMAGE}/${size}${path}`
+    : null;
+}
 
 function pick(translations: Translation[], chain: readonly string[], field: (t: Translation) => string | null | undefined): { value: string; locale: string } | null {
   for (const locale of chain) {
     const t = translations.find(x => localeOf(x) === locale);
-    const v = text(t ? field(t) : null);
+    const v = text(t
+      ? field(t)
+      : null);
     if (v)
       return { value: v, locale };
   }
@@ -127,7 +137,12 @@ function translationsOf(translations: Translation[], locales: readonly string[],
     const t = translations.find(x => localeOf(x) === locale);
     if (!t)
       continue;
-    const entry = { locale, title: text(titleOf(t)), overview: text(t.data.overview), tagline: text(t.data.tagline) };
+    const entry = {
+      locale,
+      title: text(titleOf(t)),
+      overview: text(t.data.overview),
+      tagline: text(t.data.tagline),
+    };
     if (entry.title || entry.overview || entry.tagline)
       out.push(entry);
   }
@@ -140,7 +155,13 @@ function imagesOf(c: Common): NonNullable<ImportTitle["images"]> {
     if (!path)
       return;
     const meta = pool.find(i => i.file_path === path);
-    out.push({ kind, url: `${IMAGE}/${size}${path}`, locale: meta?.iso_639_1 ?? null, width: meta?.width ?? null, height: meta?.height ?? null });
+    out.push({
+      kind,
+      url: `${IMAGE}/${size}${path}`,
+      locale: meta?.iso_639_1 ?? null,
+      width: meta?.width ?? null,
+      height: meta?.height ?? null,
+    });
   };
   add("poster", c.poster_path, "w500", c.images?.posters ?? []);
   add("backdrop", c.backdrop_path, "w1280", c.images?.backdrops ?? []);
@@ -148,7 +169,14 @@ function imagesOf(c: Common): NonNullable<ImportTitle["images"]> {
 }
 
 function person(p: Person): NonNullable<ImportTitle["credits"]>[number]["person"] {
-  return { externalId: String(p.id), name: p.name, originalName: text(p.original_name) === p.name ? null : text(p.original_name), profile: img("w185", p.profile_path) };
+  return {
+    externalId: String(p.id),
+    name: p.name,
+    originalName: text(p.original_name) === p.name
+      ? null
+      : text(p.original_name),
+    profile: img("w185", p.profile_path),
+  };
 }
 
 function categoryOf(kind: Kind, genreIds: number[]): string {
@@ -158,25 +186,41 @@ function categoryOf(kind: Kind, genreIds: number[]): string {
     return "documentary";
   if (kind === "tv" && genreIds.some(g => VARIETY.has(g)))
     return "variety";
-  return kind === "movie" ? "movie" : "tv";
+  return kind === "movie"
+    ? "movie"
+    : "tv";
 }
 
 function externalIds(kind: Kind, c: Common): ImportTitle["externalIds"] {
   return {
     tmdb: `${kind}:${c.id}`,
-    ...(c.external_ids?.imdb_id ? { imdb: c.external_ids.imdb_id } : {}),
-    ...(c.external_ids?.tvdb_id ? { tvdb: String(c.external_ids.tvdb_id) } : {}),
+    ...(c.external_ids?.imdb_id
+      ? { imdb: c.external_ids.imdb_id }
+      : {}),
+    ...(c.external_ids?.tvdb_id
+      ? {
+          tvdb: String(c.external_ids.tvdb_id),
+        }
+      : {}),
   };
 }
 
 function base(kind: Kind, c: Common, original: string, titleOf: (t: Translation) => string | undefined, opts: MapOptions) {
   const translations = c.translations?.translations ?? [];
   const title = pick(translations, opts.fallback, titleOf);
-  const overview = pick(translations, opts.fallback, t => t.data.overview) ?? (text(c.overview) ? { value: c.overview.trim(), locale: "original" } : null);
+  const overview = pick(translations, opts.fallback, t => t.data.overview) ?? (text(c.overview)
+    ? {
+        value: c.overview.trim(),
+        locale: "original",
+      }
+    : null);
   const tagline = pick(translations, opts.fallback, t => t.data.tagline);
   const genreIds = (c.genres ?? []).map(g => g.id);
   return {
-    resolved: { title: title ? title.locale : "original", overview: overview ? overview.locale : null } as Mapped["resolved"],
+    resolved: {
+      title: title ? title.locale : "original",
+      overview: overview ? overview.locale : null,
+    } as Mapped["resolved"],
     fields: {
       externalIds: externalIds(kind, c),
       categoryId: categoryOf(kind, genreIds),
@@ -200,7 +244,11 @@ function base(kind: Kind, c: Common, original: string, titleOf: (t: Translation)
 }
 
 function movieStatus(s: string): NonNullable<ImportTitle["status"]> {
-  return s === "Released" ? "released" : s === "Canceled" ? "canceled" : "upcoming";
+  return s === "Released"
+    ? "released"
+    : s === "Canceled"
+      ? "canceled"
+      : "upcoming";
 }
 
 function tvStatus(s: string, firstAir: string | null): NonNullable<ImportTitle["status"]> {
@@ -218,12 +266,30 @@ function certification(results: { iso_3166_1: string; certs: string[] }[]): stri
 
 export function mapMovie(m: TmdbMovie, opts: MapOptions): Mapped {
   const { resolved, fields } = base("movie", m, m.original_title, t => t.data.title, opts);
-  const countries = m.origin_country?.length ? m.origin_country : (m.production_countries ?? []).map(c => c.iso_3166_1);
+  const countries = m.origin_country?.length
+    ? m.origin_country
+    : (m.production_countries ?? []).map(c => c.iso_3166_1);
   const crew = m.credits?.crew ?? [];
   const credits: NonNullable<ImportTitle["credits"]> = [
-    ...crew.filter(c => c.job === "Director").map(c => ({ person: person(c), role: "crew" as const, department: c.department, job: c.job })),
-    ...crew.filter(c => WRITER_JOBS.has(c.job)).map(c => ({ person: person(c), role: "crew" as const, department: c.department, job: c.job })),
-    ...[...(m.credits?.cast ?? [])].sort((a, b) => a.order - b.order).slice(0, opts.cast).map(c => ({ person: person(c), role: "cast" as const, character: text(c.character) })),
+    ...crew.filter(c => c.job === "Director").map(c => ({
+      person: person(c),
+      role: "crew" as const,
+      department: c.department,
+      job: c.job,
+    })),
+    ...crew.filter(c => WRITER_JOBS.has(c.job)).map(c => ({
+      person: person(c),
+      role: "crew" as const,
+      department: c.department,
+      job: c.job,
+    })),
+    ...[
+      ...(m.credits?.cast ?? []),
+    ].sort((a, b) => a.order - b.order).slice(0, opts.cast).map(c => ({
+      person: person(c),
+      role: "cast" as const,
+      character: text(c.character),
+    })),
   ];
   return {
     resolved,
@@ -234,8 +300,17 @@ export function mapMovie(m: TmdbMovie, opts: MapOptions): Mapped {
       releaseDate: text(m.release_date),
       runtime: m.runtime ?? null,
       status: movieStatus(m.status),
-      contentRating: certification((m.release_dates?.results ?? []).map(r => ({ iso_3166_1: r.iso_3166_1, certs: r.release_dates.map(d => d.certification) }))),
-      collection: m.belongs_to_collection ? { externalId: String(m.belongs_to_collection.id), name: m.belongs_to_collection.name, overview: null } : null,
+      contentRating: certification((m.release_dates?.results ?? []).map(r => ({
+        iso_3166_1: r.iso_3166_1,
+        certs: r.release_dates.map(d => d.certification),
+      }))),
+      collection: m.belongs_to_collection
+        ? {
+            externalId: String(m.belongs_to_collection.id),
+            name: m.belongs_to_collection.name,
+            overview: null,
+          }
+        : null,
       credits: dedupe(credits),
     },
   };
@@ -245,9 +320,23 @@ export function mapTv(tv: TmdbTv, opts: MapOptions): Mapped {
   const { resolved, fields } = base("tv", tv, tv.original_name, t => t.data.name, opts);
   const agg = tv.aggregate_credits ?? { cast: [], crew: [] };
   const credits: NonNullable<ImportTitle["credits"]> = [
-    ...(tv.created_by ?? []).map(p => ({ person: person(p), role: "crew" as const, department: "Writing", job: "Creator" })),
-    ...agg.crew.flatMap(c => c.jobs.filter(j => WRITER_JOBS.has(j.job)).slice(0, 1).map(j => ({ person: person(c), role: "crew" as const, department: c.department, job: j.job }))),
-    ...[...agg.cast].sort((a, b) => a.order - b.order).slice(0, opts.cast).map(c => ({ person: person(c), role: "cast" as const, character: text(c.roles?.[0]?.character) })),
+    ...(tv.created_by ?? []).map(p => ({
+      person: person(p),
+      role: "crew" as const,
+      department: "Writing",
+      job: "Creator",
+    })),
+    ...agg.crew.flatMap(c => c.jobs.filter(j => WRITER_JOBS.has(j.job)).slice(0, 1).map(j => ({
+      person: person(c),
+      role: "crew" as const,
+      department: c.department,
+      job: j.job,
+    }))),
+    ...[...agg.cast].sort((a, b) => a.order - b.order).slice(0, opts.cast).map(c => ({
+      person: person(c),
+      role: "cast" as const,
+      character: text(c.roles?.[0]?.character),
+    })),
   ];
   return {
     resolved,
@@ -258,7 +347,10 @@ export function mapTv(tv: TmdbTv, opts: MapOptions): Mapped {
       releaseDate: text(tv.first_air_date),
       runtime: tv.episode_run_time?.[0] ?? null,
       status: tvStatus(tv.status, text(tv.first_air_date)),
-      contentRating: certification((tv.content_ratings?.results ?? []).map(r => ({ iso_3166_1: r.iso_3166_1, certs: [r.rating] }))),
+      contentRating: certification((tv.content_ratings?.results ?? []).map(r => ({
+        iso_3166_1: r.iso_3166_1,
+        certs: [r.rating],
+      }))),
       collection: null,
       seasons: (tv.seasons ?? []).map(s => ({
         number: s.season_number,
@@ -307,7 +399,15 @@ export function tmdbClient(token: string, fetchImpl: Fetch = fetch, sleep: (ms: 
     for (let attempt = 1; ; attempt++) {
       let res: Response | undefined;
       try {
-        res = await fetchImpl(url.toString(), { headers: { accept: "application/json", ...(bearer ? { authorization: `Bearer ${token}` } : {}) }, signal: AbortSignal.timeout(30_000) });
+        res = await fetchImpl(url.toString(), {
+          headers: {
+            accept: "application/json",
+            ...(bearer
+              ? { authorization: `Bearer ${token}` }
+              : {}),
+          },
+          signal: AbortSignal.timeout(30_000),
+        });
       }
       catch (err) {
         if (attempt > RETRIES)
@@ -320,7 +420,9 @@ export function tmdbClient(token: string, fetchImpl: Fetch = fetch, sleep: (ms: 
       if (attempt > RETRIES)
         throw new Error(`TMDB ${path} → ${res?.status ?? "network error"} after ${RETRIES} retries`);
       const retryAfter = Number(res?.headers.get("retry-after"));
-      await sleep(res?.status === 429 && retryAfter > 0 ? retryAfter * 1000 : attempt * 1000);
+      await sleep(res?.status === 429 && retryAfter > 0
+        ? retryAfter * 1000
+        : attempt * 1000);
     }
   };
 }
@@ -350,10 +452,14 @@ export async function rankedIds(call: TmdbCall, kind: Kind, opts: DiscoverOption
       "sort_by": "vote_average.desc",
       "vote_count.gte": opts.minVotes,
       "include_adult": false,
-      "include_video": kind === "movie" ? false : undefined,
+      "include_video": kind === "movie"
+        ? false
+        : undefined,
       "language": opts.language,
       "page": page,
-      "without_genres": opts.withoutGenres?.length ? opts.withoutGenres.join(",") : undefined,
+      "without_genres": opts.withoutGenres?.length
+        ? opts.withoutGenres.join(",")
+        : undefined,
     });
     onPage?.(page, pages);
     const ranked = data.results.map((r, i) => ({ id: r.id, rank: (page - 1) * PAGE_SIZE + i + 1 })).filter(r => r.rank <= opts.count);
@@ -370,7 +476,9 @@ export async function detail<T extends TmdbMovie | TmdbTv>(call: TmdbCall, kind:
 export async function pool<T, R>(items: readonly T[], limit: number, fn: (item: T, index: number) => Promise<R>): Promise<R[]> {
   const out: R[] = Array.from({ length: items.length });
   let next = 0;
-  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, async () => {
+  await Promise.all(Array.from({
+    length: Math.min(limit, items.length),
+  }, async () => {
     for (let i = next++; i < items.length; i = next++)
       out[i] = await fn(items[i]!, i);
   }));

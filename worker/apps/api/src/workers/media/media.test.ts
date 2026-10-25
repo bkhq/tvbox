@@ -42,7 +42,13 @@ afterEach(() => dispose());
 async function call(path: string, headers: Record<string, string> = {}) {
   const url = `https://worker.example/s/${TOKEN}/media${path}`;
   // A fresh key each time: the generation is not remembered between calls.
-  return await handleMedia({ request: new Request(url, { headers }), db, cacheKey: {}, path: new URL(url).pathname.slice(`/s/${TOKEN}/media`.length), assetBase: ASSET_BASE });
+  return await handleMedia({
+    request: new Request(url, { headers }),
+    db,
+    cacheKey: {},
+    path: new URL(url).pathname.slice(`/s/${TOKEN}/media`.length),
+    assetBase: ASSET_BASE,
+  });
 }
 
 async function body<S extends z.ZodType>(path: string, schema: S): Promise<z.infer<S>> {
@@ -72,7 +78,12 @@ async function library() {
   const b = await movie("流浪地球2", { year: 2023, popularity: 20, genre: "g878" });
   const c = await movie("Inception", { year: 2010, country: "US", popularity: 10 });
   await addImage(db, "title", String(a.id), { kind: "poster", assetSha256: SHA, assetName: "poster.jpg" });
-  const series = await createTitle(db, { kind: "series", categoryId: "tv", title: "漫长的季节", publishState: "published" });
+  const series = await createTitle(db, {
+    kind: "series",
+    categoryId: "tv",
+    title: "漫长的季节",
+    publishState: "published",
+  });
   const season = (await listSeasons(db, series.id))[0]!;
   await updateSeason(db, season.id, { publishState: "published" });
   const e1 = await createEpisode(db, season.id, { episodeNumber: 1 });
@@ -80,7 +91,10 @@ async function library() {
   await addStream(db, src.id, { url: "https://v/s1e1.m3u8", episodeId: e1.id });
   const person = await createPerson(db, { name: "吴京" });
   await addCredit(db, a.id, { personId: person.id, role: "cast", character: "刘培强" });
-  await createRow(db, { name: "精选", titleIds: [a.id, b.id, c.id] });
+  await createRow(db, {
+    name: "精选",
+    titleIds: [a.id, b.id, c.id],
+  });
   await markPublished(db);
   return { a, b, c, series, season, e1, person };
 }
@@ -89,7 +103,9 @@ describe("media v1", () => {
   test("before the first publish there is nothing to serve", async () => {
     const res = await call("/v1/manifest");
     expect(res.status).toBe(503);
-    expect(await res.json()).toMatchObject({ error: { code: "NOT_PUBLISHED" } });
+    expect(await res.json()).toMatchObject({
+      error: { code: "NOT_PUBLISHED" },
+    });
   });
 
   test("manifest, home and a row's next page", async () => {
@@ -104,7 +120,12 @@ describe("media v1", () => {
     expect(rest.items.map(i => i.id)).toEqual([b.id]);
     expect(rest.cursor).toBe("2");
     const last = await body(`/v1/rows/${row.id}?cursor=2&limit=1`, rowSchema);
-    expect(last).toMatchObject({ items: [{ id: c.id }], cursor: null });
+    expect(last).toMatchObject({
+      items: [
+        { id: c.id },
+      ],
+      cursor: null,
+    });
   });
 
   test("browse pages by cursor without repeats, in each sort", async () => {
@@ -112,7 +133,12 @@ describe("media v1", () => {
     const first = await body("/v1/browse?category=movie&sort=popular&limit=2", pageSchema);
     expect(first.items.map(i => i.id)).toEqual([a.id, b.id]);
     const second = await body(`/v1/browse?category=movie&sort=popular&limit=2&cursor=${first.cursor}`, pageSchema);
-    expect(second).toMatchObject({ items: [{ id: c.id }], cursor: null });
+    expect(second).toMatchObject({
+      items: [
+        { id: c.id },
+      ],
+      cursor: null,
+    });
     const filtered = await body("/v1/browse?category=movie&genre=g878&year=2023", pageSchema);
     expect(filtered.items.map(i => i.id)).toEqual([b.id]);
     const release = await body("/v1/browse?sort=release", pageSchema);
@@ -122,11 +148,19 @@ describe("media v1", () => {
   test("facets: counted per category and when narrowed", async () => {
     await library();
     const all = await body("/v1/facets?category=movie", facetsSchema);
-    expect(all.country).toEqual([{ value: "CN", label: "中国大陆", count: 2 }, { value: "US", label: "美国", count: 1 }]);
+    expect(all.country).toEqual([
+      { value: "CN", label: "中国大陆", count: 2 },
+      { value: "US", label: "美国", count: 1 },
+    ]);
     const narrowed = await body("/v1/facets?category=movie&genre=g878", facetsSchema);
     // Genre counts ignore the genre filter itself; the rest honour it.
-    expect(narrowed.genre!.map(g => [g.value, g.count])).toEqual([["g878", 2], ["g28", 1]]);
-    expect(narrowed.country).toEqual([{ value: "CN", label: "中国大陆", count: 2 }]);
+    expect(narrowed.genre!.map(g => [g.value, g.count])).toEqual([
+      ["g878", 2],
+      ["g28", 1],
+    ]);
+    expect(narrowed.country).toEqual([
+      { value: "CN", label: "中国大陆", count: 2 },
+    ]);
     expect(narrowed.genre![0]!.label).toBe("科幻");
   });
 
@@ -135,7 +169,9 @@ describe("media v1", () => {
     const long = await body(`/v1/search?q=${encodeURIComponent("流浪地球")}`, searchSchema);
     expect(long.titles.map(t => t.id).sort()).toEqual([a.id, b.id].sort());
     const short = await body(`/v1/search?q=${encodeURIComponent("吴京")}`, searchSchema);
-    expect(short.people).toEqual([expect.objectContaining({ id: person.id, name: "吴京" })]);
+    expect(short.people).toEqual([
+      expect.objectContaining({ id: person.id, name: "吴京" }),
+    ]);
     // Titles match by their own names only.
     expect(short.titles).toEqual([]);
     const paged = await body(`/v1/search?q=${encodeURIComponent("流浪地球")}&limit=1`, searchSchema);
@@ -150,10 +186,19 @@ describe("media v1", () => {
     expect((await body(`/v1/seasons/${season.id}`, seasonDetailSchema)).episodes.length).toBe(1);
     expect((await body(`/v1/people/${person.id}`, personSchema)).credits[0]!.title.id).toBe(a.id);
     expect((await body(`/v1/playback/${e1.id}`, playbackSchema)).sources[0]!.streams[0]!.url).toBe("https://v/s1e1.m3u8");
-    for (const path of [`/v1/seasons/${a.id}`, "/v1/titles/nope", "/v1/seasons/nope", "/v1/collections/x", "/v1/nope", "/v2/manifest"]) {
+    for (const path of [
+      `/v1/seasons/${a.id}`,
+      "/v1/titles/nope",
+      "/v1/seasons/nope",
+      "/v1/collections/x",
+      "/v1/nope",
+      "/v2/manifest",
+    ]) {
       const res = await call(path);
       expect({ path, status: res.status }).toEqual({ path, status: 404 });
-      expect(await res.json()).toMatchObject({ error: { code: "NOT_FOUND" } });
+      expect(await res.json()).toMatchObject({
+        error: { code: "NOT_FOUND" },
+      });
     }
   });
 
@@ -192,8 +237,16 @@ describe("media v1", () => {
 
 describe("through the subscription", () => {
   const sha = (s: string) => createHash("sha256").update(s).digest("hex");
-  const devices: DevicesFile = { devices: { [sha(TOKEN)]: { id: "d1", upstreams: null } } };
-  const files = { get: async (key: string) => (key === DEVICES_KEY ? new Response(JSON.stringify(devices)) : null) };
+  const devices: DevicesFile = {
+    devices: {
+      [sha(TOKEN)]: { id: "d1", upstreams: null },
+    },
+  };
+  const files = {
+    get: async (key: string) => (key === DEVICES_KEY
+      ? new Response(JSON.stringify(devices))
+      : null),
+  };
 
   test("a device's token reaches the media API; without a library it is missing", async () => {
     const { a } = await library();

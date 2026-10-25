@@ -33,10 +33,18 @@ export async function initTvbox(db: AppDatabase, config: Config, logger: Logger)
 registerTokenScope({
   name: "tvbox:read",
   description: "Read TVBox upstreams, entries, publishes and releases",
-  routes: [{ method: "GET", path: "/tvbox/*" }],
+  routes: [
+    { method: "GET", path: "/tvbox/*" },
+  ],
 });
 registerTokenScope({
   name: "tvbox:write",
   description: "Manage TVBox upstreams, entries, publishing, subscriptions and releases",
-  routes: (["GET", "POST", "PUT", "PATCH", "DELETE"] as const).map(method => ({ method, path: "/tvbox/*" })),
+  routes: ([
+    "GET",
+    "POST",
+    "PUT",
+    "PATCH",
+    "DELETE",
+  ] as const).map(method => ({ method, path: "/tvbox/*" })),
 });

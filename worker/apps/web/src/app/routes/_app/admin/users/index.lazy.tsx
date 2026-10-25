@@ -97,12 +97,20 @@ function UsersTab() {
       setMeta({ total: res.meta.total, totalPages: res.meta.totalPages });
     }
     catch (err) {
-      setError(err instanceof Error ? err.message : t("common.error.loadFailed"));
+      setError(err instanceof Error
+        ? err.message
+        : t("common.error.loadFailed"));
     }
     finally {
       setLoading(false);
     }
-  }, [debouncedSearch, roleFilter, statusFilter, page, t]);
+  }, [
+    debouncedSearch,
+    roleFilter,
+    statusFilter,
+    page,
+    t,
+  ]);
 
   useEffect(() => {
     void fetchUsers();
@@ -112,7 +120,9 @@ function UsersTab() {
     if (!roleConfirm)
       return;
     try {
-      const newRole = roleConfirm.role === "admin" ? "user" : "admin";
+      const newRole = roleConfirm.role === "admin"
+        ? "user"
+        : "admin";
       await http(`/account/users/${roleConfirm.id}`, {
         method: "PATCH",
         body: JSON.stringify({ role: newRole }),
@@ -121,14 +131,18 @@ function UsersTab() {
       void fetchUsers();
     }
     catch (err) {
-      setError(err instanceof Error ? err.message : t("common.error.operationFailed"));
+      setError(err instanceof Error
+        ? err.message
+        : t("common.error.operationFailed"));
       setRoleConfirm(null);
     }
   };
 
   const toggleStatus = async (user: User) => {
     try {
-      const newStatus = user.status === "active" ? "disabled" : "active";
+      const newStatus = user.status === "active"
+        ? "disabled"
+        : "active";
       await http(`/account/users/${user.id}`, {
         method: "PATCH",
         body: JSON.stringify({ status: newStatus }),
@@ -136,7 +150,9 @@ function UsersTab() {
       void fetchUsers();
     }
     catch (err) {
-      setError(err instanceof Error ? err.message : t("common.error.operationFailed"));
+      setError(err instanceof Error
+        ? err.message
+        : t("common.error.operationFailed"));
     }
   };
 
@@ -264,8 +280,13 @@ function UsersTab() {
                       <TableCell>{user.name}</TableCell>
                       <TableCell>{user.email}</TableCell>
                       <TableCell>
-                        <Badge variant={user.status === "active" ? "default" : "destructive"}>
-                          {t(`status${user.status === "active" ? "Active" : "Disabled"}`)}
+                        <Badge variant={user.status === "active"
+                          ? "default"
+                          : "destructive"}
+                        >
+                          {t(`status${user.status === "active"
+                            ? "Active"
+                            : "Disabled"}`)}
                         </Badge>
                       </TableCell>
                       <TableCell>
@@ -278,7 +299,9 @@ function UsersTab() {
                         </div>
                       </TableCell>
                       <TableCell className="text-muted-foreground">
-                        {user.lastLoginAt ? formatDateTime(user.lastLoginAt) : "-"}
+                        {user.lastLoginAt
+                          ? formatDateTime(user.lastLoginAt)
+                          : "-"}
                       </TableCell>
                       <TableCell>
                         <div className="flex gap-1">
@@ -288,7 +311,9 @@ function UsersTab() {
                             disabled={isSelf(user.id)}
                             onClick={() => setRoleConfirm(user)}
                           >
-                            {user.role === "admin" ? t("demote") : t("promote")}
+                            {user.role === "admin"
+                              ? t("demote")
+                              : t("promote")}
                           </Button>
                           <Button
                             variant="ghost"
@@ -296,7 +321,9 @@ function UsersTab() {
                             disabled={isSelf(user.id)}
                             onClick={() => void toggleStatus(user)}
                           >
-                            {user.status === "active" ? t("disable") : t("enable")}
+                            {user.status === "active"
+                              ? t("disable")
+                              : t("enable")}
                           </Button>
                         </div>
                       </TableCell>
@@ -342,7 +369,9 @@ function UsersTab() {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>
-              {roleConfirm?.role === "admin" ? t("demoteTitle") : t("promoteTitle")}
+              {roleConfirm?.role === "admin"
+                ? t("demoteTitle")
+                : t("promoteTitle")}
             </DialogTitle>
             <DialogDescription>
               {roleConfirm?.role === "admin"

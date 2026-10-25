@@ -1,6 +1,12 @@
 import { http } from "@/shared/lib/http";
 
-export const LIST_KINDS = ["sites", "parses", "lives", "rules", "doh"] as const;
+export const LIST_KINDS = [
+  "sites",
+  "parses",
+  "lives",
+  "rules",
+  "doh",
+] as const;
 export type ListKind = typeof LIST_KINDS[number];
 export type JsonObject = Record<string, unknown>;
 
@@ -104,7 +110,13 @@ export interface SyncResult {
 
 export const tvboxKeys = {
   upstreams: ["tvbox", "upstreams"] as const,
-  entries: (kind: ListKind, source: EntrySource, deleted: boolean) => ["tvbox", "entries", kind, source, deleted] as const,
+  entries: (kind: ListKind, source: EntrySource, deleted: boolean) => [
+    "tvbox",
+    "entries",
+    kind,
+    source,
+    deleted,
+  ] as const,
   globals: ["tvbox", "globals"] as const,
   publishes: ["tvbox", "publishes"] as const,
   devices: ["tvbox", "devices"] as const,
@@ -116,7 +128,12 @@ async function data<T>(path: string, init?: RequestInit): Promise<T> {
 }
 
 function send(method: string, body?: unknown): RequestInit {
-  return body === undefined ? { method } : { method, body: JSON.stringify(body) };
+  return body === undefined
+    ? { method }
+    : {
+        method,
+        body: JSON.stringify(body),
+      };
 }
 
 export const tvboxApi = {
@@ -128,7 +145,9 @@ export const tvboxApi = {
   syncUpstream: (id: string) => data<SyncResult>(`/tvbox/upstreams/${id}/sync`, send("POST")),
 
   entries: (kind: ListKind, source: EntrySource, deleted = false) =>
-    data<Entry[]>(`/tvbox/entries?kind=${kind}${source === "all" ? "" : `&source=${encodeURIComponent(source)}`}${deleted ? "&deleted=true" : ""}`),
+    data<Entry[]>(`/tvbox/entries?kind=${kind}${source === "all"
+      ? ""
+      : `&source=${encodeURIComponent(source)}`}${deleted ? "&deleted=true" : ""}`),
   setEntriesEnabled: (ids: readonly string[], enabled: boolean) => data<{ count: number }>("/tvbox/entries/bulk", send("POST", { ids, enabled })),
   createEntry: (kind: ListKind, entry: JsonObject) => data<Entry>("/tvbox/entries", send("POST", { kind, data: entry })),
   updateEntry: (id: string, body: { data?: JsonObject; enabled?: boolean; healthExempt?: boolean }) => data<Entry>(`/tvbox/entries/${id}`, send("PATCH", body)),
@@ -136,7 +155,11 @@ export const tvboxApi = {
   deleteEntry: (id: string) => data<Entry>(`/tvbox/entries/${id}`, send("DELETE")),
   deleteEntries: (ids: readonly string[]) => data<{ count: number }>("/tvbox/entries/bulk-delete", send("POST", { ids })),
   restoreEntry: (id: string) => data<Entry>(`/tvbox/entries/${id}/restore`, send("POST")),
-  uploadFile: (file: File) => data<{ path: string; name: string; size: number }>(`/tvbox/files?name=${encodeURIComponent(file.name)}`, { method: "POST", body: file, headers: { "Content-Type": "application/octet-stream" } }),
+  uploadFile: (file: File) => data<{ path: string; name: string; size: number }>(`/tvbox/files?name=${encodeURIComponent(file.name)}`, {
+    method: "POST",
+    body: file,
+    headers: { "Content-Type": "application/octet-stream" },
+  }),
   reorderEntries: (kind: ListKind, ids: readonly string[]) => data<{ count: number }>("/tvbox/entries/reorder", send("POST", { kind, ids })),
 
   globals: () => data<Global[]>("/tvbox/globals"),
@@ -144,7 +167,9 @@ export const tvboxApi = {
   revertGlobal: (key: string) => data<Global>(`/tvbox/globals/${encodeURIComponent(key)}/revert`, send("POST")),
   deleteGlobal: (key: string) => data<Global>(`/tvbox/globals/${encodeURIComponent(key)}`, send("DELETE")),
 
-  preview: (deviceId?: string) => data<JsonObject>(`/tvbox/preview${deviceId ? `?deviceId=${deviceId}` : ""}`),
+  preview: (deviceId?: string) => data<JsonObject>(`/tvbox/preview${deviceId
+    ? `?deviceId=${deviceId}`
+    : ""}`),
   publishes: () => data<Publish[]>("/tvbox/publishes"),
   publish: () => data<Publish>("/tvbox/publishes", send("POST")),
   restore: (id: string) => data<Publish>(`/tvbox/publishes/${id}/restore`, send("POST")),
@@ -169,5 +194,7 @@ export function subscriptionUrl(token: string): string {
 }
 
 export function errorMessage(err: unknown, fallback: string): string {
-  return err instanceof Error ? err.message : fallback;
+  return err instanceof Error
+    ? err.message
+    : fallback;
 }

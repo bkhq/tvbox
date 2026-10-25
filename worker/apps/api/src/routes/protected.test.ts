@@ -14,7 +14,14 @@ import { nanoid } from "@/shared/lib/id";
 import { errorHandler } from "@/shared/middleware/error-handler";
 import { protectedRoutes } from "./protected";
 
-const noop = { debug() {}, info() {}, warn() {}, error() {}, fatal() {}, flush() {} } as unknown as Logger;
+const noop = {
+  debug() {},
+  info() {},
+  warn() {},
+  error() {},
+  fatal() {},
+  flush() {},
+} as unknown as Logger;
 
 let db: AppDatabase;
 let dbPath: string;
@@ -49,7 +56,17 @@ function buildApp(): Hono<AppEnv> {
 async function sessionFor(role: "admin" | "user"): Promise<string> {
   const id = nanoid();
   const now = new Date().toISOString();
-  await db.insert(users).values({ id, oauthSub: `sub-${id}`, username: `u-${id}`, name: id, email: `${id}@t.io`, role, status: "active", createdAt: now, updatedAt: now }).run();
+  await db.insert(users).values({
+    id,
+    oauthSub: `sub-${id}`,
+    username: `u-${id}`,
+    name: id,
+    email: `${id}@t.io`,
+    role,
+    status: "active",
+    createdAt: now,
+    updatedAt: now,
+  }).run();
   return `session_id=${await createSession(db, id, "tok", undefined, 3600)}`;
 }
 
@@ -60,7 +77,9 @@ describe("protectedRoutes composition", () => {
   // routers admin-only.
   test("a non-admin reaches routers mounted after an admin-only one (404 from the route, not 403)", async () => {
     const user = await sessionFor("user");
-    const res = await buildApp().request("/files/nope/metadata?ref=nope", { headers: { Cookie: user } });
+    const res = await buildApp().request("/files/nope/metadata?ref=nope", {
+      headers: { Cookie: user },
+    });
     expect(res.status).toBe(404);
   });
 

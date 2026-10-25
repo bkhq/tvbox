@@ -19,16 +19,30 @@ const SOURCE = "spider:tvbox";
 export async function setOwnJar(db: AppDatabase, data: ArrayBuffer): Promise<{ path: string; md5: string; changed: boolean }> {
   const stored = await storeUpload(db, "tvbox.jar", data);
   const current = await db.select().from(tvboxAssets).where(eq(tvboxAssets.sourceUrl, SOURCE)).get();
-  const row = { sha256: stored.sha256, md5: stored.md5, name: stored.name, size: stored.size, fetchedAt: new Date().toISOString() };
-  if (current)
+  const row = {
+    sha256: stored.sha256,
+    md5: stored.md5,
+    name: stored.name,
+    size: stored.size,
+    fetchedAt: new Date().toISOString(),
+  };
+  if (current) {
     await db.update(tvboxAssets).set(row).where(eq(tvboxAssets.id, current.id)).run();
-  else
-    await db.insert(tvboxAssets).values({ id: ulid(), sourceUrl: SOURCE, ...row }).run();
+  }
+  else {
+    await db.insert(tvboxAssets).values({
+      id: ulid(),
+      sourceUrl: SOURCE,
+      ...row,
+    }).run();
+  }
   return { path: stored.path, md5: stored.md5, changed: current?.sha256 !== stored.sha256 };
 }
 
 /** What `@tvbox` stands for in a published config; null before the first upload. */
 export async function ownJarSpec(db: AppDatabase): Promise<string | null> {
   const row = await db.select().from(tvboxAssets).where(eq(tvboxAssets.sourceUrl, SOURCE)).get();
-  return row ? `${assetPath(row)};md5;${row.md5}` : null;
+  return row
+    ? `${assetPath(row)};md5;${row.md5}`
+    : null;
 }

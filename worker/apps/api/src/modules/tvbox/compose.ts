@@ -33,7 +33,9 @@ export function compose({ globals, entries }: ComposeInput): JsonObject {
       .sort((a, b) => a.sort - b.sort || a.id.localeCompare(b.id));
     if (rows.length === 0)
       continue;
-    out[kind] = kind === "sites" ? homeFirst(uniqueSiteKeys(rows)) : rows.map(r => r.data);
+    out[kind] = kind === "sites"
+      ? homeFirst(uniqueSiteKeys(rows))
+      : rows.map(r => r.data);
   }
 
   for (const { key, value } of globals) {
@@ -52,7 +54,9 @@ function uniqueSiteKeys(rows: readonly ComposeEntry[]): JsonObject[] {
     if (seen.has(key))
       key = `${key}_${(row.upstreamId ?? "local").slice(0, 6)}`;
     seen.add(key);
-    return key === row.data.key ? row.data : { ...row.data, key };
+    return key === row.data.key
+      ? row.data
+      : { ...row.data, key };
   });
 }
 
@@ -67,7 +71,11 @@ function homeFirst(sites: JsonObject[]): JsonObject[] {
   const index = sites.findIndex(searchable);
   if (index < 0)
     return sites;
-  return [sites[index]!, ...sites.slice(0, index), ...sites.slice(index + 1)];
+  return [
+    sites[index]!,
+    ...sites.slice(0, index),
+    ...sites.slice(index + 1),
+  ];
 }
 
 /** What a publish stores: enabled entries with their source, and the globals. */
@@ -82,7 +90,9 @@ export interface PublishedSnapshot {
  * when `upstreams` is null) plus the common entries added here.
  */
 export function composeForDevice(snapshot: PublishedSnapshot, upstreams: readonly string[] | null): JsonObject {
-  const allowed = upstreams === null ? null : new Set(upstreams);
+  const allowed = upstreams === null
+    ? null
+    : new Set(upstreams);
   return compose({
     globals: snapshot.globals,
     entries: snapshot.entries.filter(e => e.upstreamId === null || allowed === null || allowed.has(e.upstreamId)),

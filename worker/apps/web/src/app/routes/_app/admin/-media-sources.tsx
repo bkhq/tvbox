@@ -16,11 +16,17 @@ import { useMediaMutation } from "./-media-hooks";
 /** A movie's (`titles`) or a season's (`seasons`) sources and their streams. */
 export function SourcesPanel({ owner }: { owner: SourceOwner }) {
   const { t } = useTranslation(["common", "media"]);
-  const sources = useQuery({ queryKey: mediaKeys.sources(owner), queryFn: () => mediaApi.sources(owner) });
+  const sources = useQuery({
+    queryKey: mediaKeys.sources(owner),
+    queryFn: () => mediaApi.sources(owner),
+  });
   const [name, setName] = useState("");
   const [quality, setQuality] = useState("");
   const [open, setOpen] = useState<string | null>(null);
-  const add = useMediaMutation(() => mediaApi.createSource(owner, { name: name.trim(), quality: orNull(quality) }), (s) => {
+  const add = useMediaMutation(() => mediaApi.createSource(owner, {
+    name: name.trim(),
+    quality: orNull(quality),
+  }), (s) => {
     setName("");
     setQuality("");
     setOpen(s.id);
@@ -34,8 +40,16 @@ export function SourcesPanel({ owner }: { owner: SourceOwner }) {
       {sources.data?.map(s => (
         <div key={s.id} className="rounded-md border">
           <div className="flex items-center gap-2 px-2 py-1">
-            <Button size="sm" variant="ghost" onClick={() => setOpen(open === s.id ? null : s.id)}>
-              {open === s.id ? <ChevronDown className="size-4" /> : <ChevronRight className="size-4" />}
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={() => setOpen(open === s.id
+                ? null
+                : s.id)}
+            >
+              {open === s.id
+                ? <ChevronDown className="size-4" />
+                : <ChevronRight className="size-4" />}
             </Button>
             <span className="font-medium">{s.name}</span>
             {s.quality && <Badge variant="outline">{s.quality}</Badge>}
@@ -60,7 +74,10 @@ export function SourcesPanel({ owner }: { owner: SourceOwner }) {
 
 function Streams({ source, owner }: { source: Source; owner: SourceOwner }) {
   const { t } = useTranslation(["common", "media"]);
-  const streams = useQuery({ queryKey: mediaKeys.streams(source.id), queryFn: () => mediaApi.streams(source.id) });
+  const streams = useQuery({
+    queryKey: mediaKeys.streams(source.id),
+    queryFn: () => mediaApi.streams(source.id),
+  });
   const episodes = useQuery({
     queryKey: mediaKeys.episodes(owner.id),
     queryFn: () => mediaApi.episodes(owner.id),
@@ -71,7 +88,10 @@ function Streams({ source, owner }: { source: Source; owner: SourceOwner }) {
   const [text, setText] = useState("");
   const [createMissing, setCreateMissing] = useState(true);
   const [preview, setPreview] = useState<PasteResult | null>(null);
-  const add = useMediaMutation(() => mediaApi.addStream(source.id, { url: url.trim(), resolution: orNull(resolution) }), () => setUrl(""));
+  const add = useMediaMutation(() => mediaApi.addStream(source.id, {
+    url: url.trim(),
+    resolution: orNull(resolution),
+  }), () => setUrl(""));
   const remove = useMediaMutation((id: string) => mediaApi.deleteStream(id));
   const paste = useMediaMutation((dryRun: boolean) => mediaApi.paste(source.id, text, { createMissing, dryRun }), (r) => {
     setPreview(r);
@@ -122,7 +142,15 @@ function Streams({ source, owner }: { source: Source; owner: SourceOwner }) {
               </div>
               {preview && (
                 <div className="space-y-1 rounded-md bg-muted p-2 text-xs">
-                  <div>{t("media:paste.summary", { matched: preview.matched.length, missing: preview.missing.length, unmatched: preview.unmatched.length, written: preview.written, created: preview.created })}</div>
+                  <div>
+                    {t("media:paste.summary", {
+                      matched: preview.matched.length,
+                      missing: preview.missing.length,
+                      unmatched: preview.unmatched.length,
+                      written: preview.written,
+                      created: preview.created,
+                    })}
+                  </div>
                   {preview.missing.map(m => <div key={`m${m.episodeNumber}`} className="text-amber-600">{t("media:paste.missing", { number: m.episodeNumber, name: m.line.name })}</div>)}
                   {preview.unmatched.map(u => <div key={`${u.line.name}${u.line.url}`} className="text-destructive">{t(`media:paste.reason.${u.reason}`, { name: u.line.name })}</div>)}
                 </div>

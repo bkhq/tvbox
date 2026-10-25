@@ -13,7 +13,10 @@ function upstream(status = 200, body = "answer", type = "application/dns-message
       type: input.headers.get("content-type"),
       body: await input.text(),
     });
-    return new Response(body, { status, headers: { "content-type": type, "cache-control": "max-age=300", "set-cookie": "x=1" } });
+    return new Response(body, {
+      status,
+      headers: { "content-type": type, "cache-control": "max-age=300", "set-cookie": "x=1" },
+    });
   }) as unknown as typeof fetch;
   return { seen, fetchImpl };
 }
@@ -21,7 +24,9 @@ function upstream(status = 200, body = "answer", type = "application/dns-message
 describe("DoH forwarder", () => {
   test("a wire-format GET goes to Cloudflare with its query", async () => {
     const { seen, fetchImpl } = upstream();
-    const res = await handleDoh(new Request("https://tv.example/dns-query?dns=AAABAAAB", { headers: { accept: "application/dns-message" } }), fetchImpl);
+    const res = await handleDoh(new Request("https://tv.example/dns-query?dns=AAABAAAB", {
+      headers: { accept: "application/dns-message" },
+    }), fetchImpl);
     expect(res.status).toBe(200);
     expect(await res.text()).toBe("answer");
     expect(res.headers.get("content-type")).toBe("application/dns-message");
@@ -32,20 +37,30 @@ describe("DoH forwarder", () => {
 
   test("a JSON query is passed through", async () => {
     const { seen, fetchImpl } = upstream(200, "{}", "application/dns-json");
-    await handleDoh(new Request("https://tv.example/dns-query?name=example.com&type=A", { headers: { accept: "application/dns-json" } }), fetchImpl);
+    await handleDoh(new Request("https://tv.example/dns-query?name=example.com&type=A", {
+      headers: { accept: "application/dns-json" },
+    }), fetchImpl);
     expect(seen[0]).toMatchObject({ url: `${DOH_UPSTREAM}?name=example.com&type=A`, accept: "application/dns-json" });
   });
 
   test("a POST carries the message body", async () => {
     const { seen, fetchImpl } = upstream();
-    await handleDoh(new Request("https://tv.example/dns-query", { method: "POST", body: "wire", headers: { "content-type": "application/dns-message" } }), fetchImpl);
+    await handleDoh(new Request("https://tv.example/dns-query", {
+      method: "POST",
+      body: "wire",
+      headers: { "content-type": "application/dns-message" },
+    }), fetchImpl);
     expect(seen[0]).toMatchObject({ method: "POST", type: "application/dns-message", body: "wire" });
   });
 
   test("other methods and oversized messages are refused before forwarding", async () => {
     const { seen, fetchImpl } = upstream();
     expect((await handleDoh(new Request("https://tv.example/dns-query", { method: "PUT", body: "x" }), fetchImpl)).status).toBe(405);
-    const big = new Request("https://tv.example/dns-query", { method: "POST", body: "x".repeat(70_000), headers: { "content-type": "application/dns-message" } });
+    const big = new Request("https://tv.example/dns-query", {
+      method: "POST",
+      body: "x".repeat(70_000),
+      headers: { "content-type": "application/dns-message" },
+    });
     expect((await handleDoh(big, fetchImpl)).status).toBe(413);
     expect(seen).toHaveLength(0);
   });

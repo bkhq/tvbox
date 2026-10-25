@@ -23,7 +23,9 @@ export const Route = createFileRoute("/(auth)/login")({
   staticData: { titleKey: "login:title" },
   component: LoginPage,
   validateSearch: (search: Record<string, unknown>): LoginSearchParams => ({
-    redirect: typeof search.redirect === "string" ? search.redirect : undefined,
+    redirect: typeof search.redirect === "string"
+      ? search.redirect
+      : undefined,
   }),
 });
 

@@ -19,7 +19,16 @@ export function systemRoutes() {
       summary: "Liveness probe",
       description: "Returns 200 while the process is up. Used by orchestrator liveness probes.",
       responses: {
-        200: { description: "Alive", content: { "application/json": { schema: resolver(z.object({ status: z.literal("ok") })) } } },
+        200: {
+          description: "Alive",
+          content: {
+            "application/json": {
+              schema: resolver(z.object({
+                status: z.literal("ok"),
+              })),
+            },
+          },
+        },
       },
     }),
     c => c.json({ status: "ok" }),
@@ -33,8 +42,26 @@ export function systemRoutes() {
       summary: "Readiness probe",
       description: "200 when the DB is reachable; 503 (with a `status` reason) otherwise, to drain traffic.",
       responses: {
-        200: { description: "Ready", content: { "application/json": { schema: resolver(z.object({ status: z.literal("ready") })) } } },
-        503: { description: "Not ready", content: { "application/json": { schema: resolver(z.object({ status: z.enum(["no_db", "db_unavailable"]) })) } } },
+        200: {
+          description: "Ready",
+          content: {
+            "application/json": {
+              schema: resolver(z.object({
+                status: z.literal("ready"),
+              })),
+            },
+          },
+        },
+        503: {
+          description: "Not ready",
+          content: {
+            "application/json": {
+              schema: resolver(z.object({
+                status: z.enum(["no_db", "db_unavailable"]),
+              })),
+            },
+          },
+        },
       },
     }),
     async (c) => {
@@ -62,7 +89,11 @@ export function systemRoutes() {
       summary: "Build version",
       security: SECURITY.session,
       responses: {
-        ...jsonOk(z.object({ commit: z.string(), buildTime: z.string(), version: z.string() }), "Build identifiers"),
+        ...jsonOk(z.object({
+          commit: z.string(),
+          buildTime: z.string(),
+          version: z.string(),
+        }), "Build identifiers"),
         ...errors(401, 403),
       },
     }),
@@ -110,7 +141,9 @@ export function systemRoutes() {
         data: {
           maxFileSize: cfg.MAX_UPLOAD_BYTES,
           maxAttachmentsPerResource: cfg.MAX_ATTACHMENTS_PER_RESOURCE,
-          totalQuota: cfg.UPLOADS_TOTAL_BYTES > 0 ? cfg.UPLOADS_TOTAL_BYTES : null,
+          totalQuota: cfg.UPLOADS_TOTAL_BYTES > 0
+            ? cfg.UPLOADS_TOTAL_BYTES
+            : null,
         },
       });
     },

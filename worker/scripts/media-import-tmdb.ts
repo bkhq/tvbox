@@ -35,7 +35,9 @@ const TV_WITHOUT_GENRES = [10763, 10767];
 const args = process.argv.slice(2);
 function flag(name: string, fallback: string): string {
   const at = args.indexOf(`--${name}`);
-  return at === -1 || args[at + 1] === undefined ? fallback : args[at + 1]!;
+  return at === -1 || args[at + 1] === undefined
+    ? fallback
+    : args[at + 1]!;
 }
 function int(name: string, fallback: number): number {
   const n = Number(flag(name, String(fallback)));
@@ -44,7 +46,10 @@ function int(name: string, fallback: number): number {
   return n;
 }
 
-const counts: Record<Kind, number> = { movie: int("movies", 2500), tv: int("series", 2500) };
+const counts: Record<Kind, number> = {
+  movie: int("movies", 2500),
+  tv: int("series", 2500),
+};
 const [movieVotes = 300, tvVotes = 150] = flag("min-votes", "300,150").split(",").map(Number);
 const minVotes: Record<Kind, number> = { movie: movieVotes, tv: tvVotes };
 const locales = flag("locales", DEFAULT_LOCALES.join(",")).split(",").map(s => s.trim()).filter(Boolean);
@@ -53,7 +58,9 @@ const batchSize = Math.max(1, Math.min(50, int("batch", 50)));
 const concurrency = Math.max(1, int("concurrency", 8));
 const dryRun = args.includes("--dry-run");
 const publish = !args.includes("--no-publish");
-const jsonFile = args.includes("--json") ? flag("json", "") : "";
+const jsonFile = args.includes("--json")
+  ? flag("json", "")
+  : "";
 
 const tmdbToken = process.env.TMDB_TOKEN;
 const base = process.env.TVBOX_URL?.replace(/\/+$/, "");
@@ -71,7 +78,11 @@ async function api<T>(method: string, path: string, body?: unknown): Promise<T> 
   const res = await fetch(`${base}/api${path}`, {
     method,
     headers: { "Authorization": `Bearer ${apiToken}`, "Content-Type": "application/json" },
-    ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+    ...(body === undefined
+      ? {}
+      : {
+          body: JSON.stringify(body),
+        }),
   });
   const text = await res.text();
   if (!res.ok)
@@ -91,9 +102,20 @@ interface Report {
 }
 
 const report: Report = {
-  options: { counts, minVotes, locales, cast, dryRun },
+  options: {
+    counts,
+    minVotes,
+    locales,
+    cast,
+    dryRun,
+  },
   listed: { movie: 0, tv: 0 },
-  actions: { created: 0, updated: 0, unchanged: 0, skipped: 0 },
+  actions: {
+    created: 0,
+    updated: 0,
+    unchanged: 0,
+    skipped: 0,
+  },
   resolved: { title: {}, overview: {} },
   failed: [],
   invalid: [],
@@ -126,7 +148,9 @@ async function importKind(kind: Kind): Promise<void> {
     count: counts[kind],
     minVotes: minVotes[kind],
     language: LANGUAGE,
-    withoutGenres: kind === "tv" ? TV_WITHOUT_GENRES : undefined,
+    withoutGenres: kind === "tv"
+      ? TV_WITHOUT_GENRES
+      : undefined,
   }, (page, pages) => console.log(`${kind}: listed page ${page} of ${pages}`));
   report.listed[kind] = ranked.length;
   console.log(`${kind}: ${ranked.length} titles, importing worst-rated first`);
@@ -138,10 +162,18 @@ async function importKind(kind: Kind): Promise<void> {
     const mapped = await pool(slice, concurrency, async ({ id, rank }): Promise<Mapped | null> => {
       try {
         const data = await detail<TmdbMovie | TmdbTv>(tmdb, kind, id, LANGUAGE);
-        return kind === "movie" ? mapMovie(data as TmdbMovie, { ...mapOptions, rank }) : mapTv(data as TmdbTv, { ...mapOptions, rank });
+        return kind === "movie"
+          ? mapMovie(data as TmdbMovie, { ...mapOptions, rank })
+          : mapTv(data as TmdbTv, { ...mapOptions, rank });
       }
       catch (err) {
-        report.failed.push({ kind, id, error: err instanceof Error ? err.message : String(err) });
+        report.failed.push({
+          kind,
+          id,
+          error: err instanceof Error
+            ? err.message
+            : String(err),
+        });
         return null;
       }
     });
@@ -150,7 +182,11 @@ async function importKind(kind: Kind): Promise<void> {
         continue;
       const parsed = importTitleSchema.safeParse(m.title);
       if (!parsed.success) {
-        report.invalid.push({ kind, id: slice[i]!.id, error: parsed.error.issues.map(x => `${x.path.join(".")}: ${x.message}`).join("; ") });
+        report.invalid.push({
+          kind,
+          id: slice[i]!.id,
+          error: parsed.error.issues.map(x => `${x.path.join(".")}: ${x.message}`).join("; "),
+        });
         continue;
       }
       bump(report.resolved.title, m.resolved.title ?? "none");
@@ -161,8 +197,15 @@ async function importKind(kind: Kind): Promise<void> {
       await send(batch);
     }
     catch (err) {
-      for (const t of batch)
-        report.failed.push({ kind, id: Number(t.externalIds.tmdb.split(":")[1]), error: err instanceof Error ? err.message : String(err) });
+      for (const t of batch) {
+        report.failed.push({
+          kind,
+          id: Number(t.externalIds.tmdb.split(":")[1]),
+          error: err instanceof Error
+            ? err.message
+            : String(err),
+        });
+      }
     }
     done += slice.length;
     console.log(`${kind}: ${done}/${ranked.length} (rank ${slice.at(-1)!.rank}–${slice[0]!.rank})`);
@@ -181,7 +224,9 @@ if (publish && !dryRun && (report.actions.created > 0 || report.actions.updated 
 
 const a = report.actions;
 console.log(`\nlisted: movies ${report.listed.movie}, series ${report.listed.tv}`);
-console.log(dryRun ? `mapped: ${a.unchanged}` : `created ${a.created}  updated ${a.updated}  unchanged ${a.unchanged}  skipped ${a.skipped}`);
+console.log(dryRun
+  ? `mapped: ${a.unchanged}`
+  : `created ${a.created}  updated ${a.updated}  unchanged ${a.unchanged}  skipped ${a.skipped}`);
 console.log(`display title from: ${Object.entries(report.resolved.title).map(([k, v]) => `${k} ${v}`).join(", ")}`);
 console.log(`overview from: ${Object.entries(report.resolved.overview).map(([k, v]) => `${k} ${v}`).join(", ")}`);
 if (report.invalid.length > 0)
@@ -190,4 +235,6 @@ if (report.failed.length > 0)
   console.log(`failed: ${report.failed.length}, e.g. ${report.failed[0]!.kind} ${report.failed[0]!.id}: ${report.failed[0]!.error}`);
 if (jsonFile)
   writeFileSync(jsonFile, `${JSON.stringify(report, null, 2)}\n`);
-process.exit(report.failed.length > 0 || report.invalid.length > 0 ? 1 : 0);
+process.exit(report.failed.length > 0 || report.invalid.length > 0
+  ? 1
+  : 0);

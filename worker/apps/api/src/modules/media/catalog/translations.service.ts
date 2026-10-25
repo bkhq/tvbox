@@ -30,8 +30,16 @@ export async function putTranslation(db: MediaDb, titleId: string, locale: strin
   await assertTitle(db, titleId);
   const values = { title: input.title ?? null, overview: input.overview ?? null, tagline: input.tagline ?? null };
   await db.insert(mediaTitleTranslations)
-    .values({ id: ulid(), titleId, locale, ...values })
-    .onConflictDoUpdate({ target: [mediaTitleTranslations.titleId, mediaTitleTranslations.locale], set: values })
+    .values({
+      id: ulid(),
+      titleId,
+      locale,
+      ...values,
+    })
+    .onConflictDoUpdate({
+      target: [mediaTitleTranslations.titleId, mediaTitleTranslations.locale],
+      set: values,
+    })
     .run();
   return (await db.select().from(mediaTitleTranslations).where(and(eq(mediaTitleTranslations.titleId, titleId), eq(mediaTitleTranslations.locale, locale))).get())!;
 }
@@ -46,6 +54,16 @@ export async function deleteTranslation(db: MediaDb, titleId: string, locale: st
 
 /** Statements replacing every translation of a title with `items` (the importer's whole-set write). */
 export function replaceTranslations(db: MediaDb, titleId: string, items: readonly TranslationItem[]): Statement[] {
-  const rows = items.map(item => ({ id: ulid(), titleId, locale: item.locale, title: item.title ?? null, overview: item.overview ?? null, tagline: item.tagline ?? null }));
-  return [db.delete(mediaTitleTranslations).where(eq(mediaTitleTranslations.titleId, titleId)), ...insertRows(db, mediaTitleTranslations, rows)];
+  const rows = items.map(item => ({
+    id: ulid(),
+    titleId,
+    locale: item.locale,
+    title: item.title ?? null,
+    overview: item.overview ?? null,
+    tagline: item.tagline ?? null,
+  }));
+  return [
+    db.delete(mediaTitleTranslations).where(eq(mediaTitleTranslations.titleId, titleId)),
+    ...insertRows(db, mediaTitleTranslations, rows),
+  ];
 }

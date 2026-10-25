@@ -14,32 +14,58 @@ const ENTRIES: { kind: ListKind; key: string; data: JsonObject }[] = [
   {
     kind: "sites",
     key: "site",
-    data: { key: "own_media", name: "媒体库", type: 1, api: "@media/cms", searchable: 1, quickSearch: 1, filterable: 1, mediaApi: "@media/v1" },
+    data: {
+      key: "own_media",
+      name: "媒体库",
+      type: 1,
+      api: "@media/cms",
+      searchable: 1,
+      quickSearch: 1,
+      filterable: 1,
+      mediaApi: "@media/v1",
+    },
   },
   {
     kind: "lives",
     key: "live",
-    data: { name: "自有直播", type: 0, url: "@media/live.m3u", mediaApi: "@media/v1" },
+    data: {
+      name: "自有直播",
+      type: 0,
+      url: "@media/live.m3u",
+      mediaApi: "@media/v1",
+    },
   },
 ];
 
 export function PublishTab() {
   const { t } = useTranslation(["common", "media"]);
   const qc = useQueryClient();
-  const sites = useQuery({ queryKey: tvboxKeys.entries("sites", "common", false), queryFn: () => tvboxApi.entries("sites", "common") });
-  const lives = useQuery({ queryKey: tvboxKeys.entries("lives", "common", false), queryFn: () => tvboxApi.entries("lives", "common") });
-  const present = (kind: ListKind) => (kind === "sites" ? sites.data : lives.data)?.some(e => JSON.stringify(e.data).includes("\"@media/")) ?? false;
+  const sites = useQuery({
+    queryKey: tvboxKeys.entries("sites", "common", false),
+    queryFn: () => tvboxApi.entries("sites", "common"),
+  });
+  const lives = useQuery({
+    queryKey: tvboxKeys.entries("lives", "common", false),
+    queryFn: () => tvboxApi.entries("lives", "common"),
+  });
+  const present = (kind: ListKind) => (kind === "sites"
+    ? sites.data
+    : lives.data)?.some(e => JSON.stringify(e.data).includes("\"@media/")) ?? false;
 
   const add = useMutation({
     mutationFn: (entry: typeof ENTRIES[number]) => tvboxApi.createEntry(entry.kind, entry.data),
-    onSuccess: () => void qc.invalidateQueries({ queryKey: ["tvbox"] }),
+    onSuccess: () => void qc.invalidateQueries({
+      queryKey: ["tvbox"],
+    }),
     onError: err => toast.error(errorText(err, t("common.error.operationFailed"))),
   });
   const publish = useMutation({
     mutationFn: () => tvboxApi.publish(),
     onSuccess: () => {
       toast.success(t("media:publish.published"));
-      void qc.invalidateQueries({ queryKey: ["tvbox"] });
+      void qc.invalidateQueries({
+        queryKey: ["tvbox"],
+      });
     },
     onError: err => toast.error(errorText(err, t("common.error.operationFailed"))),
   });

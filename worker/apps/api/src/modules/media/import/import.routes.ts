@@ -15,13 +15,23 @@ export function importRoutes() {
   // caller simply sends the batch again.
   router.post(
     "/media/import",
-    doc("Create or update titles in bulk, matched by their tmdb external id", jsonOk(z.object({ results: z.array(importResultSchema) }))),
+    doc("Create or update titles in bulk, matched by their tmdb external id", jsonOk(z.object({
+      results: z.array(importResultSchema),
+    }))),
     validator("json", importBodySchema),
     async (c) => {
       const results = await importTitles(requireMediaDb(), c.req.valid("json").titles);
-      const counts = Object.fromEntries(["created", "updated", "unchanged", "skipped"].map(a => [a, results.filter(r => r.action === a).length]));
+      const counts = Object.fromEntries([
+        "created",
+        "updated",
+        "unchanged",
+        "skipped",
+      ].map(a => [a, results.filter(r => r.action === a).length]));
       await record(c, "media.import", { type: "media_import", id: results.length, name: "titles" }, counts);
-      return c.json({ success: true, data: { results } });
+      return c.json({
+        success: true,
+        data: { results },
+      });
     },
   );
 

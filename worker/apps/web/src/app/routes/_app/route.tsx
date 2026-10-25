@@ -26,7 +26,9 @@ function readSidebarPreference(): boolean {
   if (typeof document === "undefined")
     return true;
   const match = document.cookie.match(/(?:^|;\s*)sidebar_state=([^;]+)/);
-  return match ? match[1] === "true" : true;
+  return match
+    ? match[1] === "true"
+    : true;
 }
 
 function AppLayout() {
@@ -54,7 +56,11 @@ function AppLayout() {
     if (loading || user || networkError)
       return;
     const current = window.location.pathname + window.location.search;
-    void navigate({ to: "/login", search: { redirect: current }, replace: true });
+    void navigate({
+      to: "/login",
+      search: { redirect: current },
+      replace: true,
+    });
   }, [loading, user, networkError, navigate]);
 
   if (networkError) {

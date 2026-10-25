@@ -23,7 +23,11 @@ export interface DeviceInput {
 
 function newToken(): { token: string; tokenHash: string; hint: string } {
   const token = randomBytes(16).toString("hex");
-  return { token, tokenHash: hashHex("sha256", token), hint: token.slice(-4) };
+  return {
+    token,
+    tokenHash: hashHex("sha256", token),
+    hint: token.slice(-4),
+  };
 }
 
 /**
@@ -39,12 +43,22 @@ export async function writeDevicesFile(db: AppDatabase): Promise<void> {
     .filter(e => e.deviceKey !== null && e.appDeviceId !== "");
   const file: DevicesFile = {
     devices: Object.fromEntries(devices.map((d) => {
-      const bindings = keyed.filter(e => e.deviceRef === d.id).map(e => ({ id: e.appDeviceId, keyHash: hashHex("sha256", e.deviceKey!) }));
-      return [d.tokenHash, {
-        id: d.id,
-        upstreams: d.allUpstreams ? null : expand(links.filter(l => l.deviceId === d.id).map(l => l.upstreamId)),
-        ...(bindings.length > 0 ? { bindings } : {}),
-      }];
+      const bindings = keyed.filter(e => e.deviceRef === d.id).map(e => ({
+        id: e.appDeviceId,
+        keyHash: hashHex("sha256", e.deviceKey!),
+      }));
+      return [
+        d.tokenHash,
+        {
+          id: d.id,
+          upstreams: d.allUpstreams
+            ? null
+            : expand(links.filter(l => l.deviceId === d.id).map(l => l.upstreamId)),
+          ...(bindings.length > 0
+            ? { bindings }
+            : {}),
+        },
+      ];
     })),
   };
   await putObject(DEVICES_KEY, JSON.stringify(file));
@@ -53,7 +67,10 @@ export async function writeDevicesFile(db: AppDatabase): Promise<void> {
 export async function listDevices(db: AppDatabase): Promise<DeviceView[]> {
   const devices = await db.select().from(tvboxDevices).orderBy(desc(tvboxDevices.id)).all();
   const links = await db.select().from(tvboxDeviceUpstreams).all();
-  return devices.map(({ tokenHash: _, ...d }) => ({ ...d, upstreamIds: links.filter(l => l.deviceId === d.id).map(l => l.upstreamId) }));
+  return devices.map(({ tokenHash: _, ...d }) => ({
+    ...d,
+    upstreamIds: links.filter(l => l.deviceId === d.id).map(l => l.upstreamId),
+  }));
 }
 
 export async function getDevice(db: AppDatabase, id: string): Promise<DeviceView> {
@@ -64,7 +81,9 @@ export async function getDevice(db: AppDatabase, id: string): Promise<DeviceView
 }
 
 async function setUpstreams(db: AppDatabase, deviceId: string, upstreamIds: readonly string[]): Promise<void> {
-  const unique = [...new Set(upstreamIds)];
+  const unique = [
+    ...new Set(upstreamIds),
+  ];
   if (unique.length > 0) {
     const known = new Set((await db.select({ id: tvboxUpstreams.id }).from(tvboxUpstreams).all()).map(r => r.id));
     if (!unique.every(id => known.has(id)))
@@ -114,10 +133,18 @@ export async function updateDevice(
   if (patch.upstreamIds !== undefined && patch.upstreamIds !== null)
     await setUpstreams(db, id, patch.upstreamIds);
   await db.update(tvboxDevices).set({
-    ...(patch.name !== undefined ? { name: patch.name } : {}),
-    ...(patch.note !== undefined ? { note: patch.note } : {}),
-    ...(patch.enabled !== undefined ? { enabled: patch.enabled } : {}),
-    ...(patch.upstreamIds !== undefined ? { allUpstreams: patch.upstreamIds === null } : {}),
+    ...(patch.name !== undefined
+      ? { name: patch.name }
+      : {}),
+    ...(patch.note !== undefined
+      ? { note: patch.note }
+      : {}),
+    ...(patch.enabled !== undefined
+      ? { enabled: patch.enabled }
+      : {}),
+    ...(patch.upstreamIds !== undefined
+      ? { allUpstreams: patch.upstreamIds === null }
+      : {}),
     updatedAt: new Date().toISOString(),
   }).where(eq(tvboxDevices.id, id)).run();
   await writeDevicesFile(db);
@@ -127,7 +154,10 @@ export async function updateDevice(
 /** A new subscription URL; the old one stops working within a minute. */
 export async function rotateDevice(db: AppDatabase, id: string): Promise<DeviceView> {
   await getDevice(db, id);
-  await db.update(tvboxDevices).set({ ...newToken(), updatedAt: new Date().toISOString() }).where(eq(tvboxDevices.id, id)).run();
+  await db.update(tvboxDevices).set({
+    ...newToken(),
+    updatedAt: new Date().toISOString(),
+  }).where(eq(tvboxDevices.id, id)).run();
   await writeDevicesFile(db);
   return await getDevice(db, id);
 }
@@ -144,11 +174,16 @@ async function collectionExpander(db: AppDatabase): Promise<(ids: readonly strin
   const lines = await db.select({ id: tvboxUpstreams.id, parentId: tvboxUpstreams.parentId }).from(tvboxUpstreams).where(isNotNull(tvboxUpstreams.parentId)).all();
   return (ids) => {
     const picked = new Set(ids);
-    return [...ids, ...lines.filter(l => picked.has(l.parentId!) && !picked.has(l.id)).map(l => l.id)];
+    return [
+      ...ids,
+      ...lines.filter(l => picked.has(l.parentId!) && !picked.has(l.id)).map(l => l.id),
+    ];
   };
 }
 
 /** Upstreams a device would follow: null for every upstream. */
 export async function deviceUpstreams(db: AppDatabase, device: DeviceView): Promise<readonly string[] | null> {
-  return device.allUpstreams ? null : (await collectionExpander(db))(device.upstreamIds);
+  return device.allUpstreams
+    ? null
+    : (await collectionExpander(db))(device.upstreamIds);
 }

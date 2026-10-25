@@ -62,7 +62,9 @@ function JsonEditor({
       parsed = JSON.parse(text);
     }
     catch (err) {
-      setError(err instanceof Error ? err.message : t("tvbox:json.invalid"));
+      setError(err instanceof Error
+        ? err.message
+        : t("tvbox:json.invalid"));
       return;
     }
     if (objectOnly && (parsed === null || typeof parsed !== "object" || Array.isArray(parsed))) {
@@ -87,7 +89,14 @@ function JsonEditor({
         className="h-[60vh] font-mono text-xs"
       />
       <DialogFooter>
-        <DialogClose render={<Button variant="outline">{onSave ? t("common.cancel") : t("tvbox:json.close")}</Button>} />
+        <DialogClose render={(
+          <Button variant="outline">
+            {onSave
+              ? t("common.cancel")
+              : t("tvbox:json.close")}
+          </Button>
+        )}
+        />
         {onSave && (
           <Button onClick={save} disabled={pending}>
             {t("tvbox:json.save")}

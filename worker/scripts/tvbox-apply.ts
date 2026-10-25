@@ -72,9 +72,15 @@ interface SyncResult {
 
 const args = process.argv.slice(2);
 const jsonAt = args.indexOf("--json");
-const jsonFile = jsonAt === -1 ? undefined : args[jsonAt + 1];
+const jsonFile = jsonAt === -1
+  ? undefined
+  : args[jsonAt + 1];
 const file = args.find((a, i) => !a.startsWith("--") && (jsonAt === -1 || i !== jsonAt + 1)) ?? "tvbox/upstreams.json";
-const publishMode = args.includes("--no-publish") ? "never" : args.includes("--publish") ? "always" : "changed";
+const publishMode = args.includes("--no-publish")
+  ? "never"
+  : args.includes("--publish")
+    ? "always"
+    : "changed";
 const base = process.env.TVBOX_URL?.replace(/\/+$/, "");
 const token = process.env.TVBOX_API_TOKEN;
 
@@ -87,7 +93,11 @@ async function api<T>(method: string, path: string, body?: unknown): Promise<T> 
   const res = await fetch(`${base}/api${path}`, {
     method,
     headers: { "Authorization": `Bearer ${token}`, "Content-Type": "application/json" },
-    ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+    ...(body === undefined
+      ? {}
+      : {
+          body: JSON.stringify(body),
+        }),
   });
   const text = await res.text();
   if (!res.ok)
@@ -98,7 +108,7 @@ async function api<T>(method: string, path: string, body?: unknown): Promise<T> 
 function readDeclared(path: string): Declared[] {
   const parsed: unknown = JSON.parse(readFileSync(path, "utf8"));
   if (!Array.isArray(parsed))
-    throw new Error(`${path} must be a JSON array of upstreams`);
+    throw new TypeError(`${path} must be a JSON array of upstreams`);
   const declared = parsed.map((entry, i) => {
     const e = entry as Partial<Declared>;
     if (typeof e.name !== "string" || e.name.trim() === "" || typeof e.url !== "string" || !/^https?:\/\//.test(e.url))
@@ -115,7 +125,7 @@ function readDeclared(path: string): Declared[] {
 function readResolvers(path: string): Resolver[] {
   const parsed: unknown = JSON.parse(readFileSync(path, "utf8"));
   if (!Array.isArray(parsed))
-    throw new Error(`${path} must be a JSON array of resolvers`);
+    throw new TypeError(`${path} must be a JSON array of resolvers`);
   return parsed.map((entry, i) => {
     const e = entry as Partial<Resolver>;
     if (typeof e.name !== "string" || e.name.trim() === "" || typeof e.url !== "string" || !/^https:\/\//.test(e.url))
@@ -132,7 +142,10 @@ async function applyResolvers(resolvers: readonly Resolver[]): Promise<number> {
   for (const r of resolvers) {
     const found = common.find(e => e.data.url === r.url);
     if (!found) {
-      ids.push((await api<Entry>("POST", "/tvbox/entries", { kind: "doh", data: { name: r.name, url: r.url } })).id);
+      ids.push((await api<Entry>("POST", "/tvbox/entries", {
+        kind: "doh",
+        data: { name: r.name, url: r.url },
+      })).id);
       console.log(`doh      created ${r.name}`);
       changes++;
       continue;
@@ -142,8 +155,14 @@ async function applyResolvers(resolvers: readonly Resolver[]): Promise<number> {
     const enable = !found.enabled && !found.disabledByHealth;
     if (found.data.name !== r.name || enable) {
       await api("PATCH", `/tvbox/entries/${found.id}`, {
-        ...(found.data.name !== r.name ? { data: { ...found.data, name: r.name } } : {}),
-        ...(enable ? { enabled: true } : {}),
+        ...(found.data.name !== r.name
+          ? {
+              data: { ...found.data, name: r.name },
+            }
+          : {}),
+        ...(enable
+          ? { enabled: true }
+          : {}),
       });
       console.log(`doh      updated ${r.name}`);
       changes++;
@@ -155,7 +174,13 @@ async function applyResolvers(resolvers: readonly Resolver[]): Promise<number> {
     changes++;
   }
   const rest = (await api<Entry[]>("GET", "/tvbox/entries?kind=doh")).map(e => e.id).filter(id => !ids.includes(id));
-  await api("POST", "/tvbox/entries/reorder", { kind: "doh", ids: [...ids, ...rest] });
+  await api("POST", "/tvbox/entries/reorder", {
+    kind: "doh",
+    ids: [
+      ...ids,
+      ...rest,
+    ],
+  });
   return changes;
 }
 
@@ -182,8 +207,12 @@ async function main(): Promise<void> {
     else {
       ({ id, isPrimary } = found);
       const patch = {
-        ...(found.name !== d.name ? { name: d.name } : {}),
-        ...(found.syncEnabled !== syncEnabled ? { syncEnabled } : {}),
+        ...(found.name !== d.name
+          ? { name: d.name }
+          : {}),
+        ...(found.syncEnabled !== syncEnabled
+          ? { syncEnabled }
+          : {}),
       };
       if (Object.keys(patch).length > 0) {
         await api("PATCH", `/tvbox/upstreams/${id}`, patch);
@@ -214,7 +243,9 @@ async function main(): Promise<void> {
     try {
       const r = await api<SyncResult>("POST", `/tvbox/upstreams/${id}/sync`);
       changed += r.added + r.updated + r.removed;
-      console.log(`synced   ${name}: +${r.added} ~${r.updated} -${r.removed}, ${r.assets.mirrored} files mirrored${r.lines ? `, ${r.lines.total} lines` : ""}`);
+      console.log(`synced   ${name}: +${r.added} ~${r.updated} -${r.removed}, ${r.assets.mirrored} files mirrored${r.lines
+        ? `, ${r.lines.total} lines`
+        : ""}`);
       for (const line of r.lines?.failed ?? [])
         console.log(`         line ${line} failed to sync (see the console)`);
       for (const url of r.assets.failed)
@@ -222,7 +253,9 @@ async function main(): Promise<void> {
     }
     catch (err) {
       failed++;
-      console.error(`failed   ${name}: ${err instanceof Error ? err.message : String(err)}`);
+      console.error(`failed   ${name}: ${err instanceof Error
+        ? err.message
+        : String(err)}`);
     }
   }
 
@@ -241,7 +274,9 @@ async function main(): Promise<void> {
     console.log(`published ${p.id} ${p.counts}`);
   }
   else {
-    console.log(publishMode === "never" ? "not published (--no-publish)" : "nothing changed; not published");
+    console.log(publishMode === "never"
+      ? "not published (--no-publish)"
+      : "nothing changed; not published");
   }
 
   if (failed > 0)
@@ -252,6 +287,8 @@ try {
   await main();
 }
 catch (err) {
-  console.error(err instanceof Error ? err.message : String(err));
+  console.error(err instanceof Error
+    ? err.message
+    : String(err));
   process.exit(1);
 }

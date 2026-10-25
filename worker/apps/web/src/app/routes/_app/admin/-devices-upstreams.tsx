@@ -41,11 +41,18 @@ export function UpstreamPicker({
             // A picked collection already brings every line.
             const covered = u.parentId !== null && value.upstreamIds.has(u.parentId);
             return (
-              <label key={u.id} className={depth === 1 ? "flex items-center gap-2 pl-6 text-sm" : "flex items-center gap-2 text-sm"}>
+              <label
+                key={u.id}
+                className={depth === 1
+                  ? "flex items-center gap-2 pl-6 text-sm"
+                  : "flex items-center gap-2 text-sm"}
+              >
                 <input type="checkbox" checked={covered || value.upstreamIds.has(u.id)} disabled={covered} onChange={() => pick(u.id)} className="size-4 accent-primary" />
                 {u.name}
                 <span className="text-xs text-muted-foreground">
-                  {lines > 0 ? t("lineCount", { count: lines }) : t("entryCount", { count: u.entryCount })}
+                  {lines > 0
+                    ? t("lineCount", { count: lines })
+                    : t("entryCount", { count: u.entryCount })}
                 </span>
               </label>
             );

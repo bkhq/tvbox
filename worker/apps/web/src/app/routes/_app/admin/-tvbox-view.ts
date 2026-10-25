@@ -13,7 +13,9 @@ export function entrySubtitle(entry: Pick<Entry, "kind" | "data">): string {
     return `${String(key)} · ${String(api ?? "")}`;
   if (typeof url === "string")
     return url;
-  return Array.isArray(hosts) ? hosts.join(", ") : "";
+  return Array.isArray(hosts)
+    ? hosts.join(", ")
+    : "";
 }
 
 export type HealthFilter = "all" | "fail" | "disabledByHealth" | "exempt";
@@ -32,7 +34,9 @@ export function filterHealth<T extends Pick<Entry, "healthStatus" | "disabledByH
 /** Entries whose JSON contains `needle`, case-insensitively; all of them for an empty needle. */
 export function filterEntries<T extends Pick<Entry, "data">>(rows: readonly T[], needle: string): readonly T[] {
   const n = needle.trim().toLowerCase();
-  return n ? rows.filter(r => JSON.stringify(r.data).toLowerCase().includes(n)) : rows;
+  return n
+    ? rows.filter(r => JSON.stringify(r.data).toLowerCase().includes(n))
+    : rows;
 }
 
 /** `ids` with `id` moved by `delta`, or null when it would leave the list. */
@@ -71,8 +75,12 @@ export function upstreamTree<T extends UpstreamNode>(upstreams: readonly T[]): {
 
 /** A line is named after its collection. */
 export function upstreamLabel(upstream: UpstreamNode, upstreams: readonly UpstreamNode[]): string {
-  const parent = upstream.parentId === null ? undefined : upstreams.find(u => u.id === upstream.parentId);
-  return parent ? `${parent.name} / ${upstream.name}` : upstream.name;
+  const parent = upstream.parentId === null
+    ? undefined
+    : upstreams.find(u => u.id === upstream.parentId);
+  return parent
+    ? `${parent.name} / ${upstream.name}`
+    : upstream.name;
 }
 
 export type SiteEngine = "cmsJson" | "cmsXml" | "own" | "jar" | "js" | "python";
@@ -80,7 +88,9 @@ export type SiteEngine = "cmsJson" | "cmsXml" | "own" | "jar" | "js" | "python";
 /** How the app runs a site: a CMS API it calls itself, or a spider. */
 export function siteEngine(data: { readonly type?: unknown; readonly api?: unknown; readonly jar?: unknown }): SiteEngine | null {
   const type = Number(data.type);
-  const api = typeof data.api === "string" ? data.api.split("?")[0]! : "";
+  const api = typeof data.api === "string"
+    ? data.api.split("?")[0]!
+    : "";
   if (type === 0)
     return "cmsXml";
   if (type === 1 || type === 4)
@@ -93,5 +103,7 @@ export function siteEngine(data: { readonly type?: unknown; readonly api?: unkno
     return "python";
   if (!api.startsWith("csp_"))
     return null;
-  return data.jar === "@tvbox" ? "own" : "jar";
+  return data.jar === "@tvbox"
+    ? "own"
+    : "jar";
 }

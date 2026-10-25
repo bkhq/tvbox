@@ -144,7 +144,9 @@ export async function upsertUser(
   // often self-chosen, so a username spelled like the admin's address must
   // not be able to claim it.
   const matchesDefaultAdmin = defaultAdmins.some(entry =>
-    entry.includes("@") ? emailTrusted && entry === email : entry === username,
+    entry.includes("@")
+      ? emailTrusted && entry === email
+      : entry === username,
   );
   const roleFor = (current: "admin" | "user"): "admin" | "user" => {
     if (matchesDefaultAdmin && current !== "admin") {
@@ -170,7 +172,12 @@ export async function upsertUser(
       .where(eq(users.id, existing.id))
       .run();
 
-    return { ...existing, role, lastLoginAt: now, updatedAt: now };
+    return {
+      ...existing,
+      role,
+      lastLoginAt: now,
+      updatedAt: now,
+    };
   }
 
   // The transaction covers the duplicate-sub race below: two callbacks for a
@@ -192,7 +199,12 @@ export async function upsertUser(
         })
         .where(eq(users.id, dupe.id))
         .run();
-      return { ...dupe, role, lastLoginAt: now, updatedAt: now };
+      return {
+        ...dupe,
+        role,
+        lastLoginAt: now,
+        updatedAt: now,
+      };
     }
 
     // Take-over path: an existing row matches by username or email but not
@@ -315,7 +327,17 @@ export async function upsertSingleUser(
       })
       .where(eq(users.id, existing.id))
       .run();
-    return { ...existing, oauthSub: SINGLE_USER_OAUTH_SUB, username: input.username, name: input.name, email: input.email, role: "admin", status: "active", lastLoginAt: now, updatedAt: now };
+    return {
+      ...existing,
+      oauthSub: SINGLE_USER_OAUTH_SUB,
+      username: input.username,
+      name: input.name,
+      email: input.email,
+      role: "admin",
+      status: "active",
+      lastLoginAt: now,
+      updatedAt: now,
+    };
   }
 
   const newUser = {
@@ -439,7 +461,10 @@ async function renewSessionIfDue(
   if (next <= expiresAt)
     return;
   await db.update(sessions)
-    .set({ expiresAt: new Date(next).toISOString(), updatedAt: new Date(now).toISOString() })
+    .set({
+      expiresAt: new Date(next).toISOString(),
+      updatedAt: new Date(now).toISOString(),
+    })
     .where(eq(sessions.id, session.id))
     .run();
   writeSessionCookie(c, config.NODE_ENV, config.BASE_PATH, session.id, Math.floor((next - now) / 1000));

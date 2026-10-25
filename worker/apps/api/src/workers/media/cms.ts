@@ -27,12 +27,23 @@ const FILTER_NAMES = { genre: "类型", year: "年份", country: "地区" } as c
 type FilterKey = keyof typeof FILTER_NAMES;
 
 function body(list: Vod[], page: number, pagecount: number, total: number, extra: Record<string, unknown> = {}): string {
-  return JSON.stringify({ code: 1, msg: "数据列表", page, pagecount, limit: PAGE, total, list, ...extra });
+  return JSON.stringify({
+    code: 1,
+    msg: "数据列表",
+    page,
+    pagecount,
+    limit: PAGE,
+    total,
+    list,
+    ...extra,
+  });
 }
 
 function pageOf(value: string | null): number {
   const n = Number(value ?? 1);
-  return Number.isSafeInteger(n) && n >= 1 && n <= 10_000 ? n : 1;
+  return Number.isSafeInteger(n) && n >= 1 && n <= 10_000
+    ? n
+    : 1;
 }
 
 /** The CMS items of `titleIds`, every playable movie and season. */
@@ -77,21 +88,28 @@ async function home(db: MediaDb, today: string): Promise<string> {
         key,
         name: FILTER_NAMES[key],
         init: "",
-        value: [{ n: "全部", v: "" }, ...values[key]!.map(v => ({ n: v.label, v: v.value }))],
+        value: [
+          { n: "全部", v: "" },
+          ...values[key]!.map(v => ({ n: v.label, v: v.value })),
+        ],
       }));
   }
 
   // The first home row, each series as its newest season.
   const first = (await rows(db)).find(r => r.onHome);
   let list: Vod[];
-  const titleIds = first ? await rowTitleIds(db, first, 0, PAGE) : [];
+  const titleIds = first
+    ? await rowTitleIds(db, first, 0, PAGE)
+    : [];
   if (titleIds.length > 0) {
     const newest = new Map<string, CmsItemDoc>();
     for (const item of await items(db, titleIds, today)) {
       if ((newest.get(item.titleId)?.groupOrder ?? -1) < item.groupOrder)
         newest.set(item.titleId, item);
     }
-    list = titleIds.flatMap(id => (newest.has(id) ? [newest.get(id)!.list] : []));
+    list = titleIds.flatMap(id => (newest.has(id)
+      ? [newest.get(id)!.list]
+      : []));
   }
   else {
     list = (await page(db, {}, today, 0)).list;
@@ -107,7 +125,14 @@ async function page(db: MediaDb, filter: TitleFilter, today: string, offset: num
     db.all<{ title_id: string; vod_id: string }>(sql`${query} ORDER BY u DESC, vod_id DESC LIMIT ${PAGE} OFFSET ${offset}`),
   ]);
   const byId = new Map((await items(db, refs.map(r => r.title_id), today)).map(i => [i.vodId, i.list]));
-  return { list: refs.flatMap(r => (byId.has(r.vod_id) ? [byId.get(r.vod_id)!] : [])), total: count?.n ?? 0 };
+  return {
+    list: refs.flatMap(r => (byId.has(r.vod_id)
+      ? [
+          byId.get(r.vod_id)!,
+        ]
+      : [])),
+    total: count?.n ?? 0,
+  };
 }
 
 function parseFilters(f: string | null): TitleFilter {
@@ -115,9 +140,17 @@ function parseFilters(f: string | null): TitleFilter {
     return {};
   try {
     const raw = JSON.parse(f) as Record<string, unknown>;
-    const value = (key: FilterKey) => (typeof raw[key] === "string" && raw[key] !== "" ? raw[key] : undefined);
+    const value = (key: FilterKey) => (typeof raw[key] === "string" && raw[key] !== ""
+      ? raw[key]
+      : undefined);
     const year = Number(value("year"));
-    return { genre: value("genre"), country: value("country"), year: Number.isSafeInteger(year) && year > 0 ? year : undefined };
+    return {
+      genre: value("genre"),
+      country: value("country"),
+      year: Number.isSafeInteger(year) && year > 0
+        ? year
+        : undefined,
+    };
   }
   catch {
     return {};
@@ -125,18 +158,27 @@ function parseFilters(f: string | null): TitleFilter {
 }
 
 async function category(db: MediaDb, typeId: string, n: number, f: string | null, today: string): Promise<string> {
-  const { list, total } = await page(db, { ...parseFilters(f), category: typeId }, today, (n - 1) * PAGE);
+  const { list, total } = await page(db, {
+    ...parseFilters(f),
+    category: typeId,
+  }, today, (n - 1) * PAGE);
   return body(list, n, Math.max(1, Math.ceil(total / PAGE)), total);
 }
 
 async function detail(db: MediaDb, ids: string, today: string): Promise<string> {
-  const wanted = [...new Set(ids.split(",").map(s => s.trim()).filter(Boolean))].slice(0, MAX_IDS);
+  const wanted = [
+    ...new Set(ids.split(",").map(s => s.trim()).filter(Boolean)),
+  ].slice(0, MAX_IDS);
   if (wanted.length === 0)
     return body([], 1, 1, 0);
   const owners = await db.all<{ id: string }>(sql`SELECT id FROM media_titles WHERE id IN ${wanted}
     UNION SELECT title_id FROM media_seasons WHERE id IN ${wanted}`);
   const byId = new Map((await items(db, owners.map(o => o.id), today)).map(i => [i.vodId, i.detail]));
-  const list = wanted.flatMap(id => (byId.has(id) ? [byId.get(id)!] : []));
+  const list = wanted.flatMap(id => (byId.has(id)
+    ? [
+        byId.get(id)!,
+      ]
+    : []));
   return body(list, 1, 1, list.length);
 }
 
@@ -152,7 +194,9 @@ async function search(db: MediaDb, wd: string, n: number, today: string): Promis
   const list = (await items(db, titleIds, today))
     .sort((a, b) => rank.get(a.titleId)! - rank.get(b.titleId)! || a.groupOrder - b.groupOrder)
     .map(i => i.list);
-  return body(list, n, more ? n + 1 : n, (n - 1) * PAGE + list.length);
+  return body(list, n, more
+    ? n + 1
+    : n, (n - 1) * PAGE + list.length);
 }
 
 export async function handleCms(db: MediaDb, params: URLSearchParams, today: string): Promise<Response> {
@@ -166,5 +210,7 @@ export async function handleCms(db: MediaDb, params: URLSearchParams, today: str
     text = await category(db, params.get("t")!, n, params.get("f"), today);
   else
     text = await home(db, today);
-  return new Response(text, { headers: { "content-type": "application/json; charset=utf-8" } });
+  return new Response(text, {
+    headers: { "content-type": "application/json; charset=utf-8" },
+  });
 }

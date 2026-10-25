@@ -17,7 +17,10 @@ import { SourcesPanel } from "./-media-sources";
 
 export function SeasonsPanel({ titleId }: { titleId: string }) {
   const { t } = useTranslation(["common", "media"]);
-  const seasons = useQuery({ queryKey: mediaKeys.seasons(titleId), queryFn: () => mediaApi.seasons(titleId) });
+  const seasons = useQuery({
+    queryKey: mediaKeys.seasons(titleId),
+    queryFn: () => mediaApi.seasons(titleId),
+  });
   const [selected, setSelected] = useState<string | null>(null);
   const [deleting, setDeleting] = useState<Season | null>(null);
   const current = seasons.data?.find(s => s.id === selected) ?? seasons.data?.[0];
@@ -32,7 +35,14 @@ export function SeasonsPanel({ titleId }: { titleId: string }) {
     <div className="space-y-4 pt-4">
       <div className="flex flex-wrap items-center gap-2">
         {seasons.data?.map(s => (
-          <Button key={s.id} size="sm" variant={current?.id === s.id ? "default" : "outline"} onClick={() => setSelected(s.id)}>
+          <Button
+            key={s.id}
+            size="sm"
+            variant={current?.id === s.id
+              ? "default"
+              : "outline"}
+            onClick={() => setSelected(s.id)}
+          >
             {s.name ?? t("media:seasons.numbered", { number: s.seasonNumber })}
             <span className="text-xs opacity-70">
               {s.publishedEpisodeCount}
@@ -80,7 +90,9 @@ function SeasonDetail({ season, onDelete }: { season: Season; onDelete: () => vo
     publishState: form.publishState,
     airDate: orNull(form.airDate),
     endDate: orNull(form.endDate),
-    episodeTotal: form.episodeTotal.trim() ? Number(form.episodeTotal) : null,
+    episodeTotal: form.episodeTotal.trim()
+      ? Number(form.episodeTotal)
+      : null,
     updateSchedule: orNull(form.updateSchedule),
     overview: orNull(form.overview),
   }));
@@ -124,7 +136,10 @@ function SeasonDetail({ season, onDelete }: { season: Season; onDelete: () => vo
 
 function Episodes({ seasonId }: { seasonId: string }) {
   const { t } = useTranslation(["common", "media"]);
-  const episodes = useQuery({ queryKey: mediaKeys.episodes(seasonId), queryFn: () => mediaApi.episodes(seasonId) });
+  const episodes = useQuery({
+    queryKey: mediaKeys.episodes(seasonId),
+    queryFn: () => mediaApi.episodes(seasonId),
+  });
   const [range, setRange] = useState({ from: "1", to: "" });
   const [shift, setShift] = useState({ from: "1", delta: "1" });
   const [plan, setPlan] = useState({ from: "1", start: "", interval: "7" });
@@ -182,7 +197,12 @@ function Episodes({ seasonId }: { seasonId: string }) {
                           <Input
                             autoFocus
                             defaultValue={e.name ?? ""}
-                            onBlur={ev => update.mutate({ id: e.id, body: { name: orNull(ev.target.value) } })}
+                            onBlur={ev => update.mutate({
+                              id: e.id,
+                              body: {
+                                name: orNull(ev.target.value),
+                              },
+                            })}
                             onKeyDown={ev => ev.key === "Enter" && (ev.target as HTMLInputElement).blur()}
                           />
                         )
@@ -193,14 +213,36 @@ function Episodes({ seasonId }: { seasonId: string }) {
                       type="date"
                       className="w-36"
                       defaultValue={e.airDate ?? ""}
-                      onBlur={ev => ev.target.value !== (e.airDate ?? "") && update.mutate({ id: e.id, body: { airDate: orNull(ev.target.value) } })}
+                      onBlur={ev => ev.target.value !== (e.airDate ?? "") && update.mutate({
+                        id: e.id,
+                        body: {
+                          airDate: orNull(ev.target.value),
+                        },
+                      })}
                     />
                   </TableCell>
                   <TableCell>
-                    <EnumSelect className="w-28" value={e.episodeType} values={EPISODE_TYPES} label={v => t(`media:episodeType.${v}`)} onChange={v => update.mutate({ id: e.id, body: { episodeType: v } })} />
+                    <EnumSelect
+                      className="w-28"
+                      value={e.episodeType}
+                      values={EPISODE_TYPES}
+                      label={v => t(`media:episodeType.${v}`)}
+                      onChange={v => update.mutate({
+                        id: e.id,
+                        body: { episodeType: v },
+                      })}
+                    />
                   </TableCell>
                   <TableCell>
-                    <Switch checked={e.publishState === "published"} onCheckedChange={on => update.mutate({ id: e.id, body: { publishState: on ? "published" : "draft" } })} />
+                    <Switch
+                      checked={e.publishState === "published"}
+                      onCheckedChange={on => update.mutate({
+                        id: e.id,
+                        body: {
+                          publishState: on ? "published" : "draft",
+                        },
+                      })}
+                    />
                   </TableCell>
                   <TableCell className="text-right">
                     <Button size="sm" variant="ghost" onClick={() => remove.mutate(e.id)}><Trash2 className="size-4" /></Button>

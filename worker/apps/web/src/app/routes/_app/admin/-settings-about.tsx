@@ -35,7 +35,10 @@ export function AboutSettingsTab() {
   return (
     <div className="space-y-4 pt-4">
       {versionQuery.error && (
-        <ErrorBanner message={versionQuery.error instanceof Error ? versionQuery.error.message : t("about.loadFailed")} />
+        <ErrorBanner message={versionQuery.error instanceof Error
+          ? versionQuery.error.message
+          : t("about.loadFailed")}
+        />
       )}
 
       <Card>
@@ -83,7 +86,9 @@ function InfoField({ label, value, mono = false }: { readonly label: string; rea
 }
 
 function safeText(value: string | null | undefined) {
-  const trimmed = typeof value === "string" ? value.trim() : "";
+  const trimmed = typeof value === "string"
+    ? value.trim()
+    : "";
   return trimmed || null;
 }
 

@@ -40,7 +40,9 @@ async function titleOfSource(db: MediaDb, source: SourceRow): Promise<string> {
 
 /** The episodes (`""` for the movie) a source's owner can play: those with a stream on an enabled line. */
 async function playableKeys(db: MediaDb, source: SourceRow): Promise<Set<string>> {
-  const owner = source.titleId !== null ? eq(mediaSources.titleId, source.titleId) : eq(mediaSources.seasonId, source.seasonId!);
+  const owner = source.titleId !== null
+    ? eq(mediaSources.titleId, source.titleId)
+    : eq(mediaSources.seasonId, source.seasonId!);
   const rows = await db.selectDistinct({ episodeId: mediaStreams.episodeId })
     .from(mediaStreams)
     .innerJoin(mediaSources, eq(mediaStreams.sourceId, mediaSources.id))
@@ -81,7 +83,9 @@ export async function getSource(db: MediaDb, id: string): Promise<SourceView> {
 
 /** A movie's sources, or a season's. */
 export async function listSources(db: MediaDb, owner: { titleId: string } | { seasonId: string }): Promise<SourceView[]> {
-  const where = "titleId" in owner ? eq(mediaSources.titleId, owner.titleId) : eq(mediaSources.seasonId, owner.seasonId);
+  const where = "titleId" in owner
+    ? eq(mediaSources.titleId, owner.titleId)
+    : eq(mediaSources.seasonId, owner.seasonId);
   const rows = await db.select().from(mediaSources).where(where).orderBy(asc(mediaSources.sort), asc(mediaSources.id)).all();
   const out: SourceView[] = [];
   for (const row of rows) {
@@ -109,13 +113,21 @@ export async function createSource(
     if (!season)
       throw new NotFoundError("Season", String(owner.seasonId));
   }
-  const where = "titleId" in owner ? eq(mediaSources.titleId, owner.titleId) : eq(mediaSources.seasonId, owner.seasonId);
-  const last = await db.select({ sort: max(mediaSources.sort) }).from(mediaSources).where(where).get();
+  const where = "titleId" in owner
+    ? eq(mediaSources.titleId, owner.titleId)
+    : eq(mediaSources.seasonId, owner.seasonId);
+  const last = await db.select({
+    sort: max(mediaSources.sort),
+  }).from(mediaSources).where(where).get();
   const id = ulid();
   await db.insert(mediaSources).values({
     id,
-    titleId: "titleId" in owner ? owner.titleId : null,
-    seasonId: "seasonId" in owner ? owner.seasonId : null,
+    titleId: "titleId" in owner
+      ? owner.titleId
+      : null,
+    seasonId: "seasonId" in owner
+      ? owner.seasonId
+      : null,
     name: input.name,
     quality: input.quality ?? null,
     enabled: input.enabled ?? true,
@@ -127,7 +139,10 @@ export async function createSource(
 export async function updateSource(db: MediaDb, id: string, patch: { name?: string | undefined; quality?: string | null | undefined; enabled?: boolean | undefined }): Promise<SourceView> {
   const row = await sourceRow(db, id);
   await touchIfNewlyPlayable(db, row, async () =>
-    await db.update(mediaSources).set({ ...defined(patch), updatedAt: new Date().toISOString() }).where(eq(mediaSources.id, id)).run());
+    await db.update(mediaSources).set({
+      ...defined(patch),
+      updatedAt: new Date().toISOString(),
+    }).where(eq(mediaSources.id, id)).run());
   return await getSource(db, id);
 }
 
@@ -174,7 +189,13 @@ export async function addStream(db: MediaDb, sourceId: string, input: StreamInpu
   await assertEpisodeFits(db, source, input.episodeId);
   const id = ulid();
   await touchIfNewlyPlayable(db, source, async () =>
-    await db.insert(mediaStreams).values({ ...defined(input), id, sourceId, url: input.url, format: input.format ?? formatOf(input.url) }).run());
+    await db.insert(mediaStreams).values({
+      ...defined(input),
+      id,
+      sourceId,
+      url: input.url,
+      format: input.format ?? formatOf(input.url),
+    }).run());
   return await getStream(db, id);
 }
 
@@ -223,9 +244,18 @@ export async function pasteStreams(
     const alignment: Alignment = { matched: [], missing: [], unmatched: [] };
     if (options.dryRun)
       return { ...alignment, written: 0, created: 0 };
-    const last = await db.select({ sort: max(mediaStreams.sort) }).from(mediaStreams).where(and(eq(mediaStreams.sourceId, sourceId), isNull(mediaStreams.episodeId))).get();
+    const last = await db.select({
+      sort: max(mediaStreams.sort),
+    }).from(mediaStreams).where(and(eq(mediaStreams.sourceId, sourceId), isNull(mediaStreams.episodeId))).get();
     await touchIfNewlyPlayable(db, source, async () => await runBatch(db, lines.map((line, i) =>
-      db.insert(mediaStreams).values({ id: ulid(), sourceId, url: line.url, format: formatOf(line.url), resolution: line.name || null, sort: (last?.sort ?? -1) + 1 + i }))));
+      db.insert(mediaStreams).values({
+        id: ulid(),
+        sourceId,
+        url: line.url,
+        format: formatOf(line.url),
+        resolution: line.name || null,
+        sort: (last?.sort ?? -1) + 1 + i,
+      }))));
     return { ...alignment, written: lines.length, created: 0 };
   }
 
@@ -249,7 +279,13 @@ export async function pasteStreams(
   for (const t of targets) {
     statements.push(
       db.delete(mediaStreams).where(and(eq(mediaStreams.sourceId, sourceId), eq(mediaStreams.episodeId, t.episodeId))),
-      db.insert(mediaStreams).values({ id: ulid(), sourceId, episodeId: t.episodeId, url: t.line.url, format: formatOf(t.line.url) }),
+      db.insert(mediaStreams).values({
+        id: ulid(),
+        sourceId,
+        episodeId: t.episodeId,
+        url: t.line.url,
+        format: formatOf(t.line.url),
+      }),
     );
   }
   await touchIfNewlyPlayable(db, source, async () => await runBatch(db, statements));

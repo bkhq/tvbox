@@ -15,7 +15,12 @@ export async function runScheduledSync(db: AppDatabase, logger: Logger, fetchImp
   let changed = 0;
   for (const upstream of await listSyncableUpstreams(db)) {
     try {
-      changed += changeCount(await syncUpstream(db, upstream.id, { logger, ...(fetchImpl ? { fetch: fetchImpl } : {}) }));
+      changed += changeCount(await syncUpstream(db, upstream.id, {
+        logger,
+        ...(fetchImpl
+          ? { fetch: fetchImpl }
+          : {}),
+      }));
     }
     catch (err) {
       logger.error({ err, upstream: upstream.name }, "tvbox: scheduled sync failed");

@@ -65,7 +65,12 @@ export async function bootstrap(): Promise<BootstrapResult> {
   logDefaultAdmins(await getAuthConfig(db, config), logger);
   logger.info("system fully operational");
 
-  return { fetch: (req, env) => app.fetch(req, env), config, logger, db };
+  return {
+    fetch: (req, env) => app.fetch(req, env),
+    config,
+    logger,
+    db,
+  };
 }
 
 // ─── Shared installers ───
@@ -76,9 +81,13 @@ export async function bootstrap(): Promise<BootstrapResult> {
 function resolveCorsOrigin(config: Config): string | string[] {
   if (config.CORS_ORIGIN) {
     const list = config.CORS_ORIGIN.split(",").map(s => s.trim()).filter(Boolean);
-    return list.length === 1 ? list[0]! : list;
+    return list.length === 1
+      ? list[0]!
+      : list;
   }
-  return config.NODE_ENV === "production" ? "" : "*";
+  return config.NODE_ENV === "production"
+    ? ""
+    : "*";
 }
 
 function installCommonMiddleware(
@@ -93,7 +102,9 @@ function installCommonMiddleware(
   // from `c.get("requestId")` and forward it as their own header.
   api.use("*", requestId());
   api.use("*", propagateRequestId);
-  api.use("*", cors({ origin: resolveCorsOrigin(config) }));
+  api.use("*", cors({
+    origin: resolveCorsOrigin(config),
+  }));
   api.use("*", (c, next) => {
     c.set("db", db);
     c.set("config", config);
@@ -196,7 +207,10 @@ export function buildRawApp(
   // the same prefix, and Hono runs matching handlers in registration order,
   // so a response from here ends the chain before any `/api` middleware.
   // Without it a mistyped endpoint would fall through to the `/api` stack.
-  raw.all("*", c => c.json({ success: false, error: { code: "NOT_FOUND", message: "Not found" } }, 404));
+  raw.all("*", c => c.json({
+    success: false,
+    error: { code: "NOT_FOUND", message: "Not found" },
+  }, 404));
 
   raw.onError(errorHandler);
   return raw;

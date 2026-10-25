@@ -71,7 +71,10 @@ async function viewsOf(db: MediaDb, rows: readonly TitleRow[]): Promise<TitleVie
     genres.push(...await db.select().from(mediaTitleGenres).where(inArray(mediaTitleGenres.titleId, part)).all());
     aliases.push(...await db.select().from(mediaTitleAliases).where(inArray(mediaTitleAliases.titleId, part)).orderBy(mediaTitleAliases.id).all());
     translations.push(...await db.select().from(mediaTitleTranslations).where(inArray(mediaTitleTranslations.titleId, part)).orderBy(mediaTitleTranslations.locale).all());
-    seasons.push(...await db.select({ titleId: mediaSeasons.titleId, n: count() }).from(mediaSeasons).where(inArray(mediaSeasons.titleId, part)).groupBy(mediaSeasons.titleId).all());
+    seasons.push(...await db.select({
+      titleId: mediaSeasons.titleId,
+      n: count(),
+    }).from(mediaSeasons).where(inArray(mediaSeasons.titleId, part)).groupBy(mediaSeasons.titleId).all());
   }
   return rows.map(r => ({
     ...r,
@@ -122,8 +125,12 @@ export async function listTitles(db: MediaDb, query: TitleQuery): Promise<{ item
       inArray(mediaTitles.id, db.select({ id: mediaTitleAliases.titleId }).from(mediaTitleAliases).where(like(mediaTitleAliases.name, pattern))),
     )!);
   }
-  const condition = where.length > 0 ? and(...where) : undefined;
-  const total = (await db.select({ n: count() }).from(mediaTitles).where(condition).get())?.n ?? 0;
+  const condition = where.length > 0
+    ? and(...where)
+    : undefined;
+  const total = (await db.select({
+    n: count(),
+  }).from(mediaTitles).where(condition).get())?.n ?? 0;
   const rows = await db.select().from(mediaTitles).where(condition).orderBy(desc(mediaTitles.updatedAt), desc(mediaTitles.id)).limit(query.limit).offset((query.page - 1) * query.limit).all();
   return { items: await viewsOf(db, rows), total };
 }
@@ -135,7 +142,9 @@ export async function assertCategoryAccepts(db: MediaDb, categoryId: string, kin
 }
 
 export async function assertGenres(db: MediaDb, ids: readonly string[]): Promise<void> {
-  const unique = [...new Set(ids)];
+  const unique = [
+    ...new Set(ids),
+  ];
   for (const part of chunked(unique)) {
     const found = await db.select({ id: mediaGenres.id }).from(mediaGenres).where(inArray(mediaGenres.id, part)).all();
     const missing = part.find(id => !found.some(f => f.id === id));
@@ -153,13 +162,19 @@ async function assertCollection(db: MediaDb, id: string | null | undefined): Pro
 }
 
 function columns(input: TitlePatch) {
-  const set = <K extends keyof TitlePatch>(key: K) => input[key] !== undefined ? { [key]: input[key] } : {};
+  const set = <K extends keyof TitlePatch>(key: K) => input[key] !== undefined
+    ? { [key]: input[key] }
+    : {};
   return {
     ...set("categoryId"),
     ...set("title"),
     ...set("originalTitle"),
     ...set("originalLanguage"),
-    ...(input.originCountries !== undefined ? { originCountries: JSON.stringify(input.originCountries) } : {}),
+    ...(input.originCountries !== undefined
+      ? {
+          originCountries: JSON.stringify(input.originCountries),
+        }
+      : {}),
     ...set("overview"),
     ...set("tagline"),
     ...set("releaseDate"),
@@ -182,11 +197,19 @@ function writeRelations(db: MediaDb, id: string, input: TitlePatch): Statement[]
   const out: Statement[] = [];
   if (input.genreIds !== undefined) {
     out.push(db.delete(mediaTitleGenres).where(eq(mediaTitleGenres.titleId, id)));
-    out.push(...insertRows(db, mediaTitleGenres, [...new Set(input.genreIds)].map(genreId => ({ titleId: id, genreId }))));
+    out.push(...insertRows(db, mediaTitleGenres, [
+      ...new Set(input.genreIds),
+    ].map(genreId => ({ titleId: id, genreId }))));
   }
   if (input.aliases !== undefined) {
     out.push(db.delete(mediaTitleAliases).where(eq(mediaTitleAliases.titleId, id)));
-    out.push(...insertRows(db, mediaTitleAliases, input.aliases.map(alias => ({ id: ulid(), titleId: id, name: alias.name, locale: alias.locale ?? null, kind: alias.kind ?? "alias" }))));
+    out.push(...insertRows(db, mediaTitleAliases, input.aliases.map(alias => ({
+      id: ulid(),
+      titleId: id,
+      name: alias.name,
+      locale: alias.locale ?? null,
+      kind: alias.kind ?? "alias",
+    }))));
   }
   return out;
 }
@@ -205,10 +228,21 @@ export async function createTitle(db: MediaDb, input: CreateTitleInput): Promise
       kind: input.kind,
       categoryId: input.categoryId,
       title: input.title,
-      status: input.status ?? (input.kind === "series" ? "returning" : "released"),
+      status: input.status ?? (input.kind === "series"
+        ? "returning"
+        : "released"),
     } as typeof mediaTitles.$inferInsert),
     ...writeRelations(db, id, input),
-    ...(input.kind === "series" ? [db.insert(mediaSeasons).values({ id: mediaId(), titleId: id, seasonNumber: 1, sort: 1 })] : []),
+    ...(input.kind === "series"
+      ? [
+          db.insert(mediaSeasons).values({
+            id: mediaId(),
+            titleId: id,
+            seasonNumber: 1,
+            sort: 1,
+          }),
+        ]
+      : []),
   ]);
   return await getTitle(db, id);
 }
@@ -221,7 +255,10 @@ export async function updateTitle(db: MediaDb, id: string, input: TitlePatch): P
     await assertGenres(db, input.genreIds);
   await assertCollection(db, input.collectionId);
   await runBatch(db, [
-    db.update(mediaTitles).set({ ...columns(input), updatedAt: new Date().toISOString() }).where(eq(mediaTitles.id, id)),
+    db.update(mediaTitles).set({
+      ...columns(input),
+      updatedAt: new Date().toISOString(),
+    }).where(eq(mediaTitles.id, id)),
     ...writeRelations(db, id, input),
   ]);
   if (current.kind === "series" && input.statusLocked === false)
@@ -243,7 +280,9 @@ export async function deleteTitle(db: MediaDb, id: string): Promise<TitleView> {
 
 /** Touch the title so "recently updated" ordering sees changes below it (a new episode, …). */
 export async function touchTitle(db: MediaDb, id: string): Promise<void> {
-  await db.update(mediaTitles).set({ updatedAt: new Date().toISOString() }).where(eq(mediaTitles.id, id)).run();
+  await db.update(mediaTitles).set({
+    updatedAt: new Date().toISOString(),
+  }).where(eq(mediaTitles.id, id)).run();
 }
 
 /**
@@ -258,7 +297,9 @@ export async function refreshSeriesStatus(db: MediaDb, titleId: string): Promise
   const seasons = await db.select({ status: mediaSeasons.status }).from(mediaSeasons).where(and(eq(mediaSeasons.titleId, titleId), eq(mediaSeasons.publishState, "published"))).all();
   const status: TitleStatus = seasons.every(s => s.status === "upcoming")
     ? "upcoming"
-    : seasons.every(s => s.status === "ended") ? "ended" : "returning";
+    : seasons.every(s => s.status === "ended")
+      ? "ended"
+      : "returning";
   if (status !== title.status)
     await db.update(mediaTitles).set({ status }).where(eq(mediaTitles.id, titleId)).run();
 }
@@ -267,7 +308,11 @@ export async function refreshSeriesStatus(db: MediaDb, titleId: string): Promise
 export async function episodeCounts(db: MediaDb, seasonIds: readonly string[]): Promise<Map<string, { total: number; published: number }>> {
   const out = new Map<string, { total: number; published: number }>();
   for (const part of chunked(seasonIds)) {
-    const rows = await db.select({ seasonId: mediaEpisodes.seasonId, state: mediaEpisodes.publishState, n: count() })
+    const rows = await db.select({
+      seasonId: mediaEpisodes.seasonId,
+      state: mediaEpisodes.publishState,
+      n: count(),
+    })
       .from(mediaEpisodes)
       .where(inArray(mediaEpisodes.seasonId, part))
       .groupBy(mediaEpisodes.seasonId, mediaEpisodes.publishState)

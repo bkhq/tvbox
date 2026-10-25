@@ -121,7 +121,11 @@ function groupBy<T, K>(items: readonly T[], key: (item: T) => K): Map<K, T[]> {
   return out;
 }
 
-const yearOf = (date: string | null | undefined): number | null => (date ? Number(date.slice(0, 4)) || null : null);
+function yearOf(date: string | null | undefined): number | null {
+  return date
+    ? Number(date.slice(0, 4)) || null
+    : null;
+}
 
 /** The primary (else first) image of an owner's kind, and a set of kinds. */
 export function imagePicker(rows: readonly Row<typeof mediaImages>[]) {
@@ -135,7 +139,10 @@ export function imagePicker(rows: readonly Row<typeof mediaImages>[]) {
     return { url, w: pick.width, h: pick.height };
   };
   const images = (ownerType: string, ownerId: string | number, kinds: readonly (keyof Images)[]): Images =>
-    Object.fromEntries(kinds.map(k => [k, image(ownerType, ownerId, k)])) as Images;
+    Object.fromEntries(kinds.map(k => [
+      k,
+      image(ownerType, ownerId, k),
+    ])) as Images;
 
   return { image, images };
 }
@@ -159,17 +166,31 @@ export function buildTitles(lib: Slice, today: string): Built {
   const { image, images } = imagePicker(lib.images);
 
   const headersOf = (s: { userAgent: string | null; referer: string | null }): Record<string, string> => ({
-    ...(s.userAgent ? { "User-Agent": s.userAgent } : {}),
-    ...(s.referer ? { Referer: s.referer } : {}),
+    ...(s.userAgent
+      ? { "User-Agent": s.userAgent }
+      : {}),
+    ...(s.referer
+      ? { Referer: s.referer }
+      : {}),
   });
 
   const credits = (titleId: string, seasonId: string | null): Credits => {
     const all = creditsByTitle.get(titleId) ?? [];
-    const own = seasonId === null ? [] : all.filter(c => c.seasonId === seasonId);
-    const picked = (own.length > 0 ? own : all.filter(c => c.seasonId === null)).sort((a, b) => a.sort - b.sort || a.id.localeCompare(b.id));
+    const own = seasonId === null
+      ? []
+      : all.filter(c => c.seasonId === seasonId);
+    const picked = (own.length > 0
+      ? own
+      : all.filter(c => c.seasonId === null)).sort((a, b) => a.sort - b.sort || a.id.localeCompare(b.id));
     const ref = (c: typeof picked[number]): PersonRef => {
       const p = people.get(c.personId)!;
-      return { id: p.id, name: p.name, character: c.character, job: c.job, images: images("person", p.id, ["profile"]) };
+      return {
+        id: p.id,
+        name: p.name,
+        character: c.character,
+        job: c.job,
+        images: images("person", p.id, ["profile"]),
+      };
     };
     const crew = picked.filter(c => c.role === "crew");
     return {
@@ -191,8 +212,12 @@ export function buildTitles(lib: Slice, today: string): Built {
   const seasonDocs: SeasonDoc[] = [];
   const seasonWork = new Map<string, SeasonWork[]>();
 
-  const seasonName = (s: Row<typeof mediaSeasons>) => s.name ?? (s.seasonNumber === 0 ? "特别篇" : `第 ${s.seasonNumber} 季`);
-  const episodeName = (e: Row<typeof mediaEpisodes>) => e.name ?? (e.episodeType === "special" ? `特别篇 ${e.episodeNumber}` : `第 ${e.episodeNumber} 集`);
+  const seasonName = (s: Row<typeof mediaSeasons>) => s.name ?? (s.seasonNumber === 0
+    ? "特别篇"
+    : `第 ${s.seasonNumber} 季`);
+  const episodeName = (e: Row<typeof mediaEpisodes>) => e.name ?? (e.episodeType === "special"
+    ? `特别篇 ${e.episodeNumber}`
+    : `第 ${e.episodeNumber} 集`);
 
   for (const title of lib.titles) {
     if (title.kind !== "series" || !categories.has(title.categoryId))
@@ -242,14 +267,21 @@ export function buildTitles(lib: Slice, today: string): Built {
 
     const genreIds = (genresByTitle.get(title.id) ?? []).map(g => g.genreId).sort();
     const countries = JSON.parse(title.originCountries) as string[];
-    const movieSources = title.kind === "movie" ? (sourcesByTitle.get(title.id) ?? []).sort((a, b) => a.sort - b.sort) : [];
-    const movieStreams = movieSources.map(s => ({ source: s, streams: (streamsBySource.get(s.id) ?? []).filter(st => st.episodeId === null).sort((a, b) => a.sort - b.sort) }))
+    const movieSources = title.kind === "movie"
+      ? (sourcesByTitle.get(title.id) ?? []).sort((a, b) => a.sort - b.sort)
+      : [];
+    const movieStreams = movieSources.map(s => ({
+      source: s,
+      streams: (streamsBySource.get(s.id) ?? []).filter(st => st.episodeId === null).sort((a, b) => a.sort - b.sort),
+    }))
       .filter(x => x.streams.length > 0);
     const movieAvailable = movieStreams.length > 0 && (!title.releaseDate || title.releaseDate <= today);
 
     // The season a client opens first: the newest regular one with something to play.
     const regular = works.filter(w => w.row.seasonNumber > 0);
-    const playable = (regular.length > 0 ? regular : works).filter(w => w.summary.availableCount > 0);
+    const playable = (regular.length > 0
+      ? regular
+      : works).filter(w => w.summary.availableCount > 0);
     const current = [...playable].sort((a, b) => b.row.seasonNumber - a.row.seasonNumber)[0];
     const firstAir = works.map(w => w.row.airDate).filter((d): d is string => !!d).sort()[0] ?? title.releaseDate;
 
@@ -264,8 +296,12 @@ export function buildTitles(lib: Slice, today: string): Built {
     else {
       const s = current.summary;
       const last = Math.max(...current.episodes.filter(e => e.available).map(e => e.episodeNumber));
-      const body = s.status === "ended" && s.availableCount >= s.episodeCount ? `全 ${s.episodeCount} 集` : `更新至第 ${last} 集`;
-      badge = regular.length > 1 ? `${s.name} ${body}` : body;
+      const body = s.status === "ended" && s.availableCount >= s.episodeCount
+        ? `全 ${s.episodeCount} 集`
+        : `更新至第 ${last} 集`;
+      badge = regular.length > 1
+        ? `${s.name} ${body}`
+        : body;
     }
 
     const card: Card = {
@@ -274,12 +310,17 @@ export function buildTitles(lib: Slice, today: string): Built {
       category: title.categoryId,
       title: title.title,
       year: yearOf(firstAir),
-      images: { poster: image("title", title.id, "poster"), backdrop: image("title", title.id, "backdrop") },
+      images: {
+        poster: image("title", title.id, "poster"),
+        backdrop: image("title", title.id, "backdrop"),
+      },
       badge,
       rating: title.voteAverage,
       genres: genreIds,
     };
-    const collection = title.collectionId ? collections.get(title.collectionId) : undefined;
+    const collection = title.collectionId
+      ? collections.get(title.collectionId)
+      : undefined;
     const detail: TitleDetail = {
       ...card,
       images: images("title", title.id, ["poster", "backdrop", "logo"]),
@@ -296,12 +337,21 @@ export function buildTitles(lib: Slice, today: string): Built {
       runtime: title.runtime,
       voteCount: title.voteCount,
       credits: credits(title.id, null),
-      collection: collection ? { id: collection.id, name: collection.name } : null,
+      collection: collection
+        ? { id: collection.id, name: collection.name }
+        : null,
       externalIds: Object.fromEntries((externalByTitle.get(title.id) ?? []).map(e => [e.source, e.externalId])),
-      translations: Object.fromEntries((translationsByTitle.get(title.id) ?? []).map(x => [x.locale, { title: x.title, overview: x.overview, tagline: x.tagline }])),
+      translations: Object.fromEntries((translationsByTitle.get(title.id) ?? []).map(x => [
+        x.locale,
+        { title: x.title, overview: x.overview, tagline: x.tagline },
+      ])),
       seasons: works.map(w => w.summary),
-      defaultSeason: current ? current.summary.id : works[0] ? works[0].summary.id : null,
-      available: title.kind === "movie" ? movieAvailable : !!current,
+      defaultSeason: current
+        ? current.summary.id
+        : works[0] ? works[0].summary.id : null,
+      available: title.kind === "movie"
+        ? movieAvailable
+        : !!current,
       updatedAt: title.updatedAt,
     };
     const doc: TitleDoc = {
@@ -337,7 +387,13 @@ export function buildTitles(lib: Slice, today: string): Built {
             id: x.source.id,
             name: x.source.name,
             quality: x.source.quality,
-            streams: x.streams.map(st => ({ url: st.url, format: st.format, resolution: st.resolution, audio: st.audioLocale, headers: headersOf(st) })),
+            streams: x.streams.map(st => ({
+              url: st.url,
+              format: st.format,
+              resolution: st.resolution,
+              audio: st.audioLocale,
+              headers: headersOf(st),
+            })),
           })),
           next: null,
           subtitles: [],
@@ -360,7 +416,9 @@ export function buildTitles(lib: Slice, today: string): Built {
         overview: e.overview,
         airDate: e.airDate,
         runtime: e.runtime,
-        images: { still: image("episode", e.id, "still") },
+        images: {
+          still: image("episode", e.id, "still"),
+        },
         available: e.available,
       }));
       seasonDocs.push({
@@ -380,10 +438,14 @@ export function buildTitles(lib: Slice, today: string): Built {
       });
 
       // The next episode: later in this season, else the first of the next regular season.
-      const nextSeason = work.row.seasonNumber > 0 ? order.find(w => w.row.seasonNumber > work.row.seasonNumber && w.summary.availableCount > 0) : undefined;
+      const nextSeason = work.row.seasonNumber > 0
+        ? order.find(w => w.row.seasonNumber > work.row.seasonNumber && w.summary.availableCount > 0)
+        : undefined;
       available.forEach((e, i) => {
         const following = available[i + 1] ?? nextSeason?.episodes.find(x => x.available);
-        const followingSeason = available[i + 1] ? work : nextSeason;
+        const followingSeason = available[i + 1]
+          ? work
+          : nextSeason;
         playback.push({
           id: e.id,
           titleId: title.id,
@@ -393,14 +455,25 @@ export function buildTitles(lib: Slice, today: string): Built {
             id: e.id,
             titleId: title.id,
             seasonId: work.row.id,
-            episode: { number: e.episodeNumber, name: episodeName(e) },
+            episode: {
+              number: e.episodeNumber,
+              name: episodeName(e),
+            },
             sources: sources.map(s => ({
               id: s.id,
               name: s.name,
               quality: s.quality,
-              streams: (streamsBySource.get(s.id) ?? []).filter(st => st.episodeId === e.id).sort((a, b) => a.sort - b.sort).map(st => ({ url: st.url, format: st.format, resolution: st.resolution, audio: st.audioLocale, headers: headersOf(st) })),
+              streams: (streamsBySource.get(s.id) ?? []).filter(st => st.episodeId === e.id).sort((a, b) => a.sort - b.sort).map(st => ({
+                url: st.url,
+                format: st.format,
+                resolution: st.resolution,
+                audio: st.audioLocale,
+                headers: headersOf(st),
+              })),
             })).filter(s => s.streams.length > 0),
-            next: following && followingSeason ? { id: following.id, seasonId: followingSeason.row.id, number: following.episodeNumber } : null,
+            next: following && followingSeason
+              ? { id: following.id, seasonId: followingSeason.row.id, number: following.episodeNumber }
+              : null,
             subtitles: [],
             markers: null,
             expiresAt: null,
@@ -423,7 +496,10 @@ export function buildPerson(
   const seen = new Set<string>();
   const entries = credits
     .filter(c => titles.has(c.titleId))
-    .map(c => ({ c, t: titles.get(c.titleId)! }))
+    .map(c => ({
+      c,
+      t: titles.get(c.titleId)!,
+    }))
     .sort((a, b) => b.t.releaseKey.localeCompare(a.t.releaseKey) || a.t.id.localeCompare(b.t.id))
     .filter(({ c }) => {
       const key = `${c.titleId}:${c.role}:${c.job ?? ""}`;
@@ -441,14 +517,25 @@ export function buildPerson(
     birthday: p.birthday,
     placeOfBirth: p.placeOfBirth,
     images: { profile },
-    credits: entries.map(({ c, t }) => ({ title: t.card, role: c.role, character: c.character, job: c.job })),
+    credits: entries.map(({ c, t }) => ({
+      title: t.card,
+      role: c.role,
+      character: c.character,
+      job: c.job,
+    })),
   };
 }
 
 /** A collection's titles, oldest first. */
 export function buildCollection(c: Row<typeof mediaCollections>, members: readonly TitleDoc[], art: Pick<Images, "poster" | "backdrop">): Collection {
   const sorted = [...members].sort((a, b) => a.releaseKey.localeCompare(b.releaseKey) || a.id.localeCompare(b.id));
-  return { id: c.id, name: c.name, overview: c.overview, images: art, titles: sorted.map(m => m.card) };
+  return {
+    id: c.id,
+    name: c.name,
+    overview: c.overview,
+    images: art,
+    titles: sorted.map(m => m.card),
+  };
 }
 
 export function buildLive(lib: LiveSource): Live {
@@ -468,7 +555,14 @@ export function buildLive(lib: LiveSource): Live {
         streams: (streamsByChannel.get(c.id) ?? []).sort((a, b) => a.sort - b.sort).map(s => ({
           url: s.url,
           label: s.label,
-          headers: { ...(s.userAgent ? { "User-Agent": s.userAgent } : {}), ...(s.referer ? { Referer: s.referer } : {}) },
+          headers: {
+            ...(s.userAgent
+              ? { "User-Agent": s.userAgent }
+              : {}),
+            ...(s.referer
+              ? { Referer: s.referer }
+              : {}),
+          },
         })),
       })).filter(c => c.streams.length > 0),
     })).filter(g => g.channels.length > 0),

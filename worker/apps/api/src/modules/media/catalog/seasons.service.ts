@@ -97,7 +97,10 @@ export async function createSeason(db: MediaDb, titleId: string, input: SeasonIn
 
 export async function updateSeason(db: MediaDb, id: string, input: SeasonInput): Promise<SeasonView> {
   const current = await seasonRow(db, id);
-  await guardNumber("Season", () => db.update(mediaSeasons).set({ ...pick(input), updatedAt: new Date().toISOString() }).where(eq(mediaSeasons.id, id)).run());
+  await guardNumber("Season", () => db.update(mediaSeasons).set({
+    ...pick(input),
+    updatedAt: new Date().toISOString(),
+  }).where(eq(mediaSeasons.id, id)).run());
   await refreshSeriesStatus(db, current.titleId);
   await touchTitle(db, current.titleId);
   return await getSeason(db, id);
@@ -106,7 +109,10 @@ export async function updateSeason(db: MediaDb, id: string, input: SeasonInput):
 /** Its episodes, sources and credits go with it. */
 export async function deleteSeason(db: MediaDb, id: string): Promise<SeasonView> {
   const current = await getSeason(db, id);
-  await runBatch(db, [...await deleteSeasonOwned(db, [id]), db.delete(mediaSeasons).where(eq(mediaSeasons.id, id))]);
+  await runBatch(db, [
+    ...await deleteSeasonOwned(db, [id]),
+    db.delete(mediaSeasons).where(eq(mediaSeasons.id, id)),
+  ]);
   await refreshSeriesStatus(db, current.titleId);
   await touchTitle(db, current.titleId);
   return current;
@@ -129,14 +135,22 @@ export async function listEpisodes(db: MediaDb, seasonId: string): Promise<Episo
 export async function createEpisode(db: MediaDb, seasonId: string, input: EpisodeInput & { episodeNumber: number }): Promise<EpisodeRow> {
   const season = await seasonRow(db, seasonId);
   const id = ulid();
-  await guardNumber("Episode", () => db.insert(mediaEpisodes).values({ ...pick(input), id, seasonId, episodeNumber: input.episodeNumber }).run());
+  await guardNumber("Episode", () => db.insert(mediaEpisodes).values({
+    ...pick(input),
+    id,
+    seasonId,
+    episodeNumber: input.episodeNumber,
+  }).run());
   await touchTitle(db, season.titleId);
   return await getEpisode(db, id);
 }
 
 export async function updateEpisode(db: MediaDb, id: string, input: EpisodeInput): Promise<EpisodeRow> {
   const current = await getEpisode(db, id);
-  await guardNumber("Episode", () => db.update(mediaEpisodes).set({ ...pick(input), updatedAt: new Date().toISOString() }).where(eq(mediaEpisodes.id, id)).run());
+  await guardNumber("Episode", () => db.update(mediaEpisodes).set({
+    ...pick(input),
+    updatedAt: new Date().toISOString(),
+  }).where(eq(mediaEpisodes.id, id)).run());
   const season = await seasonRow(db, current.seasonId);
   await touchTitle(db, season.titleId);
   return await getEpisode(db, id);
@@ -145,7 +159,10 @@ export async function updateEpisode(db: MediaDb, id: string, input: EpisodeInput
 /** Its streams go with it. */
 export async function deleteEpisode(db: MediaDb, id: string): Promise<EpisodeRow> {
   const current = await getEpisode(db, id);
-  await runBatch(db, [...deleteOwned(db, "episode", [id]), db.delete(mediaEpisodes).where(eq(mediaEpisodes.id, id))]);
+  await runBatch(db, [
+    ...deleteOwned(db, "episode", [id]),
+    db.delete(mediaEpisodes).where(eq(mediaEpisodes.id, id)),
+  ]);
   const season = await seasonRow(db, current.seasonId);
   await touchTitle(db, season.titleId);
   return current;
@@ -162,7 +179,11 @@ export async function generateEpisodes(db: MediaDb, seasonId: string, from: numb
     if (!existing.has(n))
       numbers.push(n);
   }
-  await runBatch(db, insertRows(db, mediaEpisodes, numbers.map(n => ({ id: ulid(), seasonId, episodeNumber: n }))));
+  await runBatch(db, insertRows(db, mediaEpisodes, numbers.map(n => ({
+    id: ulid(),
+    seasonId,
+    episodeNumber: n,
+  }))));
   if (numbers.length > 0)
     await touchTitle(db, season.titleId);
   return numbers.length;

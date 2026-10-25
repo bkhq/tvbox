@@ -23,11 +23,31 @@ export type GenreRow = typeof mediaGenres.$inferSelect;
 export const CATEGORY_ID = /^[a-z0-9][a-z0-9-]{0,31}$/;
 
 const DEFAULT_CATEGORIES: { id: string; name: string; kinds: TitleKind[] }[] = [
-  { id: "movie", name: "电影", kinds: ["movie"] },
-  { id: "tv", name: "剧集", kinds: ["series"] },
-  { id: "anime", name: "动漫", kinds: ["movie", "series"] },
-  { id: "variety", name: "综艺", kinds: ["series"] },
-  { id: "documentary", name: "纪录片", kinds: ["movie", "series"] },
+  {
+    id: "movie",
+    name: "电影",
+    kinds: ["movie"],
+  },
+  {
+    id: "tv",
+    name: "剧集",
+    kinds: ["series"],
+  },
+  {
+    id: "anime",
+    name: "动漫",
+    kinds: ["movie", "series"],
+  },
+  {
+    id: "variety",
+    name: "综艺",
+    kinds: ["series"],
+  },
+  {
+    id: "documentary",
+    name: "纪录片",
+    kinds: ["movie", "series"],
+  },
 ];
 
 // TMDB's movie and TV genre lists, merged; ids are `g<tmdb id>`.
@@ -63,7 +83,9 @@ const TMDB_GENRES: [number, string][] = [
 
 /** First boot: the default categories and TMDB's genres. Later boots leave the tables alone. */
 export async function seedTaxonomy(db: MediaDb): Promise<void> {
-  const categories = await db.select({ n: count() }).from(mediaCategories).get();
+  const categories = await db.select({
+    n: count(),
+  }).from(mediaCategories).get();
   if (!categories?.n) {
     await db.insert(mediaCategories).values(DEFAULT_CATEGORIES.map((c, i) => ({
       id: c.id,
@@ -72,9 +94,16 @@ export async function seedTaxonomy(db: MediaDb): Promise<void> {
       sort: i,
     }))).run();
   }
-  const genres = await db.select({ n: count() }).from(mediaGenres).get();
+  const genres = await db.select({
+    n: count(),
+  }).from(mediaGenres).get();
   if (!genres?.n) {
-    await runBatch(db, insertRows(db, mediaGenres, TMDB_GENRES.map(([tmdbId, name], i) => ({ id: `g${tmdbId}`, name, tmdbId, sort: i }))));
+    await runBatch(db, insertRows(db, mediaGenres, TMDB_GENRES.map(([tmdbId, name], i) => ({
+      id: `g${tmdbId}`,
+      name,
+      tmdbId,
+      sort: i,
+    }))));
   }
 }
 
@@ -91,7 +120,10 @@ function categoryView(row: CategoryRow, titleCount: number): CategoryView {
 
 export async function listCategories(db: MediaDb): Promise<CategoryView[]> {
   const rows = await db.select().from(mediaCategories).orderBy(mediaCategories.sort, mediaCategories.id).all();
-  const counts = await db.select({ id: mediaTitles.categoryId, n: count() }).from(mediaTitles).groupBy(mediaTitles.categoryId).all();
+  const counts = await db.select({
+    id: mediaTitles.categoryId,
+    n: count(),
+  }).from(mediaTitles).groupBy(mediaTitles.categoryId).all();
   return rows.map(r => categoryView(r, counts.find(c => c.id === r.id)?.n ?? 0));
 }
 
@@ -99,7 +131,9 @@ export async function getCategory(db: MediaDb, id: string): Promise<CategoryView
   const row = await db.select().from(mediaCategories).where(eq(mediaCategories.id, id)).get();
   if (!row)
     throw new NotFoundError("Category", id);
-  const n = await db.select({ n: count() }).from(mediaTitles).where(eq(mediaTitles.categoryId, id)).get();
+  const n = await db.select({
+    n: count(),
+  }).from(mediaTitles).where(eq(mediaTitles.categoryId, id)).get();
   return categoryView(row, n?.n ?? 0);
 }
 
@@ -111,7 +145,9 @@ export interface CategoryInput {
 }
 
 export async function createCategory(db: MediaDb, input: CategoryInput): Promise<CategoryView> {
-  const last = await db.select({ sort: max(mediaCategories.sort) }).from(mediaCategories).get();
+  const last = await db.select({
+    sort: max(mediaCategories.sort),
+  }).from(mediaCategories).get();
   try {
     await db.insert(mediaCategories).values({
       id: input.id,
@@ -135,7 +171,9 @@ export async function updateCategory(
   patch: { name?: string | undefined; kinds?: readonly TitleKind[] | undefined; filters?: readonly Facet[] | undefined },
 ): Promise<CategoryView> {
   const current = await getCategory(db, id);
-  const dropped = patch.kinds ? current.kinds.filter(k => !patch.kinds!.includes(k)) : [];
+  const dropped = patch.kinds
+    ? current.kinds.filter(k => !patch.kinds!.includes(k))
+    : [];
   if (dropped.length > 0) {
     const used = await db.selectDistinct({ kind: mediaTitles.kind }).from(mediaTitles).where(eq(mediaTitles.categoryId, id)).all();
     const kind = dropped.find(k => used.some(u => u.kind === k));
@@ -143,9 +181,19 @@ export async function updateCategory(
       throw new AppError(`Titles of kind "${kind}" are still in this category`, 409, "CATEGORY_IN_USE");
   }
   await db.update(mediaCategories).set({
-    ...(patch.name !== undefined ? { name: patch.name } : {}),
-    ...(patch.kinds !== undefined ? { kinds: JSON.stringify(patch.kinds) } : {}),
-    ...(patch.filters !== undefined ? { filters: JSON.stringify(patch.filters) } : {}),
+    ...(patch.name !== undefined
+      ? { name: patch.name }
+      : {}),
+    ...(patch.kinds !== undefined
+      ? {
+          kinds: JSON.stringify(patch.kinds),
+        }
+      : {}),
+    ...(patch.filters !== undefined
+      ? {
+          filters: JSON.stringify(patch.filters),
+        }
+      : {}),
     updatedAt: new Date().toISOString(),
   }).where(eq(mediaCategories.id, id)).run();
   return await getCategory(db, id);
@@ -188,9 +236,18 @@ async function guardGenreName<T>(fn: () => Promise<T>): Promise<T> {
 }
 
 export async function createGenre(db: MediaDb, input: { name: string; tmdbId?: number | null | undefined }): Promise<GenreRow> {
-  const id = input.tmdbId ? `g${input.tmdbId}` : `g${ulid()}`;
-  const last = await db.select({ sort: max(mediaGenres.sort) }).from(mediaGenres).get();
-  await guardGenreName(() => db.insert(mediaGenres).values({ id, name: input.name, tmdbId: input.tmdbId ?? null, sort: (last?.sort ?? -1) + 1 }).run());
+  const id = input.tmdbId
+    ? `g${input.tmdbId}`
+    : `g${ulid()}`;
+  const last = await db.select({
+    sort: max(mediaGenres.sort),
+  }).from(mediaGenres).get();
+  await guardGenreName(() => db.insert(mediaGenres).values({
+    id,
+    name: input.name,
+    tmdbId: input.tmdbId ?? null,
+    sort: (last?.sort ?? -1) + 1,
+  }).run());
   return await getGenre(db, id);
 }
 

@@ -48,7 +48,10 @@ export interface ChannelInput {
 
 export async function listGroups(db: MediaDb): Promise<GroupView[]> {
   const rows = await db.select().from(mediaLiveGroups).orderBy(asc(mediaLiveGroups.sort), asc(mediaLiveGroups.id)).all();
-  const counts = await db.select({ id: mediaLiveChannels.groupId, n: count() }).from(mediaLiveChannels).groupBy(mediaLiveChannels.groupId).all();
+  const counts = await db.select({
+    id: mediaLiveChannels.groupId,
+    n: count(),
+  }).from(mediaLiveChannels).groupBy(mediaLiveChannels.groupId).all();
   return rows.map(r => ({ ...r, channelCount: counts.find(c => c.id === r.id)?.n ?? 0 }));
 }
 
@@ -60,12 +63,18 @@ async function groupRow(db: MediaDb, id: string): Promise<GroupRow> {
 }
 
 async function nextGroupSort(db: MediaDb): Promise<number> {
-  const last = await db.select({ sort: max(mediaLiveGroups.sort) }).from(mediaLiveGroups).get();
+  const last = await db.select({
+    sort: max(mediaLiveGroups.sort),
+  }).from(mediaLiveGroups).get();
   return (last?.sort ?? -1) + 1;
 }
 
 export async function createGroup(db: MediaDb, name: string): Promise<GroupRow> {
-  const row = { id: ulid(), name, sort: await nextGroupSort(db) };
+  const row = {
+    id: ulid(),
+    name,
+    sort: await nextGroupSort(db),
+  };
   await db.insert(mediaLiveGroups).values(row).run();
   return row;
 }
@@ -118,13 +127,26 @@ export async function listChannels(db: MediaDb, groupId: string): Promise<Channe
 }
 
 function writeStreams(db: MediaDb, channelId: string, streams: readonly StreamInput[]): Statement[] {
-  const rows = streams.map((s, sort) => ({ id: ulid(), channelId, url: s.url, label: s.label ?? null, userAgent: s.userAgent ?? null, referer: s.referer ?? null, sort }));
-  return [db.delete(mediaLiveStreams).where(eq(mediaLiveStreams.channelId, channelId)), ...insertRows(db, mediaLiveStreams, rows)];
+  const rows = streams.map((s, sort) => ({
+    id: ulid(),
+    channelId,
+    url: s.url,
+    label: s.label ?? null,
+    userAgent: s.userAgent ?? null,
+    referer: s.referer ?? null,
+    sort,
+  }));
+  return [
+    db.delete(mediaLiveStreams).where(eq(mediaLiveStreams.channelId, channelId)),
+    ...insertRows(db, mediaLiveStreams, rows),
+  ];
 }
 
 export async function createChannel(db: MediaDb, input: ChannelInput & { groupId: string; name: string }): Promise<ChannelView> {
   await groupRow(db, input.groupId);
-  const last = await db.select({ sort: max(mediaLiveChannels.sort) }).from(mediaLiveChannels).where(eq(mediaLiveChannels.groupId, input.groupId)).get();
+  const last = await db.select({
+    sort: max(mediaLiveChannels.sort),
+  }).from(mediaLiveChannels).where(eq(mediaLiveChannels.groupId, input.groupId)).get();
   const id = ulid();
   await runBatch(db, [
     db.insert(mediaLiveChannels).values({
@@ -149,8 +171,14 @@ export async function updateChannel(db: MediaDb, id: string, input: ChannelInput
   const { streams, ...fields } = input;
   const set = Object.fromEntries(Object.entries(fields).filter(([, v]) => v !== undefined));
   await runBatch(db, [
-    ...(Object.keys(set).length > 0 ? [db.update(mediaLiveChannels).set(set).where(eq(mediaLiveChannels.id, id))] : []),
-    ...(streams ? writeStreams(db, id, streams) : []),
+    ...(Object.keys(set).length > 0
+      ? [
+          db.update(mediaLiveChannels).set(set).where(eq(mediaLiveChannels.id, id)),
+        ]
+      : []),
+    ...(streams
+      ? writeStreams(db, id, streams)
+      : []),
   ]);
   return await getChannel(db, id);
 }
@@ -175,7 +203,9 @@ export async function getEpg(db: MediaDb): Promise<string[]> {
 }
 
 export async function setEpg(db: MediaDb, urls: readonly string[]): Promise<string[]> {
-  const unique = [...new Set(urls)];
+  const unique = [
+    ...new Set(urls),
+  ];
   await putSetting(db, LIVE_EPG_KEY, unique);
   return unique;
 }
@@ -212,16 +242,24 @@ export async function importM3u(db: MediaDb, text: string, options: { replace?: 
   if (byKey.size > MAX_CHANNELS)
     throw new AppError(`A playlist holds at most ${MAX_CHANNELS} channels`, 422, "PLAYLIST_TOO_LONG");
 
-  const groups = new Map((options.replace ? [] : await db.select().from(mediaLiveGroups).all()).map(g => [g.name, g]));
-  const channels = new Map((options.replace ? [] : await db.select().from(mediaLiveChannels).all()).map(c => [`${c.groupId}\u0000${c.name}`, c]));
-  const existingStreams = options.replace ? [] : await db.select({ channelId: mediaLiveStreams.channelId, url: mediaLiveStreams.url }).from(mediaLiveStreams).all();
+  const groups = new Map((options.replace
+    ? []
+    : await db.select().from(mediaLiveGroups).all()).map(g => [g.name, g]));
+  const channels = new Map((options.replace
+    ? []
+    : await db.select().from(mediaLiveChannels).all()).map(c => [`${c.groupId}\u0000${c.name}`, c]));
+  const existingStreams = options.replace
+    ? []
+    : await db.select({ channelId: mediaLiveStreams.channelId, url: mediaLiveStreams.url }).from(mediaLiveStreams).all();
   const present = new Set(existingStreams.map(s => `${s.channelId}\u0000${s.url}`));
 
   let skipped = 0;
   const groupRows: GroupRow[] = [];
   const channelRows: ChannelRow[] = [];
   const streamRows: StreamRow[] = [];
-  let groupSort = Math.max(-1, ...[...groups.values()].map(g => g.sort));
+  let groupSort = Math.max(-1, ...[
+    ...groups.values(),
+  ].map(g => g.sort));
   const channelSort = new Map<string, number>();
   for (const c of channels.values())
     channelSort.set(c.groupId, Math.max(channelSort.get(c.groupId) ?? -1, c.sort));
@@ -232,7 +270,11 @@ export async function importM3u(db: MediaDb, text: string, options: { replace?: 
   for (const { group: groupName, first, streams } of byKey.values()) {
     let group = groups.get(groupName);
     if (!group) {
-      group = { id: ulid(), name: groupName, sort: ++groupSort };
+      group = {
+        id: ulid(),
+        name: groupName,
+        sort: ++groupSort,
+      };
       groups.set(groupName, group);
       groupRows.push(group);
     }
@@ -241,7 +283,16 @@ export async function importM3u(db: MediaDb, text: string, options: { replace?: 
     if (!channel) {
       const sort = (channelSort.get(group.id) ?? -1) + 1;
       channelSort.set(group.id, sort);
-      channel = { id: ulid(), groupId: group.id, name: first.name, number: first.number, tvgId: first.tvgId, logo: first.logo, enabled: true, sort };
+      channel = {
+        id: ulid(),
+        groupId: group.id,
+        name: first.name,
+        number: first.number,
+        tvgId: first.tvgId,
+        logo: first.logo,
+        enabled: true,
+        sort,
+      };
       channels.set(channelKey, channel);
       channelRows.push(channel);
     }
@@ -252,13 +303,27 @@ export async function importM3u(db: MediaDb, text: string, options: { replace?: 
       }
       const sort = streamCount.get(channel.id) ?? 0;
       streamCount.set(channel.id, sort + 1);
-      streamRows.push({ id: ulid(), channelId: channel.id, url: s.url, label: null, userAgent: s.userAgent ?? null, referer: s.referer ?? null, sort });
+      streamRows.push({
+        id: ulid(),
+        channelId: channel.id,
+        url: s.url,
+        label: null,
+        userAgent: s.userAgent ?? null,
+        referer: s.referer ?? null,
+        sort,
+      });
     }
   }
 
   if (!options.dryRun) {
     await runBatch(db, [
-      ...(options.replace ? [db.delete(mediaLiveStreams), db.delete(mediaLiveChannels), db.delete(mediaLiveGroups)] : []),
+      ...(options.replace
+        ? [
+            db.delete(mediaLiveStreams),
+            db.delete(mediaLiveChannels),
+            db.delete(mediaLiveGroups),
+          ]
+        : []),
       ...insertRows(db, mediaLiveGroups, groupRows),
       ...insertRows(db, mediaLiveChannels, channelRows),
       ...insertRows(db, mediaLiveStreams, streamRows),
@@ -266,7 +331,12 @@ export async function importM3u(db: MediaDb, text: string, options: { replace?: 
     if (playlist.epg.length > 0 && (options.replace || (await getEpg(db)).length === 0))
       await setEpg(db, playlist.epg);
   }
-  return { groups: groupRows.length, channels: channelRows.length, streams: streamRows.length, skipped };
+  return {
+    groups: groupRows.length,
+    channels: channelRows.length,
+    streams: streamRows.length,
+    skipped,
+  };
 }
 
 /** The enabled channels as M3U, as they would be published. */

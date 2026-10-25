@@ -38,25 +38,50 @@ async function series(title = "某剧") {
 describe("taxonomy", () => {
   test("seeds the default categories and TMDB genres once", async () => {
     const categories = await listCategories(db);
-    expect(categories.map(c => c.id)).toEqual(["movie", "tv", "anime", "variety", "documentary"]);
+    expect(categories.map(c => c.id)).toEqual([
+      "movie",
+      "tv",
+      "anime",
+      "variety",
+      "documentary",
+    ]);
     expect((await listGenres(db)).find(g => g.id === "g18")?.name).toBe("剧情");
   });
 
   test("a category in use cannot be deleted or drop a kind its titles have", async () => {
     await series();
     await expect(deleteCategory(db, "tv")).rejects.toMatchObject({ code: "CATEGORY_IN_USE" });
-    await expect(updateCategory(db, "anime", { kinds: ["movie"] })).resolves.toMatchObject({ kinds: ["movie"] });
+    await expect(updateCategory(db, "anime", {
+      kinds: ["movie"],
+    })).resolves.toMatchObject({
+      kinds: ["movie"],
+    });
     await createTitle(db, { kind: "series", categoryId: "documentary", title: "纪录" });
-    await expect(updateCategory(db, "documentary", { kinds: ["movie"] })).rejects.toMatchObject({ code: "CATEGORY_IN_USE" });
+    await expect(updateCategory(db, "documentary", {
+      kinds: ["movie"],
+    })).rejects.toMatchObject({ code: "CATEGORY_IN_USE" });
   });
 
   test("category ids are unique", async () => {
-    await createCategory(db, { id: "kids", name: "少儿", kinds: ["movie", "series"] });
-    await expect(createCategory(db, { id: "kids", name: "x", kinds: ["movie"] })).rejects.toMatchObject({ code: "CATEGORY_EXISTS" });
+    await createCategory(db, {
+      id: "kids",
+      name: "少儿",
+      kinds: ["movie", "series"],
+    });
+    await expect(createCategory(db, {
+      id: "kids",
+      name: "x",
+      kinds: ["movie"],
+    })).rejects.toMatchObject({ code: "CATEGORY_EXISTS" });
   });
 
   test("deleting a genre removes it from titles", async () => {
-    const t = await createTitle(db, { kind: "movie", categoryId: "movie", title: "片", genreIds: ["g18", "g28"] });
+    const t = await createTitle(db, {
+      kind: "movie",
+      categoryId: "movie",
+      title: "片",
+      genreIds: ["g18", "g28"],
+    });
     await deleteGenre(db, "g28");
     expect((await getTitle(db, t.id)).genreIds).toEqual(["g18"]);
   });
@@ -76,8 +101,18 @@ describe("titles", () => {
   });
 
   test("unknown genres and collections are rejected", async () => {
-    await expect(createTitle(db, { kind: "movie", categoryId: "movie", title: "x", genreIds: ["nope"] })).rejects.toMatchObject({ statusCode: 404 });
-    await expect(createTitle(db, { kind: "movie", categoryId: "movie", title: "x", collectionId: "nope" })).rejects.toMatchObject({ statusCode: 404 });
+    await expect(createTitle(db, {
+      kind: "movie",
+      categoryId: "movie",
+      title: "x",
+      genreIds: ["nope"],
+    })).rejects.toMatchObject({ statusCode: 404 });
+    await expect(createTitle(db, {
+      kind: "movie",
+      categoryId: "movie",
+      title: "x",
+      collectionId: "nope",
+    })).rejects.toMatchObject({ statusCode: 404 });
   });
 
   test("stores genres, aliases and countries; updates replace them", async () => {
@@ -87,20 +122,38 @@ describe("titles", () => {
       title: "让子弹飞",
       originCountries: ["CN", "HK"],
       genreIds: ["g28", "g35"],
-      aliases: [{ name: "Let the Bullets Fly", locale: "en", kind: "translation" }],
+      aliases: [
+        { name: "Let the Bullets Fly", locale: "en", kind: "translation" },
+      ],
     });
     expect(t.originCountries).toEqual(["CN", "HK"]);
     expect(t.genreIds.sort()).toEqual(["g28", "g35"]);
     expect(t.aliases.map(a => a.name)).toEqual(["Let the Bullets Fly"]);
-    const u = await updateTitle(db, t.id, { genreIds: ["g18"], aliases: [] });
+    const u = await updateTitle(db, t.id, {
+      genreIds: ["g18"],
+      aliases: [],
+    });
     expect(u.genreIds).toEqual(["g18"]);
     expect(u.aliases).toEqual([]);
     expect(u.originCountries).toEqual(["CN", "HK"]);
   });
 
   test("lists by filter and finds titles by alias", async () => {
-    await createTitle(db, { kind: "movie", categoryId: "movie", title: "甲", genreIds: ["g18"], aliases: [{ name: "Alpha" }] });
-    await createTitle(db, { kind: "movie", categoryId: "movie", title: "乙", publishState: "published" });
+    await createTitle(db, {
+      kind: "movie",
+      categoryId: "movie",
+      title: "甲",
+      genreIds: ["g18"],
+      aliases: [
+        { name: "Alpha" },
+      ],
+    });
+    await createTitle(db, {
+      kind: "movie",
+      categoryId: "movie",
+      title: "乙",
+      publishState: "published",
+    });
     await series("丙");
     expect((await listTitles(db, { page: 1, limit: 10 })).total).toBe(3);
     expect((await listTitles(db, { kind: "movie", page: 1, limit: 10 })).total).toBe(2);
@@ -138,7 +191,12 @@ describe("titles", () => {
 
   test("deleting a collection keeps its titles", async () => {
     const c = await createCollection(db, { name: "哈利·波特（系列）" });
-    const t = await createTitle(db, { kind: "movie", categoryId: "movie", title: "魔法石", collectionId: c.id });
+    const t = await createTitle(db, {
+      kind: "movie",
+      categoryId: "movie",
+      title: "魔法石",
+      collectionId: c.id,
+    });
     await deleteCollection(db, c.id);
     expect((await getTitle(db, t.id)).collectionId).toBeNull();
   });

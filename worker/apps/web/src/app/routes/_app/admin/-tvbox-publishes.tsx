@@ -26,7 +26,9 @@ export function PublishesTab() {
   const onError = (err: unknown) => toast.error(errorMessage(err, t("common.error.operationFailed")));
 
   const loadPreview = useMutation({
-    mutationFn: () => tvboxApi.preview(previewFor === "all" ? undefined : previewFor),
+    mutationFn: () => tvboxApi.preview(previewFor === "all"
+      ? undefined
+      : previewFor),
     onSuccess: setPreview,
     onError,
   });
@@ -57,7 +59,9 @@ export function PublishesTab() {
           <Select value={previewFor} onValueChange={v => v !== null && setPreviewFor(v)}>
             <SelectTrigger className="w-44">
               <SelectValue>
-                {(v: string) => v === "all" ? t("tvbox:publishes.everyUpstream") : devices.data?.find(d => d.id === v)?.name ?? v}
+                {(v: string) => v === "all"
+                  ? t("tvbox:publishes.everyUpstream")
+                  : devices.data?.find(d => d.id === v)?.name ?? v}
               </SelectValue>
             </SelectTrigger>
             <SelectContent>

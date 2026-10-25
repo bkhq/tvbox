@@ -39,7 +39,10 @@ export function changeCount(result: SyncResult): number {
 }
 
 async function fetchBytes(fetchImpl: typeof fetch, url: string, timeoutMs: number): Promise<ArrayBuffer> {
-  const res = await fetchImpl(url, { signal: AbortSignal.timeout(timeoutMs), redirect: "follow" });
+  const res = await fetchImpl(url, {
+    signal: AbortSignal.timeout(timeoutMs),
+    redirect: "follow",
+  });
   if (!res.ok)
     throw new Error(`${url} returned ${res.status}`);
   const length = Number(res.headers.get("content-length") ?? 0);
@@ -74,14 +77,28 @@ async function mirrorAssets(
       try {
         const buffer = await fetchBytes(fetchImpl, url, ASSET_TIMEOUT_MS);
         const sha256 = hashHex("sha256", buffer);
-        const asset = { sha256, md5: hashHex("md5", buffer), name: assetName(url) };
+        const asset = {
+          sha256,
+          md5: hashHex("md5", buffer),
+          name: assetName(url),
+        };
         if (previous?.sha256 !== sha256)
           await driver.put(deriveStorageKey(sha256), buffer);
-        const row = { ...asset, size: buffer.byteLength, fetchedAt: new Date().toISOString() };
-        if (previous)
+        const row = {
+          ...asset,
+          size: buffer.byteLength,
+          fetchedAt: new Date().toISOString(),
+        };
+        if (previous) {
           await db.update(tvboxAssets).set(row).where(eq(tvboxAssets.id, previous.id)).run();
-        else
-          await db.insert(tvboxAssets).values({ id: ulid(), sourceUrl: url, ...row }).run();
+        }
+        else {
+          await db.insert(tvboxAssets).values({
+            id: ulid(),
+            sourceUrl: url,
+            ...row,
+          }).run();
+        }
         mirrored.set(url, asset);
       }
       catch (err) {
@@ -117,13 +134,17 @@ export async function syncUpstream(db: AppDatabase, upstreamId: string, deps: Sy
       return await syncCollection(db, upstream, lines, deps);
     }
     const resolved = resolveRelative(raw, upstream.url) as JsonObject;
-    const assets = await mirrorAssets(db, [...collectAssetUrls(resolved, upstream.url)], fetchImpl, deps.logger);
+    const assets = await mirrorAssets(db, [
+      ...collectAssetUrls(resolved, upstream.url),
+    ], fetchImpl, deps.logger);
     const config = rewriteAssets(resolved, assets.mirrored) as JsonObject;
 
     // A secondary upstream's sites need its spider: only the primary's
     // spider is published at the top level.
     if (!upstream.isPrimary && typeof config.spider === "string") {
-      config.sites = asObjects(config.sites).map(site => ("jar" in site ? site : { ...site, jar: config.spider }));
+      config.sites = asObjects(config.sites).map(site => ("jar" in site
+        ? site
+        : { ...site, jar: config.spider }));
     }
 
     const counts = await db.transaction(async (tx) => {
@@ -141,17 +162,30 @@ export async function syncUpstream(db: AppDatabase, upstreamId: string, deps: Sy
         totals.removed += c.removed;
       }
       await tx.update(tvboxUpstreams)
-        .set({ lastSyncedAt: new Date().toISOString(), lastStatus: "ok", lastError: null })
+        .set({
+          lastSyncedAt: new Date().toISOString(),
+          lastStatus: "ok",
+          lastError: null,
+        })
         .where(eq(tvboxUpstreams.id, upstream.id))
         .run();
       return totals;
     });
-    return { ...counts, assets: { mirrored: assets.mirrored.size, failed: assets.failed } };
+    return {
+      ...counts,
+      assets: { mirrored: assets.mirrored.size, failed: assets.failed },
+    };
   }
   catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
+    const message = err instanceof Error
+      ? err.message
+      : String(err);
     await db.update(tvboxUpstreams)
-      .set({ lastSyncedAt: new Date().toISOString(), lastStatus: "error", lastError: message })
+      .set({
+        lastSyncedAt: new Date().toISOString(),
+        lastStatus: "error",
+        lastError: message,
+      })
       .where(eq(tvboxUpstreams.id, upstream.id))
       .run();
     throw new AppError(`Sync failed: ${message}`, 502, "UPSTREAM_SYNC_FAILED");
@@ -179,7 +213,13 @@ async function syncCollection(
     for (const line of lines) {
       if (existing.some(u => u.url === line.url))
         continue;
-      await tx.insert(tvboxUpstreams).values({ id: ulid(), name: line.name, url: line.url, parentId: collection.id, isPrimary: false }).run();
+      await tx.insert(tvboxUpstreams).values({
+        id: ulid(),
+        name: line.name,
+        url: line.url,
+        parentId: collection.id,
+        isPrimary: false,
+      }).run();
       linesChanged = true;
     }
     for (const gone of existing.filter(u => !lines.some(l => l.url === u.url))) {
@@ -190,7 +230,11 @@ async function syncCollection(
       linesChanged = true;
     }
     await tx.update(tvboxUpstreams)
-      .set({ lastSyncedAt: new Date().toISOString(), lastStatus: "ok", lastError: null })
+      .set({
+        lastSyncedAt: new Date().toISOString(),
+        lastStatus: "ok",
+        lastError: null,
+      })
       .where(eq(tvboxUpstreams.id, collection.id))
       .run();
   });
@@ -214,14 +258,20 @@ async function syncCollection(
       failed.push(child.name);
     }
   }
-  return { ...totals, assets, lines: { total: children.length, failed } };
+  return {
+    ...totals,
+    assets,
+    lines: { total: children.length, failed },
+  };
 }
 
 async function mergeEntries(db: AppDatabase, upstreamId: string, kind: ListKind, incoming: readonly JsonObject[]) {
   const totals = { added: 0, updated: 0, removed: 0 };
   const existing = await db.select().from(tvboxEntries).where(and(eq(tvboxEntries.upstreamId, upstreamId), eq(tvboxEntries.kind, kind))).all();
   const byKey = new Map(existing.map(row => [row.upstreamKey, row]));
-  const last = await db.select({ value: max(tvboxEntries.sort) }).from(tvboxEntries).where(eq(tvboxEntries.kind, kind)).get();
+  const last = await db.select({
+    value: max(tvboxEntries.sort),
+  }).from(tvboxEntries).where(eq(tvboxEntries.kind, kind)).get();
   let nextSort = (last?.value ?? -1) + 1;
   const now = new Date().toISOString();
   const seen = new Set<string>();
@@ -251,8 +301,15 @@ async function mergeEntries(db: AppDatabase, upstreamId: string, kind: ListKind,
     const changed = row.upstreamData !== data;
     if (row.deleted) {
       // Deleted here: keep the upstream copy current for a restore, nothing else.
-      if (changed)
-        await db.update(tvboxEntries).set({ upstreamData: data, ...(row.locallyModified ? {} : { data }), updatedAt: now }).where(eq(tvboxEntries.id, row.id)).run();
+      if (changed) {
+        await db.update(tvboxEntries).set({
+          upstreamData: data,
+          ...(row.locallyModified
+            ? {}
+            : { data }),
+          updatedAt: now,
+        }).where(eq(tvboxEntries.id, row.id)).run();
+      }
       continue;
     }
     if (!changed && !row.upstreamRemoved)
@@ -263,8 +320,12 @@ async function mergeEntries(db: AppDatabase, upstreamId: string, kind: ListKind,
     const follow = !row.locallyModified;
     await db.update(tvboxEntries).set({
       upstreamData: data,
-      ...(follow ? { data } : {}),
-      ...(reappeared ? { upstreamRemoved: false, enabled: true } : {}),
+      ...(follow
+        ? { data }
+        : {}),
+      ...(reappeared
+        ? { upstreamRemoved: false, enabled: true }
+        : {}),
       updatedAt: now,
     }).where(eq(tvboxEntries.id, row.id)).run();
     if ((changed && follow) || reappeared)
@@ -295,12 +356,23 @@ async function mergeGlobals(db: AppDatabase, config: JsonObject) {
     const value = JSON.stringify(raw);
     const row = byKey.get(key);
     if (!row) {
-      await db.insert(tvboxGlobals).values({ key, value, upstreamValue: value, sort }).run();
+      await db.insert(tvboxGlobals).values({
+        key,
+        value,
+        upstreamValue: value,
+        sort,
+      }).run();
       totals.added++;
     }
     else if (row.upstreamValue !== value) {
       await db.update(tvboxGlobals)
-        .set({ upstreamValue: value, ...(row.locallyModified ? {} : { value }), updatedAt: now })
+        .set({
+          upstreamValue: value,
+          ...(row.locallyModified
+            ? {}
+            : { value }),
+          updatedAt: now,
+        })
         .where(eq(tvboxGlobals.key, key))
         .run();
       if (!row.locallyModified)

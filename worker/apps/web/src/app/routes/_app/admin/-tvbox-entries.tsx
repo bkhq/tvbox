@@ -22,12 +22,65 @@ import { entrySubtitle, entryTitle, filterEntries, filterHealth, moveId, siteEng
 // New sites start from one of these: a CMS API the app calls itself (type 1
 // JSON / type 0 XML, the usual 苹果CMS endpoints), or a spider in a jar.
 const SITE_TEMPLATES = {
-  cmsJson: { key: "", name: "", type: 1, api: "https://example.com/api.php/provide/vod/", searchable: 1, quickSearch: 1, filterable: 1 },
-  cmsXml: { key: "", name: "", type: 0, api: "https://example.com/api.php/provide/vod/at/xml/", searchable: 1, quickSearch: 1, filterable: 0 },
+  cmsJson: {
+    key: "",
+    name: "",
+    type: 1,
+    api: "https://example.com/api.php/provide/vod/",
+    searchable: 1,
+    quickSearch: 1,
+    filterable: 1,
+  },
+  cmsXml: {
+    key: "",
+    name: "",
+    type: 0,
+    api: "https://example.com/api.php/provide/vod/at/xml/",
+    searchable: 1,
+    quickSearch: 1,
+    filterable: 0,
+  },
   // Our own spiders in tvbox.jar ("@tvbox": the latest build, filled in when published).
-  macCms: { key: "", name: "", type: 3, api: "csp_MacCms", jar: "@tvbox", ext: { api: "https://example.com/api.php/provide/vod/", categories: [], parse: "" }, searchable: 1, quickSearch: 1, filterable: 0 },
-  alist: { key: "", name: "", type: 3, api: "csp_AList", jar: "@tvbox", ext: [{ name: "", server: "https://alist.example.com", login: { username: "", password: "" }, search: true }], searchable: 1, quickSearch: 0, filterable: 1 },
-  jar: { key: "", name: "", type: 3, api: "csp_", jar: "", ext: "", searchable: 1, quickSearch: 1, filterable: 1 },
+  macCms: {
+    key: "",
+    name: "",
+    type: 3,
+    api: "csp_MacCms",
+    jar: "@tvbox",
+    ext: { api: "https://example.com/api.php/provide/vod/", categories: [], parse: "" },
+    searchable: 1,
+    quickSearch: 1,
+    filterable: 0,
+  },
+  alist: {
+    key: "",
+    name: "",
+    type: 3,
+    api: "csp_AList",
+    jar: "@tvbox",
+    ext: [
+      {
+        name: "",
+        server: "https://alist.example.com",
+        login: { username: "", password: "" },
+        search: true,
+      },
+    ],
+    searchable: 1,
+    quickSearch: 0,
+    filterable: 1,
+  },
+  jar: {
+    key: "",
+    name: "",
+    type: 3,
+    api: "csp_",
+    jar: "",
+    ext: "",
+    searchable: 1,
+    quickSearch: 1,
+    filterable: 1,
+  },
 } satisfies Record<string, JsonObject>;
 type SiteTemplate = keyof typeof SITE_TEMPLATES;
 
@@ -54,11 +107,19 @@ export function EntriesTab() {
   // The recycle bin: upstream entries deleted here, which syncs leave alone.
   const [trash, setTrash] = useState(false);
 
-  const query = useQuery({ queryKey: tvboxKeys.entries(kind, source, trash), queryFn: () => tvboxApi.entries(kind, source, trash) });
+  const query = useQuery({
+    queryKey: tvboxKeys.entries(kind, source, trash),
+    queryFn: () => tvboxApi.entries(kind, source, trash),
+  });
   const upstreams = useQuery({ queryKey: tvboxKeys.upstreams, queryFn: tvboxApi.upstreams });
-  const upstreamName = useMemo(() => new Map(upstreams.data?.map(u => [u.id, upstreamLabel(u, upstreams.data)])), [upstreams.data]);
+  const upstreamName = useMemo(() => new Map(upstreams.data?.map(u => [
+    u.id,
+    upstreamLabel(u, upstreams.data),
+  ])), [upstreams.data]);
 
-  const refresh = () => void qc.invalidateQueries({ queryKey: ["tvbox", "entries"] });
+  const refresh = () => void qc.invalidateQueries({
+    queryKey: ["tvbox", "entries"],
+  });
   const onError = (err: unknown) => toast.error(errorMessage(err, t("common.error.operationFailed")));
 
   const update = useMutation({
@@ -77,7 +138,11 @@ export function EntriesTab() {
     },
     onError,
   });
-  const revert = useMutation({ mutationFn: (id: string) => tvboxApi.revertEntry(id), onSuccess: refresh, onError });
+  const revert = useMutation({
+    mutationFn: (id: string) => tvboxApi.revertEntry(id),
+    onSuccess: refresh,
+    onError,
+  });
   const remove = useMutation({
     mutationFn: (id: string) => tvboxApi.deleteEntry(id),
     onSuccess: () => {
@@ -86,7 +151,11 @@ export function EntriesTab() {
     },
     onError,
   });
-  const restore = useMutation({ mutationFn: (id: string) => tvboxApi.restoreEntry(id), onSuccess: refresh, onError });
+  const restore = useMutation({
+    mutationFn: (id: string) => tvboxApi.restoreEntry(id),
+    onSuccess: refresh,
+    onError,
+  });
   const bulkRemove = useMutation({
     mutationFn: () => tvboxApi.deleteEntries([...selected]),
     onSuccess: (r) => {
@@ -97,7 +166,11 @@ export function EntriesTab() {
     },
     onError,
   });
-  const reorder = useMutation({ mutationFn: (ids: string[]) => tvboxApi.reorderEntries(kind, ids), onSuccess: refresh, onError });
+  const reorder = useMutation({
+    mutationFn: (ids: string[]) => tvboxApi.reorderEntries(kind, ids),
+    onSuccess: refresh,
+    onError,
+  });
   const bulk = useMutation({
     mutationFn: (enabled: boolean) => tvboxApi.setEntriesEnabled([...selected], enabled),
     onSuccess: (r) => {
@@ -121,7 +194,9 @@ export function EntriesTab() {
       next.add(id);
     return next;
   });
-  const toggleAll = () => setSelected(allVisibleSelected ? new Set() : new Set(visible.map(r => r.id)));
+  const toggleAll = () => setSelected(allVisibleSelected
+    ? new Set()
+    : new Set(visible.map(r => r.id)));
   const changeView = (apply: () => void) => {
     setSelected(new Set());
     apply();
@@ -133,7 +208,9 @@ export function EntriesTab() {
       reorder.mutate(ids);
   };
 
-  const editingEntry = editing !== null && editing !== "new" ? editing : null;
+  const editingEntry = editing !== null && editing !== "new"
+    ? editing
+    : null;
 
   return (
     <div className="space-y-4 pt-4">
@@ -149,13 +226,22 @@ export function EntriesTab() {
               <SelectValue>{(v: string) => t(`tvbox:health.filter.${v}`)}</SelectValue>
             </SelectTrigger>
             <SelectContent>
-              {(["all", "fail", "disabledByHealth", "exempt"] as const).map(f => <SelectItem key={f} value={f}>{t(`tvbox:health.filter.${f}`)}</SelectItem>)}
+              {([
+                "all",
+                "fail",
+                "disabledByHealth",
+                "exempt",
+              ] as const).map(f => <SelectItem key={f} value={f}>{t(`tvbox:health.filter.${f}`)}</SelectItem>)}
             </SelectContent>
           </Select>
           <Select value={source} onValueChange={v => v !== null && changeView(() => setSource(v))}>
             <SelectTrigger className="w-40">
               <SelectValue>
-                {(v: string) => v === "all" ? t("tvbox:entries.allSources") : v === "common" ? t("tvbox:entries.common") : upstreamName.get(v) ?? v}
+                {(v: string) => v === "all"
+                  ? t("tvbox:entries.allSources")
+                  : v === "common"
+                    ? t("tvbox:entries.common")
+                    : upstreamName.get(v) ?? v}
               </SelectValue>
             </SelectTrigger>
             <SelectContent>
@@ -229,7 +315,14 @@ export function EntriesTab() {
                   <input type="checkbox" aria-label={entryTitle(entry)} checked={selected.has(entry.id)} onChange={() => toggle(entry.id)} className="size-4 accent-primary" />
                 </TableCell>
                 <TableCell>
-                  <Switch checked={entry.enabled} disabled={trash} onCheckedChange={enabled => update.mutate({ id: entry.id, body: { enabled } })} />
+                  <Switch
+                    checked={entry.enabled}
+                    disabled={trash}
+                    onCheckedChange={enabled => update.mutate({
+                      id: entry.id,
+                      body: { enabled },
+                    })}
+                  />
                 </TableCell>
                 <TableCell className="max-w-lg">
                   <div className="flex items-center gap-2 font-medium">
@@ -247,9 +340,16 @@ export function EntriesTab() {
                 </TableCell>
                 <TableCell
                   className="space-x-1 text-xs whitespace-nowrap"
-                  title={entry.healthCheckedAt ? `${new Date(entry.healthCheckedAt).toLocaleString()}\n${entry.healthDetail ?? ""}` : undefined}
+                  title={entry.healthCheckedAt
+                    ? `${new Date(entry.healthCheckedAt).toLocaleString()}\n${entry.healthDetail ?? ""}`
+                    : undefined}
                 >
-                  <Badge variant={entry.healthStatus === "fail" ? "destructive" : entry.healthStatus === "ok" ? "secondary" : "outline"}>
+                  <Badge variant={entry.healthStatus === "fail"
+                    ? "destructive"
+                    : entry.healthStatus === "ok"
+                      ? "secondary"
+                      : "outline"}
+                  >
                     {t(`tvbox:health.status.${entry.healthStatus ?? "unchecked"}`)}
                   </Badge>
                   {entry.disabledByHealth && <Badge variant="outline">{t("tvbox:health.disabledByHealth")}</Badge>}
@@ -270,7 +370,17 @@ export function EntriesTab() {
                   )}
                   {!trash && <Button size="sm" variant="ghost" title={t("common.edit")} onClick={() => setEditing(entry)}><Pencil className="size-4" /></Button>}
                   {!trash && entry.healthExempt && (
-                    <Button size="sm" variant="ghost" title={t("tvbox:health.unexempt")} onClick={() => update.mutate({ id: entry.id, body: { healthExempt: false } })}><ShieldOff className="size-4" /></Button>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      title={t("tvbox:health.unexempt")}
+                      onClick={() => update.mutate({
+                        id: entry.id,
+                        body: { healthExempt: false },
+                      })}
+                    >
+                      <ShieldOff className="size-4" />
+                    </Button>
                   )}
                   {!trash && entry.locallyModified && (
                     <Button size="sm" variant="ghost" title={t("tvbox:entries.revert")} onClick={() => revert.mutate(entry.id)}><Undo2 className="size-4" /></Button>
@@ -287,11 +397,19 @@ export function EntriesTab() {
 
       <JsonDialog
         // A new template replaces the text.
-        key={editingEntry ? editingEntry.id : `new-${template}`}
+        key={editingEntry
+          ? editingEntry.id
+          : `new-${template}`}
         open={editing !== null}
         onOpenChange={open => !open && setEditing(null)}
-        title={editingEntry ? entryTitle(editingEntry) : t("tvbox:entries.add")}
-        value={editingEntry ? editingEntry.data : kind === "sites" ? SITE_TEMPLATES[template] : NEW_ENTRY[kind]}
+        title={editingEntry
+          ? entryTitle(editingEntry)
+          : t("tvbox:entries.add")}
+        value={editingEntry
+          ? editingEntry.data
+          : kind === "sites"
+            ? SITE_TEMPLATES[template]
+            : NEW_ENTRY[kind]}
         objectOnly
         pending={update.isPending || create.isPending}
         extra={(
@@ -300,7 +418,15 @@ export function EntriesTab() {
             {editing === "new" && kind === "sites" && (
               <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
                 {(Object.keys(SITE_TEMPLATES) as SiteTemplate[]).map(k => (
-                  <Button key={k} type="button" size="sm" variant={template === k ? "default" : "outline"} onClick={() => setTemplate(k)}>
+                  <Button
+                    key={k}
+                    type="button"
+                    size="sm"
+                    variant={template === k
+                      ? "default"
+                      : "outline"}
+                    onClick={() => setTemplate(k)}
+                  >
                     {t(`tvbox:entries.engine.${k}`)}
                   </Button>
                 ))}
@@ -311,7 +437,10 @@ export function EntriesTab() {
           </>
         )}
         onSave={value => editingEntry
-          ? update.mutate({ id: editingEntry.id, body: { data: value as JsonObject } })
+          ? update.mutate({
+              id: editingEntry.id,
+              body: { data: value as JsonObject },
+            })
           : create.mutate(value as JsonObject)}
       />
 
@@ -319,7 +448,9 @@ export function EntriesTab() {
         open={deleting !== null}
         onOpenChange={open => !open && setDeleting(null)}
         title={t("tvbox:entries.deleteTitle")}
-        description={deleting ? `${entryTitle(deleting)} · ${t(deleting.upstreamId ? "tvbox:entries.deleteUpstreamHint" : "tvbox:entries.deleteLocalHint")}` : ""}
+        description={deleting
+          ? `${entryTitle(deleting)} · ${t(deleting.upstreamId ? "tvbox:entries.deleteUpstreamHint" : "tvbox:entries.deleteLocalHint")}`
+          : ""}
         pending={remove.isPending}
         onConfirm={() => deleting && remove.mutate(deleting.id)}
       />

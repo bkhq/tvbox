@@ -27,7 +27,9 @@ export const ENROLL_PATH = "/api/raw/tvbox/enroll";
 /** Same normalisation as the app's BASE_PATH: "mg", "/mg" and "/mg/" are "/mg". */
 export function normalizeBasePath(value: string | undefined): string {
   const trimmed = (value ?? "").replace(/^\/+|\/+$/g, "");
-  return trimmed ? `/${trimmed}` : "";
+  return trimmed
+    ? `/${trimmed}`
+    : "";
 }
 
 export function routeRequest(pathname: string, base: string): Route {
@@ -49,5 +51,7 @@ export function routeRequest(pathname: string, base: string): Route {
     return "console";
   if (pathname === base)
     return "redirect";
-  return pathname.startsWith(`${base}/`) ? "console" : "missing";
+  return pathname.startsWith(`${base}/`)
+    ? "console"
+    : "missing";
 }

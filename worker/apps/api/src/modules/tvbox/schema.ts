@@ -17,7 +17,9 @@ export const tvboxUpstreams = sqliteTable("tvbox_upstreams", {
   isPrimary: integer("is_primary", { mode: "boolean" }).notNull().default(false),
   syncEnabled: integer("sync_enabled", { mode: "boolean" }).notNull().default(true),
   lastSyncedAt: text("last_synced_at"),
-  lastStatus: text("last_status", { enum: ["ok", "error"] }),
+  lastStatus: text("last_status", {
+    enum: ["ok", "error"],
+  }),
   lastError: text("last_error"),
   createdAt: text("created_at").notNull().$defaultFn(now),
   updatedAt: text("updated_at").notNull().$defaultFn(now),
@@ -30,7 +32,15 @@ export const tvboxUpstreams = sqliteTable("tvbox_upstreams", {
 // Local entries have no upstream.
 export const tvboxEntries = sqliteTable("tvbox_entries", {
   id: text("id").primaryKey(),
-  kind: text("kind", { enum: ["sites", "parses", "lives", "rules", "doh"] }).notNull(),
+  kind: text("kind", {
+    enum: [
+      "sites",
+      "parses",
+      "lives",
+      "rules",
+      "doh",
+    ],
+  }).notNull(),
   upstreamId: text("upstream_id").references(() => tvboxUpstreams.id, { onDelete: "cascade" }),
   upstreamKey: text("upstream_key"),
   data: text("data").notNull(),
@@ -46,7 +56,9 @@ export const tvboxEntries = sqliteTable("tvbox_entries", {
   // entry is disabled and flagged `disabledByHealth`, and enabled again once
   // it passes. Turning such an entry back on by hand makes it `healthExempt`:
   // checks still run but never switch it off.
-  healthStatus: text("health_status", { enum: ["ok", "blocked", "fail", "skip"] }),
+  healthStatus: text("health_status", {
+    enum: ["ok", "blocked", "fail", "skip"],
+  }),
   healthDetail: text("health_detail"),
   healthCheckedAt: text("health_checked_at"),
   disabledByHealth: integer("disabled_by_health", { mode: "boolean" }).notNull().default(false),
@@ -92,7 +104,9 @@ export const tvboxPublishes = sqliteTable("tvbox_publishes", {
   size: integer("size").notNull(),
   // JSON object: entry count per list kind.
   counts: text("counts").notNull(),
-  trigger: text("trigger", { enum: ["manual", "sync", "restore"] }).notNull(),
+  trigger: text("trigger", {
+    enum: ["manual", "sync", "restore"],
+  }).notNull(),
   restoredFrom: text("restored_from"),
   createdBy: text("created_by").references(() => users.id, { onDelete: "set null" }),
   createdAt: text("created_at").notNull().$defaultFn(now),
@@ -135,7 +149,14 @@ export const tvboxDeviceUpstreams = sqliteTable("tvbox_device_upstreams", {
 export const tvboxEnrollments = sqliteTable("tvbox_enrollments", {
   id: text("id").primaryKey(),
   code: text("code").notNull(),
-  status: text("status", { enum: ["pending", "approved", "rejected", "unlinked"] }).notNull().default("pending"),
+  status: text("status", {
+    enum: [
+      "pending",
+      "approved",
+      "rejected",
+      "unlinked",
+    ],
+  }).notNull().default("pending"),
   deviceRef: text("device_ref").references(() => tvboxDevices.id, { onDelete: "set null" }),
   appDeviceId: text("app_device_id").notNull().default(""),
   name: text("name").notNull().default(""),
@@ -164,10 +185,14 @@ export const tvboxEnrollments = sqliteTable("tvbox_enrollments", {
 // offered.
 export const tvboxReleases = sqliteTable("tvbox_releases", {
   id: text("id").primaryKey(),
-  app: text("app", { enum: ["tvbox", "rn"] }).notNull().default("tvbox"),
+  app: text("app", {
+    enum: ["tvbox", "rn"],
+  }).notNull().default("tvbox"),
   versionCode: integer("version_code").notNull(),
   versionName: text("version_name").notNull(),
-  channel: text("channel", { enum: ["stable", "beta"] }).notNull().default("stable"),
+  channel: text("channel", {
+    enum: ["stable", "beta"],
+  }).notNull().default("stable"),
   notes: text("notes").notNull().default(""),
   withdrawn: integer("withdrawn", { mode: "boolean" }).notNull().default(false),
   createdAt: text("created_at").notNull().$defaultFn(now),

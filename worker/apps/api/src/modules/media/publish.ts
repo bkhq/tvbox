@@ -30,7 +30,13 @@ export async function markPublished(db: MediaDb): Promise<{ generation: string; 
   }
   const value = JSON.stringify(generation);
   statements.push(db.insert(mediaSettings).values({ key: GENERATION_KEY, value })
-    .onConflictDoUpdate({ target: mediaSettings.key, set: { value, updatedAt: new Date().toISOString() } }));
+    .onConflictDoUpdate({
+      target: mediaSettings.key,
+      set: {
+        value,
+        updatedAt: new Date().toISOString(),
+      },
+    }));
   await runBatch(db, statements);
   const [count] = await db.all<{ n: number }>(sql`SELECT COUNT(*) AS n FROM media_published WHERE kind = 'title'`);
   return { generation, titles: count?.n ?? 0 };
@@ -39,5 +45,7 @@ export async function markPublished(db: MediaDb): Promise<{ generation: string; 
 /** The last publish's generation; null before the first. */
 export async function publishedGeneration(db: MediaDb): Promise<string | null> {
   const row = await db.select({ value: mediaSettings.value }).from(mediaSettings).where(eq(mediaSettings.key, GENERATION_KEY)).get();
-  return row ? JSON.parse(row.value) as string : null;
+  return row
+    ? JSON.parse(row.value) as string
+    : null;
 }

@@ -15,19 +15,58 @@ const JAR_SHA = "c".repeat(64);
 
 const snapshot: PublishedSnapshot = {
   version: 2,
-  globals: [{ key: "spider", value: `./a/${JAR_SHA}/spider.jar;md5;x` }],
+  globals: [
+    { key: "spider", value: `./a/${JAR_SHA}/spider.jar;md5;x` },
+  ],
   entries: [
-    { id: "1", kind: "sites", upstreamId: "up-a", enabled: true, sort: 0, data: { key: "a" } },
-    { id: "2", kind: "sites", upstreamId: "up-b", enabled: true, sort: 1, data: { key: "b" } },
-    { id: "3", kind: "sites", upstreamId: null, enabled: true, sort: 2, data: { key: "common" } },
+    {
+      id: "1",
+      kind: "sites",
+      upstreamId: "up-a",
+      enabled: true,
+      sort: 0,
+      data: { key: "a" },
+    },
+    {
+      id: "2",
+      kind: "sites",
+      upstreamId: "up-b",
+      enabled: true,
+      sort: 1,
+      data: { key: "b" },
+    },
+    {
+      id: "3",
+      kind: "sites",
+      upstreamId: null,
+      enabled: true,
+      sort: 2,
+      data: { key: "common" },
+    },
   ],
 };
 
 const devices: DevicesFile = {
   devices: {
     [sha(ALL)]: { id: "d1", upstreams: null },
-    [sha(ONLY_B)]: { id: "d2", upstreams: ["up-b"] },
-    [sha(BOUND)]: { id: "d3", upstreams: null, bindings: [{ id: "app-1", keyHash: sha("key-1") }, { id: "app-2", keyHash: sha("key-2") }] },
+    [sha(ONLY_B)]: {
+      id: "d2",
+      upstreams: ["up-b"],
+    },
+    [sha(BOUND)]: {
+      id: "d3",
+      upstreams: null,
+      bindings: [
+        {
+          id: "app-1",
+          keyHash: sha("key-1"),
+        },
+        {
+          id: "app-2",
+          keyHash: sha("key-2"),
+        },
+      ],
+    },
   },
 };
 
@@ -38,7 +77,9 @@ function bucket(objects: Record<string, string>): SubscriptionBucket & { reads: 
     async get(key: string) {
       reads.push(key);
       const body = objects[key];
-      return body === undefined ? null : new Response(body);
+      return body === undefined
+        ? null
+        : new Response(body);
     },
   };
 }
@@ -58,7 +99,12 @@ const siteKeys = async (res: Response) => ((await res.json()) as { sites: { key:
 describe("subscription access", () => {
   test("an unknown token, a bare prefix or a path escaping the token all look missing", async () => {
     const files = published();
-    for (const path of ["/s/wrong/api.json", `/s/${ALL}`, "/s/", `/s/${ALL}/../api.json`]) {
+    for (const path of [
+      "/s/wrong/api.json",
+      `/s/${ALL}`,
+      "/s/",
+      `/s/${ALL}/../api.json`,
+    ]) {
       const res = await handleSubscription(get(path), { FILES: files });
       expect({ path, status: res.status }).toEqual({ path, status: 404 });
     }
@@ -67,75 +113,108 @@ describe("subscription access", () => {
   });
 
   test("nothing is served before the first device exists", async () => {
-    const files = bucket({ [PUBLISHED_KEY]: JSON.stringify(snapshot) });
+    const files = bucket({
+      [PUBLISHED_KEY]: JSON.stringify(snapshot),
+    });
     expect((await handleSubscription(get(`/s/${ALL}/api.json`), { FILES: files })).status).toBe(404);
   });
 
   test("only reads are allowed, and only once the token matches", async () => {
-    expect((await handleSubscription(get(`/s/${ALL}/`, { method: "POST" }), { FILES: published() })).status).toBe(405);
-    expect((await handleSubscription(get("/s/wrong/", { method: "POST" }), { FILES: published() })).status).toBe(404);
+    expect((await handleSubscription(get(`/s/${ALL}/`, { method: "POST" }), {
+      FILES: published(),
+    })).status).toBe(405);
+    expect((await handleSubscription(get("/s/wrong/", { method: "POST" }), {
+      FILES: published(),
+    })).status).toBe(404);
   });
 });
 
 describe("a device bound to linked apps", () => {
-  const as = (id: string, key: string) => ({ headers: { "X-Device-Id": id, "X-Device-Key": key } });
+  const as = (id: string, key: string) => ({
+    headers: { "X-Device-Id": id, "X-Device-Key": key },
+  });
 
   test("serves its config only to those apps", async () => {
     const files = published();
     expect((await handleSubscription(get(`/s/${BOUND}/api.json`, as("app-1", "key-1")), { FILES: files })).status).toBe(200);
     expect((await handleSubscription(get(`/s/${BOUND}/`, as("app-2", "key-2")), { FILES: files })).status).toBe(200);
-    for (const init of [undefined, as("app-1", "key-2"), as("app-3", "key-1"), as("app-1", "")])
+    for (const init of [
+      undefined,
+      as("app-1", "key-2"),
+      as("app-3", "key-1"),
+      as("app-1", ""),
+    ])
       expect((await handleSubscription(get(`/s/${BOUND}/api.json`, init), { FILES: files })).status).toBe(404);
   });
 
   test("its files stay reachable without the headers", async () => {
-    const res = await handleSubscription(get(`/s/${BOUND}/a/${JAR_SHA}/spider.jar`), { FILES: published() });
+    const res = await handleSubscription(get(`/s/${BOUND}/a/${JAR_SHA}/spider.jar`), {
+      FILES: published(),
+    });
     expect(res.status).toBe(200);
   });
 });
 
 describe("subscription content", () => {
   test("each device gets its upstreams plus the common entries", async () => {
-    const all = await handleSubscription(get(`/s/${ALL}/api.json`), { FILES: published() });
+    const all = await handleSubscription(get(`/s/${ALL}/api.json`), {
+      FILES: published(),
+    });
     expect(all.status).toBe(200);
     expect(all.headers.get("content-type")).toBe("application/json; charset=utf-8");
     expect(await siteKeys(all)).toEqual(["bk_home", "a", "b", "common"]);
 
-    const onlyB = await handleSubscription(get(`/s/${ONLY_B}/`), { FILES: published() });
+    const onlyB = await handleSubscription(get(`/s/${ONLY_B}/`), {
+      FILES: published(),
+    });
     expect(await siteKeys(onlyB)).toEqual(["bk_home", "b", "common"]);
   });
 
   test("the recommendation home leads every config and is served without the media library", async () => {
-    const res = await handleSubscription(get(`/s/${ALL}/api.json`), { FILES: published() });
+    const res = await handleSubscription(get(`/s/${ALL}/api.json`), {
+      FILES: published(),
+    });
     const home = ((await res.json()) as { sites: { key: string; api: string; searchable: number }[] }).sites[0]!;
     expect(home).toMatchObject({ key: "bk_home", api: `https://worker.example/s/${ALL}/media/home`, searchable: 0 });
 
-    const answer = await handleSubscription(get(`/s/${ALL}/media/home?wd=x`), { FILES: published() });
+    const answer = await handleSubscription(get(`/s/${ALL}/media/home?wd=x`), {
+      FILES: published(),
+    });
     expect(answer.status).toBe(200);
     expect(await answer.json()).toMatchObject({ list: [] });
-    expect((await handleSubscription(get(`/s/nope/media/home`), { FILES: published() })).status).toBe(404);
+    expect((await handleSubscription(get(`/s/nope/media/home`), {
+      FILES: published(),
+    })).status).toBe(404);
   });
 
   test("nothing published yet is missing", async () => {
-    const files = bucket({ [DEVICES_KEY]: JSON.stringify(devices) });
+    const files = bucket({
+      [DEVICES_KEY]: JSON.stringify(devices),
+    });
     expect((await handleSubscription(get(`/s/${ALL}/api.json`), { FILES: files })).status).toBe(404);
   });
 
   test("mirrored files are served by content hash and cached for good", async () => {
-    const res = await handleSubscription(get(`/s/${ALL}/a/${JAR_SHA}/spider.jar`), { FILES: published() });
+    const res = await handleSubscription(get(`/s/${ALL}/a/${JAR_SHA}/spider.jar`), {
+      FILES: published(),
+    });
     expect(res.status).toBe(200);
     expect(res.headers.get("content-type")).toBe("application/java-archive");
     expect(res.headers.get("cache-control")).toContain("immutable");
     expect(await res.text()).toBe("PK-jar");
 
-    const image = await handleSubscription(get(`/s/${ALL}/a/${JAR_SHA}/wallpaper.jpg`), { FILES: published() });
+    const image = await handleSubscription(get(`/s/${ALL}/a/${JAR_SHA}/wallpaper.jpg`), {
+      FILES: published(),
+    });
     expect(image.headers.get("content-type")).toBe("image/jpeg");
     await image.text();
   });
 
   test("a malformed or unknown hash is missing", async () => {
     for (const path of [`/s/${ALL}/a/xyz/spider.jar`, `/s/${ALL}/a/${"d".repeat(64)}/x.json`, `/s/${ALL}/other.json`]) {
-      const res = await handleSubscription(get(path), { FILES: published() });
+      const res = await handleSubscription(get(path), {
+        FILES: published(),
+      });
       expect({ path, status: res.status }).toEqual({ path, status: 404 });
     }
   });

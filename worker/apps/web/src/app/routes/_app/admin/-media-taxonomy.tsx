@@ -30,7 +30,11 @@ function Categories() {
   const categories = useQuery({ queryKey: mediaKeys.categories, queryFn: mediaApi.categories });
   const [id, setId] = useState("");
   const [name, setName] = useState("");
-  const add = useMediaMutation(() => mediaApi.createCategory({ id: id.trim(), name: name.trim(), kinds: ["movie", "series"] }), () => {
+  const add = useMediaMutation(() => mediaApi.createCategory({
+    id: id.trim(),
+    name: name.trim(),
+    kinds: ["movie", "series"],
+  }), () => {
     setId("");
     setName("");
   });
@@ -57,7 +61,16 @@ function Categories() {
           {categories.data?.map((c, i) => (
             <TableRow key={c.id}>
               <TableCell className="font-mono text-xs">{c.id}</TableCell>
-              <TableCell><NameInput key={c.name} value={c.name} onSave={name => update.mutate({ id: c.id, body: { name } })} /></TableCell>
+              <TableCell>
+                <NameInput
+                  key={c.name}
+                  value={c.name}
+                  onSave={name => update.mutate({
+                    id: c.id,
+                    body: { name },
+                  })}
+                />
+              </TableCell>
               <TableCell className="space-x-1">
                 {KINDS.map((k) => {
                   const on = c.kinds.includes(k);
@@ -67,9 +80,15 @@ function Categories() {
                       variant={on ? "default" : "outline"}
                       className="cursor-pointer"
                       onClick={() => {
-                        const kinds = on ? c.kinds.filter(x => x !== k) : [...c.kinds, k];
-                        if (kinds.length > 0)
-                          update.mutate({ id: c.id, body: { kinds } });
+                        const kinds = on
+                          ? c.kinds.filter(x => x !== k)
+                          : [...c.kinds, k];
+                        if (kinds.length > 0) {
+                          update.mutate({
+                            id: c.id,
+                            body: { kinds },
+                          });
+                        }
                       }}
                     >
                       {t(`media:kind.${k}`)}
@@ -126,7 +145,9 @@ function Collections() {
   const { t } = useTranslation(["common", "media"]);
   const collections = useQuery({ queryKey: mediaKeys.collections, queryFn: mediaApi.collections });
   const [name, setName] = useState("");
-  const add = useMediaMutation(() => mediaApi.createCollection({ name: name.trim() }), () => setName(""));
+  const add = useMediaMutation(() => mediaApi.createCollection({
+    name: name.trim(),
+  }), () => setName(""));
   const rename = useMediaMutation(({ id, name }: { id: string; name: string }) => mediaApi.updateCollection(id, { name }));
   const remove = useMediaMutation((id: string) => mediaApi.deleteCollection(id));
 

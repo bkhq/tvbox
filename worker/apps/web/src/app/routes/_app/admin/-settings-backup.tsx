@@ -98,7 +98,9 @@ export function BackupSettingsTab() {
     try {
       const res = await httpRaw("/backup/export", {
         method: "POST",
-        body: JSON.stringify({ modules: [...resolvedExportModules] }),
+        body: JSON.stringify({
+          modules: [...resolvedExportModules],
+        }),
       });
 
       const blob = await res.blob();
@@ -119,7 +121,9 @@ export function BackupSettingsTab() {
       setTimeout(setExportSuccess, 3000, false);
     }
     catch (err) {
-      setExportError(err instanceof Error ? err.message : t("settings:backup.export.failed"));
+      setExportError(err instanceof Error
+        ? err.message
+        : t("settings:backup.export.failed"));
     }
     finally {
       setExporting(false);
@@ -198,7 +202,9 @@ export function BackupSettingsTab() {
         importFileRef.current.value = "";
     }
     catch (err) {
-      setImportError(err instanceof Error ? err.message : t("settings:backup.import.failed"));
+      setImportError(err instanceof Error
+        ? err.message
+        : t("settings:backup.import.failed"));
     }
     finally {
       setImporting(false);
@@ -257,7 +263,9 @@ export function BackupSettingsTab() {
         <div className="flex justify-end">
           <Button size="sm" disabled={exporting || resolvedExportModules.size === 0} onClick={() => setExportConfirmOpen(true)}>
             <Download className="mr-1 size-3" />
-            {exporting ? t("settings:backup.export.exporting") : t("settings:backup.export.button")}
+            {exporting
+              ? t("settings:backup.export.exporting")
+              : t("settings:backup.export.button")}
           </Button>
         </div>
       </div>
@@ -334,7 +342,9 @@ export function BackupSettingsTab() {
             onClick={() => setImportConfirmOpen(true)}
           >
             <Upload className="mr-1 size-3" />
-            {importing ? t("settings:backup.import.importing") : t("settings:backup.import.button")}
+            {importing
+              ? t("settings:backup.import.importing")
+              : t("settings:backup.import.button")}
           </Button>
         </div>
       </div>

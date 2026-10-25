@@ -38,8 +38,18 @@ export type EnrollAnswer
 
 /** What this check reported; fields it left out keep their earlier value. */
 function reported(report: EnrollReport, ip: string): Partial<typeof tvboxEnrollments.$inferInsert> {
-  const fields: Partial<typeof tvboxEnrollments.$inferInsert> = { ip: ip.slice(0, 64), lastSeenAt: new Date().toISOString() };
-  const strings = { appDeviceId: report.deviceId, name: report.name, model: report.model, mode: report.mode, abi: report.abi, versionName: report.versionName };
+  const fields: Partial<typeof tvboxEnrollments.$inferInsert> = {
+    ip: ip.slice(0, 64),
+    lastSeenAt: new Date().toISOString(),
+  };
+  const strings = {
+    appDeviceId: report.deviceId,
+    name: report.name,
+    model: report.model,
+    mode: report.mode,
+    abi: report.abi,
+    versionName: report.versionName,
+  };
   for (const [key, value] of Object.entries(strings) as [keyof typeof strings, string | undefined][]) {
     if (value !== undefined)
       fields[key] = value.slice(0, 100);
@@ -74,7 +84,11 @@ export async function answerEnroll(
   if (action === "unlink") {
     if (row?.status === "approved" || row?.status === "pending") {
       await db.update(tvboxEnrollments)
-        .set({ ...reported(report, ip), status: "unlinked", resolvedAt: new Date().toISOString() })
+        .set({
+          ...reported(report, ip),
+          status: "unlinked",
+          resolvedAt: new Date().toISOString(),
+        })
         .where(eq(tvboxEnrollments.id, row.id))
         .run();
       if (row.deviceKey !== null)
@@ -84,7 +98,11 @@ export async function answerEnroll(
   }
 
   if (!row) {
-    await db.insert(tvboxEnrollments).values({ id: ulid(), code: report.code, ...reported(report, ip) }).run();
+    await db.insert(tvboxEnrollments).values({
+      id: ulid(),
+      code: report.code,
+      ...reported(report, ip),
+    }).run();
     await prunePending(db);
     return { status: "pending" };
   }
@@ -108,7 +126,9 @@ export async function answerEnroll(
     await db.update(tvboxEnrollments).set({ deviceKey }).where(eq(tvboxEnrollments.id, row.id)).run();
     await writeDevicesFile(db);
   }
-  return deviceKey === null ? { status: "approved", subscription } : { status: "approved", subscription, deviceKey };
+  return deviceKey === null
+    ? { status: "approved", subscription }
+    : { status: "approved", subscription, deviceKey };
 }
 
 export interface EnrollmentView extends EnrollmentRow {
@@ -154,7 +174,11 @@ export async function approveEnrollment(db: AppDatabase, id: string, input: Appr
       }, userId)).id;
 
   await db.update(tvboxEnrollments)
-    .set({ status: "approved", deviceRef: deviceId, resolvedAt: new Date().toISOString() })
+    .set({
+      status: "approved",
+      deviceRef: deviceId,
+      resolvedAt: new Date().toISOString(),
+    })
     .where(eq(tvboxEnrollments.id, id))
     .run();
   // An earlier key belongs to an earlier link; the app gets a new one.
@@ -168,7 +192,11 @@ export async function approveEnrollment(db: AppDatabase, id: string, input: Appr
 export async function rejectEnrollment(db: AppDatabase, id: string): Promise<EnrollmentView> {
   await getEnrollment(db, id);
   await db.update(tvboxEnrollments)
-    .set({ status: "rejected", deviceKey: null, resolvedAt: new Date().toISOString() })
+    .set({
+      status: "rejected",
+      deviceKey: null,
+      resolvedAt: new Date().toISOString(),
+    })
     .where(eq(tvboxEnrollments.id, id))
     .run();
   await writeDevicesFile(db);

@@ -19,10 +19,15 @@ export async function buildSnapshot(db: AppDatabase): Promise<PublishedSnapshot>
   const globals = await db.select().from(tvboxGlobals).orderBy(tvboxGlobals.sort, tvboxGlobals.key).all();
   const entries = await db.select().from(tvboxEntries).where(eq(tvboxEntries.enabled, true)).all();
   const ownJar = await ownJarSpec(db);
-  const withJar = (data: JsonObject): JsonObject => data.jar === OWN_JAR && ownJar ? { ...data, jar: ownJar } : data;
+  const withJar = (data: JsonObject): JsonObject => data.jar === OWN_JAR && ownJar
+    ? { ...data, jar: ownJar }
+    : data;
   return {
     version: 2,
-    globals: globals.map(g => ({ key: g.key, value: JSON.parse(g.value) as unknown })),
+    globals: globals.map(g => ({
+      key: g.key,
+      value: JSON.parse(g.value) as unknown,
+    })),
     entries: entries.map(e => ({
       id: e.id,
       kind: e.kind,
@@ -48,7 +53,12 @@ interface PublishInput {
 async function writePublish(db: AppDatabase, snapshot: PublishedSnapshot, input: PublishInput): Promise<PublishRow> {
   const json = JSON.stringify(snapshot);
   const everything = composeForDevice(snapshot, null);
-  const counts = Object.fromEntries(LIST_KINDS.map(kind => [kind, Array.isArray(everything[kind]) ? everything[kind].length : 0]));
+  const counts = Object.fromEntries(LIST_KINDS.map(kind => [
+    kind,
+    Array.isArray(everything[kind])
+      ? everything[kind].length
+      : 0,
+  ]));
   const id = ulid();
   // The per-publish copy first: the live pointer must never name a version
   // that was not stored.

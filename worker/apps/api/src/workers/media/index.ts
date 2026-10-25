@@ -33,12 +33,17 @@ async function generationOf(db: MediaDb, key: object): Promise<string | null> {
   if (cached && Date.now() - cached.at < GENERATION_TTL_MS)
     return cached.value;
   const value = await publishedGeneration(db);
-  generations.set(key, { at: Date.now(), value });
+  generations.set(key, {
+    at: Date.now(),
+    value,
+  });
   return value;
 }
 
 function error(status: number, code: string, message: string): Response {
-  return new Response(JSON.stringify({ error: { code, message } }), {
+  return new Response(JSON.stringify({
+    error: { code, message },
+  }), {
     status,
     headers: { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" },
   });
@@ -70,8 +75,11 @@ async function answer(db: MediaDb, generation: string, path: string, url: URL): 
     return await v1.fetch(new Request(`https://media${path.slice(V1.length)}${url.search}`), { db, generation, today });
   if (path === "/cms")
     return await handleCms(db, url.searchParams, today);
-  if (path === "/live.m3u")
-    return new Response(toM3u(await loadLive(db)), { headers: { "content-type": "audio/x-mpegurl; charset=utf-8" } });
+  if (path === "/live.m3u") {
+    return new Response(toM3u(await loadLive(db)), {
+      headers: { "content-type": "audio/x-mpegurl; charset=utf-8" },
+    });
+  }
   return null;
 }
 
@@ -83,12 +91,18 @@ export async function handleMedia({ request, db, cacheKey, path, assetBase }: Me
   const url = new URL(request.url);
   const cacheable = !path.startsWith(`${V1}/playback/`);
   const etag = `"${generation}"`;
-  if (cacheable && request.headers.get("if-none-match") === etag)
-    return new Response(null, { status: 304, headers: { "etag": etag, "cache-control": `private, max-age=${MAX_AGE}` } });
+  if (cacheable && request.headers.get("if-none-match") === etag) {
+    return new Response(null, {
+      status: 304,
+      headers: { "etag": etag, "cache-control": `private, max-age=${MAX_AGE}` },
+    });
+  }
 
   url.searchParams.sort();
   const key = `${url.origin}/__media${path}?${url.searchParams.toString()}&__g=${generation}`;
-  const cache = cacheable ? sharedCache() : undefined;
+  const cache = cacheable
+    ? sharedCache()
+    : undefined;
   let res = await cache?.match(key) ?? await answer(db, generation, path, url);
   if (!res)
     return error(404, "NOT_FOUND", "Not found");

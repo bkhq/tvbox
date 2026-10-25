@@ -4,6 +4,7 @@ import { bootstrap } from "@/app";
 import { createMediaDb, setMediaDb } from "@/modules/media/db";
 import { setReadModelDb } from "@/modules/media/readmodel/store";
 import { setPlatform } from "@/platform";
+import { handleControl } from "./control";
 import { handleDoh } from "./doh";
 import { handleLanding } from "./landing";
 import { createWorkersPlatform } from "./platform";
@@ -168,6 +169,8 @@ export default {
         return handleUpdates(request, files);
       case "doh":
         return handleDoh(request);
+      case "control":
+        return handleControl(request);
       case "redirect":
         return Response.redirect(new URL(`${base}/`, url).toString(), 301);
       case "console":

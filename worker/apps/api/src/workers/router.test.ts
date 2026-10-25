@@ -37,6 +37,11 @@ describe("routeRequest", () => {
     });
   }
 
+  test("/link is the phone control entry, under any base path", () => {
+    expect(routeRequest("/link", "/mg")).toBe("control");
+    expect(routeRequest("/link", "")).toBe("control");
+  });
+
   test("without a base path the console owns everything but the public routes", () => {
     expect(routeRequest("/", "")).toBe("landing");
     expect(routeRequest("/api/health", "")).toBe("app");

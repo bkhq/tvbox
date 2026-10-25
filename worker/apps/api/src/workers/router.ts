@@ -1,3 +1,4 @@
+import { LINK_PATH } from "./control";
 import { DOH_PATH } from "./doh";
 import { SUBSCRIPTION_PREFIX } from "./subscription";
 import { UPDATES_PREFIX } from "./updates";
@@ -9,6 +10,7 @@ import { UPDATES_PREFIX } from "./updates";
  *   subscription  `/s/…`, TVBox configs from R2
  *   updates       `/u/…`, app updates from R2
  *   doh           `/dns-query`, DNS-over-HTTPS forwarded to Cloudflare
+ *   control       `/link?<id>/<key>/<address>`, the phone control entry that sends the phone on to its TV
  *   app           `${base}/api…`, the Durable Object
  *   enroll        `/api/raw/tvbox/enroll`, the app's link endpoint, passed
  *                 to the Durable Object under the base path so the app never
@@ -17,7 +19,7 @@ import { UPDATES_PREFIX } from "./updates";
  *   redirect      `${base}` without its trailing slash
  *   missing       anything else
  */
-export type Route = "landing" | "subscription" | "updates" | "doh" | "app" | "enroll" | "console" | "redirect" | "missing";
+export type Route = "landing" | "subscription" | "updates" | "doh" | "control" | "app" | "enroll" | "console" | "redirect" | "missing";
 
 /** The one API path served at the site root. */
 export const ENROLL_PATH = "/api/raw/tvbox/enroll";
@@ -31,6 +33,8 @@ export function normalizeBasePath(value: string | undefined): string {
 export function routeRequest(pathname: string, base: string): Route {
   if (pathname === "/")
     return "landing";
+  if (pathname === LINK_PATH)
+    return "control";
   if (pathname.startsWith(SUBSCRIPTION_PREFIX))
     return "subscription";
   if (pathname.startsWith(UPDATES_PREFIX))

@@ -5,14 +5,13 @@ import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { mkdirSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
-import { customAlphabet } from "nanoid";
 import { createDb } from "@/db";
 import { __setLocalDriverRootForTests } from "@/modules/file/storage/local";
 import { __resetDriverRegistryForTests, setActiveDriver } from "@/modules/file/storage/registry";
+import { nanoid } from "@/shared/lib/id";
 import { deleteRelease, listReleases, registerRelease, updateRelease } from "./release.service";
 import { MANIFEST_INDEX_KEY, manifestIndexKey, objectExists, putObject, readObjectText, releaseFileKey, updateManifestKey } from "./storage";
 
-const nanoid = customAlphabet("0123456789abcdefghijklmnopqrstuvwxyz", 8);
 const SHA = "e".repeat(64);
 
 let db: AppDatabase;

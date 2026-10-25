@@ -6,11 +6,11 @@ import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { mkdirSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
-import { customAlphabet } from "nanoid";
 import { createDb } from "@/db";
 import { users } from "@/modules/account/users/schema";
 import { __setLocalDriverRootForTests } from "@/modules/file/storage/local";
 import { __resetDriverRegistryForTests, setActiveDriver } from "@/modules/file/storage/registry";
+import { nanoid } from "@/shared/lib/id";
 import { composeForDevice } from "./compose";
 import { createDevice, deleteDevice, listDevices, rotateDevice, updateDevice } from "./devices.service";
 import { buildConfig, listPublishes, publish, restorePublish } from "./publish.service";
@@ -37,7 +37,6 @@ import {
 } from "./tvbox.service";
 import { storeUpload } from "./upload.service";
 
-const nanoid = customAlphabet("0123456789abcdefghijklmnopqrstuvwxyz", 8);
 const noop = { debug() {}, info() {}, warn() {}, error() {}, fatal() {}, flush() {} } as unknown as Logger;
 
 const PRIMARY = "https://up.example/xiaosa/api.json";

@@ -1,8 +1,8 @@
 import type { AppDatabase } from "@/db";
 import { eq, inArray } from "drizzle-orm";
-import { customAlphabet } from "nanoid";
 import { groups } from "@/modules/account/groups/schema";
 import { users } from "@/modules/account/users/schema";
+import { nanoid } from "@/shared/lib/id";
 import {
   addUserMember,
   deleteAllForGroup,
@@ -10,8 +10,6 @@ import {
   listUserMembersWithJoinedAt,
   removeUserMember,
 } from "./group-members.service";
-
-const nanoid = customAlphabet("0123456789abcdefghijklmnopqrstuvwxyz", 8);
 
 export async function listGroups(db: AppDatabase) {
   const allGroups = await db.select().from(groups).limit(500).all();

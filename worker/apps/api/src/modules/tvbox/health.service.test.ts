@@ -3,12 +3,10 @@ import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { mkdirSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
-import { customAlphabet } from "nanoid";
 import { createDb } from "@/db";
+import { nanoid } from "@/shared/lib/id";
 import { applyHealth } from "./health.service";
 import { createEntry, getEntry, setEntriesEnabled, updateEntry } from "./tvbox.service";
-
-const nanoid = customAlphabet("0123456789abcdefghijklmnopqrstuvwxyz", 8);
 
 let db: AppDatabase;
 let dir: string;

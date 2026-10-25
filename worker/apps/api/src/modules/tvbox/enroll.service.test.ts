@@ -6,16 +6,15 @@ import { createHash } from "node:crypto";
 import { mkdirSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
-import { customAlphabet } from "nanoid";
 import { createDb } from "@/db";
 import { users } from "@/modules/account/users/schema";
 import { __setLocalDriverRootForTests } from "@/modules/file/storage/local";
 import { __resetDriverRegistryForTests, setActiveDriver } from "@/modules/file/storage/registry";
+import { nanoid } from "@/shared/lib/id";
 import { createDevice, deleteDevice, getDevice, rotateDevice } from "./devices.service";
 import { answerEnroll, approveEnrollment, deleteEnrollment, linkedApps, listEnrollments, RE_ENROLL_CODE, rejectEnrollment } from "./enroll.service";
 import { DEVICES_KEY, readObjectText } from "./storage";
 
-const nanoid = customAlphabet("0123456789abcdefghijklmnopqrstuvwxyz", 8);
 const ORIGIN = "https://tv.example";
 const CODE = "K7Q2-9XMB";
 const REPORT = { code: CODE, deviceId: "02:AB:CD:EF:01:23", name: "影视", model: "Xiaomi MiBOX4", mode: "leanback", abi: "arm64_v8a", versionCode: 10100, versionName: "1.1.0" };

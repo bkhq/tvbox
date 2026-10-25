@@ -3,8 +3,7 @@ import type { JsonObject } from "./parse";
 import type { AppEnv } from "@/shared/lib/types";
 import { Hono } from "hono";
 import { z } from "zod";
-import { audit } from "@/modules/audit/audit.service";
-import { getClientIp } from "@/shared/lib/client-ip";
+import { audit, auditMeta } from "@/modules/audit/audit.service";
 import { describeRoute, errors, jsonCreated, jsonOk, SECURITY, TAGS, validator } from "@/shared/lib/openapi";
 import { adminRequired, authRequired } from "@/shared/middleware/auth";
 import { createDevice, deleteDevice, deviceUpstreams, getDevice, listDevices, rotateDevice, updateDevice } from "./devices.service";
@@ -149,8 +148,7 @@ async function record(
     resourceId: resource.id,
     resourceName: resource.name,
     ...(detail ? { detail } : {}),
-    ip: getClientIp(c),
-    userAgent: c.req.header("user-agent") ?? "unknown",
+    ...auditMeta(c),
     result: "success",
   });
 }

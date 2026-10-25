@@ -4,8 +4,7 @@ import { Hono } from "hono";
 import { z } from "zod";
 import { sessions } from "@/modules/account/auth/schema";
 import { userPreferences, users } from "@/modules/account/users/schema";
-import { audit } from "@/modules/audit/audit.service";
-import { getClientIp } from "@/shared/lib/client-ip";
+import { audit, auditMeta } from "@/modules/audit/audit.service";
 import { AppError, NotFoundError, UnauthorizedError } from "@/shared/lib/errors";
 import { describeRoute, errors, jsonCreated, jsonOk, jsonPaged, SECURITY, TAGS, validator } from "@/shared/lib/openapi";
 import { adminRequired, authRequired } from "@/shared/middleware/auth";
@@ -237,8 +236,7 @@ export function userRoutes() {
         resourceType: "totp_device",
         resourceId: result.id,
         resourceName: body.name,
-        ip: getClientIp(c),
-        userAgent: c.req.header("user-agent") ?? "unknown",
+        ...auditMeta(c),
         result: "success",
       });
       return c.json({ success: true, data: result }, 201);
@@ -285,8 +283,7 @@ export function userRoutes() {
           resourceType: "totp_device",
           resourceId: deviceId,
           resourceName: deviceId,
-          ip: getClientIp(c),
-          userAgent: c.req.header("user-agent") ?? "unknown",
+          ...auditMeta(c),
           result: "failure",
         });
         throw new AppError("Invalid TOTP code or device", 400, "TOTP_VERIFY_FAILED");
@@ -298,8 +295,7 @@ export function userRoutes() {
         resourceType: "totp_device",
         resourceId: deviceId,
         resourceName: deviceId,
-        ip: getClientIp(c),
-        userAgent: c.req.header("user-agent") ?? "unknown",
+        ...auditMeta(c),
         result: "success",
       });
       return c.json({ success: true, data: null });
@@ -343,8 +339,7 @@ export function userRoutes() {
         resourceType: "totp_device",
         resourceId: deviceId,
         resourceName: deviceId,
-        ip: getClientIp(c),
-        userAgent: c.req.header("user-agent") ?? "unknown",
+        ...auditMeta(c),
         result: "success",
       });
       return c.json({ success: true, data: null });
@@ -535,8 +530,7 @@ export function userRoutes() {
         throw new AppError("Admin privileges revoked during operation", 403, "FORBIDDEN");
       }
 
-      const ip = getClientIp(c);
-      const userAgent = c.req.header("user-agent") ?? "unknown";
+      const { ip, userAgent } = auditMeta(c);
 
       if (roleChanged) {
         await audit(db, c.get("logger"), {

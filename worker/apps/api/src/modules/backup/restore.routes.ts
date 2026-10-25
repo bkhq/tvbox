@@ -3,8 +3,7 @@ import { Hono } from "hono";
 import { z } from "zod";
 import { deleteUserSessions } from "@/modules/account/auth/auth.service";
 import { users } from "@/modules/account/users/schema";
-import { audit } from "@/modules/audit/audit.service";
-import { getClientIp } from "@/shared/lib/client-ip";
+import { audit, auditMeta } from "@/modules/audit/audit.service";
 import { AppError } from "@/shared/lib/errors";
 import { describeRoute, errors, resolver, SECURITY, TAGS } from "@/shared/lib/openapi";
 import { adminRequired, authRequired } from "@/shared/middleware/auth";
@@ -206,8 +205,7 @@ export function backupImportRoutes() {
             resourceType: "user",
             resourceId: row.id,
             resourceName: row.id,
-            ip: getClientIp(c),
-            userAgent: c.req.header("user-agent") ?? "unknown",
+            ...auditMeta(c),
             result: "success",
           });
         }
@@ -226,8 +224,7 @@ export function backupImportRoutes() {
           rowsImported: result.rowsImported,
           includeUsers,
         },
-        ip: getClientIp(c),
-        userAgent: c.req.header("user-agent") ?? "unknown",
+        ...auditMeta(c),
         result: "success",
       });
 

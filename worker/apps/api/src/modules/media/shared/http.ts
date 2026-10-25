@@ -2,8 +2,7 @@ import type { Context } from "hono";
 import type { jsonOk } from "@/shared/lib/openapi";
 import type { AppEnv } from "@/shared/lib/types";
 import { z } from "zod";
-import { audit } from "@/modules/audit/audit.service";
-import { getClientIp } from "@/shared/lib/client-ip";
+import { audit, auditMeta } from "@/modules/audit/audit.service";
 import { describeRoute, errors, SECURITY, TAGS } from "@/shared/lib/openapi";
 
 type ResponsesMap = ReturnType<typeof jsonOk>;
@@ -28,8 +27,7 @@ export async function record(
     resourceId: String(resource.id),
     resourceName: resource.name,
     ...(detail ? { detail } : {}),
-    ip: getClientIp(c),
-    userAgent: c.req.header("user-agent") ?? "unknown",
+    ...auditMeta(c),
     result: "success",
   });
 }

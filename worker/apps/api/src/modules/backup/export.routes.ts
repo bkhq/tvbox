@@ -1,7 +1,7 @@
 import type { AppEnv } from "@/shared/lib/types";
 import { Hono } from "hono";
 import { z } from "zod";
-import { audit } from "@/modules/audit/audit.service";
+import { audit, auditMeta } from "@/modules/audit/audit.service";
 import { getClientIp } from "@/shared/lib/client-ip";
 import { buildContentDisposition } from "@/shared/lib/content-disposition";
 import { AppError } from "@/shared/lib/errors";
@@ -71,7 +71,7 @@ export function backupExportRoutes() {
           resourceId: "database",
           resourceName: "database-backup-export",
           detail: { reason: "in-flight" },
-          ip: getClientIp(c),
+          ip: getClientIp(c, c.get("config")),
           userAgent: c.req.header("user-agent") ?? "service-token",
           result: "failure",
         });
@@ -96,7 +96,7 @@ export function backupExportRoutes() {
               resourceId: "database",
               resourceName: "database-backup-export",
               detail: { reason: "min-interval", retryAfter },
-              ip: getClientIp(c),
+              ip: getClientIp(c, c.get("config")),
               userAgent: c.req.header("user-agent") ?? "service-token",
               result: "failure",
             });
@@ -116,7 +116,7 @@ export function backupExportRoutes() {
         resourceId: "database",
         resourceName: "database-backup-export",
         detail: { modules, via: "service-token" },
-        ip: getClientIp(c),
+        ip: getClientIp(c, c.get("config")),
         userAgent: c.req.header("user-agent") ?? "service-token",
         result: "success",
       });
@@ -229,8 +229,7 @@ export function backupExportRoutes() {
         resourceId: "database",
         resourceName: "database-backup-export",
         detail: { modules },
-        ip: getClientIp(c),
-        userAgent: c.req.header("user-agent") ?? "unknown",
+        ...auditMeta(c),
         result: "success",
       });
 

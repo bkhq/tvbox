@@ -2,8 +2,7 @@ import type { Context } from "hono";
 import type { AppEnv } from "@/shared/lib/types";
 import { Hono } from "hono";
 import { z } from "zod";
-import { audit } from "@/modules/audit/audit.service";
-import { getClientIp } from "@/shared/lib/client-ip";
+import { audit, auditMeta } from "@/modules/audit/audit.service";
 import { describeRoute, errors, jsonCreated, jsonOk, SECURITY, TAGS, validator } from "@/shared/lib/openapi";
 import { adminRequired, authRequired } from "@/shared/middleware/auth";
 import { serviceTokenRequired } from "@/shared/middleware/service-token";
@@ -80,8 +79,7 @@ export function releaseRawRoutes() {
         resourceId: release.id,
         resourceName: release.versionName,
         detail: { app: release.app, versionCode: release.versionCode, channel: release.channel, flavors: release.assets.length },
-        ip: getClientIp(c),
-        userAgent: c.req.header("user-agent") ?? "unknown",
+        ...auditMeta(c),
         result: "success",
       });
       return c.json({ success: true, data: release }, 201);
@@ -109,8 +107,7 @@ export function releaseRoutes() {
       resourceId: release.id,
       resourceName: release.versionName,
       ...(detail ? { detail } : {}),
-      ip: getClientIp(c),
-      userAgent: c.req.header("user-agent") ?? "unknown",
+      ...auditMeta(c),
       result: "success",
     });
   };

@@ -13,7 +13,7 @@ import {
   hasVerifiedTotp,
   verifyTotpCode,
 } from "@/modules/account/users/totp.service";
-import { audit } from "@/modules/audit/audit.service";
+import { audit, auditMeta } from "@/modules/audit/audit.service";
 import { deriveOrigin, getAuthConfig, getOAuthConfig, getOidcLogoutUrl, getSingleUserConfig, isOAuthConfigured, isSingleUserMode } from "@/shared/lib/app-config";
 import { getClientIp } from "@/shared/lib/client-ip";
 import { AppError } from "@/shared/lib/errors";
@@ -338,8 +338,7 @@ export function authRoutes() {
           resourceId: "",
           resourceName: "oauth",
           detail: { error, description: desc },
-          ip: getClientIp(c),
-          userAgent: c.req.header("user-agent") ?? "unknown",
+          ...auditMeta(c),
           result: "failure",
         });
         return c.redirect(buildLoginErrorUrl(base, "oidc_error", desc), 302);
@@ -463,7 +462,7 @@ export function authRoutes() {
         user.id,
         tokens.access_token,
         tokens.refresh_token,
-        tokens.expires_in,
+        authCfg.sessionMaxAge,
       );
 
       writeSessionCookie(c, config.NODE_ENV, config.BASE_PATH, sessionId, authCfg.sessionMaxAge);
@@ -475,8 +474,7 @@ export function authRoutes() {
         resourceType: "user",
         resourceId: user.id,
         resourceName: user.username,
-        ip: getClientIp(c),
-        userAgent: c.req.header("user-agent") ?? "unknown",
+        ...auditMeta(c),
         result: "success",
       });
 
@@ -537,8 +535,7 @@ export function authRoutes() {
           resourceType: "user",
           resourceId: logoutUser.id,
           resourceName: logoutUser.username,
-          ip: getClientIp(c),
-          userAgent: c.req.header("user-agent") ?? "unknown",
+          ...auditMeta(c),
           result: "success",
         });
       }
@@ -691,8 +688,7 @@ export function authRoutes() {
           resourceId: "",
           resourceName: "single-user",
           detail: { username: usernameRaw.slice(0, 64) },
-          ip: getClientIp(c),
-          userAgent: c.req.header("user-agent") ?? "unknown",
+          ...auditMeta(c),
           result: "failure",
         });
         return c.json({ success: false, error: { code: "INVALID_CREDENTIALS", message: "Invalid credentials" } }, 401);
@@ -724,8 +720,7 @@ export function authRoutes() {
         resourceId: user.id,
         resourceName: user.username,
         detail: { mode: "single-user" },
-        ip: getClientIp(c),
-        userAgent: c.req.header("user-agent") ?? "unknown",
+        ...auditMeta(c),
         result: "success",
       });
 
@@ -840,7 +835,7 @@ export function authRoutes() {
         challenge.userId,
         challenge.accessToken,
         challenge.refreshToken ?? undefined,
-        challenge.expiresIn ?? undefined,
+        authCfg.sessionMaxAge,
       );
 
       writeSessionCookie(c, config.NODE_ENV, config.BASE_PATH, sessionId, authCfg.sessionMaxAge);
@@ -856,8 +851,7 @@ export function authRoutes() {
         resourceType: "user",
         resourceId: challenge.userId,
         resourceName: "totp-verified",
-        ip: getClientIp(c),
-        userAgent: c.req.header("user-agent") ?? "unknown",
+        ...auditMeta(c),
         result: "success",
       });
 

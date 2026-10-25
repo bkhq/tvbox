@@ -1,8 +1,7 @@
 import type { AppEnv } from "@/shared/lib/types";
 import { Hono } from "hono";
 import { z } from "zod";
-import { audit } from "@/modules/audit/audit.service";
-import { getClientIp } from "@/shared/lib/client-ip";
+import { audit, auditMeta } from "@/modules/audit/audit.service";
 import { NotFoundError } from "@/shared/lib/errors";
 import { describeRoute, errors, jsonCreated, jsonOk, SECURITY, TAGS, validator } from "@/shared/lib/openapi";
 import { getTokenScopes, isTokenScope } from "@/shared/lib/token-scopes";
@@ -95,8 +94,7 @@ export function tokenRoutes() {
         resourceId: record.id,
         resourceName: record.name,
         detail: { scopes: record.scopes, expiresAt: record.expiresAt },
-        ip: getClientIp(c),
-        userAgent: c.req.header("user-agent") ?? "unknown",
+        ...auditMeta(c),
         result: "success",
       });
       return c.json({ success: true, data: { ...record, token } }, 201);
@@ -129,8 +127,7 @@ export function tokenRoutes() {
         resourceType: "api_token",
         resourceId: id,
         resourceName: revoked.name,
-        ip: getClientIp(c),
-        userAgent: c.req.header("user-agent") ?? "unknown",
+        ...auditMeta(c),
         result: "success",
       });
       return c.json({ success: true, data: null });

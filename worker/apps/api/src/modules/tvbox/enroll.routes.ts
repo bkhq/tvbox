@@ -2,7 +2,7 @@ import type { Context } from "hono";
 import type { AppEnv } from "@/shared/lib/types";
 import { Hono } from "hono";
 import { z } from "zod";
-import { audit } from "@/modules/audit/audit.service";
+import { audit, auditMeta } from "@/modules/audit/audit.service";
 import { getClientIp } from "@/shared/lib/client-ip";
 import { describeRoute, errors, jsonOk, SECURITY, TAGS, validator } from "@/shared/lib/openapi";
 import { adminRequired, authRequired } from "@/shared/middleware/auth";
@@ -97,8 +97,7 @@ export function enrollRoutes() {
       resourceId: e.id,
       resourceName: e.code,
       ...(detail ? { detail } : {}),
-      ip: getClientIp(c),
-      userAgent: c.req.header("user-agent") ?? "unknown",
+      ...auditMeta(c),
       result: "success",
     });
   };

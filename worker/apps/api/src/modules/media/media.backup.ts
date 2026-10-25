@@ -24,9 +24,9 @@ import {
   mediaTitleTranslations,
 } from "./schema";
 
-// The source data only, from the media D1 database: the read model next to
-// it is rebuilt by publishing, and uploaded images live in blob storage like
-// the tvbox module's files.
+// The source data only, from the media D1 database: what is live is marked
+// again by publishing, and uploaded images live in blob storage like the
+// tvbox module's files.
 export const mediaBackupContribution: BackupContribution = {
   name: "media",
   db: () => getMediaDb() as unknown as ExternalBackupDb | null,

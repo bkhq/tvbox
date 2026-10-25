@@ -15,12 +15,6 @@ export interface CmsItemDoc {
   readonly vodId: string;
   readonly titleId: string;
   readonly seasonId: string | null;
-  readonly typeId: string;
-  readonly year: number | null;
-  readonly country: string | null;
-  /** `,g18,g28,` so a genre matches `LIKE '%,g18,%'`. */
-  readonly genres: string;
-  readonly updatedAt: string;
   readonly groupOrder: number;
   /** For lists: no play lists. */
   readonly list: Vod;
@@ -80,7 +74,6 @@ export function buildCmsItems(
       vod_actor: names(credits.cast),
       vod_content: overview ?? "",
     });
-    const columns = { titleId: t.id, typeId: t.categoryId, country: t.country, genres: t.genreIds.length ? `,${t.genreIds.join(",")},` : "", updatedAt: t.updatedAt };
 
     if (t.type === "movie") {
       const play = playbackById.get(t.id);
@@ -88,7 +81,7 @@ export function buildCmsItems(
         continue;
       const list: Vod = { vod_id: t.id, vod_name: t.card.title, vod_pic: d.images.poster?.url ?? "", vod_remarks: t.card.badge ?? "", vod_year: t.year ? String(t.year) : "", ...base(d.credits, d.overview) };
       const lists = playLists([{ label: "正片", doc: play }]);
-      out.push({ ...columns, vodId: t.id, seasonId: null, year: t.year, groupOrder: 0, list, detail: { ...list, vod_play_from: lists.from, vod_play_url: lists.url } });
+      out.push({ vodId: t.id, titleId: t.id, seasonId: null, groupOrder: 0, list, detail: { ...list, vod_play_from: lists.from, vod_play_url: lists.url } });
       continue;
     }
 
@@ -110,7 +103,7 @@ export function buildCmsItems(
         const doc = playbackById.get(e.id);
         return doc ? [{ label: e.type === "special" || e.name === `第 ${e.number} 集` ? e.name : `第 ${e.number} 集 ${e.name}`, doc }] : [];
       }));
-      out.push({ ...columns, vodId: s.id, seasonId: s.id, year, groupOrder: s.number, list, detail: { ...list, vod_play_from: lists.from, vod_play_url: lists.url } });
+      out.push({ vodId: s.id, titleId: t.id, seasonId: s.id, groupOrder: s.number, list, detail: { ...list, vod_play_from: lists.from, vod_play_url: lists.url } });
     }
   }
   return out;

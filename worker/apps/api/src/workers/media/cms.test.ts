@@ -10,8 +10,7 @@ import { liveSchema } from "@/modules/media/contract";
 import { importM3u } from "@/modules/media/live/live.service";
 import { addCredit, createPerson } from "@/modules/media/people/people.service";
 import { addStream, createSource } from "@/modules/media/playable/playable.service";
-import { projectLibrary } from "@/modules/media/readmodel/projector.service";
-import { createSqliteReadModel } from "@/modules/media/readmodel/sqlite-adapter";
+import { markPublished } from "@/modules/media/publish";
 import { createRow } from "@/modules/media/taxonomy/rows.service";
 import { openTestDb } from "@/modules/media/test-db";
 import { DEVICES_KEY, PUBLISHED_KEY } from "@/modules/tvbox/storage";
@@ -24,17 +23,11 @@ const ASSET_BASE = `https://worker.example/s/${TOKEN}/a/`;
 
 let db: MediaDb;
 let dispose: () => void;
-let rm: ReturnType<typeof createSqliteReadModel>;
-
 beforeEach(async () => {
   ({ db, dispose } = await openTestDb());
-  rm = createSqliteReadModel();
 });
 
-afterEach(() => {
-  rm.close();
-  dispose();
-});
+afterEach(() => dispose());
 
 interface CmsBody {
   code: number;
@@ -50,7 +43,7 @@ async function cms(query: Record<string, string> = {}): Promise<CmsBody> {
   const url = new URL(`https://worker.example/s/${TOKEN}/media/cms`);
   for (const [k, v] of Object.entries(query))
     url.searchParams.set(k, v);
-  const res = await handleMedia({ request: new Request(url), rm, cacheKey: {}, path: "/cms", assetBase: ASSET_BASE });
+  const res = await handleMedia({ request: new Request(url), db, cacheKey: {}, path: "/cms", assetBase: ASSET_BASE });
   expect(res.status).toBe(200);
   return await res.json() as CmsBody;
 }
@@ -87,7 +80,7 @@ async function library() {
   await addStream(db, s2src.id, { url: "https://v/s2e1.m3u8", episodeId: s2e1.id });
 
   await createRow(db, { name: "精选", titleIds: [series.id, a.id] });
-  await projectLibrary(db, rm, { today: "2026-06-01" });
+  await markPublished(db);
   return { a, b, c, series, s1, s2 };
 }
 
@@ -150,8 +143,8 @@ describe("cms", () => {
 describe("live", () => {
   test("published channels are served as M3U and as JSON", async () => {
     await importM3u(db, "#EXTM3U x-tvg-url=\"https://epg/e.xml\"\n#EXTINF:-1 tvg-id=\"C1\" group-title=\"央视\",CCTV1\n#EXTVLCOPT:http-user-agent=ua\nhttps://a/1.m3u8\n");
-    await projectLibrary(db, rm, { today: "2026-06-01" });
-    const get = (path: string) => handleMedia({ request: new Request(`https://worker.example/s/${TOKEN}/media${path}`), rm, cacheKey: {}, path, assetBase: ASSET_BASE });
+    await markPublished(db);
+    const get = (path: string) => handleMedia({ request: new Request(`https://worker.example/s/${TOKEN}/media${path}`), db, cacheKey: {}, path, assetBase: ASSET_BASE });
     const m3u = await get("/live.m3u");
     expect(m3u.headers.get("content-type")).toContain("mpegurl");
     expect(await m3u.text()).toBe("#EXTM3U x-tvg-url=\"https://epg/e.xml\"\n#EXTINF:-1 tvg-id=\"C1\" tvg-name=\"CCTV1\" group-title=\"央视\",CCTV1\n#EXTVLCOPT:http-user-agent=ua\nhttps://a/1.m3u8\n");

@@ -1,7 +1,8 @@
-import type { ReadModelDb } from "@/modules/media/readmodel/store";
+import type { MediaDb } from "@/modules/media/db";
 import type { PublishedSnapshot } from "@/modules/tvbox/compose";
 import type { DevicesFile } from "@/modules/tvbox/storage";
 import { deriveStorageKey } from "@/modules/file/storage/key";
+import { createMediaDb } from "@/modules/media/db";
 import { composeForDevice } from "@/modules/tvbox/compose";
 import { DEVICES_KEY, PUBLISHED_KEY } from "@/modules/tvbox/storage";
 import { handleHome } from "./home";
@@ -18,8 +19,8 @@ import { handleMedia } from "./media";
  *                                        device's upstreams
  *   /s/<token>/a/<sha256>/<name>         a mirrored file, by content hash
  *   /s/<token>/media/home                the recommendation home (./home)
- *   /s/<token>/media/…                   the media library, from the D1
- *                                        read model (./media)
+ *   /s/<token>/media/…                   the media library, from D1
+ *                                        (./media)
  *
  * A device bound to linked apps serves its config only to a request with
  * one app's X-Device-Id and X-Device-Key, so the URL alone is not enough.
@@ -45,9 +46,9 @@ export interface SubscriptionBucket {
   put?: (key: string, value: string) => Promise<unknown>;
 }
 
-/** The media read model: a D1 binding, whose sessions read from the nearest replica. */
-export interface MediaDatabase extends ReadModelDb {
-  withSession?: (constraint: "first-unconstrained") => ReadModelDb;
+/** The media library: a D1 binding, whose sessions read from the nearest replica. */
+export interface MediaDatabase {
+  withSession?: (constraint: "first-unconstrained") => unknown;
 }
 
 export interface SubscriptionEnv {
@@ -127,7 +128,8 @@ function notFound(): Response {
   return new Response("Not Found", { status: 404 });
 }
 
-export async function handleSubscription(request: Request, env: SubscriptionEnv): Promise<Response> {
+/** `media` stands in for the `MEDIA` binding in tests. */
+export async function handleSubscription(request: Request, env: SubscriptionEnv, media?: MediaDb): Promise<Response> {
   const bucket = env.FILES;
   const { pathname } = new URL(request.url);
   const rest = pathname.slice(SUBSCRIPTION_PREFIX.length);
@@ -165,12 +167,13 @@ export async function handleSubscription(request: Request, env: SubscriptionEnv)
     return handleHome(request, { FILES: bucket, TMDB_TOKEN: env.TMDB_TOKEN });
 
   if (path.startsWith("/media/")) {
-    if (!env.MEDIA)
+    const binding = media ?? env.MEDIA;
+    if (!binding)
       return notFound();
     return handleMedia({
       request,
-      rm: env.MEDIA.withSession?.("first-unconstrained") ?? env.MEDIA,
-      cacheKey: env.MEDIA,
+      db: media ?? createMediaDb(env.MEDIA!.withSession?.("first-unconstrained") ?? env.MEDIA),
+      cacheKey: binding,
       path: path.slice("/media".length),
       assetBase: `${new URL(request.url).origin}${SUBSCRIPTION_PREFIX}${token}/a/`,
     });

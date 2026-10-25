@@ -29,7 +29,7 @@ new_sqlite_classes = ["AppDurableObject"]
 binding = "FILES"
 bucket_name = "tvbox-files"
 
-# The media library's read model, written by publishing and read by
+# The media library, written by the console and read by
 # `/s/<token>/media` (src/workers/media). The deploy workflow finds the
 # database by name in the deploy account (creating it when missing), fills
 # in its id and applies the migrations.

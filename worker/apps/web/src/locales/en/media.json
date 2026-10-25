@@ -269,12 +269,9 @@
   },
   "publish": {
     "title": "Publish",
-    "description": "The library is published together with the subscription config; clients then read it through the subscription's /media API (within about a minute).",
+    "description": "Newly published titles, seasons and episodes reach clients only after a publish; edits to titles already live (lines, overviews, images and so on) show within about a minute without one. The subscription config is published too.",
     "publish": "Publish now",
     "published": "Published",
-    "rebuild": "Rebuild read model",
-    "rebuildHint": "Publishing writes only what changed; rebuild from scratch after a schema upgrade or to repair the read model.",
-    "rebuilt": "Rebuilt: {{titles}} titles, generation {{generation}}",
     "entries": "Subscription entries",
     "entriesHint": "Add the library to the subscription; every device gets URLs carrying its own token.",
     "added": "Added",

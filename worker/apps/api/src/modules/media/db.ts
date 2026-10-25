@@ -7,11 +7,13 @@ import { AppError } from "@/shared/lib/errors";
 import * as schema from "./schema";
 
 /**
- * The media library's database: the `MEDIA` D1 binding, shared with the
- * read model, not the Durable Object's SQLite. Spelled in the libsql flavour
+ * The media library's database: the `MEDIA` D1 binding, read by the Worker,
+ * not the Durable Object's SQLite. Spelled in the libsql flavour
  * like `AppDatabase` (the tests run on libsql); the D1 handle is cast once
  * here. D1 has no interactive transactions, so the module writes with
  * `db.batch()` — one atomic unit per call — and never `db.transaction()`.
+ * Raw `sql` with parameters cannot join a batch (drizzle's D1 driver prepares
+ * no statement for it); run such reads on their own.
  */
 export type MediaDb = LibSQLDatabase<typeof schema>;
 

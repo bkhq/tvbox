@@ -37,9 +37,10 @@ project needs and to the Workers runtime only.
   API tokens, users, groups), audit, settings, backup, file (R2),
   system, tvbox, media.
 - **Media library** — titles, seasons, episodes, people and lines, kept in
-  the D1 database `tv-bk-io` (binding `MEDIA`) together with the read model
-  that publishing projects from them; the Durable Object serves the admin
-  API but stores no media rows. Titles, seasons and people have random
+  the D1 database `tv-bk-io` (binding `MEDIA`); the Durable Object serves
+  the admin API but stores no media rows. The Worker answers `/media/*`
+  straight from those tables; publishing only marks which titles, seasons
+  and episodes are live (`media_published`). Titles, seasons and people have random
   12-character ids, so the catalogue cannot be counted up.
 
 ## URLs

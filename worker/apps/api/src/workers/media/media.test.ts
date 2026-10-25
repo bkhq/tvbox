@@ -20,8 +20,7 @@ import {
 } from "@/modules/media/contract";
 import { addCredit, createPerson } from "@/modules/media/people/people.service";
 import { addStream, createSource } from "@/modules/media/playable/playable.service";
-import { projectLibrary } from "@/modules/media/readmodel/projector.service";
-import { createSqliteReadModel } from "@/modules/media/readmodel/sqlite-adapter";
+import { markPublished } from "@/modules/media/publish";
 import { createRow } from "@/modules/media/taxonomy/rows.service";
 import { openTestDb } from "@/modules/media/test-db";
 import { DEVICES_KEY } from "@/modules/tvbox/storage";
@@ -34,22 +33,16 @@ const ASSET_BASE = `https://worker.example/s/${TOKEN}/a/`;
 
 let db: MediaDb;
 let dispose: () => void;
-let rm: ReturnType<typeof createSqliteReadModel>;
-
 beforeEach(async () => {
   ({ db, dispose } = await openTestDb());
-  rm = createSqliteReadModel();
 });
 
-afterEach(() => {
-  rm.close();
-  dispose();
-});
+afterEach(() => dispose());
 
 async function call(path: string, headers: Record<string, string> = {}) {
   const url = `https://worker.example/s/${TOKEN}/media${path}`;
   // A fresh key each time: the generation is not remembered between calls.
-  return await handleMedia({ request: new Request(url, { headers }), rm, cacheKey: {}, path: new URL(url).pathname.slice(`/s/${TOKEN}/media`.length), assetBase: ASSET_BASE });
+  return await handleMedia({ request: new Request(url, { headers }), db, cacheKey: {}, path: new URL(url).pathname.slice(`/s/${TOKEN}/media`.length), assetBase: ASSET_BASE });
 }
 
 async function body<S extends z.ZodType>(path: string, schema: S): Promise<z.infer<S>> {
@@ -88,7 +81,7 @@ async function library() {
   const person = await createPerson(db, { name: "吴京" });
   await addCredit(db, a.id, { personId: person.id, role: "cast", character: "刘培强" });
   await createRow(db, { name: "精选", titleIds: [a.id, b.id, c.id] });
-  await projectLibrary(db, rm, { today: "2026-06-01" });
+  await markPublished(db);
   return { a, b, c, series, season, e1, person };
 }
 
@@ -126,7 +119,7 @@ describe("media v1", () => {
     expect(release.items.map(i => i.id).slice(0, 2)).toEqual([b.id, a.id]);
   });
 
-  test("facets: precomputed per category, counted when narrowed", async () => {
+  test("facets: counted per category and when narrowed", async () => {
     await library();
     const all = await body("/v1/facets?category=movie", facetsSchema);
     expect(all.country).toEqual([{ value: "CN", label: "中国大陆", count: 2 }, { value: "US", label: "美国", count: 1 }]);
@@ -143,8 +136,8 @@ describe("media v1", () => {
     expect(long.titles.map(t => t.id).sort()).toEqual([a.id, b.id].sort());
     const short = await body(`/v1/search?q=${encodeURIComponent("吴京")}`, searchSchema);
     expect(short.people).toEqual([expect.objectContaining({ id: person.id, name: "吴京" })]);
-    // A title matches its cast too.
-    expect(short.titles.map(t => t.id)).toEqual([a.id]);
+    // Titles match by their own names only.
+    expect(short.titles).toEqual([]);
     const paged = await body(`/v1/search?q=${encodeURIComponent("流浪地球")}&limit=1`, searchSchema);
     expect(paged.cursor).toBe("1");
     expect((await call("/v1/search?q=")).status).toBe(422);
@@ -202,13 +195,13 @@ describe("through the subscription", () => {
   const devices: DevicesFile = { devices: { [sha(TOKEN)]: { id: "d1", upstreams: null } } };
   const files = { get: async (key: string) => (key === DEVICES_KEY ? new Response(JSON.stringify(devices)) : null) };
 
-  test("a device's token reaches the media API; without a read model it is missing", async () => {
+  test("a device's token reaches the media API; without a library it is missing", async () => {
     const { a } = await library();
     const url = `https://worker.example/s/${TOKEN}/media/v1/titles/${a.id}`;
-    const res = await handleSubscription(new Request(url), { FILES: files, MEDIA: rm });
+    const res = await handleSubscription(new Request(url), { FILES: files }, db);
     expect(res.status).toBe(200);
     expect(((await res.json()) as { images: { poster: { url: string } } }).images.poster.url).toBe(`${ASSET_BASE}${SHA}/poster.jpg`);
     expect((await handleSubscription(new Request(url), { FILES: files })).status).toBe(404);
-    expect((await handleSubscription(new Request(url.replace(TOKEN, "f".repeat(32))), { FILES: files, MEDIA: rm })).status).toBe(404);
+    expect((await handleSubscription(new Request(url.replace(TOKEN, "f".repeat(32))), { FILES: files }, db)).status).toBe(404);
   });
 });

@@ -1,11 +1,18 @@
-import type { ReadModelDb } from "@/modules/media/readmodel/store";
-import { meta, searchRefs } from "./query";
+import type { SQL } from "drizzle-orm";
+import type { TitleFilter } from "./query";
+import type { MediaDb } from "@/modules/media/db";
+import type { CmsItemDoc, Vod } from "@/modules/media/serve/cms";
+import { sql } from "drizzle-orm";
+import { buildCmsItems } from "@/modules/media/serve/cms";
+import { buildTitles } from "@/modules/media/serve/documents";
+import { loadSlice } from "@/modules/media/serve/slice";
+import { facets, filterSql, manifest, rows, rowTitleIds, searchTitleIds } from "./query";
 
 /**
  * `/media/cms`: the library as an Apple CMS v10 JSON site
  * (docs/plan/media-library.md, part 4), for clients that only speak CMS.
- * Items and their `vod` fields are built when publishing (readmodel/cms.ts);
- * this only selects and pages them.
+ * One item per playable movie and per playable season (serve/cms.ts),
+ * selected in SQL and built from a slice of the page's titles.
  *
  *   (no ac, t, ids or wd)   classes, filters and the first home row
  *   t, pg, f                a category's items, newest first, 20 a page
@@ -19,13 +26,8 @@ const MAX_IDS = 50;
 const FILTER_NAMES = { genre: "类型", year: "年份", country: "地区" } as const;
 type FilterKey = keyof typeof FILTER_NAMES;
 
-interface FacetValue {
-  value: string;
-  label: string;
-}
-
-function body(list: string[], page: number, pagecount: number, total: number, extra = ""): string {
-  return `{"code":1,"msg":"数据列表","page":${page},"pagecount":${pagecount},"limit":${PAGE},"total":${total},"list":[${list.join(",")}]${extra}}`;
+function body(list: Vod[], page: number, pagecount: number, total: number, extra: Record<string, unknown> = {}): string {
+  return JSON.stringify({ code: 1, msg: "数据列表", page, pagecount, limit: PAGE, total, list, ...extra });
 }
 
 function pageOf(value: string | null): number {
@@ -33,126 +35,136 @@ function pageOf(value: string | null): number {
   return Number.isSafeInteger(n) && n >= 1 && n <= 10_000 ? n : 1;
 }
 
-async function home(rm: ReadModelDb): Promise<string> {
-  const manifest = await meta<{ categories: { id: string; name: string; filters: FilterKey[]; count: number }[] }>(rm, "manifest");
-  const categories = (manifest?.categories ?? []).filter(c => c.count > 0);
+/** The CMS items of `titleIds`, every playable movie and season. */
+async function items(db: MediaDb, titleIds: readonly string[], today: string): Promise<CmsItemDoc[]> {
+  if (titleIds.length === 0)
+    return [];
+  const slice = await loadSlice(db, titleIds, { credits: true });
+  const built = buildTitles(slice, today);
+  return buildCmsItems(
+    built.titles,
+    built.seasons,
+    built.playback,
+    new Map(slice.categories.map(c => [c.id, c.name])),
+    new Map(slice.genres.map(g => [g.id, g.name])),
+  );
+}
+
+// Playable items of live titles: a movie with a stream on an enabled line, a
+// live season with an aired live episode streamed on one of its enabled lines.
+function playable(where: SQL, today: string): SQL {
+  return sql`SELECT t.id AS title_id, t.id AS vod_id, t.updated_at AS u FROM media_titles t
+      WHERE ${where} AND t.kind = 'movie' AND (t.release_date IS NULL OR t.release_date <= ${today})
+        AND EXISTS (SELECT 1 FROM media_sources so JOIN media_streams st ON st.source_id = so.id
+          WHERE so.title_id = t.id AND so.enabled = 1 AND st.episode_id IS NULL)
+    UNION ALL
+    SELECT t.id, s.id, t.updated_at FROM media_titles t JOIN media_seasons s ON s.title_id = t.id
+      WHERE ${where} AND t.kind = 'series' AND s.id IN (SELECT id FROM media_published WHERE kind = 'season')
+        AND EXISTS (SELECT 1 FROM media_episodes e JOIN media_streams st ON st.episode_id = e.id JOIN media_sources so ON so.id = st.source_id
+          WHERE e.season_id = s.id AND so.season_id = s.id AND so.enabled = 1 AND (e.air_date IS NULL OR e.air_date <= ${today})
+            AND e.id IN (SELECT id FROM media_published WHERE kind = 'episode'))`;
+}
+
+async function home(db: MediaDb, today: string): Promise<string> {
+  const categories = (await manifest(db)).categories.filter(c => c.count > 0);
   const classes = categories.map(c => ({ type_id: c.id, type_name: c.name }));
   const filters: Record<string, unknown[]> = {};
   for (const c of categories) {
-    const facets = await meta<Partial<Record<FilterKey, FacetValue[]>>>(rm, `facets:${c.id}`);
+    const values = await facets(db, { category: c.id });
     filters[c.id] = c.filters
-      .filter(key => (facets?.[key]?.length ?? 0) > 0)
+      .filter(key => (values[key]?.length ?? 0) > 0)
       .map(key => ({
         key,
         name: FILTER_NAMES[key],
         init: "",
-        value: [{ n: "全部", v: "" }, ...facets![key]!.map(v => ({ n: v.label, v: v.value }))],
+        value: [{ n: "全部", v: "" }, ...values[key]!.map(v => ({ n: v.label, v: v.value }))],
       }));
   }
 
   // The first home row, each series as its newest season.
-  const homeDoc = await meta<{ rows: { items: { id: string }[] }[] }>(rm, "home");
-  const titleIds = (homeDoc?.rows[0]?.items ?? []).map(i => i.id).slice(0, PAGE);
-  let list: string[];
+  const first = (await rows(db)).find(r => r.onHome);
+  let list: Vod[];
+  const titleIds = first ? await rowTitleIds(db, first, 0, PAGE) : [];
   if (titleIds.length > 0) {
-    const { results } = await rm.prepare(`SELECT title_id, list_json FROM rm_cms_items WHERE title_id IN (${titleIds.map(() => "?").join(", ")}) ORDER BY group_order DESC`)
-      .bind(...titleIds)
-      .all<{ title_id: string; list_json: string }>();
-    const newest = new Map<string, string>();
-    for (const r of results) {
-      if (!newest.has(r.title_id))
-        newest.set(r.title_id, r.list_json);
+    const newest = new Map<string, CmsItemDoc>();
+    for (const item of await items(db, titleIds, today)) {
+      if ((newest.get(item.titleId)?.groupOrder ?? -1) < item.groupOrder)
+        newest.set(item.titleId, item);
     }
-    list = titleIds.map(id => newest.get(id)).filter((v): v is string => v !== undefined);
+    list = titleIds.flatMap(id => (newest.has(id) ? [newest.get(id)!.list] : []));
   }
   else {
-    list = (await rm.prepare("SELECT list_json FROM rm_cms_items ORDER BY updated_at DESC, vod_id LIMIT ?").bind(PAGE).all<{ list_json: string }>()).results.map(r => r.list_json);
+    list = (await page(db, {}, today, 0)).list;
   }
-  return body(list, 1, 1, list.length, `,"class":${JSON.stringify(classes)},"filters":${JSON.stringify(filters)}`);
+  return body(list, 1, 1, list.length, { class: classes, filters });
 }
 
-function parseFilters(f: string | null): Partial<Record<FilterKey, string>> {
+/** A page of playable items matching `filter`, newest first. */
+async function page(db: MediaDb, filter: TitleFilter, today: string, offset: number): Promise<{ list: Vod[]; total: number }> {
+  const query = playable(sql.join(filterSql(filter), sql` AND `), today);
+  const [[count], refs] = await Promise.all([
+    db.all<{ n: number }>(sql`SELECT COUNT(*) AS n FROM (${query})`),
+    db.all<{ title_id: string; vod_id: string }>(sql`${query} ORDER BY u DESC, vod_id DESC LIMIT ${PAGE} OFFSET ${offset}`),
+  ]);
+  const byId = new Map((await items(db, refs.map(r => r.title_id), today)).map(i => [i.vodId, i.list]));
+  return { list: refs.flatMap(r => (byId.has(r.vod_id) ? [byId.get(r.vod_id)!] : [])), total: count?.n ?? 0 };
+}
+
+function parseFilters(f: string | null): TitleFilter {
   if (!f)
     return {};
   try {
     const raw = JSON.parse(f) as Record<string, unknown>;
-    const out: Partial<Record<FilterKey, string>> = {};
-    for (const key of Object.keys(FILTER_NAMES) as FilterKey[]) {
-      if (typeof raw[key] === "string" && raw[key] !== "")
-        out[key] = raw[key];
-    }
-    return out;
+    const value = (key: FilterKey) => (typeof raw[key] === "string" && raw[key] !== "" ? raw[key] : undefined);
+    const year = Number(value("year"));
+    return { genre: value("genre"), country: value("country"), year: Number.isSafeInteger(year) && year > 0 ? year : undefined };
   }
   catch {
     return {};
   }
 }
 
-async function category(rm: ReadModelDb, typeId: string, page: number, f: string | null): Promise<string> {
-  const filters = parseFilters(f);
-  const where = ["type_id = ?"];
-  const params: unknown[] = [typeId];
-  if (filters.year) {
-    where.push("year = ?");
-    params.push(Number(filters.year));
-  }
-  if (filters.country) {
-    where.push("country = ?");
-    params.push(filters.country);
-  }
-  if (filters.genre) {
-    where.push("genres LIKE ?");
-    params.push(`%,${filters.genre.replace(/[%_,]/g, "")},%`);
-  }
-  const sql = where.join(" AND ");
-  const total = (await rm.prepare(`SELECT COUNT(*) AS n FROM rm_cms_items WHERE ${sql}`).bind(...params).first<{ n: number }>())?.n ?? 0;
-  const { results } = await rm.prepare(`SELECT list_json FROM rm_cms_items WHERE ${sql} ORDER BY updated_at DESC, vod_id LIMIT ? OFFSET ?`)
-    .bind(...params, PAGE, (page - 1) * PAGE)
-    .all<{ list_json: string }>();
-  return body(results.map(r => r.list_json), page, Math.max(1, Math.ceil(total / PAGE)), total);
+async function category(db: MediaDb, typeId: string, n: number, f: string | null, today: string): Promise<string> {
+  const { list, total } = await page(db, { ...parseFilters(f), category: typeId }, today, (n - 1) * PAGE);
+  return body(list, n, Math.max(1, Math.ceil(total / PAGE)), total);
 }
 
-async function detail(rm: ReadModelDb, ids: string): Promise<string> {
+async function detail(db: MediaDb, ids: string, today: string): Promise<string> {
   const wanted = [...new Set(ids.split(",").map(s => s.trim()).filter(Boolean))].slice(0, MAX_IDS);
   if (wanted.length === 0)
     return body([], 1, 1, 0);
-  const { results } = await rm.prepare(`SELECT vod_id, detail_json FROM rm_cms_items WHERE vod_id IN (${wanted.map(() => "?").join(", ")})`)
-    .bind(...wanted)
-    .all<{ vod_id: string; detail_json: string }>();
-  const byId = new Map(results.map(r => [r.vod_id, r.detail_json]));
-  const list = wanted.map(id => byId.get(id)).filter((v): v is string => v !== undefined);
+  const owners = await db.all<{ id: string }>(sql`SELECT id FROM media_titles WHERE id IN ${wanted}
+    UNION SELECT title_id FROM media_seasons WHERE id IN ${wanted}`);
+  const byId = new Map((await items(db, owners.map(o => o.id), today)).map(i => [i.vodId, i.detail]));
+  const list = wanted.flatMap(id => (byId.has(id) ? [byId.get(id)!] : []));
   return body(list, 1, 1, list.length);
 }
 
-async function search(rm: ReadModelDb, wd: string, page: number): Promise<string> {
+async function search(db: MediaDb, wd: string, n: number, today: string): Promise<string> {
   const q = wd.trim().slice(0, 50);
   if (!q)
     return body([], 1, 1, 0);
   // Pages are pages of titles; a series brings all its seasons along.
-  const refs = await searchRefs(rm, q, (page - 1) * PAGE, PAGE + 1, "title");
-  const more = refs.length > PAGE;
-  const titleIds = refs.slice(0, PAGE).map(r => r.ref);
-  let list: string[] = [];
-  if (titleIds.length > 0) {
-    const { results } = await rm.prepare(`SELECT title_id, list_json FROM rm_cms_items WHERE title_id IN (${titleIds.map(() => "?").join(", ")}) ORDER BY group_order`)
-      .bind(...titleIds)
-      .all<{ title_id: string; list_json: string }>();
-    const rank = new Map(titleIds.map((id, i) => [id, i]));
-    list = results.sort((a, b) => rank.get(a.title_id)! - rank.get(b.title_id)!).map(r => r.list_json);
-  }
-  return body(list, page, more ? page + 1 : page, (page - 1) * PAGE + list.length);
+  const found = await searchTitleIds(db, q, (n - 1) * PAGE, PAGE + 1);
+  const more = found.length > PAGE;
+  const titleIds = found.slice(0, PAGE);
+  const rank = new Map(titleIds.map((id, i) => [id, i]));
+  const list = (await items(db, titleIds, today))
+    .sort((a, b) => rank.get(a.titleId)! - rank.get(b.titleId)! || a.groupOrder - b.groupOrder)
+    .map(i => i.list);
+  return body(list, n, more ? n + 1 : n, (n - 1) * PAGE + list.length);
 }
 
-export async function handleCms(rm: ReadModelDb, params: URLSearchParams): Promise<Response> {
-  const page = pageOf(params.get("pg"));
+export async function handleCms(db: MediaDb, params: URLSearchParams, today: string): Promise<Response> {
+  const n = pageOf(params.get("pg"));
   let text: string;
   if (params.get("ids"))
-    text = await detail(rm, params.get("ids")!);
+    text = await detail(db, params.get("ids")!, today);
   else if (params.get("wd"))
-    text = await search(rm, params.get("wd")!, page);
+    text = await search(db, params.get("wd")!, n, today);
   else if (params.get("t"))
-    text = await category(rm, params.get("t")!, page, params.get("f"));
+    text = await category(db, params.get("t")!, n, params.get("f"), today);
   else
-    text = await home(rm);
+    text = await home(db, today);
   return new Response(text, { headers: { "content-type": "application/json; charset=utf-8" } });
 }

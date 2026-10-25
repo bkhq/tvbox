@@ -1,9 +1,10 @@
 import { index, integer, primaryKey, real, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqlite-core";
 
 // The media library's source data (docs/plan/media-library.md, part 1).
-// Admins edit these rows; publishing projects the published part into the
-// D1 read model that clients query. Both live in the same D1 database
-// (`d1/media/`), not in the Durable Object. Ids that clients see — titles,
+// Admins edit these rows and the Worker serves them to clients directly;
+// publishing only marks which titles, seasons and episodes are live
+// (`media_published`). They live in D1 (`d1/media/`), not in the Durable
+// Object. Ids that clients see — titles,
 // seasons, people — are random 12-character strings (`mediaId`) so the
 // catalogue cannot be enumerated; the rest are ULIDs. Images and external ids
 // hang off several owner types and so carry no foreign key: the owner's
@@ -267,7 +268,7 @@ export const mediaStreams = sqliteTable("media_streams", {
 // ─── Home ───
 
 // A home row: a hand-picked list, or a rule (`{"category", "genre", "sort"}`)
-// expanded at publish time.
+// expanded when served.
 export const mediaRows = sqliteTable("media_rows", {
   id: text("id").primaryKey(),
   name: text("name").notNull(),
@@ -287,7 +288,16 @@ export const mediaRowItems = sqliteTable("media_row_items", {
   primaryKey({ columns: [t.rowId, t.titleId] }),
 ]);
 
-// Key/value settings of the library: `hero_title_ids`, `live_epg_urls`, …
+// What devices see: the ids the last publish marked live.
+export const mediaPublished = sqliteTable("media_published", {
+  id: text("id").primaryKey(),
+  kind: text("kind", { enum: ["title", "season", "episode"] }).notNull(),
+}, t => [
+  index("idx_media_published_kind").on(t.kind),
+]);
+
+// Key/value settings of the library: `hero_title_ids`, `live_epg_urls`,
+// `published_generation`, …
 export const mediaSettings = sqliteTable("media_settings", {
   key: text("key").primaryKey(),
   value: text("value").notNull(),

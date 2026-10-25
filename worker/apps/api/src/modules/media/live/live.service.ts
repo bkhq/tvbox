@@ -1,3 +1,4 @@
+import type { Live } from "../contract";
 import type { MediaDb, Statement } from "../db";
 import type { M3uChannel } from "./m3u";
 import { asc, count, eq, inArray, max } from "drizzle-orm";
@@ -5,8 +6,8 @@ import { chunked } from "@/shared/lib/chunk";
 import { AppError, NotFoundError } from "@/shared/lib/errors";
 import { ulid } from "@/shared/lib/id";
 import { insertRows, runBatch } from "../db";
-import { buildLive } from "../readmodel/documents";
 import { mediaLiveChannels, mediaLiveGroups, mediaLiveStreams } from "../schema";
+import { buildLive } from "../serve/documents";
 import { getSetting, putSetting } from "../taxonomy/rows.service";
 import { parseM3u, toM3u } from "./m3u";
 
@@ -269,11 +270,16 @@ export async function importM3u(db: MediaDb, text: string, options: { replace?: 
 }
 
 /** The enabled channels as M3U, as they would be published. */
-export async function exportM3u(db: MediaDb): Promise<string> {
-  return toM3u(buildLive({
+/** The enabled channels with streams, grouped. */
+export async function loadLive(db: MediaDb): Promise<Live> {
+  return buildLive({
     liveGroups: await db.select().from(mediaLiveGroups).all(),
     liveChannels: await db.select().from(mediaLiveChannels).all(),
     liveStreams: await db.select().from(mediaLiveStreams).all(),
     liveEpg: await getEpg(db),
-  }));
+  });
+}
+
+export async function exportM3u(db: MediaDb): Promise<string> {
+  return toM3u(await loadLive(db));
 }

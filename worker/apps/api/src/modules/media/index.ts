@@ -11,7 +11,6 @@ import { liveRoutes } from "./live/live.routes";
 import { mediaBackupContribution } from "./media.backup";
 import { peopleRoutes } from "./people/people.routes";
 import { playableRoutes } from "./playable/playable.routes";
-import { readModelRoutes } from "./readmodel/readmodel.routes";
 import { rowsRoutes } from "./taxonomy/rows.routes";
 import { taxonomyRoutes } from "./taxonomy/taxonomy.routes";
 import { seedTaxonomy } from "./taxonomy/taxonomy.service";
@@ -36,7 +35,6 @@ export function mediaRoutes() {
   router.route("/", playableRoutes());
   router.route("/", rowsRoutes());
   router.route("/", liveRoutes());
-  router.route("/", readModelRoutes());
   router.route("/", importRoutes());
   return router;
 }

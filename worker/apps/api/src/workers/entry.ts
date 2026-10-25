@@ -2,7 +2,6 @@ import type { DurableObjectNamespace, DurableObjectState, Fetcher, R2Bucket } fr
 import type { MediaDatabase, SubscriptionBucket } from "./subscription";
 import { bootstrap } from "@/app";
 import { createMediaDb, setMediaDb } from "@/modules/media/db";
-import { setReadModelDb } from "@/modules/media/readmodel/store";
 import { setPlatform } from "@/platform";
 import { handleControl } from "./control";
 import { handleDoh } from "./doh";
@@ -32,7 +31,7 @@ export interface WorkerEnv {
   APP: DurableObjectNamespace;
   /** Blob storage for the file module. Required when FILE_STORAGE_DRIVER=r2. */
   FILES?: R2Bucket;
-  /** The media library's read model (D1), written by publishing and read by `/s/<token>/media`. */
+  /** The media library (D1), written by the console and read by `/s/<token>/media`. */
   MEDIA?: MediaDatabase;
   /** The console SPA (apps/web/dist). */
   ASSETS: Fetcher;
@@ -88,7 +87,6 @@ export class AppDurableObject {
       if (env.FILES) {
         registerR2Driver(env.FILES);
       }
-      setReadModelDb(env.MEDIA ?? null);
       setMediaDb(env.MEDIA ? createMediaDb(env.MEDIA) : null);
       this.#configVersion = await envFingerprint(env as Record<string, unknown>);
       const app = await bootstrap();

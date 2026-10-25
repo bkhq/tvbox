@@ -364,7 +364,6 @@ export const mediaApi = {
   epg: () => data<string[]>("/media/live/epg"),
   setEpg: (urls: string[]) => data<string[]>("/media/live/epg", send("PUT", { urls })),
 
-  rebuild: () => data<{ generation: string; upserted: number; deleted: number; titles: number }>("/media/readmodel/rebuild", send("POST")),
 };
 
 /** Comma or newline separated text to a list, blanks dropped. */

@@ -24,6 +24,7 @@
 - 批量写入走 `POST /media/import`，由 `scripts/media-import-tmdb.ts` 从 TMDB 拉取后调用；Worker 本身不刮削。
 - 源数据表不在 DO SQLite 里，而在 D1 库 `tv-bk-io` 中与只读模型同库（2026-10-17，计划 `20261017-0151-media-source-in-d1`）：DO 只跑管理 API，通过 `modules/media/db.ts` 的句柄读写，所有写入都是 `db.batch()`（D1 没有交互式事务）。作品、季、人物的 id 是 12 位随机字符串（`mediaId()`），对外裸用、不带类型前缀；只读模型的 id 列相应改为 TEXT，`rm_search` 多一列 `type`。备份模块通过 `BackupContribution.db` 读写这些表。
 - 线路和播放地址的改动只在让某集（或电影）从不可播变为可播时才更新作品的 `updatedAt`；换地址、加备用线路、删线路只重新发布 `rm_playback` 和对应的 CMS 条目，元数据不变。
+- 只读模型（`rm_*` 表、投影器、后台“重建只读模型”）已全部移除（2026-10-25，计划 `20261025-0124-media-serve-from-source`）：全库投影在 DO 里超出内存。Worker 每次请求直接查 D1 源表，只加载当页作品；发布只把已发布的作品、季、集的 id 写进 `media_published`，并更新 `media_settings` 里的 `published_generation`。新上线的内容要发布后才可见；已上线内容的修改不经发布，约 1 分钟内生效。播出日期按请求当天（UTC）判断，到播出日的集无需再发布。搜索改为对标题、原名、翻译和别名做 `LIKE`，按热度排序，不再按演员名匹配作品。以上各条里关于 `rm_*` 表和投影的描述已失效。
 
 ## 目标
 

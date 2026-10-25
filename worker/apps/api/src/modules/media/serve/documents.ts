@@ -3,12 +3,9 @@ import type {
   Collection,
   Credits,
   Episode,
-  Facets,
-  Home,
   Image,
   Images,
   Live,
-  Manifest,
   Person,
   PersonRef,
   Playback,
@@ -28,8 +25,6 @@ import type {
   mediaLiveGroups,
   mediaLiveStreams,
   mediaPeople,
-  mediaRowItems,
-  mediaRows,
   mediaSeasons,
   mediaSources,
   mediaStreams,
@@ -37,22 +32,18 @@ import type {
   mediaTitles,
   mediaTitleTranslations,
 } from "../schema";
-import type { RowRule } from "../taxonomy/rows.service";
-import type { CmsItemDoc } from "./cms";
-import { createHash } from "node:crypto";
-import { ASSET_PREFIX, SCHEMA_VERSION } from "../contract";
-import { buildCmsItems } from "./cms";
-import { countryName, languageName } from "./names";
+import { ASSET_PREFIX } from "../contract";
 
 /**
- * Source rows → the read model: the native API's documents plus the columns
- * D1 filters and pages by. Pure, so it is tested without a database; the
- * projector loads `Library` and writes what this returns.
+ * Source rows → the documents the native API serves. Pure, so it is tested
+ * without a database; the Worker loads a `Slice` of the titles a request
+ * answers with (./slice.ts) and builds from that.
  */
 
 type Row<T extends { $inferSelect: unknown }> = T["$inferSelect"];
 
-export interface Library {
+/** Some titles and everything hanging off them; seasons and episodes are the live ones only. */
+export interface Slice {
   readonly categories: Row<typeof mediaCategories>[];
   readonly genres: Row<typeof mediaGenres>[];
   readonly collections: Row<typeof mediaCollections>[];
@@ -68,9 +59,9 @@ export interface Library {
   readonly externalIds: Row<typeof mediaExternalIds>[];
   readonly sources: Row<typeof mediaSources>[];
   readonly streams: Row<typeof mediaStreams>[];
-  readonly rows: Row<typeof mediaRows>[];
-  readonly rowItems: Row<typeof mediaRowItems>[];
-  readonly hero: string[];
+}
+
+export interface LiveSource {
   readonly liveGroups: Row<typeof mediaLiveGroups>[];
   readonly liveChannels: Row<typeof mediaLiveChannels>[];
   readonly liveStreams: Row<typeof mediaLiveStreams>[];
@@ -109,31 +100,12 @@ export interface PlaybackDoc {
   readonly doc: Playback;
 }
 
-export interface RowDoc {
-  readonly id: string;
-  readonly name: string;
-  readonly sort: number;
-  readonly titleIds: string[];
-}
-
-export interface ReadModel {
+export interface Built {
   readonly titles: TitleDoc[];
   readonly seasons: SeasonDoc[];
   readonly playback: PlaybackDoc[];
-  readonly people: { id: string; doc: Person }[];
-  readonly collections: { id: string; doc: Collection }[];
-  readonly rows: RowDoc[];
-  readonly search: { ref: string; type: "title" | "person"; text: string }[];
-  readonly cmsItems: CmsItemDoc[];
-  /** rm_meta: manifest, home, facets:<category>, live. */
-  readonly meta: Record<string, unknown>;
 }
 
-export function hashOf(value: unknown): string {
-  return createHash("sha1").update(JSON.stringify(value)).digest("hex");
-}
-
-const HOME_ROW_ITEMS = 20;
 const DETAIL_CAST = 50;
 
 function groupBy<T, K>(items: readonly T[], key: (item: T) => K): Map<K, T[]> {
@@ -151,25 +123,9 @@ function groupBy<T, K>(items: readonly T[], key: (item: T) => K): Map<K, T[]> {
 
 const yearOf = (date: string | null | undefined): number | null => (date ? Number(date.slice(0, 4)) || null : null);
 
-export function buildReadModel(lib: Library, today: string): ReadModel {
-  // ─── Indexes ───
-  const genreName = new Map(lib.genres.map(g => [g.id, g.name]));
-  const categories = new Map(lib.categories.map(c => [c.id, c]));
-  const imagesByOwner = groupBy(lib.images, i => `${i.ownerType}:${i.ownerId}`);
-  const aliasesByTitle = groupBy(lib.aliases, a => a.titleId);
-  const translationsByTitle = groupBy(lib.translations, t => t.titleId);
-  const genresByTitle = groupBy(lib.titleGenres, g => g.titleId);
-  const externalByTitle = groupBy(lib.externalIds.filter(e => e.ownerType === "title"), e => e.ownerId);
-  const people = new Map(lib.people.map(p => [p.id, p]));
-  const creditsByTitle = groupBy(lib.credits, c => c.titleId);
-  const enabledSources = lib.sources.filter(s => s.enabled);
-  const sourcesByTitle = groupBy(enabledSources.filter(s => s.titleId !== null), s => s.titleId!);
-  const sourcesBySeason = groupBy(enabledSources.filter(s => s.seasonId !== null), s => s.seasonId!);
-  const streamsBySource = groupBy(lib.streams, s => s.sourceId);
-  const publishedSeasons = groupBy(lib.seasons.filter(s => s.publishState === "published"), s => s.titleId);
-  const episodesBySeason = groupBy(lib.episodes.filter(e => e.publishState === "published"), e => e.seasonId);
-  const collections = new Map(lib.collections.map(c => [c.id, c]));
-
+/** The primary (else first) image of an owner's kind, and a set of kinds. */
+export function imagePicker(rows: readonly Row<typeof mediaImages>[]) {
+  const imagesByOwner = groupBy(rows, i => `${i.ownerType}:${i.ownerId}`);
   const image = (ownerType: string, ownerId: string | number, kind: string): Image | null => {
     const candidates = (imagesByOwner.get(`${ownerType}:${ownerId}`) ?? []).filter(i => i.kind === kind);
     const pick = candidates.find(i => i.isPrimary) ?? candidates.sort((a, b) => a.sort - b.sort)[0];
@@ -180,6 +136,27 @@ export function buildReadModel(lib: Library, today: string): ReadModel {
   };
   const images = (ownerType: string, ownerId: string | number, kinds: readonly (keyof Images)[]): Images =>
     Object.fromEntries(kinds.map(k => [k, image(ownerType, ownerId, k)])) as Images;
+
+  return { image, images };
+}
+
+export function buildTitles(lib: Slice, today: string): Built {
+  // ─── Indexes ───
+  const categories = new Map(lib.categories.map(c => [c.id, c]));
+  const aliasesByTitle = groupBy(lib.aliases, a => a.titleId);
+  const translationsByTitle = groupBy(lib.translations, t => t.titleId);
+  const genresByTitle = groupBy(lib.titleGenres, g => g.titleId);
+  const externalByTitle = groupBy(lib.externalIds.filter(e => e.ownerType === "title"), e => e.ownerId);
+  const people = new Map(lib.people.map(p => [p.id, p]));
+  const creditsByTitle = groupBy(lib.credits, c => c.titleId);
+  const enabledSources = lib.sources.filter(s => s.enabled);
+  const sourcesByTitle = groupBy(enabledSources.filter(s => s.titleId !== null), s => s.titleId!);
+  const sourcesBySeason = groupBy(enabledSources.filter(s => s.seasonId !== null), s => s.seasonId!);
+  const streamsBySource = groupBy(lib.streams, s => s.sourceId);
+  const seasonsByTitle = groupBy(lib.seasons, s => s.titleId);
+  const episodesBySeason = groupBy(lib.episodes, e => e.seasonId);
+  const collections = new Map(lib.collections.map(c => [c.id, c]));
+  const { image, images } = imagePicker(lib.images);
 
   const headersOf = (s: { userAgent: string | null; referer: string | null }): Record<string, string> => ({
     ...(s.userAgent ? { "User-Agent": s.userAgent } : {}),
@@ -218,10 +195,10 @@ export function buildReadModel(lib: Library, today: string): ReadModel {
   const episodeName = (e: Row<typeof mediaEpisodes>) => e.name ?? (e.episodeType === "special" ? `特别篇 ${e.episodeNumber}` : `第 ${e.episodeNumber} 集`);
 
   for (const title of lib.titles) {
-    if (title.publishState !== "published" || title.kind !== "series" || !categories.has(title.categoryId))
+    if (title.kind !== "series" || !categories.has(title.categoryId))
       continue;
     const works: SeasonWork[] = [];
-    for (const row of (publishedSeasons.get(title.id) ?? []).sort((a, b) => a.sort - b.sort || a.seasonNumber - b.seasonNumber)) {
+    for (const row of (seasonsByTitle.get(title.id) ?? []).sort((a, b) => a.sort - b.sort || a.seasonNumber - b.seasonNumber)) {
       const sources = (sourcesBySeason.get(row.id) ?? []).sort((a, b) => a.sort - b.sort);
       const episodes = (episodesBySeason.get(row.id) ?? []).sort((a, b) => a.episodeNumber - b.episodeNumber).map((e) => {
         const playable = sources.some(s => (streamsBySource.get(s.id) ?? []).some(st => st.episodeId === e.id));
@@ -255,10 +232,9 @@ export function buildReadModel(lib: Library, today: string): ReadModel {
   // ─── Titles ───
 
   const titleDocs: TitleDoc[] = [];
-  const included = new Map<string, TitleDoc>();
 
   for (const title of lib.titles) {
-    if (title.publishState !== "published" || !categories.has(title.categoryId))
+    if (!categories.has(title.categoryId))
       continue;
     const works = seasonWork.get(title.id) ?? [];
     if (title.kind === "series" && works.length === 0)
@@ -345,7 +321,6 @@ export function buildReadModel(lib: Library, today: string): ReadModel {
       detail,
     };
     titleDocs.push(doc);
-    included.set(title.id, doc);
 
     if (title.kind === "movie" && movieAvailable) {
       playback.push({
@@ -435,166 +410,48 @@ export function buildReadModel(lib: Library, today: string): ReadModel {
     }
   }
 
-  // ─── People, collections ───
+  return { titles: titleDocs, seasons: seasonDocs, playback };
+}
 
-  const creditsByPerson = groupBy(lib.credits.filter(c => included.has(c.titleId)), c => c.personId);
-  const peopleDocs: { id: string; doc: Person }[] = [];
-  for (const [personId, list] of creditsByPerson) {
-    const p = people.get(personId);
-    if (!p)
-      continue;
-    const seen = new Set<string>();
-    const entries = list
-      .map(c => ({ c, t: included.get(c.titleId)! }))
-      .sort((a, b) => b.t.releaseKey.localeCompare(a.t.releaseKey) || a.t.id.localeCompare(b.t.id))
-      .filter(({ c }) => {
-        const key = `${c.titleId}:${c.role}:${c.job ?? ""}`;
-        if (seen.has(key))
-          return false;
-        seen.add(key);
-        return true;
-      });
-    peopleDocs.push({
-      id: p.id,
-      doc: {
-        id: p.id,
-        name: p.name,
-        originalName: p.originalName,
-        gender: p.gender,
-        biography: p.biography,
-        birthday: p.birthday,
-        placeOfBirth: p.placeOfBirth,
-        images: images("person", p.id, ["profile"]),
-        credits: entries.map(({ c, t }) => ({ title: t.card, role: c.role, character: c.character, job: c.job })),
-      },
+/** A person and the titles they are credited in, newest first, each once per role and job. */
+export function buildPerson(
+  p: Row<typeof mediaPeople>,
+  credits: readonly Row<typeof mediaCredits>[],
+  titles: ReadonlyMap<string, TitleDoc>,
+  profile: Image | null,
+): Person {
+  const seen = new Set<string>();
+  const entries = credits
+    .filter(c => titles.has(c.titleId))
+    .map(c => ({ c, t: titles.get(c.titleId)! }))
+    .sort((a, b) => b.t.releaseKey.localeCompare(a.t.releaseKey) || a.t.id.localeCompare(b.t.id))
+    .filter(({ c }) => {
+      const key = `${c.titleId}:${c.role}:${c.job ?? ""}`;
+      if (seen.has(key))
+        return false;
+      seen.add(key);
+      return true;
     });
-  }
-
-  const collectionOf = new Map(lib.titles.map(t => [t.id, t.collectionId]));
-  const collectionDocs: { id: string; doc: Collection }[] = [];
-  for (const c of lib.collections) {
-    const members = titleDocs.filter(t => collectionOf.get(t.id) === c.id)
-      .sort((a, b) => a.releaseKey.localeCompare(b.releaseKey) || a.id.localeCompare(b.id));
-    if (members.length === 0)
-      continue;
-    collectionDocs.push({ id: c.id, doc: { id: c.id, name: c.name, overview: c.overview, images: images("collection", c.id, ["poster", "backdrop"]), titles: members.map(m => m.card) } });
-  }
-
-  // ─── Rows and home ───
-
-  const sorters: Record<RowRule["sort"], (a: TitleDoc, b: TitleDoc) => number> = {
-    updated: (a, b) => b.updatedAt.localeCompare(a.updatedAt) || a.id.localeCompare(b.id),
-    popular: (a, b) => b.popularity - a.popularity || a.id.localeCompare(b.id),
-    release: (a, b) => b.releaseKey.localeCompare(a.releaseKey) || a.id.localeCompare(b.id),
-    rating: (a, b) => b.rating - a.rating || a.id.localeCompare(b.id),
-  };
-  const itemsByRow = groupBy(lib.rowItems, i => i.rowId);
-  const rows: RowDoc[] = [...lib.rows].sort((a, b) => a.sort - b.sort || a.id.localeCompare(b.id)).map((r) => {
-    let titleIds: string[];
-    if (r.kind === "rule" && r.rule) {
-      const rule = JSON.parse(r.rule) as RowRule;
-      titleIds = titleDocs
-        .filter(t => (!rule.categoryId || t.categoryId === rule.categoryId) && (!rule.kind || t.type === rule.kind) && (!rule.genreId || t.genreIds.includes(rule.genreId)))
-        .sort(sorters[rule.sort ?? "updated"])
-        .slice(0, rule.limit ?? 20)
-        .map(t => t.id);
-    }
-    else {
-      titleIds = (itemsByRow.get(r.id) ?? []).sort((a, b) => a.sort - b.sort).map(i => i.titleId).filter(id => included.has(id));
-    }
-    return { id: r.id, name: r.name, sort: r.sort, titleIds };
-  }).filter(r => r.titleIds.length > 0);
-
-  const onHome = new Set(lib.rows.filter(r => r.onHome).map(r => r.id));
-  const home: Home = {
-    hero: lib.hero.filter(id => included.has(id)).map((id) => {
-      const t = included.get(id)!;
-      return { ...t.card, images: t.detail.images, overview: t.detail.overview, tagline: t.detail.tagline };
-    }),
-    rows: rows.filter(r => onHome.has(r.id)).map(r => ({
-      id: r.id,
-      name: r.name,
-      items: r.titleIds.slice(0, HOME_ROW_ITEMS).map(id => included.get(id)!.card),
-      cursor: r.titleIds.length > HOME_ROW_ITEMS ? String(HOME_ROW_ITEMS) : null,
-    })),
-  };
-
-  // ─── Facets, manifest ───
-
-  const meta: Record<string, unknown> = { home };
-  const byCategory = groupBy(titleDocs, t => t.categoryId);
-  for (const category of lib.categories) {
-    const docs = byCategory.get(category.id) ?? [];
-    meta[`facets:${category.id}`] = facetsOf(docs, genreName);
-  }
-  const usedCountries = [...new Set(titleDocs.flatMap(t => t.detail.countries))].sort();
-  const usedLanguages = [...new Set(titleDocs.map(t => t.language).filter((l): l is string => !!l))].sort();
-  const manifest: Omit<Manifest, "generation"> = {
-    schemaVersion: SCHEMA_VERSION,
-    categories: [...lib.categories].sort((a, b) => a.sort - b.sort).map(c => ({
-      id: c.id,
-      name: c.name,
-      kinds: JSON.parse(c.kinds) as ("movie" | "series")[],
-      filters: JSON.parse(c.filters) as ("genre" | "year" | "country")[],
-      count: byCategory.get(c.id)?.length ?? 0,
-    })),
-    genres: [...lib.genres].sort((a, b) => a.sort - b.sort).map(g => ({ id: g.id, name: g.name })),
-    countries: usedCountries.map(code => ({ code, name: countryName(code) })),
-    languages: usedLanguages.map(code => ({ code, name: languageName(code) })),
-    rows: rows.map(r => r.id),
-    capabilities: { live: lib.liveChannels.some(c => c.enabled) },
-  };
-  meta.manifest = manifest;
-  meta.live = buildLive(lib);
-
-  // ─── Search, CMS items ───
-
-  const search = [
-    ...titleDocs.map(t => ({
-      ref: t.id,
-      type: "title" as const,
-      text: [t.card.title, t.detail.originalTitle, ...t.detail.aliases, ...Object.values(t.detail.translations).map(x => x.title), ...t.detail.credits.cast.slice(0, 10).map(c => c.name), ...t.detail.credits.directors.map(d => d.name)]
-        .filter(Boolean)
-        .join(" "),
-    })),
-    ...peopleDocs.map(p => ({ ref: p.id, type: "person" as const, text: [p.doc.name, p.doc.originalName].filter(Boolean).join(" ") })),
-  ];
-
-  const cmsItems = buildCmsItems(titleDocs, seasonDocs, playback, new Map(lib.categories.map(c => [c.id, c.name])), genreName);
-
   return {
-    titles: titleDocs,
-    seasons: seasonDocs,
-    playback,
-    people: peopleDocs,
-    collections: collectionDocs,
-    rows,
-    search,
-    cmsItems,
-    meta,
+    id: p.id,
+    name: p.name,
+    originalName: p.originalName,
+    gender: p.gender,
+    biography: p.biography,
+    birthday: p.birthday,
+    placeOfBirth: p.placeOfBirth,
+    images: { profile },
+    credits: entries.map(({ c, t }) => ({ title: t.card, role: c.role, character: c.character, job: c.job })),
   };
 }
 
-function facetsOf(docs: readonly TitleDoc[], genreName: Map<string, string>): Facets {
-  const count = (values: (string | null)[]) => {
-    const out = new Map<string, number>();
-    for (const v of values) {
-      if (v)
-        out.set(v, (out.get(v) ?? 0) + 1);
-    }
-    return out;
-  };
-  const genres = count(docs.flatMap(d => d.genreIds));
-  const years = count(docs.map(d => (d.year ? String(d.year) : null)));
-  const countries = count(docs.map(d => d.country));
-  return {
-    genre: [...genres].map(([value, n]) => ({ value, label: genreName.get(value) ?? value, count: n })).sort((a, b) => b.count - a.count || a.label.localeCompare(b.label)),
-    year: [...years].map(([value, n]) => ({ value, label: value, count: n })).sort((a, b) => b.value.localeCompare(a.value)),
-    country: [...countries].map(([value, n]) => ({ value, label: countryName(value), count: n })).sort((a, b) => b.count - a.count || a.value.localeCompare(b.value)),
-  };
+/** A collection's titles, oldest first. */
+export function buildCollection(c: Row<typeof mediaCollections>, members: readonly TitleDoc[], art: Pick<Images, "poster" | "backdrop">): Collection {
+  const sorted = [...members].sort((a, b) => a.releaseKey.localeCompare(b.releaseKey) || a.id.localeCompare(b.id));
+  return { id: c.id, name: c.name, overview: c.overview, images: art, titles: sorted.map(m => m.card) };
 }
 
-export function buildLive(lib: Pick<Library, "liveGroups" | "liveChannels" | "liveStreams" | "liveEpg">): Live {
+export function buildLive(lib: LiveSource): Live {
   const channelsByGroup = groupBy(lib.liveChannels.filter(c => c.enabled), c => c.groupId);
   const streamsByChannel = groupBy(lib.liveStreams, s => s.channelId);
   return {

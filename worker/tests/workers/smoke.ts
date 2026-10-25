@@ -12,7 +12,7 @@
  *   3. assets        — the SPA is served by the asset pipeline
  *   4. tvbox         — sync a real upstream into R2, publish, and read it back
  *                      through `/s/<token>/` without the Durable Object
- *   5. media         — publish the library into D1 and read it back
+ *   5. media         — publish the library in D1 and read it back
  *                      through `/s/<token>/media/v1`
  *   6. rate limiting — the creation cap is enforced from the database
  *
@@ -428,7 +428,6 @@ const cases: Case[] = [
 
       const page = await json<{ items: { id: string }[] }>(await media("/browse?category=movie&sort=release"));
       assert(page.items.length === 1 && page.items[0]!.id === movie.id, "browse did not list the movie");
-      // Three characters go through the FTS5 trigram index, two through LIKE.
       for (const q of ["冒烟测试", "电影"]) {
         const found = await json<{ titles: { id: string }[] }>(await media(`/search?q=${encodeURIComponent(q)}`));
         assert(found.titles.some(t => t.id === movie.id), `searching ${q} did not find the movie`);
@@ -457,6 +456,10 @@ const cases: Case[] = [
       assert(api === `/s/${subscriptionToken}/media/cms`, `the media site's api is ${site?.api}`);
       const cms = await json<{ list: { vod_id: string; vod_play_url: string }[] }>(await fetch(`${baseUrl}${api}?ac=detail&ids=${movie.id}`));
       assert(cms.list[0]?.vod_play_url === "正片$https://example.com/smoke.m3u8", `the CMS detail plays ${cms.list[0]?.vod_play_url}`);
+      const category = await json<{ total: number; list: { vod_id: string }[] }>(await fetch(`${baseUrl}${api}?ac=detail&t=movie&pg=1`));
+      assert(category.total === 1 && category.list[0]?.vod_id === movie.id, `the CMS category lists ${JSON.stringify(category)}`);
+      const facets = await json<{ genre: { value: string; count: number }[] }>(await media("/facets?category=movie"));
+      assert(facets.genre.some(g => g.value === "g28" && g.count === 1), `the facets are ${JSON.stringify(facets)}`);
       const m3u = await (await fetch(`${baseUrl}/s/${subscriptionToken}/media/live.m3u`)).text();
       assert(m3u.includes("https://example.com/live.m3u8"), "the live playlist lacks the imported channel");
 
@@ -606,7 +609,7 @@ async function main(): Promise<void> {
       recursive: true,
       force: true,
     });
-    // The media read model is a D1 database; publishing writes into it.
+    // The media library is a D1 database.
     const migrated = Bun.spawnSync(
       ["./node_modules/.bin/wrangler", "d1", "migrations", "apply", "MEDIA", "--local"],
       { cwd: new URL("../../apps/api", import.meta.url).pathname, env: { ...process.env, CI: "1", WRANGLER_SEND_METRICS: "false" } },

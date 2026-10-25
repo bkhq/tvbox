@@ -2,11 +2,11 @@ import { z } from "zod";
 
 /**
  * The native Media API v1 (docs/plan/media-library.md, part 2): what
- * `/s/<token>/media/v1/*` answers. The projector builds these documents when
- * publishing and stores them in D1; the Worker serves them as they are.
+ * `/s/<token>/media/v1/*` answers, built per request from the D1 tables
+ * (serve/documents.ts).
  *
- * Image urls of uploaded assets are stored as `@a/<sha256>/<name>` and
- * rewritten per request to the device's `/s/<token>/a/…`, so the stored
+ * Image urls of uploaded assets are built as `@a/<sha256>/<name>` and
+ * rewritten per request to the device's `/s/<token>/a/…`, so the cached
  * documents stay the same for every device. Within v1 fields are only added;
  * clients ignore the ones they do not know.
  */

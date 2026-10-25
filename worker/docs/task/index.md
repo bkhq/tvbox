@@ -1,6 +1,6 @@
 # TVBox worker - Task List
 
-> Updated: 2026-10-17
+> Updated: 2026-10-25
 
 ## Usage
 
@@ -35,3 +35,4 @@ Each task is a single line linking to its detail file. All detailed information 
 
 - [x] [**20261017-0111-tmdb-top-rated-import Import TMDB's top-rated movies and series with translations**](20261017-0111-tmdb-top-rated-import.md) `P1`
 - [x] [**20261017-0151-media-source-in-d1 Move the media library's source data from the Durable Object to D1**](20261017-0151-media-source-in-d1.md) `P1`
+- [-] [**20261025-0124-media-serve-from-source Serve the media library straight from the D1 source tables**](20261025-0124-media-serve-from-source.md) `P0`

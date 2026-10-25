@@ -1,12 +1,11 @@
 import type { JsonObject, ListKind } from "./-tvbox-api";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Check, RefreshCw } from "lucide-react";
+import { Check } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { Badge } from "@/shared/components/ui/badge";
 import { Button } from "@/shared/components/ui/button";
-import { mediaApi } from "./-media-api";
-import { errorText, useMediaMutation } from "./-media-hooks";
+import { errorText } from "./-media-hooks";
 import { tvboxApi, tvboxKeys } from "./-tvbox-api";
 
 // What the subscription carries for the library; `@media/` becomes each
@@ -31,7 +30,6 @@ export function PublishTab() {
   const lives = useQuery({ queryKey: tvboxKeys.entries("lives", "common", false), queryFn: () => tvboxApi.entries("lives", "common") });
   const present = (kind: ListKind) => (kind === "sites" ? sites.data : lives.data)?.some(e => JSON.stringify(e.data).includes("\"@media/")) ?? false;
 
-  const rebuild = useMediaMutation(() => mediaApi.rebuild(), r => toast.success(t("media:publish.rebuilt", { titles: r.titles, generation: r.generation })));
   const add = useMutation({
     mutationFn: (entry: typeof ENTRIES[number]) => tvboxApi.createEntry(entry.kind, entry.data),
     onSuccess: () => void qc.invalidateQueries({ queryKey: ["tvbox"] }),
@@ -53,12 +51,7 @@ export function PublishTab() {
         <p className="text-sm text-muted-foreground">{t("media:publish.description")}</p>
         <div className="flex gap-2">
           <Button disabled={publish.isPending} onClick={() => publish.mutate()}>{t("media:publish.publish")}</Button>
-          <Button variant="outline" disabled={rebuild.isPending} onClick={() => rebuild.mutate(undefined)}>
-            <RefreshCw className={rebuild.isPending ? "size-4 animate-spin" : "size-4"} />
-            {t("media:publish.rebuild")}
-          </Button>
         </div>
-        <p className="text-xs text-muted-foreground">{t("media:publish.rebuildHint")}</p>
       </section>
 
       <section className="space-y-2">

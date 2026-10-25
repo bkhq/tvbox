@@ -21,3 +21,19 @@ Task and plan tracking initialised; the two earlier plans (`media-library`, `rec
 ## 2026-10-17 04:40 [progress]
 
 `20261017-0151-media-source-in-d1` completed. New `modules/media/db.ts` (D1 handle, `runBatch`, `insertRows`), every media write is a `db.batch()`, D1 migration `0002_source_tables.sql` (source tables, `rm_*` tables with text ids, `rm_search.type`), DO migration `0013_drop_media.sql`, backup contributions can name their own database, console and worker take string ids. Gates: `bun run check` and `bun run test:workers` green. After the deploy the read model is empty until the first publish.
+
+## 2026-10-25 01:40 [decision]
+
+`20261025-0124-media-serve-from-source`: after the 2026-10-21 TMDB import every publish ran out of memory in the Durable Object while projecting the whole library. The user chose to drop the read model: the Worker reads the D1 source tables per request, and publishing only marks live title, season and episode ids. Edits to resources that are already live take effect without a publish.
+
+## 2026-10-25 04:30 [progress]
+
+`20261025-0124-media-serve-from-source` implemented; the production deploy and verification are still pending.
+
+- **Publishing.** New `modules/media/publish.ts` (`markPublished`: two set-based statements per kind plus the generation, in one batch) and D1 migration `0003_published.sql`, which adds `media_published` and drops every `rm_*` table.
+- **Serving.** The builders moved to `modules/media/serve/` with a per-request `loadSlice`. `workers/media/{query,app,cms,index}.ts` were rewritten over drizzle `MediaDb`; the CMS selects playable movies and seasons in SQL.
+- **Removed.** The projector, read-model store, SQLite adapter, the rebuild route and the console's rebuild button.
+- **Deviations from the plan.**
+  - Drizzle's D1 driver cannot batch raw SQL that carries parameters, so the facets and CMS page reads run as parallel queries, and publish inlines the kind literals.
+  - The smoke test now also checks the CMS category list and the facets.
+- **Gates.** `bun run check` and `bun run test:workers` (17/17) are green.

@@ -242,6 +242,16 @@ describe('PlayerScreen', () => {
     }
   });
 
+  it('keeps the TV focus on the screen while the controls are hidden, so OK still reaches the remote handler', async () => {
+    const renderer = await render({ url: 'https://m/a.m3u8' });
+    await emit(mpv, load);
+    const surface = () => byTestId(renderer, 'player-touch').props;
+    expect(surface()).toMatchObject({ focusable: true, hasTVPreferredFocus: true });
+    await remote('up');
+    expect(surface().hasTVPreferredFocus).toBe(false);
+    await act(async () => renderer.unmount());
+  });
+
   it('seeks with left / right, growing the step while the key repeats', async () => {
     const renderer = await render({ url: 'https://m/a.m3u8', position: 60_000 });
     await emit(mpv, load);

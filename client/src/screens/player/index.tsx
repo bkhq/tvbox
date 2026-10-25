@@ -323,7 +323,17 @@ function PlayerView({ params, focused, onExit, onReload }: PlayerViewProps) {
           onEvent={onEngineEvent}
         />
       ) : null}
-      <View style={StyleSheet.absoluteFill} testID="player-touch" {...touch} />
+      {/*
+        With the controls hidden this layer holds the TV focus: once the controls unmount nothing else is focused, and
+        an unfocused window never passes OK to the remote handler. It is not pressable, so OK still lands there.
+      */}
+      <View
+        style={StyleSheet.absoluteFill}
+        testID="player-touch"
+        focusable
+        hasTVPreferredFocus={!overlay && !panel}
+        {...touch}
+      />
       {statusText ? (
         <View style={styles.center} pointerEvents="none" testID="player-status">
           <View style={styles.statusBox}>

@@ -37,3 +37,24 @@ Task and plan tracking initialised; the two earlier plans (`media-library`, `rec
   - Drizzle's D1 driver cannot batch raw SQL that carries parameters, so the facets and CMS page reads run as parallel queries, and publish inlines the kind literals.
   - The smoke test now also checks the CMS category list and the facets.
 - **Gates.** `bun run check` and `bun run test:workers` (17/17) are green.
+
+## 2026-10-25 19:20 [progress]
+
+`20261025-1834-sync-bun-tpl` completed. The worker was synced with zzci/bun-tpl from `c6f5c58` (the base of the 2026-10-03 import, found by comparing files) to `25c3463`, in six commits:
+
+- **Fixes:** literal LIKE wildcards; client IP behind a trusted proxy in audit events (`auditMeta`, also used by the tvbox and media routes); sliding sessions.
+- **API tokens:** rename, rescope and rotate.
+- **Helper refactors.**
+- **API docs:** an external viewer for `/api/docs`.
+- **Dependencies:** TypeScript 7 next to TS 6, eslint config 10, uqr instead of qrcode, a vendored shadcn CSS, a small language detector, and CI on Bun 1.4.4 and Node 24.22.1.
+- **Style:** the eslint 10 style pass.
+
+Skipped:
+
+- password accounts and the bootstrap admin (`aea13cb`, `4d78d5d`), at the user's request;
+- the DEK challenge refactor, since the worker has no encryption module;
+- the attachment routes, which the worker does not use;
+- the template's home page and SPA serving;
+- lode and the dropped modules.
+
+README records the synced commit. Bun 1.4.4 now enforces `coverageThreshold`; the api suite is at 91.8% of lines and 87.6% of functions against 85% and 70%. Gates: `bun run check` and `bun run test:workers` (17/17) pass.

@@ -11,7 +11,7 @@ import { createDb } from "./db";
 import { logDefaultAdmins } from "./modules/account/auth/auth.service";
 import { passwordHashUnsupportedReason } from "./modules/account/auth/password";
 import { startAuditRetentionSweep } from "./modules/audit";
-import { docsCspRelax, mountDocs } from "./modules/docs";
+import { mountDocs } from "./modules/docs";
 import { initFileModule, startFileGcSweep } from "./modules/file";
 import { initMedia } from "./modules/media";
 import { initTvbox } from "./modules/tvbox";
@@ -120,12 +120,12 @@ export async function buildFullApp({ config, db, logger }: AppDeps) {
   startFileGcSweep(db, config, logger);
   await initTvbox(db, config, logger);
   await initMedia();
-  // OpenAPI spec (/openapi.json) + Scalar UI (/docs). Mounted BEFORE the
-  // route modules: Hono middleware only applies to routes registered after
-  // it, so mounting here keeps docs outside every module's `use("*")` auth /
-  // unlock guards (which would otherwise gate them). `openAPIRouteHandler`
-  // walks `api`'s route table lazily at request time, so routes registered
-  // below are still included in the spec. See modules/docs.
+  // OpenAPI spec (/openapi.json) + docs viewer redirect (/docs). Mounted
+  // BEFORE the route modules: Hono middleware only applies to routes
+  // registered after it, so mounting here keeps docs outside every module's
+  // `use("*")` auth / unlock guards (which would otherwise gate them).
+  // `openAPIRouteHandler` walks `api`'s route table lazily at request time,
+  // so routes registered below are still included in the spec. See modules/docs.
   const raw = rawRoutes();
   mountDocs(api, config, { raw });
 
@@ -206,11 +206,6 @@ export function buildOuterApp(api: Hono<AppEnv>, config: Config, raw: Hono<AppEn
   const app = new Hono<AppEnv>();
   const base = config.BASE_PATH;
   const rawPrefix = `${base}${RAW_API_PREFIX}`;
-
-  // Scoped CSP relaxation for the Scalar docs page. Registered before
-  // `secureHeaders` so its post-`next()` override wins over the strict global
-  // policy (which would otherwise block Scalar's CDN bundle). See modules/docs.
-  app.use(`${base}/api/docs`, docsCspRelax);
 
   // Security headers for every response (API JSON + static SPA HTML/JS/CSS).
   // SPA bundles are hashed under BASE_PATH; styles need 'unsafe-inline' for

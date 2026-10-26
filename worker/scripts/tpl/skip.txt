@@ -1,0 +1,23 @@
+# Template paths never ported to worker/, one extended regex per line,
+# matched against the template's repo-relative path.
+
+# Modules the worker does not have.
+modules/(item|document|issue|policy|cron|encryption)/
+/(documents|issues)/
+cron
+polic
+lode
+encryption
+sealed-unlock
+
+# Self-hosted runtime: the worker runs on Cloudflare only.
+pid-lock
+^apps/api/src/cli\.ts$
+^apps/api/src/index\.ts$
+^deploy/
+Dockerfile
+
+# Repo-level files the worker keeps its own of.
+^tests/e2e/
+^docs/changelog\.md$
+^\.github/

@@ -5,6 +5,8 @@ and hosts the admin console. Built from
 [zzci/bun-tpl](https://github.com/zzci/bun-tpl), trimmed to the modules this
 project needs and to the Workers runtime only.
 Last synced with the template at `zzci/bun-tpl@25c3463` (2026-10-24).
+Later template commits are ported with `scripts/tpl/sync.sh` (`list`,
+`check`, `port <commit>`); update the commit above after each sync.
 
 - **Content** — upstream configs (e.g. xiaosa) are imported into our own
   database: each site, parser, live source and rule becomes a row

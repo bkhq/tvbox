@@ -1,12 +1,9 @@
-import type { MediaDb } from "@/modules/media/db";
 import type { PublishedSnapshot } from "@/modules/tvbox/compose";
 import type { DevicesFile } from "@/modules/tvbox/storage";
 import { deriveStorageKey } from "@/modules/file/storage/key";
-import { createMediaDb } from "@/modules/media/db";
 import { composeForDevice } from "@/modules/tvbox/compose";
 import { DEVICES_KEY, PUBLISHED_KEY } from "@/modules/tvbox/storage";
 import { handleHome } from "./home";
-import { handleMedia } from "./media";
 
 /**
  * TVBox subscription served at `/s/<token>/`.
@@ -19,18 +16,17 @@ import { handleMedia } from "./media";
  *                                        device's upstreams
  *   /s/<token>/a/<sha256>/<name>         a mirrored file, by content hash
  *   /s/<token>/media/home                the recommendation home (./home)
- *   /s/<token>/media/…                   the media library, from D1
- *                                        (./media)
  *
  * A device bound to linked apps serves its config only to a request with
  * one app's X-Device-Id and X-Device-Key, so the URL alone is not enough.
- * Files and the media library are not checked: files are addressed by
- * content, and not every client the app uses for them or for a site's API
- * sends the headers.
+ * Files are not checked: they are addressed by content, and not every
+ * client the app uses for them sends the headers.
  *
  * The config references its files as `./a/...`, which TVBox resolves under
- * the same prefix, and the media library as `@media/...`, made absolute here
- * because a site's `api` is not resolved against the config's url.
+ * the same prefix, and the recommendation home as `@media/home`, made
+ * absolute here because a site's `api` is not resolved against the config's
+ * url. The media library is not served here: entries reference a media
+ * client's own URL (`/m/<token>/…`, ./media) like any other source.
  *
  * Every config leads with the recommendation home (HOME_SITE), so the app
  * opens it until the user picks another site.
@@ -46,19 +42,13 @@ export interface SubscriptionBucket {
   put?: (key: string, value: string) => Promise<unknown>;
 }
 
-/** The media library: a D1 binding, whose sessions read from the nearest replica. */
-export interface MediaDatabase {
-  withSession?: (constraint: "first-unconstrained") => unknown;
-}
-
 export interface SubscriptionEnv {
   readonly FILES?: SubscriptionBucket | undefined;
-  readonly MEDIA?: MediaDatabase | undefined;
   readonly TMDB_TOKEN?: string | undefined;
 }
 
 export const SUBSCRIPTION_PREFIX = "/s/";
-/** Stands for `<origin>/s/<token>/media/` in a published entry. */
+/** Stands for `<origin>/s/<token>/media/` (the recommendation home) in a published entry. */
 export const MEDIA_PLACEHOLDER = "@media/";
 /** The recommendation home, first in every config. */
 export const HOME_SITE = {
@@ -141,8 +131,7 @@ function notFound(): Response {
   return new Response("Not Found", { status: 404 });
 }
 
-/** `media` stands in for the `MEDIA` binding in tests. */
-export async function handleSubscription(request: Request, env: SubscriptionEnv, media?: MediaDb): Promise<Response> {
+export async function handleSubscription(request: Request, env: SubscriptionEnv): Promise<Response> {
   const bucket = env.FILES;
   const { pathname } = new URL(request.url);
   const rest = pathname.slice(SUBSCRIPTION_PREFIX.length);
@@ -166,7 +155,7 @@ export async function handleSubscription(request: Request, env: SubscriptionEnv,
     // A wrong or stale key looks like a wrong token: the app then asks for its current link.
     if (!state.snapshot || !(await isBoundApp(request, device)))
       return notFound();
-    // `@media/…` (a site's `api`, a live source's `url`) names this device's media library.
+    // `@media/home` (a site's `api`) names this device's recommendation home.
     const composed = composeForDevice(state.snapshot, device.upstreams);
     const sites = Array.isArray(composed.sites)
       ? composed.sites
@@ -183,19 +172,6 @@ export async function handleSubscription(request: Request, env: SubscriptionEnv,
 
   if (path === "/media/home")
     return handleHome(request, { FILES: bucket, TMDB_TOKEN: env.TMDB_TOKEN });
-
-  if (path.startsWith("/media/")) {
-    const binding = media ?? env.MEDIA;
-    if (!binding)
-      return notFound();
-    return handleMedia({
-      request,
-      db: media ?? createMediaDb(env.MEDIA!.withSession?.("first-unconstrained") ?? env.MEDIA),
-      cacheKey: binding,
-      path: path.slice("/media".length),
-      assetBase: `${new URL(request.url).origin}${SUBSCRIPTION_PREFIX}${token}/a/`,
-    });
-  }
 
   const asset = RE_ASSET.exec(path);
   if (!asset)

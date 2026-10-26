@@ -7,13 +7,13 @@
  * translations, credits, images and external ids, and writes them through
  * the console's bulk import route, worst-rated first so the best end up at
  * the top of the "latest" order. Re-running updates what changed and never
- * duplicates. Publishes at the end unless `--no-publish`.
+ * duplicates. `--public` makes the imported titles visible to every client.
  *
  * Usage:
  *   TVBOX_URL=https://tv.bk.io/mg TVBOX_API_TOKEN=… TMDB_TOKEN=… \
  *     bun scripts/media-import-tmdb.ts [--movies 2500] [--series 2500] [--min-votes 300,150]
  *       [--locales zh-CN,en-US] [--cast 10] [--batch 50] [--concurrency 8]
- *       [--publish | --no-publish] [--dry-run] [--json report.json]
+ *       [--public] [--dry-run] [--json report.json]
  *
  * TVBOX_URL is the console's base URL (origin plus BASE_PATH); the token is
  * an API token with the `media:write` scope. TMDB_TOKEN is a v3 API key or
@@ -57,7 +57,7 @@ const cast = int("cast", 10);
 const batchSize = Math.max(1, Math.min(50, int("batch", 50)));
 const concurrency = Math.max(1, int("concurrency", 8));
 const dryRun = args.includes("--dry-run");
-const publish = !args.includes("--no-publish");
+const makePublic = args.includes("--public");
 const jsonFile = args.includes("--json")
   ? flag("json", "")
   : "";
@@ -98,7 +98,6 @@ interface Report {
   readonly resolved: { title: Record<string, number>; overview: Record<string, number> };
   readonly failed: { kind: Kind; id: number; error: string }[];
   readonly invalid: { kind: Kind; id: number; error: string }[];
-  published: boolean;
 }
 
 const report: Report = {
@@ -119,7 +118,6 @@ const report: Report = {
   resolved: { title: {}, overview: {} },
   failed: [],
   invalid: [],
-  published: false,
 };
 function bump(table: Record<string, number>, key: string) {
   table[key] = (table[key] ?? 0) + 1;
@@ -136,7 +134,11 @@ async function send(titles: ImportTitle[]): Promise<void> {
     report.actions.unchanged += titles.length;
     return;
   }
-  const { results } = await api<{ results: ImportResult[] }>("POST", "/media/import", { titles });
+  const { results } = await api<{ results: ImportResult[] }>("POST", "/media/import", {
+    titles: makePublic
+      ? titles.map(t => ({ ...t, public: true }))
+      : titles,
+  });
   for (const r of results)
     report.actions[r.action]++;
 }
@@ -215,12 +217,6 @@ async function importKind(kind: Kind): Promise<void> {
 
 for (const kind of ["tv", "movie"] as const)
   await importKind(kind);
-
-if (publish && !dryRun && (report.actions.created > 0 || report.actions.updated > 0)) {
-  await api("POST", "/tvbox/publishes");
-  report.published = true;
-  console.log("published");
-}
 
 const a = report.actions;
 console.log(`\nlisted: movies ${report.listed.movie}, series ${report.listed.tv}`);

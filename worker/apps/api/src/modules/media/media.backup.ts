@@ -2,6 +2,9 @@ import type { BackupContribution, ExternalBackupDb } from "@/modules/backup/regi
 import { getMediaDb } from "./db";
 import {
   mediaCategories,
+  mediaChannels,
+  mediaClientChannels,
+  mediaClients,
   mediaCollections,
   mediaCredits,
   mediaEpisodes,
@@ -19,14 +22,14 @@ import {
   mediaSources,
   mediaStreams,
   mediaTitleAliases,
+  mediaTitleChannels,
   mediaTitleGenres,
   mediaTitles,
   mediaTitleTranslations,
 } from "./schema";
 
-// The source data only, from the media D1 database: what is live is marked
-// again by publishing, and uploaded images live in blob storage like the
-// tvbox module's files.
+// Everything in the media D1 database, clients and channels included;
+// uploaded images live in blob storage like the tvbox module's files.
 export const mediaBackupContribution: BackupContribution = {
   name: "media",
   db: () => getMediaDb() as unknown as ExternalBackupDb | null,
@@ -39,6 +42,10 @@ export const mediaBackupContribution: BackupContribution = {
     mediaTitleAliases,
     mediaTitleTranslations,
     mediaTitleGenres,
+    mediaChannels,
+    mediaTitleChannels,
+    mediaClients,
+    mediaClientChannels,
     mediaSeasons,
     mediaEpisodes,
     mediaPeople,

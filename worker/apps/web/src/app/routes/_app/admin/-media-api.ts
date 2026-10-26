@@ -42,6 +42,31 @@ export interface Genre {
   readonly sort: number;
 }
 
+export interface Channel {
+  readonly id: string;
+  readonly name: string;
+  readonly sort: number;
+  readonly titleCount: number;
+  readonly clientCount: number;
+}
+
+export interface MediaClient {
+  readonly id: string;
+  readonly name: string;
+  readonly token: string;
+  readonly enabled: boolean;
+  readonly note: string;
+  readonly channelIds: string[];
+  readonly createdAt: string;
+}
+
+export interface ClientInput {
+  name?: string;
+  note?: string;
+  enabled?: boolean;
+  channelIds?: string[];
+}
+
 export interface Collection {
   readonly id: string;
   readonly name: string;
@@ -68,7 +93,9 @@ export interface Title {
   readonly popularity: number;
   readonly collectionId: string | null;
   readonly publishState: PublishState;
+  readonly public: boolean;
   readonly genreIds: string[];
+  readonly channelIds: string[];
   readonly aliases: { id: string; name: string; locale: string | null; kind: "alias" | "translation" }[];
   readonly translations: Translation[];
   readonly seasonCount: number;
@@ -239,6 +266,8 @@ export const mediaKeys = {
   all: ["media"] as const,
   categories: ["media", "categories"] as const,
   genres: ["media", "genres"] as const,
+  channels: ["media", "channels"] as const,
+  clients: ["media", "clients"] as const,
   collections: ["media", "collections"] as const,
   titles: (query: Record<string, string | number | undefined>) => ["media", "titles", query] as const,
   title: (id: string) => ["media", "title", id] as const,
@@ -304,6 +333,18 @@ export const mediaApi = {
   createGenre: (name: string) => data<Genre>("/media/genres", send("POST", { name })),
   updateGenre: (id: string, name: string) => data<Genre>(`/media/genres/${id}`, send("PATCH", { name })),
   deleteGenre: (id: string) => data<Genre>(`/media/genres/${id}`, send("DELETE")),
+
+  channels: () => data<Channel[]>("/media/channels"),
+  createChannel: (name: string) => data<Channel>("/media/channels", send("POST", { name })),
+  updateChannel: (id: string, name: string) => data<Channel>(`/media/channels/${id}`, send("PATCH", { name })),
+  deleteChannel: (id: string) => data<Channel>(`/media/channels/${id}`, send("DELETE")),
+  reorderChannels: (ids: string[]) => data<unknown>("/media/channels/reorder", send("POST", { ids })),
+
+  clients: () => data<MediaClient[]>("/media/clients"),
+  createClient: (body: ClientInput & { name: string; channelIds: string[] }) => data<MediaClient>("/media/clients", send("POST", body)),
+  updateClient: (id: string, body: ClientInput) => data<MediaClient>(`/media/clients/${id}`, send("PATCH", body)),
+  rotateClient: (id: string) => data<MediaClient>(`/media/clients/${id}/rotate`, send("POST")),
+  deleteClient: (id: string) => data<MediaClient>(`/media/clients/${id}`, send("DELETE")),
 
   collections: () => data<Collection[]>("/media/collections"),
   createCollection: (body: { name: string; overview?: string | null }) => data<Collection>("/media/collections", send("POST", body)),

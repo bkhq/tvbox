@@ -97,6 +97,8 @@ describe("discoverCreationRoutes", () => {
     ].sort();
     expect(resources).toEqual([
       "category",
+      "channel",
+      "client",
       "collection",
       "credit",
       "device",

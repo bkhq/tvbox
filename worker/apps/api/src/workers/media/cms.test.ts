@@ -1,31 +1,32 @@
 import type { MediaDb } from "@/modules/media/db";
-import type { PublishedSnapshot } from "@/modules/tvbox/compose";
-import type { DevicesFile } from "@/modules/tvbox/storage";
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
-import { createHash } from "node:crypto";
 import { addImage } from "@/modules/media/artwork/images.service";
 import { createEpisode, createSeason, listSeasons, updateSeason } from "@/modules/media/catalog/seasons.service";
 import { createTitle } from "@/modules/media/catalog/titles.service";
+import { createChannel, createClient } from "@/modules/media/clients/clients.service";
 import { liveSchema } from "@/modules/media/contract";
 import { importM3u } from "@/modules/media/live/live.service";
 import { addCredit, createPerson } from "@/modules/media/people/people.service";
 import { addStream, createSource } from "@/modules/media/playable/playable.service";
-import { markPublished } from "@/modules/media/publish";
 import { createRow } from "@/modules/media/taxonomy/rows.service";
 import { openTestDb } from "@/modules/media/test-db";
-import { DEVICES_KEY, PUBLISHED_KEY } from "@/modules/tvbox/storage";
 import { handleMedia } from ".";
-import { handleSubscription } from "../subscription";
 
-const TOKEN = "0123456789abcdef0123456789abcdef";
 const SHA = "d".repeat(64);
-const ASSET_BASE = `https://worker.example/s/${TOKEN}/a/`;
 
 let db: MediaDb;
 let dispose: () => void;
+let token: string;
 beforeEach(async () => {
   ({ db, dispose } = await openTestDb());
+  const channel = await createChannel(db, { name: "main" });
+  ({ token } = await createClient(db, {
+    name: "box",
+    channelIds: [channel.id],
+  }));
 });
+
+const get = (path: string) => handleMedia(new Request(`https://worker.example/m/${token}${path}`), {}, db);
 
 afterEach(() => dispose());
 
@@ -40,16 +41,7 @@ interface CmsBody {
 }
 
 async function cms(query: Record<string, string> = {}): Promise<CmsBody> {
-  const url = new URL(`https://worker.example/s/${TOKEN}/media/cms`);
-  for (const [k, v] of Object.entries(query))
-    url.searchParams.set(k, v);
-  const res = await handleMedia({
-    request: new Request(url),
-    db,
-    cacheKey: {},
-    path: "/cms",
-    assetBase: ASSET_BASE,
-  });
+  const res = await get(`/cms?${new URLSearchParams(query).toString()}`);
   expect(res.status).toBe(200);
   return await res.json() as CmsBody;
 }
@@ -63,6 +55,7 @@ async function movie(title: string, year: number, genre: string, country = "CN")
     originCountries: [country],
     genreIds: [genre],
     publishState: "published",
+    public: true,
   });
   const src = await createSource(db, { titleId: t.id }, { name: "自建" });
   await addStream(db, src.id, { url: `https://v/${t.id}.m3u8`, resolution: "1080p" });
@@ -82,6 +75,7 @@ async function library() {
     categoryId: "tv",
     title: "漫长的季节",
     publishState: "published",
+    public: true,
   });
   const s1 = (await listSeasons(db, series.id))[0]!;
   await updateSeason(db, s1.id, { publishState: "published", status: "ended", episodeTotal: 2 });
@@ -107,7 +101,6 @@ async function library() {
     name: "精选",
     titleIds: [series.id, a.id],
   });
-  await markPublished(db);
   return { a, b, c, series, s1, s2 };
 }
 
@@ -125,7 +118,7 @@ describe("cms", () => {
     expect(movieFilters[0]!.value[0]).toEqual({ n: "全部", v: "" });
     expect(movieFilters[2]!.value).toContainEqual({ n: "美国", v: "US" });
     expect(home.list.map(v => v.vod_id)).toEqual([s2.id, a.id]);
-    expect(home.list[1]!.vod_pic).toBe(`${ASSET_BASE}${SHA}/poster.jpg`);
+    expect(home.list[1]!.vod_pic).toBe(`https://worker.example/m/${token}/a/${SHA}/poster.jpg`);
     expect(home.list[1]!.vod_play_url).toBeUndefined();
   });
 
@@ -188,14 +181,6 @@ describe("cms", () => {
 describe("live", () => {
   test("published channels are served as M3U and as JSON", async () => {
     await importM3u(db, "#EXTM3U x-tvg-url=\"https://epg/e.xml\"\n#EXTINF:-1 tvg-id=\"C1\" group-title=\"央视\",CCTV1\n#EXTVLCOPT:http-user-agent=ua\nhttps://a/1.m3u8\n");
-    await markPublished(db);
-    const get = (path: string) => handleMedia({
-      request: new Request(`https://worker.example/s/${TOKEN}/media${path}`),
-      db,
-      cacheKey: {},
-      path,
-      assetBase: ASSET_BASE,
-    });
     const m3u = await get("/live.m3u");
     expect(m3u.headers.get("content-type")).toContain("mpegurl");
     expect(await m3u.text()).toBe("#EXTM3U x-tvg-url=\"https://epg/e.xml\"\n#EXTINF:-1 tvg-id=\"C1\" tvg-name=\"CCTV1\" group-title=\"央视\",CCTV1\n#EXTVLCOPT:http-user-agent=ua\nhttps://a/1.m3u8\n");
@@ -207,57 +192,5 @@ describe("live", () => {
     });
     const manifest = await (await get("/v1/manifest")).json() as { capabilities: { live: boolean } };
     expect(manifest.capabilities.live).toBe(true);
-  });
-});
-
-describe("the subscription names the media library per device", () => {
-  test("@media/ placeholders become the device's absolute media urls", async () => {
-    const sha = (s: string) => createHash("sha256").update(s).digest("hex");
-    const devices: DevicesFile = {
-      devices: {
-        [sha(TOKEN)]: { id: "d1", upstreams: null },
-      },
-    };
-    const snapshot: PublishedSnapshot = {
-      version: 2,
-      globals: [],
-      entries: [
-        {
-          id: "1",
-          kind: "sites",
-          upstreamId: null,
-          enabled: true,
-          sort: 0,
-          data: {
-            key: "own_media",
-            type: 1,
-            api: "@media/cms",
-            mediaApi: "@media/v1",
-          },
-        },
-        {
-          id: "2",
-          kind: "lives",
-          upstreamId: null,
-          enabled: true,
-          sort: 0,
-          data: { name: "自有直播", url: "@media/live.m3u" },
-        },
-      ],
-    };
-    const objects: Record<string, string> = {
-      [DEVICES_KEY]: JSON.stringify(devices),
-      [PUBLISHED_KEY]: JSON.stringify(snapshot),
-    };
-    const files = {
-      get: async (key: string) => (objects[key] === undefined
-        ? null
-        : new Response(objects[key])),
-    };
-    const res = await handleSubscription(new Request(`https://worker.example/s/${TOKEN}/api.json`), { FILES: files });
-    const config = await res.json() as { sites: Record<string, string>[]; lives: Record<string, string>[] };
-    const base = `https://worker.example/s/${TOKEN}/media`;
-    expect(config.sites[1]).toMatchObject({ api: `${base}/cms`, mediaApi: `${base}/v1` });
-    expect(config.lives[0]!.url).toBe(`${base}/live.m3u`);
   });
 });

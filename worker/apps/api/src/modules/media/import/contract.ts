@@ -76,6 +76,8 @@ export const importTitleSchema = z.object({
   voteCount: z.number().int().min(0).nullable().optional(),
   popularity: z.number().min(0).optional(),
   publishState: z.enum(["draft", "published", "hidden"]).optional(),
+  /** Visible to every client; left as it is when absent. */
+  public: z.boolean().optional(),
   origin: text(200).min(1).optional(),
   sort: z.number().int().optional(),
   genreIds: z.array(text(64)).max(20).optional(),

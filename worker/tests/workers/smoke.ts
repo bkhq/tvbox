@@ -12,8 +12,8 @@
  *   3. assets        — the SPA is served by the asset pipeline
  *   4. tvbox         — sync a real upstream into R2, publish, and read it back
  *                      through `/s/<token>/` without the Durable Object
- *   5. media         — publish the library in D1 and read it back
- *                      through `/s/<token>/media/v1`
+ *   5. media         — write the library in D1 and read it back
+ *                      through a media client's `/m/<token>/…`
  *   6. rate limiting — the creation cap is enforced from the database
  *
  * With `--oidc` it checks a deployment configured for OpenID Connect
@@ -442,8 +442,8 @@ const cases: Case[] = [
     },
   },
   {
-    // Publishing projects the library into D1; the Worker answers from it.
-    name: "a published movie is served by the media API from D1",
+    // The Worker answers a media client's URL straight from D1.
+    name: "a media client sees public titles and its channel's titles from D1",
     async run() {
       const post = async (path: string, body: unknown) => {
         const res = await call(`${BASE_PATH}/api${path}`, {
@@ -453,8 +453,14 @@ const cases: Case[] = [
         });
         if (res.status !== 201)
           throw new SmokeError(`${path} returned ${res.status}: ${await res.text()}`);
-        return (await json<{ data: { id: string | number } }>(res)).data;
+        return (await json<{ data: { id: string; token?: string } }>(res)).data;
       };
+      const mine = await post("/media/channels", { name: "smoke" });
+      const other = await post("/media/channels", { name: "smoke-other" });
+      const client = await post("/media/clients", {
+        name: "smoke",
+        channelIds: [mine.id],
+      });
       const movie = await post("/media/titles", {
         kind: "movie",
         categoryId: "movie",
@@ -462,19 +468,19 @@ const cases: Case[] = [
         releaseDate: "2020-01-01",
         genreIds: ["g28"],
         publishState: "published",
+        public: true,
       });
-      const source = await post(`/media/titles/${movie.id}/sources`, { name: "smoke", quality: "1080p" });
-      await post(`/media/sources/${source.id}/streams`, { url: "https://example.com/smoke.m3u8" });
-      await post("/tvbox/entries", {
-        kind: "sites",
-        data: {
-          key: "own_media",
-          name: "媒体库",
-          type: 1,
-          api: "@media/cms",
-          mediaApi: "@media/v1",
-        },
+      const hidden = await post("/media/titles", {
+        kind: "movie",
+        categoryId: "movie",
+        title: "冒烟测试内部片",
+        publishState: "published",
+        channelIds: [other.id],
       });
+      for (const t of [movie, hidden]) {
+        const source = await post(`/media/titles/${t.id}/sources`, { name: "smoke", quality: "1080p" });
+        await post(`/media/sources/${source.id}/streams`, { url: "https://example.com/smoke.m3u8" });
+      }
       const imported = await call(`${BASE_PATH}/api/media/live/import`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -482,63 +488,57 @@ const cases: Case[] = [
       });
       assert(imported.status === 200, `the live import returned ${imported.status}`);
       await imported.text();
-      const published = await call(`${BASE_PATH}/api/tvbox/publishes`, { method: "POST" });
-      if (published.status !== 201)
-        throw new SmokeError(`publish returned ${published.status}: ${await published.text()}`);
-      await published.text();
 
-      const media = (path: string, init?: RequestInit) => fetch(`${baseUrl}/s/${subscriptionToken}/media/v1${path}`, init);
+      const base = `${baseUrl}/m/${client.token}`;
+      const media = (path: string, init?: RequestInit) => fetch(`${base}/v1${path}`, init);
       const manifest = await media("/manifest");
       if (manifest.status !== 200)
         throw new SmokeError(`manifest returned ${manifest.status}: ${await manifest.text()}`);
       const m = await json<{ generation: string; categories: { id: string; count: number }[] }>(manifest);
-      assert(m.categories.find(c => c.id === "movie")?.count === 1, "the manifest does not count the movie");
+      assert(m.categories.find(c => c.id === "movie")?.count === 1, "the manifest does not count only the public movie");
 
       const page = await json<{ items: { id: string }[] }>(await media("/browse?category=movie&sort=release"));
-      assert(page.items.length === 1 && page.items[0]!.id === movie.id, "browse did not list the movie");
+      assert(page.items.length === 1 && page.items[0]!.id === movie.id, "browse did not list only the public movie");
       for (const q of ["冒烟测试", "电影"]) {
         const found = await json<{ titles: { id: string }[] }>(await media(`/search?q=${encodeURIComponent(q)}`));
         assert(found.titles.some(t => t.id === movie.id), `searching ${q} did not find the movie`);
+        assert(!found.titles.some(t => t.id === hidden.id), `searching ${q} found another channel's title`);
       }
+      const denied = await media(`/titles/${hidden.id}`);
+      assert(denied.status === 404, `another channel's title returned ${denied.status}`);
+      await denied.text();
 
       const title = await media(`/titles/${movie.id}`);
       assert(title.status === 200, `the title returned ${title.status}`);
       const etag = title.headers.get("etag");
-      assert(etag === `"${m.generation}"`, `the title's ETag ${etag} is not the generation`);
+      assert(etag?.startsWith(`"${m.generation}.`), `the title's ETag ${etag} does not carry the generation`);
       await title.text();
       const again = await media(`/titles/${movie.id}`, {
-        headers: { "If-None-Match": etag },
+        headers: { "If-None-Match": etag! },
       });
       assert(again.status === 304, `a matching ETag returned ${again.status}`);
       await again.text();
 
-      // The config names this device's media library; the CMS layer and the playlist answer from D1.
-      // The Worker re-reads the published config at most every 30 seconds.
-      let site: { key: string; api: string; mediaApi?: string } | undefined;
-      for (let i = 0; i < 40 && !site; i++) {
-        const config = await json<{ sites?: { key: string; api: string; mediaApi?: string }[] }>(await fetch(`${baseUrl}/s/${subscriptionToken}/api.json`));
-        site = config.sites?.find(s => s.key === "own_media");
-        if (!site)
-          await sleep(1000);
-      }
-      // Locally `wrangler dev` presents requests under the route's host, so only the path is compared.
-      const api = site
-        ? new URL(site.api).pathname
-        : "";
-      assert(api === `/s/${subscriptionToken}/media/cms`, `the media site's api is ${site?.api}`);
-      const cms = await json<{ list: { vod_id: string; vod_play_url: string }[] }>(await fetch(`${baseUrl}${api}?ac=detail&ids=${movie.id}`));
+      const cms = await json<{ list: { vod_id: string; vod_play_url: string }[] }>(await fetch(`${base}/cms?ac=detail&ids=${movie.id}`));
       assert(cms.list[0]?.vod_play_url === "正片$https://example.com/smoke.m3u8", `the CMS detail plays ${cms.list[0]?.vod_play_url}`);
-      const category = await json<{ total: number; list: { vod_id: string }[] }>(await fetch(`${baseUrl}${api}?ac=detail&t=movie&pg=1`));
+      const category = await json<{ total: number; list: { vod_id: string }[] }>(await fetch(`${base}/cms?ac=detail&t=movie&pg=1`));
       assert(category.total === 1 && category.list[0]?.vod_id === movie.id, `the CMS category lists ${JSON.stringify(category)}`);
       const facets = await json<{ genre: { value: string; count: number }[] }>(await media("/facets?category=movie"));
       assert(facets.genre.some(g => g.value === "g28" && g.count === 1), `the facets are ${JSON.stringify(facets)}`);
-      const m3u = await (await fetch(`${baseUrl}/s/${subscriptionToken}/media/live.m3u`)).text();
+      const m3u = await (await fetch(`${base}/live.m3u`)).text();
       assert(m3u.includes("https://example.com/live.m3u8"), "the live playlist lacks the imported channel");
 
       const playback = await media(`/playback/${movie.id}`);
       assert(playback.headers.get("cache-control") === "no-store", "playback is cacheable");
       const play = await json<{ sources: { streams: { url: string }[] }[] }>(playback);
       assert(play.sources[0]?.streams[0]?.url === "https://example.com/smoke.m3u8", "playback lost the stream");
+
+      const unknown = await fetch(`${baseUrl}/m/${"f".repeat(32)}/v1/manifest`);
+      assert(unknown.status === 404, `an unknown client token returned ${unknown.status}`);
+      await unknown.text();
+      const old = await fetch(`${baseUrl}/s/${subscriptionToken}/media/v1/manifest`);
+      assert(old.status === 404, `the subscription still serves the library (${old.status})`);
+      await old.text();
     },
   },
   {

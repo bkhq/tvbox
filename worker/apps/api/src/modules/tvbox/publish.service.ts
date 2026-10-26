@@ -2,8 +2,6 @@ import type { PublishedSnapshot } from "./compose";
 import type { JsonObject } from "./parse";
 import type { AppDatabase } from "@/db";
 import { desc, eq } from "drizzle-orm";
-import { getMediaDb } from "@/modules/media/db";
-import { markPublished } from "@/modules/media/publish";
 import { AppError, NotFoundError } from "@/shared/lib/errors";
 import { ulid } from "@/shared/lib/id";
 import { composeForDevice } from "./compose";
@@ -77,11 +75,6 @@ async function writePublish(db: AppDatabase, snapshot: PublishedSnapshot, input:
 }
 
 export async function publish(db: AppDatabase, input: Omit<PublishInput, "restoredFrom">): Promise<PublishRow> {
-  // The media library goes out with the config, first: a config never
-  // points at a library that failed to publish.
-  const media = getMediaDb();
-  if (media)
-    await markPublished(media);
   return await writePublish(db, await buildSnapshot(db), input);
 }
 

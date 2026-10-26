@@ -39,10 +39,12 @@ Last synced with the template at `zzci/bun-tpl@25c3463` (2026-10-24).
   system, tvbox, media.
 - **Media library** — titles, seasons, episodes, people and lines, kept in
   the D1 database `tv-bk-io` (binding `MEDIA`); the Durable Object serves
-  the admin API but stores no media rows. The Worker answers `/media/*`
-  straight from those tables; publishing only marks which titles, seasons
-  and episodes are live (`media_published`). Titles, seasons and people have random
-  12-character ids, so the catalogue cannot be counted up.
+  the admin API but stores no media rows. It is a standalone library: each
+  media client has its own URL (`/m/<token>/…`), answered by the Worker
+  straight from those tables. A client sees published titles that are
+  public or in one of its channels; tvbox references a client URL like any
+  other source. Titles, seasons and people have random 12-character ids, so
+  the catalogue cannot be counted up.
 
 ## URLs
 
@@ -52,6 +54,7 @@ Last synced with the template at `zzci/bun-tpl@25c3463` (2026-10-24).
 | `/mg/` | admin console (`BASE_PATH`); its API is `/mg/api`, the raw API `/mg/api/raw` |
 | `/s/<token>/` | a device's subscription |
 | `/s/<token>/media/home` | the recommendation home: Douban, iQiyi and Netflix charts as a CMS site, first in every config (`apps/api/src/workers/home.ts`) |
+| `/m/<token>/{v1,cms,live.m3u,a}` | a media client: the native Media API, the Apple CMS site, the live playlist and uploaded images (`apps/api/src/workers/media`) |
 | `POST /api/raw/tvbox/enroll` | the app's Server link endpoint; the only API path at the root (see `docs/SERVER-LINK.md`) |
 | `/u/<channel>/<mode>-<abi>.json`, `/u/apk/…` | app updates |
 | `/dns-query` | DNS-over-HTTPS, forwarded to Cloudflare |
@@ -158,8 +161,8 @@ external id (`movie:<id>` / `tv:<id>`), so a second run updates what changed
 and never duplicates; titles created in the console are left alone. The
 display title, overview and tagline are the first of `zh-CN`, `zh-TW`,
 `zh-HK`, `en-US`, then the original; every locale in `--locales` is also
-stored per title (Details → Translations in the console). It publishes at the
-end unless `--no-publish`.
+stored per title (Details → Translations in the console). `--public` makes
+the imported titles visible to every media client.
 
 `.github/workflows/media-import.yml` runs it by hand (Actions → Media
 import → Run workflow) with the counts, floors and locales as inputs, and

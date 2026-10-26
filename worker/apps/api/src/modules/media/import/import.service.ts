@@ -55,6 +55,8 @@ interface Managed {
   readonly popularity: number;
   readonly sort: number;
   readonly collectionId: string | null;
+  /** Only when the import sets it; otherwise the title keeps its own. */
+  readonly public?: boolean;
   readonly genreIds: string[];
   readonly translations: { locale: string; title: string | null; overview: string | null; tagline: string | null }[];
   readonly externalIds: [ExternalSource, string][];
@@ -109,6 +111,9 @@ function wanted(item: ImportTitle, today: string): Managed {
     collectionId: item.collection
       ? collectionIdOf(item.collection.externalId)
       : null,
+    ...(item.public !== undefined
+      ? { public: item.public }
+      : {}),
     genreIds: [
       ...new Set(item.genreIds ?? []),
     ].sort(),
@@ -212,6 +217,9 @@ function managedOf(row: TitleRow, stored: Stored, item: Managed): Managed {
     popularity: row.popularity,
     sort: row.sort,
     collectionId: row.collectionId,
+    ...(item.public !== undefined
+      ? { public: row.public }
+      : {}),
     genreIds: stored.genres.map(g => g.id).sort(),
     translations: stored.translations,
     externalIds: item.externalIds.filter(([source, id]) => stored.externals.some(e => e.source === source && e.externalId === id)),

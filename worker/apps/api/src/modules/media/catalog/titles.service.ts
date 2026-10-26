@@ -6,7 +6,7 @@ import { chunked } from "@/shared/lib/chunk";
 import { AppError, NotFoundError } from "@/shared/lib/errors";
 import { mediaId, ulid } from "@/shared/lib/id";
 import { insertRows, runBatch } from "../db";
-import { mediaCollections, mediaEpisodes, mediaGenres, mediaSeasons, mediaTitleAliases, mediaTitleGenres, mediaTitles, mediaTitleTranslations } from "../schema";
+import { mediaChannels, mediaCollections, mediaEpisodes, mediaGenres, mediaSeasons, mediaTitleAliases, mediaTitleChannels, mediaTitleGenres, mediaTitles, mediaTitleTranslations } from "../schema";
 import { deleteOwned, deleteSeasonOwned } from "../shared/owners";
 import { getCategory } from "../taxonomy/taxonomy.service";
 
@@ -25,6 +25,7 @@ export interface AliasInput {
 export interface TitleView extends Omit<TitleRow, "originCountries"> {
   readonly originCountries: string[];
   readonly genreIds: string[];
+  readonly channelIds: string[];
   readonly aliases: Omit<AliasRow, "titleId">[];
   readonly translations: Omit<TranslationRow, "titleId">[];
   readonly seasonCount: number;
@@ -51,7 +52,9 @@ export interface TitleInput {
   readonly publishState?: PublishState | undefined;
   readonly origin?: string | null | undefined;
   readonly sort?: number | undefined;
+  readonly public?: boolean | undefined;
   readonly genreIds?: readonly string[] | undefined;
+  readonly channelIds?: readonly string[] | undefined;
   readonly aliases?: readonly AliasInput[] | undefined;
 }
 
@@ -64,11 +67,13 @@ export interface CreateTitleInput extends TitleInput {
 async function viewsOf(db: MediaDb, rows: readonly TitleRow[]): Promise<TitleView[]> {
   const ids = rows.map(r => r.id);
   const genres: { titleId: string; genreId: string }[] = [];
+  const channels: { titleId: string; channelId: string }[] = [];
   const aliases: AliasRow[] = [];
   const translations: TranslationRow[] = [];
   const seasons: { titleId: string; n: number }[] = [];
   for (const part of chunked(ids)) {
     genres.push(...await db.select().from(mediaTitleGenres).where(inArray(mediaTitleGenres.titleId, part)).all());
+    channels.push(...await db.select().from(mediaTitleChannels).where(inArray(mediaTitleChannels.titleId, part)).all());
     aliases.push(...await db.select().from(mediaTitleAliases).where(inArray(mediaTitleAliases.titleId, part)).orderBy(mediaTitleAliases.id).all());
     translations.push(...await db.select().from(mediaTitleTranslations).where(inArray(mediaTitleTranslations.titleId, part)).orderBy(mediaTitleTranslations.locale).all());
     seasons.push(...await db.select({
@@ -80,6 +85,7 @@ async function viewsOf(db: MediaDb, rows: readonly TitleRow[]): Promise<TitleVie
     ...r,
     originCountries: JSON.parse(r.originCountries) as string[],
     genreIds: genres.filter(g => g.titleId === r.id).map(g => g.genreId),
+    channelIds: channels.filter(c => c.titleId === r.id).map(c => c.channelId),
     aliases: aliases.filter(a => a.titleId === r.id).map(({ titleId: _, ...a }) => a),
     translations: translations.filter(x => x.titleId === r.id).map(({ titleId: _, ...x }) => x),
     seasonCount: seasons.find(s => s.titleId === r.id)?.n ?? 0,
@@ -153,6 +159,18 @@ export async function assertGenres(db: MediaDb, ids: readonly string[]): Promise
   }
 }
 
+export async function assertChannels(db: MediaDb, ids: readonly string[]): Promise<void> {
+  const unique = [
+    ...new Set(ids),
+  ];
+  for (const part of chunked(unique)) {
+    const found = await db.select({ id: mediaChannels.id }).from(mediaChannels).where(inArray(mediaChannels.id, part)).all();
+    const missing = part.find(id => !found.some(f => f.id === id));
+    if (missing)
+      throw new NotFoundError("Channel", missing);
+  }
+}
+
 async function assertCollection(db: MediaDb, id: string | null | undefined): Promise<void> {
   if (!id)
     return;
@@ -190,6 +208,7 @@ function columns(input: TitlePatch) {
     ...set("publishState"),
     ...set("origin"),
     ...set("sort"),
+    ...set("public"),
   } as Partial<typeof mediaTitles.$inferInsert>;
 }
 
@@ -200,6 +219,12 @@ function writeRelations(db: MediaDb, id: string, input: TitlePatch): Statement[]
     out.push(...insertRows(db, mediaTitleGenres, [
       ...new Set(input.genreIds),
     ].map(genreId => ({ titleId: id, genreId }))));
+  }
+  if (input.channelIds !== undefined) {
+    out.push(db.delete(mediaTitleChannels).where(eq(mediaTitleChannels.titleId, id)));
+    out.push(...insertRows(db, mediaTitleChannels, [
+      ...new Set(input.channelIds),
+    ].map(channelId => ({ titleId: id, channelId }))));
   }
   if (input.aliases !== undefined) {
     out.push(db.delete(mediaTitleAliases).where(eq(mediaTitleAliases.titleId, id)));
@@ -219,6 +244,8 @@ export async function createTitle(db: MediaDb, input: CreateTitleInput): Promise
   await assertCategoryAccepts(db, input.categoryId, input.kind);
   if (input.genreIds)
     await assertGenres(db, input.genreIds);
+  if (input.channelIds)
+    await assertChannels(db, input.channelIds);
   await assertCollection(db, input.collectionId);
   const id = mediaId();
   await runBatch(db, [
@@ -253,6 +280,8 @@ export async function updateTitle(db: MediaDb, id: string, input: TitlePatch): P
     await assertCategoryAccepts(db, input.categoryId, current.kind);
   if (input.genreIds)
     await assertGenres(db, input.genreIds);
+  if (input.channelIds)
+    await assertChannels(db, input.channelIds);
   await assertCollection(db, input.collectionId);
   await runBatch(db, [
     db.update(mediaTitles).set({

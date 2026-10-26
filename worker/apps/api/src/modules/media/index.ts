@@ -5,7 +5,9 @@ import { registerTokenScope } from "@/shared/lib/token-scopes";
 import { adminRequired, authRequired } from "@/shared/middleware/auth";
 import { artworkRoutes } from "./artwork/artwork.routes";
 import { catalogRoutes } from "./catalog/catalog.routes";
-import { getMediaDb } from "./db";
+import { clientsRoutes } from "./clients/clients.routes";
+import { getMediaDb, requireMediaDb } from "./db";
+import { bumpGeneration } from "./generation";
 import { importRoutes } from "./import/import.routes";
 import { liveRoutes } from "./live/live.routes";
 import { mediaBackupContribution } from "./media.backup";
@@ -28,6 +30,12 @@ export async function initMedia(): Promise<void> {
 export function mediaRoutes() {
   const router = new Hono<AppEnv>();
   router.use("/media/*", authRequired, adminRequired);
+  // Every successful write moves the generation, so clients see it at once.
+  router.use("/media/*", async (c, next) => {
+    await next();
+    if (c.req.method !== "GET" && c.req.method !== "HEAD" && c.res.status < 400)
+      await bumpGeneration(requireMediaDb());
+  });
   router.route("/", taxonomyRoutes());
   router.route("/", catalogRoutes());
   router.route("/", artworkRoutes());
@@ -36,6 +44,7 @@ export function mediaRoutes() {
   router.route("/", rowsRoutes());
   router.route("/", liveRoutes());
   router.route("/", importRoutes());
+  router.route("/", clientsRoutes());
   return router;
 }
 

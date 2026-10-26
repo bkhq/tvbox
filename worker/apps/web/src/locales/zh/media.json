@@ -1,7 +1,7 @@
 {
   "page": {
     "title": "媒体库",
-    "description": "自有的点播和直播内容：作品、季和集，播放源，首页编排。发布后由订阅的 /media 接口提供。"
+    "description": "自有的点播和直播内容：作品、季和集，播放源，首页编排。通过各客户端自己的地址（/m/<令牌>/…）提供。"
   },
   "tabs": {
     "titles": "作品",
@@ -9,7 +9,7 @@
     "taxonomy": "分类与题材",
     "home": "首页编排",
     "live": "直播",
-    "publish": "发布"
+    "clients": "客户端"
   },
   "actions": "操作",
   "add": "添加",
@@ -89,7 +89,10 @@
     "popularity": "热度",
     "tagline": "标语",
     "overview": "简介",
-    "genres": "题材"
+    "genres": "题材",
+    "audience": "可见范围",
+    "public": "公开（所有客户端可见）",
+    "nobody": "既未公开也不在任何渠道：没有客户端能看到。"
   },
   "seasons": {
     "add": "添加季",
@@ -185,8 +188,8 @@
     }
   },
   "translations": {
-      "empty": "还没有翻译。导入会按语言写入；也可以在这里手动添加。",
-      "locale": "语言（如 en-US）"
+    "empty": "还没有翻译。导入会按语言写入；也可以在这里手动添加。",
+    "locale": "语言（如 en-US）"
   },
   "external": {
     "empty": "还没有外部 ID。"
@@ -267,17 +270,30 @@
     "addChannel": "添加频道",
     "epgHint": "XMLTV 节目单地址，每行一个，原样传给播放器。"
   },
-  "publish": {
-    "title": "发布",
-    "description": "发布后，新上线的作品、季和集才会出现在客户端；已上线作品的修改（线路、简介、图片等）无需发布，约 1 分钟内生效。订阅配置也一并发布。",
-    "publish": "立即发布",
-    "published": "已发布",
-    "entries": "订阅条目",
-    "entriesHint": "把媒体库加进订阅：添加后，每台设备会拿到带有自己令牌的地址。",
-    "added": "已添加",
-    "entry": {
-      "site": "点播站点（CMS，带原生接口地址）",
-      "live": "直播源（M3U）"
-    }
+  "clients": {
+    "title": "客户端",
+    "hint": "每个客户端有自己的地址和令牌。它能看到已上线、且公开或属于其渠道的作品；修改约 1 分钟内生效，无需发布。TVBox 等应用把这些地址当作普通源引用。",
+    "channels": "渠道",
+    "urls": "地址",
+    "enabled": "启用",
+    "url": {
+      "cms": "CMS",
+      "v1": "原生接口",
+      "live": "直播 M3U"
+    },
+    "copied": "地址已复制",
+    "rotate": "更换令牌",
+    "rotateTitle": "更换令牌",
+    "rotateDescription": "“{{name}}”的旧地址将立即失效，引用它的地方都要改成新地址。",
+    "deleteTitle": "删除客户端",
+    "deleteDescription": "删除“{{name}}”？它的地址将立即失效。",
+    "needChannel": "先在右侧添加一个渠道。",
+    "staleTitle": "需要改地址的订阅条目",
+    "staleHint": "这些 TVBox 条目仍使用旧的 @media/ 地址，已不再提供。请改为某个客户端的地址。"
+  },
+  "channels": {
+    "title": "渠道",
+    "hint": "渠道是内容分区。每个客户端至少属于一个渠道；渠道默认看不到任何内容，除非作品公开或被加入该渠道。",
+    "counts": "{{titles}} 部作品 · {{clients}} 个客户端"
   }
 }

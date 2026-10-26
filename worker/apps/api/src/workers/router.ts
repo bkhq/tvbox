@@ -1,5 +1,6 @@
 import { LINK_PATH } from "./control";
 import { DOH_PATH } from "./doh";
+import { MEDIA_PREFIX } from "./media";
 import { SUBSCRIPTION_PREFIX } from "./subscription";
 import { UPDATES_PREFIX } from "./updates";
 
@@ -8,6 +9,7 @@ import { UPDATES_PREFIX } from "./updates";
  *
  *   landing       `/`, the public download page
  *   subscription  `/s/…`, TVBox configs from R2
+ *   media         `/m/…`, the media library per client, from D1
  *   updates       `/u/…`, app updates from R2
  *   doh           `/dns-query`, DNS-over-HTTPS forwarded to Cloudflare
  *   control       `/link?<id>/<key>/<address>`, the phone control entry that sends the phone on to its TV
@@ -19,7 +21,7 @@ import { UPDATES_PREFIX } from "./updates";
  *   redirect      `${base}` without its trailing slash
  *   missing       anything else
  */
-export type Route = "landing" | "subscription" | "updates" | "doh" | "control" | "app" | "enroll" | "console" | "redirect" | "missing";
+export type Route = "landing" | "subscription" | "media" | "updates" | "doh" | "control" | "app" | "enroll" | "console" | "redirect" | "missing";
 
 /** The one API path served at the site root. */
 export const ENROLL_PATH = "/api/raw/tvbox/enroll";
@@ -39,6 +41,8 @@ export function routeRequest(pathname: string, base: string): Route {
     return "control";
   if (pathname.startsWith(SUBSCRIPTION_PREFIX))
     return "subscription";
+  if (pathname.startsWith(MEDIA_PREFIX))
+    return "media";
   if (pathname.startsWith(UPDATES_PREFIX))
     return "updates";
   if (pathname === DOH_PATH)

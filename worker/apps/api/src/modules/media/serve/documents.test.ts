@@ -1,11 +1,11 @@
 import type { MediaDb } from "../db";
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { createEpisode, createSeason, generateEpisodes, listEpisodes, listSeasons, updateSeason } from "../catalog/seasons.service";
-import { createTitle } from "../catalog/titles.service";
+import { createTitle, updateTitle } from "../catalog/titles.service";
 import { putTranslation } from "../catalog/translations.service";
+import { createChannel } from "../clients/clients.service";
 import { playbackSchema, seasonDetailSchema, titleDetailSchema } from "../contract";
 import { addStream, createSource } from "../playable/playable.service";
-import { markPublished } from "../publish";
 import { openTestDb } from "../test-db";
 import { buildCmsItems } from "./cms";
 import { buildTitles } from "./documents";
@@ -22,8 +22,8 @@ beforeEach(async () => {
 
 afterEach(() => dispose());
 
-async function build(ids: string[]) {
-  const slice = await loadSlice(db, ids);
+async function build(ids: string[], channels: string[] = []) {
+  const slice = await loadSlice(db, { channels }, ids);
   const built = buildTitles(slice, TODAY);
   const cms = buildCmsItems(built.titles, built.seasons, built.playback, new Map(), new Map());
   return { ...built, cms };
@@ -38,6 +38,7 @@ async function series() {
     originCountries: ["CN"],
     genreIds: ["g18"],
     publishState: "published",
+    public: true,
   });
   const s1 = (await listSeasons(db, t.id))[0]!;
   await updateSeason(db, s1.id, { publishState: "published", status: "ended", airDate: "2019-06-27" });
@@ -54,7 +55,7 @@ async function series() {
 }
 
 describe("building documents from a slice", () => {
-  test("only marked, playable titles are built", async () => {
+  test("only published, visible, playable titles are built", async () => {
     const draft = await createTitle(db, { kind: "movie", categoryId: "movie", title: "草稿" });
     const empty = await createTitle(db, {
       kind: "series",
@@ -72,7 +73,8 @@ describe("building documents from a slice", () => {
     const src = await createSource(db, { titleId: m.id }, { name: "自建", quality: "4K" });
     await addStream(db, src.id, { url: "https://v/m.m3u8" });
     expect((await build([m.id])).titles).toEqual([]);
-    await markPublished(db);
+    await updateTitle(db, m.id, { public: true });
+    await updateTitle(db, draft.id, { public: true });
 
     const built = await build([draft.id, empty.id, m.id]);
     expect(built.titles.map(t => t.id)).toEqual([m.id]);
@@ -89,7 +91,6 @@ describe("building documents from a slice", () => {
 
   test("seasons gate episodes by air date and playback continues into the next season", async () => {
     const { title, s1, s2 } = await series();
-    await markPublished(db);
 
     const built = await build([title.id]);
     const detail = titleDetailSchema.parse(built.titles[0]!.detail);
@@ -111,16 +112,32 @@ describe("building documents from a slice", () => {
     expect(built.cms.map(i => i.vodId)).toEqual([s1.id, s2.id]);
   });
 
-  test("a season published after the last publish stays hidden until the next", async () => {
+  test("a draft season stays hidden until it is published", async () => {
     const { title } = await series();
-    await markPublished(db);
-    const s3 = await createSeason(db, title.id, { seasonNumber: 3, publishState: "published" });
+    const s3 = await createSeason(db, title.id, { seasonNumber: 3 });
     const e = await createEpisode(db, s3.id, { episodeNumber: 1 });
     const src = await createSource(db, { seasonId: s3.id }, { name: "自建" });
     await addStream(db, src.id, { url: "https://v/3/1.m3u8", episodeId: e.id });
     expect((await build([title.id])).seasons.map(s => s.number)).toEqual([1, 2]);
-    await markPublished(db);
+    await updateSeason(db, s3.id, { publishState: "published" });
     expect((await build([title.id])).seasons.map(s => s.number)).toEqual([1, 2, 3]);
+  });
+
+  test("a title in a channel is built only for that channel", async () => {
+    const vip = await createChannel(db, { name: "VIP" });
+    const other = await createChannel(db, { name: "Other" });
+    const m = await createTitle(db, {
+      kind: "movie",
+      categoryId: "movie",
+      title: "内部片",
+      publishState: "published",
+      channelIds: [vip.id],
+    });
+    const src = await createSource(db, { titleId: m.id }, { name: "自建" });
+    await addStream(db, src.id, { url: "https://v/vip.m3u8" });
+    expect((await build([m.id])).titles).toEqual([]);
+    expect((await build([m.id], [other.id])).titles).toEqual([]);
+    expect((await build([m.id], [other.id, vip.id])).titles.map(t => t.id)).toEqual([m.id]);
   });
 
   test("translations go into the detail document", async () => {
@@ -129,10 +146,10 @@ describe("building documents from a slice", () => {
       categoryId: "movie",
       title: "盗梦空间",
       publishState: "published",
+      public: true,
     });
     await putTranslation(db, m.id, "en-US", { title: "Inception", overview: "A thief who steals secrets", tagline: null });
     await putTranslation(db, m.id, "zh-TW", { title: "全面啟動" });
-    await markPublished(db);
 
     const detail = titleDetailSchema.parse((await build([m.id])).titles[0]!.detail);
     expect(detail.translations).toEqual({

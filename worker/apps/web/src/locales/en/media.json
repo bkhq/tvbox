@@ -1,7 +1,7 @@
 {
   "page": {
     "title": "Media library",
-    "description": "Our own on-demand and live content: titles, seasons and episodes, sources, the home page. Served by the subscription's /media API once published."
+    "description": "Our own on-demand and live content: titles, seasons and episodes, sources, the home page. Served to each client through its own URL (/m/<token>/…)."
   },
   "tabs": {
     "titles": "Titles",
@@ -9,7 +9,7 @@
     "taxonomy": "Categories & genres",
     "home": "Home page",
     "live": "Live",
-    "publish": "Publish"
+    "clients": "Clients"
   },
   "actions": "Actions",
   "add": "Add",
@@ -89,7 +89,10 @@
     "popularity": "Popularity",
     "tagline": "Tagline",
     "overview": "Overview",
-    "genres": "Genres"
+    "genres": "Genres",
+    "audience": "Visible to",
+    "public": "Public (every client)",
+    "nobody": "Neither public nor in a channel: no client sees it."
   },
   "seasons": {
     "add": "Add season",
@@ -185,8 +188,8 @@
     }
   },
   "translations": {
-      "empty": "No translations yet. Imports write one per locale; add one by hand here.",
-      "locale": "Locale (e.g. en-US)"
+    "empty": "No translations yet. Imports write one per locale; add one by hand here.",
+    "locale": "Locale (e.g. en-US)"
   },
   "external": {
     "empty": "No external IDs yet."
@@ -267,17 +270,30 @@
     "addChannel": "Add channel",
     "epgHint": "XMLTV guide URLs, one a line, passed on to players as they are."
   },
-  "publish": {
-    "title": "Publish",
-    "description": "Newly published titles, seasons and episodes reach clients only after a publish; edits to titles already live (lines, overviews, images and so on) show within about a minute without one. The subscription config is published too.",
-    "publish": "Publish now",
-    "published": "Published",
-    "entries": "Subscription entries",
-    "entriesHint": "Add the library to the subscription; every device gets URLs carrying its own token.",
-    "added": "Added",
-    "entry": {
-      "site": "On-demand site (CMS, with the native API URL)",
-      "live": "Live source (M3U)"
-    }
+  "clients": {
+    "title": "Clients",
+    "hint": "Each client has its own URL and token. It sees live titles that are public or in one of its channels; changes show within about a minute, with no publish step. Apps such as TVBox reference these URLs like any other source.",
+    "channels": "Channels",
+    "urls": "URLs",
+    "enabled": "Enabled",
+    "url": {
+      "cms": "CMS",
+      "v1": "Native API",
+      "live": "Live M3U"
+    },
+    "copied": "URL copied",
+    "rotate": "Rotate token",
+    "rotateTitle": "Rotate token",
+    "rotateDescription": "The old URL of \"{{name}}\" stops working at once; everything that references it needs the new URL.",
+    "deleteTitle": "Delete client",
+    "deleteDescription": "Delete \"{{name}}\"? Its URL stops working at once.",
+    "needChannel": "Add a channel on the right first.",
+    "staleTitle": "Subscription entries to repoint",
+    "staleHint": "These TVBox entries still use the old @media/ URLs, which are no longer served. Point them at a client URL instead."
+  },
+  "channels": {
+    "title": "Channels",
+    "hint": "A channel is a content partition. Every client belongs to at least one channel; a channel sees nothing unless a title is public or added to it.",
+    "counts": "{{titles}} titles · {{clients}} clients"
   }
 }

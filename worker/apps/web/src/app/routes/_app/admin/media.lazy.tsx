@@ -2,10 +2,10 @@
 import { createLazyFileRoute } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/shared/components/ui/tabs";
+import { ClientsTab } from "./-media-clients";
 import { HomeTab } from "./-media-home";
 import { LiveTab } from "./-media-live";
 import { PeopleTab } from "./-media-people";
-import { PublishTab } from "./-media-publish";
 import { TaxonomyTab } from "./-media-taxonomy";
 import { TitlesTab } from "./-media-titles";
 
@@ -30,14 +30,14 @@ function MediaPage() {
           <TabsTrigger value="taxonomy">{t("tabs.taxonomy")}</TabsTrigger>
           <TabsTrigger value="home">{t("tabs.home")}</TabsTrigger>
           <TabsTrigger value="live">{t("tabs.live")}</TabsTrigger>
-          <TabsTrigger value="publish">{t("tabs.publish")}</TabsTrigger>
+          <TabsTrigger value="clients">{t("tabs.clients")}</TabsTrigger>
         </TabsList>
         <TabsContent value="titles"><TitlesTab /></TabsContent>
         <TabsContent value="people"><PeopleTab /></TabsContent>
         <TabsContent value="taxonomy"><TaxonomyTab /></TabsContent>
         <TabsContent value="home"><HomeTab /></TabsContent>
         <TabsContent value="live"><LiveTab /></TabsContent>
-        <TabsContent value="publish"><PublishTab /></TabsContent>
+        <TabsContent value="clients"><ClientsTab /></TabsContent>
       </Tabs>
     </div>
   );

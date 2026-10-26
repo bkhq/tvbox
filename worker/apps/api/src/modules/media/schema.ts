@@ -1,10 +1,10 @@
 import { index, integer, primaryKey, real, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqlite-core";
 
 // The media library's source data (docs/plan/media-library.md, part 1).
-// Admins edit these rows and the Worker serves them to clients directly;
-// publishing only marks which titles, seasons and episodes are live
-// (`media_published`). They live in D1 (`d1/media/`), not in the Durable
-// Object. Ids that clients see — titles,
+// Admins edit these rows and the Worker serves them straight to each client
+// (`media_clients`, `/m/<token>/…`): what is published, limited to public
+// titles and the client's channels. They live in D1 (`d1/media/`), not in the
+// Durable Object. Ids that clients see — titles,
 // seasons, people — are random 12-character strings (`mediaId`) so the
 // catalogue cannot be enumerated; the rest are ULIDs. Images and external ids
 // hang off several owner types and so carry no foreign key: the owner's
@@ -108,6 +108,8 @@ export const mediaTitles = sqliteTable("media_titles", {
   popularity: real("popularity").notNull().default(0),
   collectionId: text("collection_id").references(() => mediaCollections.id, { onDelete: "set null" }),
   publishState: text("publish_state", { enum: PUBLISH_STATES }).notNull().default("draft"),
+  // Seen by every client; otherwise only by clients of the title's channels.
+  public: integer("public", { mode: "boolean" }).notNull().default(false),
   origin: text("origin"),
   sort: integer("sort").notNull().default(0),
   createdAt: createdAt(),
@@ -319,18 +321,56 @@ export const mediaRowItems = sqliteTable("media_row_items", {
   }),
 ]);
 
-// What devices see: the ids the last publish marked live.
-export const mediaPublished = sqliteTable("media_published", {
+// ─── Clients ───
+
+// A consumer of the library, reading it through `/m/<token>/…`.
+export const mediaClients = sqliteTable("media_clients", {
   id: text("id").primaryKey(),
-  kind: text("kind", {
-    enum: ["title", "season", "episode"],
-  }).notNull(),
+  name: text("name").notNull(),
+  // Kept so the console can show the URL again; `tokenHash` is what is looked up.
+  token: text("token").notNull(),
+  tokenHash: text("token_hash").notNull(),
+  enabled: integer("enabled", { mode: "boolean" }).notNull().default(true),
+  note: text("note").notNull().default(""),
+  createdAt: createdAt(),
+  updatedAt: updatedAt(),
 }, t => [
-  index("idx_media_published_kind").on(t.kind),
+  uniqueIndex("idx_media_clients_token").on(t.tokenHash),
+]);
+
+// A partition of the library: a client sees public titles and its channels' titles.
+export const mediaChannels = sqliteTable("media_channels", {
+  id: text("id").primaryKey(),
+  name: text("name").notNull(),
+  sort: integer("sort").notNull().default(0),
+  createdAt: createdAt(),
+  updatedAt: updatedAt(),
+}, t => [
+  uniqueIndex("idx_media_channels_name").on(t.name),
+]);
+
+export const mediaClientChannels = sqliteTable("media_client_channels", {
+  clientId: text("client_id").notNull().references(() => mediaClients.id, { onDelete: "cascade" }),
+  channelId: text("channel_id").notNull().references(() => mediaChannels.id, { onDelete: "cascade" }),
+}, t => [
+  primaryKey({
+    columns: [t.clientId, t.channelId],
+  }),
+  index("idx_media_client_channels_channel").on(t.channelId),
+]);
+
+export const mediaTitleChannels = sqliteTable("media_title_channels", {
+  titleId: text("title_id").notNull().references(() => mediaTitles.id, { onDelete: "cascade" }),
+  channelId: text("channel_id").notNull().references(() => mediaChannels.id, { onDelete: "cascade" }),
+}, t => [
+  primaryKey({
+    columns: [t.titleId, t.channelId],
+  }),
+  index("idx_media_title_channels_channel").on(t.channelId),
 ]);
 
 // Key/value settings of the library: `hero_title_ids`, `live_epg_urls`,
-// `published_generation`, …
+// `generation` (moved by every admin write; clients cache by it), …
 export const mediaSettings = sqliteTable("media_settings", {
   key: text("key").primaryKey(),
   value: text("value").notNull(),

@@ -1,11 +1,13 @@
 import type { DurableObjectNamespace, DurableObjectState, Fetcher, R2Bucket } from "@cloudflare/workers-types";
-import type { MediaDatabase, SubscriptionBucket } from "./subscription";
+import type { MediaDatabase } from "./media";
+import type { SubscriptionBucket } from "./subscription";
 import { bootstrap } from "@/app";
 import { createMediaDb, setMediaDb } from "@/modules/media/db";
 import { setPlatform } from "@/platform";
 import { handleControl } from "./control";
 import { handleDoh } from "./doh";
 import { handleLanding } from "./landing";
+import { handleMedia } from "./media";
 import { createWorkersPlatform } from "./platform";
 import { registerR2Driver } from "./r2";
 import { ENROLL_PATH, normalizeBasePath, routeRequest } from "./router";
@@ -166,7 +168,9 @@ export default {
       case "landing":
         return handleLanding(request, files);
       case "subscription":
-        return handleSubscription(request, { ...files, MEDIA: env.MEDIA, TMDB_TOKEN: env.TMDB_TOKEN });
+        return handleSubscription(request, { ...files, TMDB_TOKEN: env.TMDB_TOKEN });
+      case "media":
+        return handleMedia(request, { ...files, MEDIA: env.MEDIA });
       case "updates":
         return handleUpdates(request, files);
       case "doh":

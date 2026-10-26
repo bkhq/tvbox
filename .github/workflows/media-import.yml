@@ -25,10 +25,10 @@ on:
         description: "Locales stored as translations, comma-separated"
         type: string
         default: "zh-CN,en-US"
-      publish:
-        description: "Publish after importing"
+      public:
+        description: "Make the imported titles visible to every client"
         type: boolean
-        default: true
+        default: false
       dry_run:
         description: "Only fetch and validate; write nothing"
         type: boolean
@@ -76,11 +76,11 @@ jobs:
           SERIES: ${{ inputs.series }}
           MIN_VOTES: ${{ inputs.min_votes }}
           LOCALES: ${{ inputs.locales }}
-          PUBLISH: ${{ inputs.publish }}
+          PUBLIC: ${{ inputs.public }}
           DRY_RUN: ${{ inputs.dry_run }}
         run: |
           flags="--movies $MOVIES --series $SERIES --min-votes $MIN_VOTES --locales $LOCALES --json import-report.json"
-          [ "$PUBLISH" = true ] || flags="$flags --no-publish"
+          [ "$PUBLIC" = true ] && flags="$flags --public"
           [ "$DRY_RUN" = true ] && flags="$flags --dry-run"
           bun scripts/media-import-tmdb.ts $flags
 

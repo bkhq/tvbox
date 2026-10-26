@@ -25,6 +25,7 @@
 - 源数据表不在 DO SQLite 里，而在 D1 库 `tv-bk-io` 中与只读模型同库（2026-10-17，计划 `20261017-0151-media-source-in-d1`）：DO 只跑管理 API，通过 `modules/media/db.ts` 的句柄读写，所有写入都是 `db.batch()`（D1 没有交互式事务）。作品、季、人物的 id 是 12 位随机字符串（`mediaId()`），对外裸用、不带类型前缀；只读模型的 id 列相应改为 TEXT，`rm_search` 多一列 `type`。备份模块通过 `BackupContribution.db` 读写这些表。
 - 线路和播放地址的改动只在让某集（或电影）从不可播变为可播时才更新作品的 `updatedAt`；换地址、加备用线路、删线路只重新发布 `rm_playback` 和对应的 CMS 条目，元数据不变。
 - 只读模型（`rm_*` 表、投影器、后台“重建只读模型”）已全部移除（2026-10-25，计划 `20261025-0124-media-serve-from-source`）：全库投影在 DO 里超出内存。Worker 每次请求直接查 D1 源表，只加载当页作品；发布只把已发布的作品、季、集的 id 写进 `media_published`，并更新 `media_settings` 里的 `published_generation`。新上线的内容要发布后才可见；已上线内容的修改不经发布，约 1 分钟内生效。播出日期按请求当天（UTC）判断，到播出日的集无需再发布。搜索改为对标题、原名、翻译和别名做 `LIKE`，按热度排序，不再按演员名匹配作品。以上各条里关于 `rm_*` 表和投影的描述已失效。
+- 媒体库改为独立的通用内容库，按客户端地址发布（2026-10-25，计划 `20261025-2028-media-clients`）：每个媒体客户端有自己的令牌地址 `/m/<token>/{v1,cms,live.m3u,a}`，不再挂在 tvbox 订阅的 `/s/<token>/media/*` 下（只保留 tvbox 自己的推荐首页 `/s/<token>/media/home`）。客户端至少属于一个渠道；渠道默认看不到任何内容，作品公开（`media_titles.public`）或加入客户端的某个渠道才可见。`media_published` 和发布步骤已移除：`publish_state` 为 `published` 即上线，每次后台写入都会更新 `media_settings.generation`。`@media/` 订阅条目和后台“发布”页已移除，tvbox 像引用其他源一样引用客户端地址。以上各条里关于 `/s/<token>/media`、发布和 `@media/` 条目的描述已失效。
 
 ## 目标
 

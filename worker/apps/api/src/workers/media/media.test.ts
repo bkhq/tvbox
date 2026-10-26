@@ -1,11 +1,10 @@
 import type { z } from "zod";
 import type { MediaDb } from "@/modules/media/db";
-import type { DevicesFile } from "@/modules/tvbox/storage";
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
-import { createHash } from "node:crypto";
 import { addImage } from "@/modules/media/artwork/images.service";
 import { createEpisode, listSeasons, updateSeason } from "@/modules/media/catalog/seasons.service";
-import { createTitle } from "@/modules/media/catalog/titles.service";
+import { createTitle, updateTitle } from "@/modules/media/catalog/titles.service";
+import { createChannel, createClient, rotateClientToken, updateClient } from "@/modules/media/clients/clients.service";
 import {
   facetsSchema,
   homeSchema,
@@ -20,35 +19,37 @@ import {
 } from "@/modules/media/contract";
 import { addCredit, createPerson } from "@/modules/media/people/people.service";
 import { addStream, createSource } from "@/modules/media/playable/playable.service";
-import { markPublished } from "@/modules/media/publish";
 import { createRow } from "@/modules/media/taxonomy/rows.service";
 import { openTestDb } from "@/modules/media/test-db";
-import { DEVICES_KEY } from "@/modules/tvbox/storage";
 import { handleMedia } from ".";
 import { handleSubscription } from "../subscription";
 
-const TOKEN = "0123456789abcdef0123456789abcdef";
 const SHA = "d".repeat(64);
-const ASSET_BASE = `https://worker.example/s/${TOKEN}/a/`;
+const files = {
+  get: async (key: string) => (key.includes(SHA)
+    ? { body: new Response("png").body }
+    : null),
+};
 
 let db: MediaDb;
 let dispose: () => void;
+let channel: string;
+let token: string;
 beforeEach(async () => {
   ({ db, dispose } = await openTestDb());
+  channel = (await createChannel(db, { name: "main" })).id;
+  ({ token } = await createClient(db, {
+    name: "box",
+    channelIds: [channel],
+  }));
 });
 
 afterEach(() => dispose());
 
-async function call(path: string, headers: Record<string, string> = {}) {
-  const url = `https://worker.example/s/${TOKEN}/media${path}`;
-  // A fresh key each time: the generation is not remembered between calls.
-  return await handleMedia({
-    request: new Request(url, { headers }),
-    db,
-    cacheKey: {},
-    path: new URL(url).pathname.slice(`/s/${TOKEN}/media`.length),
-    assetBase: ASSET_BASE,
-  });
+const assetBase = () => `https://worker.example/m/${token}/a/`;
+
+async function call(path: string, headers: Record<string, string> = {}, as = token, method = "GET") {
+  return await handleMedia(new Request(`https://worker.example/m/${as}${path}`, { headers, method }), { FILES: files }, db);
 }
 
 async function body<S extends z.ZodType>(path: string, schema: S): Promise<z.infer<S>> {
@@ -67,6 +68,7 @@ async function movie(title: string, extra: { year?: number; country?: string; ge
     genreIds: [extra.genre ?? "g28"],
     popularity: extra.popularity ?? 0,
     publishState: "published",
+    public: true,
   });
   const src = await createSource(db, { titleId: t.id }, { name: "自建" });
   await addStream(db, src.id, { url: `https://v/${t.id}.m3u8` });
@@ -83,6 +85,7 @@ async function library() {
     categoryId: "tv",
     title: "漫长的季节",
     publishState: "published",
+    public: true,
   });
   const season = (await listSeasons(db, series.id))[0]!;
   await updateSeason(db, season.id, { publishState: "published" });
@@ -95,17 +98,13 @@ async function library() {
     name: "精选",
     titleIds: [a.id, b.id, c.id],
   });
-  await markPublished(db);
   return { a, b, c, series, season, e1, person };
 }
 
 describe("media v1", () => {
-  test("before the first publish there is nothing to serve", async () => {
-    const res = await call("/v1/manifest");
-    expect(res.status).toBe(503);
-    expect(await res.json()).toMatchObject({
-      error: { code: "NOT_PUBLISHED" },
-    });
+  test("an empty library is served before anything is published", async () => {
+    const manifest = await body("/v1/manifest", manifestSchema);
+    expect(manifest.categories.every(x => x.count === 0)).toBe(true);
   });
 
   test("manifest, home and a row's next page", async () => {
@@ -179,10 +178,10 @@ describe("media v1", () => {
     expect((await call("/v1/search?q=")).status).toBe(422);
   });
 
-  test("documents by id, with assets under the device's prefix", async () => {
+  test("documents by id, with assets under the client's prefix", async () => {
     const { a, season, e1, person } = await library();
     const title = await body(`/v1/titles/${a.id}`, titleDetailSchema);
-    expect(title.images.poster!.url).toBe(`${ASSET_BASE}${SHA}/poster.jpg`);
+    expect(title.images.poster!.url).toBe(`${assetBase()}${SHA}/poster.jpg`);
     expect((await body(`/v1/seasons/${season.id}`, seasonDetailSchema)).episodes.length).toBe(1);
     expect((await body(`/v1/people/${person.id}`, personSchema)).credits[0]!.title.id).toBe(a.id);
     expect((await body(`/v1/playback/${e1.id}`, playbackSchema)).sources[0]!.streams[0]!.url).toBe("https://v/s1e1.m3u8");
@@ -206,7 +205,7 @@ describe("media v1", () => {
     const { a } = await library();
     const res = await call(`/v1/titles/${a.id}`);
     const etag = res.headers.get("etag")!;
-    expect(etag).toMatch(/^"[0-9a-z]{26}"$/);
+    expect(etag).toMatch(/^"0\.[0-9a-f]{12}"$/);
     expect(res.headers.get("cache-control")).toBe("private, max-age=60");
     expect((await call(`/v1/titles/${a.id}`, { "if-none-match": etag })).status).toBe(304);
     const play = await call(`/v1/playback/${a.id}`, { "if-none-match": etag });
@@ -235,26 +234,120 @@ describe("media v1", () => {
   });
 });
 
-describe("through the subscription", () => {
-  const sha = (s: string) => createHash("sha256").update(s).digest("hex");
-  const devices: DevicesFile = {
-    devices: {
-      [sha(TOKEN)]: { id: "d1", upstreams: null },
-    },
-  };
-  const files = {
-    get: async (key: string) => (key === DEVICES_KEY
-      ? new Response(JSON.stringify(devices))
-      : null),
-  };
+describe("client urls", () => {
+  test("unknown, disabled and rotated tokens are not found; only reads are allowed", async () => {
+    await library();
+    expect((await call("/v1/manifest", {}, "f".repeat(32))).status).toBe(404);
+    expect((await handleMedia(new Request("https://worker.example/m/"), {}, db)).status).toBe(404);
+    expect((await call("/v1/manifest", {}, token, "POST")).status).toBe(405);
 
-  test("a device's token reaches the media API; without a library it is missing", async () => {
-    const { a } = await library();
-    const url = `https://worker.example/s/${TOKEN}/media/v1/titles/${a.id}`;
-    const res = await handleSubscription(new Request(url), { FILES: files }, db);
+    const other = await createClient(db, {
+      name: "off",
+      channelIds: [channel],
+    });
+    await updateClient(db, other.id, { enabled: false });
+    expect((await call("/v1/manifest", {}, other.token)).status).toBe(404);
+
+    const third = await createClient(db, {
+      name: "rotated",
+      channelIds: [channel],
+    });
+    const rotated = await rotateClientToken(db, third.id);
+    expect((await call("/v1/manifest", {}, third.token)).status).toBe(404);
+    expect((await call("/v1/manifest", {}, rotated.token)).status).toBe(200);
+  });
+
+  test("assets are served by content hash", async () => {
+    const res = await call(`/a/${SHA}/poster.png`);
     expect(res.status).toBe(200);
-    expect(((await res.json()) as { images: { poster: { url: string } } }).images.poster.url).toBe(`${ASSET_BASE}${SHA}/poster.jpg`);
-    expect((await handleSubscription(new Request(url), { FILES: files })).status).toBe(404);
-    expect((await handleSubscription(new Request(url.replace(TOKEN, "f".repeat(32))), { FILES: files }, db)).status).toBe(404);
+    expect(res.headers.get("content-type")).toBe("image/png");
+    expect(await res.text()).toBe("png");
+    expect((await call(`/a/${"e".repeat(64)}/x.png`)).status).toBe(404);
+    expect((await call("/a/nope")).status).toBe(404);
+  });
+
+  test("a title is seen when public or in one of the client's channels", async () => {
+    const { a, b, c, person } = await library();
+    const vip = (await createChannel(db, { name: "vip" })).id;
+    const elsewhere = (await createChannel(db, { name: "elsewhere" })).id;
+    await updateTitle(db, a.id, {
+      public: false,
+      channelIds: [vip],
+    });
+    await updateTitle(db, b.id, {
+      public: false,
+      channelIds: [channel],
+    });
+    await updateTitle(db, c.id, { public: false });
+    const insider = (await createClient(db, {
+      name: "insider",
+      channelIds: [elsewhere, vip],
+    })).token;
+
+    const ids = async (as: string) => pageSchema.parse(await (await call("/v1/browse?category=movie", {}, as)).json()).items.map(i => i.id).sort();
+    expect(await ids(token)).toEqual([b.id]);
+    expect(await ids(insider)).toEqual([a.id]);
+    expect((await call(`/v1/titles/${a.id}`)).status).toBe(404);
+    expect((await call(`/v1/titles/${a.id}`, {}, insider)).status).toBe(200);
+    expect((await call(`/v1/titles/${c.id}`, {}, insider)).status).toBe(404);
+    expect(searchSchema.parse(await (await call(`/v1/search?q=${encodeURIComponent("流浪地球")}`)).json()).titles.map(t => t.id)).toEqual([b.id]);
+    expect(facetsSchema.parse(await (await call("/v1/facets?category=movie")).json()).country).toEqual([
+      { value: "CN", label: "中国大陆", count: 1 },
+    ]);
+    expect(manifestSchema.parse(await (await call("/v1/manifest")).json()).categories.find(x => x.id === "movie")!.count).toBe(1);
+    expect((await call(`/v1/people/${person.id}`)).status).toBe(404);
+    expect(personSchema.parse(await (await call(`/v1/people/${person.id}`, {}, insider)).json()).credits[0]!.title.id).toBe(a.id);
+    const cms = async (as: string) => (await (await call("/cms?ac=detail&t=movie&pg=1", {}, as)).json() as { list: { vod_id: string }[] }).list.map(v => v.vod_id);
+    expect(await cms(token)).toEqual([b.id]);
+    expect(await cms(insider)).toEqual([a.id]);
+  });
+
+  test("the shared cache is keyed by channels, not by client", async () => {
+    const { a } = await library();
+    const keys: string[] = [];
+    const store = new Map<string, { body: string; headers: Headers }>();
+    const g = globalThis as { caches?: unknown };
+    g.caches = {
+      default: {
+        match: async (key: string) => (store.has(key)
+          ? new Response(store.get(key)!.body, { headers: store.get(key)!.headers })
+          : undefined),
+        put: async (key: string, res: Response) => {
+          keys.push(key);
+          store.set(key, { body: await res.text(), headers: res.headers });
+        },
+      },
+    };
+    try {
+      const twin = (await createClient(db, {
+        name: "twin",
+        channelIds: [channel],
+      })).token;
+      const vip = (await createChannel(db, { name: "vip" })).id;
+      const other = (await createClient(db, {
+        name: "other",
+        channelIds: [vip],
+      })).token;
+      for (const as of [token, twin, other])
+        expect((await call(`/v1/titles/${a.id}`, {}, as)).status).toBe(200);
+      expect(keys.length).toBe(2);
+      expect(keys.every(k => !k.includes(token) && !k.includes(twin))).toBe(true);
+      // Served from the cache, the assets still name the client's own prefix.
+      const twinTitle = titleDetailSchema.parse(await (await call(`/v1/titles/${a.id}`, {}, twin)).json());
+      expect(twinTitle.images.poster!.url).toBe(`https://worker.example/m/${twin}/a/${SHA}/poster.jpg`);
+      expect(keys.length).toBe(2);
+    }
+    finally {
+      delete g.caches;
+    }
+  });
+
+  test("the subscription no longer serves the library", async () => {
+    const res = await handleSubscription(new Request(`https://worker.example/s/${token}/media/v1/manifest`), {
+      FILES: {
+        get: async () => null,
+      },
+    });
+    expect(res.status).toBe(404);
   });
 });

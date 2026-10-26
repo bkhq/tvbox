@@ -1,6 +1,6 @@
 # 20261025-0248-media-channels Show media titles per device channel
 
-- **status**: in_progress
+- **status**: closed
 - **priority**: P1
 - **owner**: claude/session-8665717e
 - **createdAt**: 2026-10-25 02:48
@@ -28,3 +28,5 @@ Showing media titles per device channel
 ## Notes
 
 Plan: docs/plan/20261025-0248-media-channels.md
+
+- close: superseded by 20261025-2028-media-clients: the media library becomes standalone instead of per tvbox device

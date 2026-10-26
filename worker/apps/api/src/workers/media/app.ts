@@ -1,7 +1,6 @@
 import type { MiddlewareHandler } from "hono";
 import type { ZodType } from "zod";
-import type { BrowseSort } from "./query";
-import type { MediaDb } from "@/modules/media/db";
+import type { BrowseSort, View } from "./query";
 import { and, eq, inArray } from "drizzle-orm";
 import { Hono } from "hono";
 import { openAPIRouteHandler } from "hono-openapi";
@@ -49,10 +48,8 @@ import {
  */
 
 export interface MediaBindings {
-  readonly db: MediaDb;
+  readonly view: View;
   readonly generation: string;
-  /** The day episodes and releases are gated by (UTC). */
-  readonly today: string;
 }
 
 interface Env { Bindings: MediaBindings }
@@ -146,15 +143,15 @@ export function mediaV1(): Hono<Env> {
     error: { code: "NOT_FOUND", message: "Not found" },
   }), 404));
 
-  app.get("/manifest", doc("Dictionaries, rows and capabilities; `generation` changes with every publish", manifestSchema), async (c) => {
+  app.get("/manifest", doc("Dictionaries, rows and capabilities; `generation` changes with every library change", manifestSchema), async (c) => {
     return c.json({
-      ...await manifest(c.env.db),
+      ...await manifest(c.env.view),
       generation: c.env.generation,
     });
   });
 
   app.get("/home", doc("Hero and the home rows with their first cards", homeSchema), async (c) => {
-    return c.json(await home(c.env.db, c.env.today));
+    return c.json(await home(c.env.view));
   });
 
   app.get(
@@ -168,15 +165,15 @@ export function mediaV1(): Hono<Env> {
     async (c) => {
       const { id } = c.req.valid("param");
       const { cursor, limit } = c.req.valid("query");
-      const row = await c.env.db.select().from(mediaRows).where(eq(mediaRows.id, id)).get();
+      const row = await c.env.view.db.select().from(mediaRows).where(eq(mediaRows.id, id)).get();
       if (!row)
         throw new NotFoundError("Row", id);
       const offset = Number(cursor ?? 0);
-      const ids = await rowTitleIds(c.env.db, row, offset, limit + 1);
+      const ids = await rowTitleIds(c.env.view, row, offset, limit + 1);
       return c.json({
         id,
         name: row.name,
-        items: await cards(c.env.db, ids.slice(0, limit), c.env.today),
+        items: await cards(c.env.view, ids.slice(0, limit)),
         cursor: ids.length > limit
           ? String(offset + limit)
           : null,
@@ -186,12 +183,12 @@ export function mediaV1(): Hono<Env> {
 
   app.get("/browse", doc("Cards by category and filters, a page at a time", pageSchema, 422), validator("query", browseQuery), async (c) => {
     const q = c.req.valid("query");
-    const page = await browseIds(c.env.db, q, q.sort as BrowseSort, q.limit, q.cursor);
-    return c.json({ items: await cards(c.env.db, page.ids, c.env.today), cursor: page.cursor });
+    const page = await browseIds(c.env.view, q, q.sort as BrowseSort, q.limit, q.cursor);
+    return c.json({ items: await cards(c.env.view, page.ids), cursor: page.cursor });
   });
 
   app.get("/facets", doc("The values each filter can still take, with counts", facetsSchema, 422), validator("query", facetsQuery), async (c) => {
-    return c.json(await facets(c.env.db, c.req.valid("query")));
+    return c.json(await facets(c.env.view, c.req.valid("query")));
   });
 
   app.get(
@@ -206,16 +203,16 @@ export function mediaV1(): Hono<Env> {
       const { q, cursor, limit } = c.req.valid("query");
       const offset = Number(cursor ?? 0);
       const [titleIds, people] = await Promise.all([
-        searchTitleIds(c.env.db, q, offset, limit + 1),
-        searchPeople(c.env.db, q, offset, limit + 1),
+        searchTitleIds(c.env.view, q, offset, limit + 1),
+        searchPeople(c.env.view, q, offset, limit + 1),
       ]);
       const shown = people.slice(0, limit);
       const profiles = shown.length === 0
         ? []
-        : await c.env.db.select().from(mediaImages).where(and(eq(mediaImages.ownerType, "person"), inArray(mediaImages.ownerId, shown.map(p => p.id)))).all();
+        : await c.env.view.db.select().from(mediaImages).where(and(eq(mediaImages.ownerType, "person"), inArray(mediaImages.ownerId, shown.map(p => p.id)))).all();
       const { image } = imagePicker(profiles);
       return c.json({
-        titles: await cards(c.env.db, titleIds.slice(0, limit), c.env.today),
+        titles: await cards(c.env.view, titleIds.slice(0, limit)),
         people: shown.map(p => ({
           id: p.id,
           name: p.name,
@@ -239,14 +236,14 @@ export function mediaV1(): Hono<Env> {
       return c.json(found);
     });
 
-  byId("/titles/:id", "A title with its seasons, credits and images", titleDetailSchema, (env, id) => titleDetail(env.db, id, env.today), "Title");
-  byId("/seasons/:id", "A season and all its episodes", seasonDetailSchema, (env, id) => seasonDetail(env.db, id, env.today), "Season");
-  byId("/people/:id", "A person and the titles they are credited in", personSchema, (env, id) => person(env.db, id, env.today), "Person");
-  byId("/collections/:id", "A collection's titles, oldest first", collectionSchema, (env, id) => collection(env.db, id, env.today), "Collection");
-  byId("/playback/:id", "What a movie (by title id) or an episode (by episode id) plays; never cached", playbackSchema, (env, id) => playback(env.db, id, env.today), "Playback");
+  byId("/titles/:id", "A title with its seasons, credits and images", titleDetailSchema, (env, id) => titleDetail(env.view, id), "Title");
+  byId("/seasons/:id", "A season and all its episodes", seasonDetailSchema, (env, id) => seasonDetail(env.view, id), "Season");
+  byId("/people/:id", "A person and the titles they are credited in", personSchema, (env, id) => person(env.view, id), "Person");
+  byId("/collections/:id", "A collection's titles, oldest first", collectionSchema, (env, id) => collection(env.view, id), "Collection");
+  byId("/playback/:id", "What a movie (by title id) or an episode (by episode id) plays; never cached", playbackSchema, (env, id) => playback(env.view, id), "Playback");
 
   app.get("/live/channels", doc("Live channel groups, channels and their streams", liveSchema), async (c) => {
-    return c.json(await loadLive(c.env.db));
+    return c.json(await loadLive(c.env.view.db));
   });
 
   let spec: MiddlewareHandler | undefined;
@@ -257,7 +254,7 @@ export function mediaV1(): Hono<Env> {
         info: {
           title: "TVBox Media API",
           version: String(SCHEMA_VERSION),
-          description: "Served under `/s/<token>/media/v1`. Errors are `{\"error\": {\"code\", \"message\"}}`.",
+          description: "Served under `/m/<client token>/v1`. Errors are `{\"error\": {\"code\", \"message\"}}`.",
         },
         tags: [
           { name: TAG },

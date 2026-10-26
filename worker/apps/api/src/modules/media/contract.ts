@@ -2,17 +2,17 @@ import { z } from "zod";
 
 /**
  * The native Media API v1 (docs/plan/media-library.md, part 2): what
- * `/s/<token>/media/v1/*` answers, built per request from the D1 tables
+ * `/m/<client token>/v1/*` answers, built per request from the D1 tables
  * (serve/documents.ts).
  *
  * Image urls of uploaded assets are built as `@a/<sha256>/<name>` and
- * rewritten per request to the device's `/s/<token>/a/…`, so the cached
- * documents stay the same for every device. Within v1 fields are only added;
+ * rewritten per request to the client's `/m/<token>/a/…`, so the cached
+ * documents stay the same for every client. Within v1 fields are only added;
  * clients ignore the ones they do not know.
  */
 
 export const SCHEMA_VERSION = 1;
-/** Placeholder for the device's asset prefix, see above. */
+/** Placeholder for the client's asset prefix, see above. */
 export const ASSET_PREFIX = "@a/";
 
 export const imageSchema = z.object({

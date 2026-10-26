@@ -66,6 +66,7 @@ function InfoForm({ title }: { title: Title }) {
   const categories = useQuery({ queryKey: mediaKeys.categories, queryFn: mediaApi.categories });
   const genres = useQuery({ queryKey: mediaKeys.genres, queryFn: mediaApi.genres });
   const collections = useQuery({ queryKey: mediaKeys.collections, queryFn: mediaApi.collections });
+  const channels = useQuery({ queryKey: mediaKeys.channels, queryFn: mediaApi.channels });
   const [form, setForm] = useState({
     title: title.title,
     originalTitle: title.originalTitle ?? "",
@@ -84,6 +85,8 @@ function InfoForm({ title }: { title: Title }) {
     popularity: String(title.popularity),
     collectionId: title.collectionId ?? NONE,
     genreIds: title.genreIds,
+    public: title.public,
+    channelIds: title.channelIds,
     aliases: title.aliases.map(a => a.name).join(", "),
   });
   const set = <K extends keyof typeof form>(key: K, value: (typeof form)[K]) => setForm(f => ({ ...f, [key]: value }));
@@ -112,6 +115,8 @@ function InfoForm({ title }: { title: Title }) {
         ? null
         : form.collectionId,
       genreIds: form.genreIds,
+      public: form.public,
+      channelIds: form.channelIds,
       aliases: splitList(form.aliases).map(name => ({ name })),
     };
     return mediaApi.updateTitle(title.id, body);
@@ -177,6 +182,30 @@ function InfoForm({ title }: { title: Title }) {
             );
           })}
         </div>
+      </Field>
+      <Field label={t("media:info.audience")}>
+        <div className="flex flex-wrap items-center gap-1">
+          <label className="mr-2 flex items-center gap-2 text-sm">
+            <Switch checked={form.public} onCheckedChange={v => set("public", v)} />
+            {t("media:info.public")}
+          </label>
+          {(channels.data ?? []).map((c) => {
+            const on = form.channelIds.includes(c.id);
+            return (
+              <Badge
+                key={c.id}
+                variant={on ? "default" : "outline"}
+                className="cursor-pointer"
+                onClick={() => set("channelIds", on
+                  ? form.channelIds.filter(x => x !== c.id)
+                  : [...form.channelIds, c.id])}
+              >
+                {c.name}
+              </Badge>
+            );
+          })}
+        </div>
+        {!form.public && form.channelIds.length === 0 && <p className="text-xs text-muted-foreground">{t("media:info.nobody")}</p>}
       </Field>
       <div className="flex justify-end">
         <Button disabled={!form.title.trim() || save.isPending} onClick={() => save.mutate(undefined)}>{t("media:save")}</Button>

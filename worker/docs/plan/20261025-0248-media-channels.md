@@ -1,6 +1,6 @@
 # 20261025-0248-media-channels Show media titles per device channel
 
-- **status**: proposed
+- **status**: rejected
 - **createdAt**: 2026-10-25 02:48
 - **relatedTask**: 20261025-0248-media-channels
 

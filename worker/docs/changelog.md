@@ -58,3 +58,16 @@ Skipped:
 - lode and the dropped modules.
 
 README records the synced commit. Bun 1.4.4 now enforces `coverageThreshold`; the api suite is at 91.8% of lines and 87.6% of functions against 85% and 70%. Gates: `bun run check` and `bun run test:workers` (17/17) pass.
+
+## 2026-10-25 21:00 [progress]
+
+`20261025-2028-media-clients` completed. The media library is a standalone library published per client URL:
+
+- **D1 migration `0004_clients.sql`:** `media_clients`, `media_channels`, `media_client_channels`, `media_title_channels`, `media_titles.public`; `media_published` and `published_generation` are dropped.
+- **Serving:** `/m/<token>/{v1,cms,live.m3u,a}` looks the client up by token hash. A client sees published titles that are public or in one of its channels. The shared cache key and the ETag carry the generation and the client's channels.
+- **Publishing:** no publish step. `publish_state` decides what is live, and a middleware bumps `media_settings.generation` after every successful admin write.
+- **tvbox:** `/s/<token>/media/*` is gone except `/media/home`; tvbox publishing no longer touches the library.
+- **Admin API and console:** channels and clients (at least one channel per client, 422 otherwise; a client's last channel cannot be deleted, 409 `CHANNEL_IN_USE`), a title's `public` and `channelIds`, and a Clients tab that replaces the Publish tab and lists tvbox entries still using `@media/` URLs.
+- **Import:** `public` per imported title; the script and workflow take `--public` instead of publishing.
+
+Gates: `bun run check` and `bun run test:workers` (17/17) pass. Production still needs a deploy, a first client and channel, and a re-run of the import with `--public` (or titles marked public) before clients see the 4944 imported titles.

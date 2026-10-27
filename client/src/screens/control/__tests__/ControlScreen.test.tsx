@@ -42,6 +42,12 @@ jest.mock('../../../lan/runtime', () => ({
   refreshLanAddress: () => mockRuntime.refreshLanAddress(),
 }));
 
+const mockReachable = jest.fn();
+jest.mock('../../../lan/nip', () => ({
+  ...jest.requireActual('../../../lan/nip'),
+  reachable: (url: string) => mockReachable(url),
+}));
+
 const RUNNING: LanStatus = {
   state: 'running',
   port: 9978,
@@ -68,6 +74,7 @@ beforeEach(() => {
   mockRuntime.pairing = createPairing({ store: new MemoryStore(), randomBytes: counterBytes(7) });
   mockRuntime.refreshLanAddress.mockClear();
   mockGoBack.mockClear();
+  mockReachable.mockReset().mockResolvedValue(false);
 });
 
 describe('ControlScreen', () => {
@@ -89,6 +96,18 @@ describe('ControlScreen', () => {
     const pairing = mockRuntime.pairing!;
     expect(renderer.root.findByType(QRCode).props.value).toBe(
       `http://192.168.1.5:9978/?${pairing.getDeviceId()}/${pairing.getKey()}`,
+    );
+  });
+
+  it('switches the QR code to the nip.io name once the TV answers through it', async () => {
+    mockReachable.mockResolvedValue(true);
+    await act(async () => mockRuntime.pairing!.ready);
+    const renderer = render();
+    await act(async () => undefined);
+    const pairing = mockRuntime.pairing!;
+    expect(mockReachable).toHaveBeenCalledWith('http://192.168.1.5.nip.io:9978');
+    expect(renderer.root.findByType(QRCode).props.value).toBe(
+      `http://192.168.1.5.nip.io:9978/?${pairing.getDeviceId()}/${pairing.getKey()}`,
     );
   });
 

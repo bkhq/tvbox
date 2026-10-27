@@ -1,4 +1,3 @@
-import { getAppConfig } from '../../core/appConfig';
 import type { LanContext } from '../context';
 import { forbidden, json, notFound, ok } from '../reply';
 import type { LanEndpoint } from '../types';
@@ -15,12 +14,6 @@ export const unpairApi =
   (ctx: LanContext): LanEndpoint =>
   async (_req, params) =>
     (await ctx.pairing.unpair(params.target ?? '')) ? ok() : notFound('device not found');
-
-/** LinkApi: the worker entry the phone page passes a QR code's key through; '' without a worker. */
-export const linkApi = (): LanEndpoint => async () => {
-  const { workerUrl } = getAppConfig();
-  return json({ via: workerUrl ? `${workerUrl}/link` : '' });
-};
 
 /** Paired devices as PairApi.devices lists them. */
 export function devicesJson(ctx: LanContext) {

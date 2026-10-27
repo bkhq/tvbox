@@ -16,10 +16,84 @@ let snackbarTimer = null;
 let seeking = false;
 let playerTimer = null;
 let lastPlayer = null;
-let linking = false;
 
 function token() {
     return localStorage.getItem('token') || '';
+}
+
+/** Keeps this phone's token for the TV; under nip.io also in the cookie every address of the TV shares. */
+function saveToken(value) {
+    localStorage.setItem('token', value);
+    const cookie = tokenCookie();
+    if (cookie && value.length <= cookie.pad.length * 2) {
+        document.cookie = `${cookie.name}=${xorHex(value, cookie.pad)}; Domain=nip.io; Path=/; Max-Age=315360000; SameSite=Lax`;
+    }
+}
+
+/** The token in the shared cookie; '' outside nip.io or without one. */
+function savedToken() {
+    const cookie = tokenCookie();
+    if (!cookie) return '';
+    const pair = document.cookie.split('; ').find((item) => item.startsWith(cookie.name + '='));
+    const value = pair ? pair.slice(cookie.name.length + 1) : '';
+    return /^(?:[0-9a-f]{2})+$/.test(value) && value.length <= cookie.pad.length * 2 ? xorHex(value, cookie.pad) : '';
+}
+
+/**
+ * The shared cookie of this TV under nip.io, where any nip.io site can read it: its name is a hash of the TV's id and
+ * its value the token XOR a key derived from that id, so neither shows without the TV's QR code. null without either.
+ */
+function tokenCookie() {
+    const device = localStorage.getItem('device');
+    if (!device || !/\.nip\.io$/i.test(location.hostname)) return null;
+    return { name: 't' + toHex(sha256('name:' + device)).slice(0, 16), pad: sha256('value:' + device) };
+}
+
+const toHex = (bytes) => bytes.map((byte) => byte.toString(16).padStart(2, '0')).join('');
+
+function xorHex(hex, pad) {
+    return toHex(hex.match(/../g).map((pair, i) => parseInt(pair, 16) ^ pad[i]));
+}
+
+const SHA_K = [];
+const SHA_H = [];
+(() => {
+    const frac = (x) => ((x - Math.floor(x)) * 0x100000000) >>> 0;
+    for (let n = 2, found = 0; found < 64; n++) {
+        let prime = true;
+        for (let d = 2; d * d <= n; d++) if (n % d === 0) prime = false;
+        if (!prime) continue;
+        if (found < 8) SHA_H[found] = frac(Math.sqrt(n));
+        SHA_K[found++] = frac(Math.cbrt(n));
+    }
+})();
+
+/** SHA-256 of a string's UTF-8 bytes, as bytes; the page is plain http, where crypto.subtle is missing. */
+function sha256(text) {
+    const bytes = Array.from(new TextEncoder().encode(text));
+    const bits = bytes.length * 8;
+    bytes.push(0x80);
+    while (bytes.length % 64 !== 56) bytes.push(0);
+    for (let i = 7; i >= 0; i--) bytes.push(i >= 4 ? 0 : (bits >>> (i * 8)) & 0xff);
+    const hash = SHA_H.slice();
+    const w = new Array(64);
+    const rotr = (x, n) => (x >>> n) | (x << (32 - n));
+    for (let off = 0; off < bytes.length; off += 64) {
+        for (let i = 0; i < 16; i++) w[i] = (bytes[off + 4 * i] << 24) | (bytes[off + 4 * i + 1] << 16) | (bytes[off + 4 * i + 2] << 8) | bytes[off + 4 * i + 3];
+        for (let i = 16; i < 64; i++) {
+            const s0 = rotr(w[i - 15], 7) ^ rotr(w[i - 15], 18) ^ (w[i - 15] >>> 3);
+            const s1 = rotr(w[i - 2], 17) ^ rotr(w[i - 2], 19) ^ (w[i - 2] >>> 10);
+            w[i] = (w[i - 16] + s0 + w[i - 7] + s1) | 0;
+        }
+        let [a, b, c, d, e, f, g, h] = hash;
+        for (let i = 0; i < 64; i++) {
+            const t1 = (h + (rotr(e, 6) ^ rotr(e, 11) ^ rotr(e, 25)) + ((e & f) ^ (~e & g)) + SHA_K[i] + w[i]) | 0;
+            const t2 = ((rotr(a, 2) ^ rotr(a, 13) ^ rotr(a, 22)) + ((a & b) ^ (a & c) ^ (b & c))) | 0;
+            h = g; g = f; f = e; e = (d + t1) | 0; d = c; c = b; b = a; a = (t1 + t2) | 0;
+        }
+        [a, b, c, d, e, f, g, h].forEach((v, i) => { hash[i] = (hash[i] + v) | 0; });
+    }
+    return hash.flatMap((v) => [v >>> 24, (v >>> 16) & 0xff, (v >>> 8) & 0xff, v & 0xff]);
 }
 
 function headers() {
@@ -31,45 +105,14 @@ function onUnauthorized() {
     const refused = token();
     localStorage.removeItem('token');
     paired = false;
-    const entry = takeEntry();
-    if (linking) return;
-    if (entry && entry.key && entry.key !== refused) {
-        linking = true;
-        useKey(entry, true).then((ready) => { if (ready) location.reload(); });
+    const key = sessionStorage.getItem('key');
+    sessionStorage.removeItem('key');
+    if (key && key !== refused) {
+        saveToken(key);
+        location.reload();
         return;
     }
     showPairDialog();
-}
-
-/** The QR code's link details (d, key, via) kept for this tab; read once. */
-function takeEntry() {
-    const entry = JSON.parse(sessionStorage.getItem('entry') || 'null');
-    sessionStorage.removeItem('entry');
-    return entry;
-}
-
-/** Whether `url` answers within 1.5s. */
-function reachable(url) {
-    const abort = new AbortController();
-    const timer = setTimeout(() => abort.abort(), 1500);
-    return fetch(url, { mode: 'no-cors', cache: 'no-store', signal: abort.signal })
-        .then(() => true, () => false)
-        .finally(() => clearTimeout(timer));
-}
-
-/**
- * Turns the QR code's key into this phone's token. When the worker's /link entry answers, the phone goes there: it
- * keeps one token per TV, so a TV on a new address gets the old one back; resolves false as the page is leaving.
- * Otherwise the key itself becomes the token (the TV claims it on first use) and it resolves true.
- */
-async function useKey(entry, renew) {
-    const via = entry.via || (await fetch('/api/link').then((res) => res.json()).then((json) => json.via || '', () => ''));
-    if (via && (await reachable(via))) {
-        location.replace(via + '?' + [entry.d, entry.key, location.host].concat(renew ? ['renew'] : []).join('/'));
-        return false;
-    }
-    localStorage.setItem('token', entry.key);
-    return true;
 }
 
 /** POST /api/<path>; resolves the response text, rejects with { status, message } on error. */
@@ -222,7 +265,7 @@ function confirmPair() {
         if (res.status === 403) { toast('配对码错误'); return; }
         if (!res.ok) { toast((await res.text()) || '配对失败'); return; }
         const data = await res.json();
-        localStorage.setItem('token', data.token);
+        saveToken(data.token);
         paired = true;
         $('pair_dialog').classList.remove('open');
         toast('配对成功');
@@ -817,26 +860,21 @@ document.addEventListener('visibilitychange', () => { if (!document.hidden) poll
 
 // ── start ──
 
-// Opened from the QR code as /?<d>/<key>, or sent back by the worker's /link entry with token (this phone's token for
-// this TV), key (the QR code's key, when a saved token was used), d and via. They leave the address bar at once.
+// Opened from the QR code as /?<device id>/<key>: the phone's token for this TV is the one in the shared cookie, else
+// the one this address kept, else the key (the TV turns it into this phone's token on first use). The key stays for
+// the tab in case the TV refuses the saved token. Both leave the address bar at once.
 const opened = new URLSearchParams(location.search);
 const link = /^\?([0-9a-z-]{1,64})\/([0-9a-f]{32,128})$/i.exec(location.search);
 if (link) {
-    sessionStorage.setItem('entry', JSON.stringify({ d: link[1], key: link[2], via: '' }));
+    localStorage.setItem('device', link[1]);
     opened.delete(link[1] + '/' + link[2]);
-} else if (opened.get('token')) {
-    localStorage.setItem('token', opened.get('token'));
-    sessionStorage.setItem('entry', JSON.stringify({ key: opened.get('key') || '', d: opened.get('d') || '', via: opened.get('via') || '' }));
-    ['token', 'key', 'd', 'via'].forEach((name) => opened.delete(name));
+    const saved = savedToken() || token();
+    if (saved && saved !== link[2]) sessionStorage.setItem('key', link[2]);
+    saveToken(saved || link[2]);
 }
 history.replaceState(null, '', location.pathname + (opened.toString() ? '?' + opened : ''));
-
-async function start() {
-    if (!token() && link && !(await useKey(takeEntry()))) return;
-    paired = !!token();
-    showTab(opened.get('tab') || 'remote', true);
-    loadState();
-    playerTimer = setInterval(pollPlayer, 2000);
-    if (!paired) showPairDialog();
-}
-start();
+paired = !!token();
+showTab(opened.get('tab') || 'remote', true);
+loadState();
+playerTimer = setInterval(pollPlayer, 2000);
+if (!paired) showPairDialog();

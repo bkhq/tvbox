@@ -76,7 +76,7 @@ export function isLocalAddress(ip: string): boolean {
 }
 
 export function isProtectedPath(path: string): boolean {
-  if (path === '/api/pair' || path === '/api/link') return false;
+  if (path === '/api/pair') return false;
   return PROTECTED.some((prefix) => path.startsWith(prefix));
 }
 

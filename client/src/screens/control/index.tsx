@@ -1,7 +1,8 @@
-import { useEffect, useReducer, useSyncExternalStore } from 'react';
+import { useEffect, useReducer, useState, useSyncExternalStore } from 'react';
 import { ScrollView, Text, View } from 'react-native';
 import QRCode from 'react-native-qrcode-svg';
 
+import { nipAddress, reachable } from '../../lan/nip';
 import type { Pairing } from '../../lan/pairing';
 import { getLanPairing, getLanStatus, refreshLanAddress, subscribeLanStatus } from '../../lan/runtime';
 import { useAppNavigation } from '../../navigation/useAppNavigation';
@@ -24,12 +25,30 @@ import {
 const QR_SIZE = 320;
 
 /**
- * What the QR code opens: the TV's page with its device id and one-time key. The page turns the key into this phone's
- * token, through the worker's /link entry when it answers so a changed TV address needs no new pairing.
+ * What the QR code opens: the TV's page with its device id and one-time key; the page turns the key into this phone's
+ * token. Opened under nip.io the page keeps that token in a cookie every address of the TV shares, so a changed TV
+ * address needs no new pairing.
  */
 function qrValue(address: string, pairing: Pairing): string {
   const deviceId = pairing.getDeviceId();
   return deviceId ? `${address}/?${deviceId}/${pairing.getKey()}` : address;
+}
+
+/** The nip.io name of `address` once this TV answers through it; '' until then, or when the router blocks it. */
+function useNamedAddress(address: string): string {
+  const candidate = nipAddress(address);
+  const [answered, setAnswered] = useState('');
+  useEffect(() => {
+    if (!candidate) return;
+    let live = true;
+    void reachable(candidate).then((ok) => {
+      if (live && ok) setAnswered(candidate);
+    });
+    return () => {
+      live = false;
+    };
+  }, [candidate]);
+  return candidate && answered === candidate ? candidate : '';
 }
 
 /** PushActivity: address QR code, addresses and the pairing code for the phone control page. */
@@ -55,6 +74,7 @@ export default function ControlScreen() {
   );
 
   const running = status.state === 'running';
+  const named = useNamedAddress(running ? status.address : '');
 
   return (
     <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
@@ -71,7 +91,7 @@ export default function ControlScreen() {
             <View style={styles.card}>
               <View style={styles.qr} testID="control-qr">
                 <QRCode
-                  value={qrValue(status.address, pairing)}
+                  value={qrValue(named || status.address, pairing)}
                   size={s(QR_SIZE)}
                   backgroundColor="#ffffff"
                   color="#000000"

@@ -1,9 +1,6 @@
 import { ok } from '../reply';
 import { bodyJson, request, setup } from '../__fixtures__/fakes';
 
-const mockAppConfig = { workerUrl: 'https://tv.example' };
-jest.mock('../../core/appConfig', () => ({ getAppConfig: () => mockAppConfig }));
-
 describe('lan server', () => {
   it('rejects protected paths without a token from remote addresses', async () => {
     const { server } = await setup();
@@ -17,14 +14,6 @@ describe('lan server', () => {
     const { server } = await setup();
     expect((await server.handle(request('/'))).status).toBe(200);
     expect((await server.handle(request('/api/pair', { query: { code: 'bad' } }))).status).toBe(403);
-  });
-
-  it('tells the phone page the worker link entry without a token', async () => {
-    const { server } = await setup();
-    expect(bodyJson(await server.handle(request('/api/link')))).toEqual({ via: 'https://tv.example/link' });
-    mockAppConfig.workerUrl = '';
-    expect(bodyJson(await server.handle(request('/api/link')))).toEqual({ via: '' });
-    mockAppConfig.workerUrl = 'https://tv.example';
   });
 
   it('pairs over HTTP and then accepts the header or parameter token', async () => {

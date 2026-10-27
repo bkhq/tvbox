@@ -118,7 +118,7 @@ describe('pairing', () => {
       for (const path of ['/api/state', '/api/unpair', '/action', '/file/x', '/upload', '/newFolder', '/delFolder', '/delFile']) {
         expect(isProtectedPath(path)).toBe(true);
       }
-      for (const path of ['/api/pair', '/api/link', '/', '/index.html', '/proxy', '/api']) expect(isProtectedPath(path)).toBe(false);
+      for (const path of ['/api/pair', '/', '/index.html', '/proxy', '/api']) expect(isProtectedPath(path)).toBe(false);
     });
 
     it('accepts the token from the header or a parameter and touches the device', async () => {
